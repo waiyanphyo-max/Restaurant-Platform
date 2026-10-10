@@ -1,0 +1,23 @@
+# Default ignored files
+/shelf/
+/.idea/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+
+# Node.js
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# React Native / Expo
+.expo/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Supabase local temporary files
+supabase/.temp/
