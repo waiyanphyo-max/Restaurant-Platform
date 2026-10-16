@@ -21,3 +21,24 @@ out/
 
 # Supabase local temporary files
 supabase/.temp/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Maven build output
+**/target/
+
+# Node.js dependencies
+node_modules/
+**/node_modules/
+
+# Logs
+*.log
+
+# Supabase temporary files
+supabase/.temp/
+
+# Windows / macOS
+Thumbs.db
+.DS_Store

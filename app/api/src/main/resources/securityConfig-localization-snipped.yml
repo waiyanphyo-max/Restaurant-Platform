@@ -1,0 +1,13 @@
+// Add this field to your existing SecurityConfig:
+  private final ApiSecurityErrorHandler apiSecurityErrorHandler;
+
+// Add a constructor (or add the parameter to your existing constructor):
+  public SecurityConfig(ApiSecurityErrorHandler apiSecurityErrorHandler) {
+  this.apiSecurityErrorHandler = apiSecurityErrorHandler;
+}
+
+// Inside the existing HttpSecurity chain, add:
+  .exceptionHandling(exceptions -> exceptions
+  .authenticationEntryPoint(apiSecurityErrorHandler)
+  .accessDeniedHandler(apiSecurityErrorHandler))
+  // Keep the current JWT decoder, requestMatchers, CORS settings, and other security rules.

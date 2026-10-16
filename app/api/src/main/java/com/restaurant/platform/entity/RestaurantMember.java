@@ -1,5 +1,6 @@
 package com.restaurant.platform.entity;
 
+import com.restaurant.platform.security.RestaurantRole;
 import jakarta.persistence.*;
 import java.util.UUID;
 import java.time.OffsetDateTime;
@@ -26,8 +27,9 @@ public class RestaurantMember {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 30)
-    private String role;
+    private RestaurantRole role;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)

@@ -1,4 +1,11 @@
 package com.restaurant.platform.dto.menu;
 
-public class MenuVariantDto {
+import java.util.UUID;
+
+public record MenuVariantDto(
+        UUID id,
+        String name,
+        Long price,
+        boolean available
+) {
 }

@@ -1,0 +1,30 @@
+{
+  "devDependencies": {
+    "supabase": "^2.120.0"
+  },
+  "name": "restaurant-platform",
+  "version": "1.0.0",
+  "description": "Full-stack restaurant ordering and management platform built with Spring Boot, Next.js, React Native, and Supabase.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "dependencies": {
+    "eciesjs": "^0.5.0",
+    "jose": "^6.2.12"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/waiyanphyo-max/Restaurant-Platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/waiyanphyo-max/Restaurant-Platform/issues"
+  },
+  "homepage": "https://github.com/waiyanphyo-max/Restaurant-Platform#readme"
+}

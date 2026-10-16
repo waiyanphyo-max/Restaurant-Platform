@@ -1,4 +1,12 @@
 package com.restaurant.platform.dto.menu;
 
-public class MenuCategoryDto {
+import java.util.List;
+import java.util.UUID;
+
+public record MenuCategoryDto(
+        UUID id,
+        String name,
+        int displayOrder,
+        List<MenuProductDto> products
+) {
 }

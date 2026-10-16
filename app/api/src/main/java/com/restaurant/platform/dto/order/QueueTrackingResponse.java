@@ -1,4 +1,17 @@
 package com.restaurant.platform.dto.order;
 
-public class QueueTrackingResponse {
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+public record QueueTrackingResponse(
+        UUID ticketId,
+        int queueNumber,
+        String displayCode,
+        String queueStatus,
+        String orderNumber,
+        String orderStatus,
+        OffsetDateTime createdAt,
+        OffsetDateTime readyAt,
+        OffsetDateTime completedAt
+) {
 }

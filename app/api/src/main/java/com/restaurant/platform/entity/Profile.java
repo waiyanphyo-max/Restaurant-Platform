@@ -29,6 +29,9 @@ public class Profile {
     @Column(name = "avatar_url", columnDefinition = "text")
     private String avatarUrl;
 
+    @Column(name = "preferred_language", nullable = false, length = 10)
+    private String preferredLanguage = "my-MM";
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;

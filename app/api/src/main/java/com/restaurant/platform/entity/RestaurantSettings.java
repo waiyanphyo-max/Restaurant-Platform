@@ -23,6 +23,9 @@ public class RestaurantSettings {
     @Column(name = "currency", nullable = false, length = 10)
     private String currency = "MMK";
 
+    @Column(name = "common_qr_token", nullable = false, unique = true, length = 64)
+    private String commonQrToken;
+
     @Column(name = "timezone", nullable = false, length = 60)
     private String timezone = "Asia/Yangon";
 

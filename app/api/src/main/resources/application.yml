@@ -1,18 +1,74 @@
+server:
+  port: ${PORT:8080}
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
 spring:
+  application:
+    name: restaurant-platform
+
   datasource:
     url: ${SUPABASE_DB_URL}
     username: ${SUPABASE_DB_USERNAME}
     password: ${SUPABASE_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: 1
+      connection-timeout: 30000
+      validation-timeout: 5000
+
   jpa:
+    open-in-view: false
+    show-sql: false
     hibernate:
       ddl-auto: validate
-    open-in-view: false
     properties:
       hibernate:
         format_sql: true
         jdbc:
           time_zone: UTC
 
-# Configure SUPABASE_DB_URL / USERNAME / PASSWORD as environment variables.
-# Keep ddl-auto=validate because the SQL schema is the source of truth.
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SUPABASE_AUTH_ISSUER}
+          jwk-set-uri: ${SUPABASE_JWKS_URL}
+          audiences:
+            - authenticated
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.restaurant.platform: INFO
+    org.springframework.security: INFO
+
+# Required environment variables:
+# SUPABASE_DB_URL=jdbc:postgresql://<host>:<port>/postgres?sslmode=require
+# SUPABASE_DB_USERNAME=<database username>
+# SUPABASE_DB_PASSWORD=<database password>
+# SUPABASE_AUTH_ISSUER=https://<project-ref>.supabase.co/auth/v1
+# SUPABASE_JWKS_URL=https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json
+# DB_POOL_MAX_SIZE=5  # optional; default is 5
+#
+# Keep ddl-auto=validate: use Supabase SQL migrations as the schema source of truth.
+# The JWKS configuration requires an asymmetric Supabase JWT signing key (e.g. ES256/RS256).
