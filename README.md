@@ -82,6 +82,7 @@ mvn -f app/api/pom.xml spring-boot:run
 | PUT | `/api/v1/restaurants/{restaurantId}/delivery-zones/{zoneId}` | Update or deactivate a delivery zone |
 | GET/POST | `/api/v1/restaurants/{restaurantId}/members` | Owner lists or adds restaurant members |
 | PUT/DELETE | `/api/v1/restaurants/{restaurantId}/members/{memberId}` | Owner changes/removes a non-owner member |
+| POST | `/api/v1/restaurants/{restaurantId}/members/transfer-ownership` | Transfer ownership to an existing member; previous owner becomes MANAGER |
 | GET/POST | `/api/v1/restaurants/{restaurantId}/tables` | List tables or create table with one-time QR token |
 | PUT | `/api/v1/restaurants/{restaurantId}/tables/{tableId}` | Update table number/availability |
 | POST | `/api/v1/restaurants/{restaurantId}/tables/{tableId}/qr-token/rotate` | Rotate one table's QR token |
@@ -112,7 +113,7 @@ mvn -f app/api/pom.xml spring-boot:run
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Online payments/refunds, owner transfer, full reporting, external push-provider delivery and client-side sound playback remain future work.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Customer reorder, online payment/refund provider integration, reporting beyond the daily report, external push-provider delivery and client-side sound playback remain future work. Ownership transfer is available to the current owner through the dedicated member-management endpoint.
 
 ## Security model
 
