@@ -41,8 +41,13 @@ The filter chain permits only these current public route shapes:
 - `POST /api/v1/public/restaurants/{restaurantId}/orders/common-qr`
 - `POST /api/v1/public/restaurants/{restaurantId}/orders/table-qr`
 
+The following manager-order routes require a valid bearer token and an appropriate membership permission:
 
-Actuator health endpoints and Spring's `/error` path are also explicitly permitted; health response details are hidden by configuration. All other routes require authentication by default. A public queue tracking controller, manager order controller, delivery controller, restaurant administration controller, and customer account controllers have not yet been exposed in the current backend source.
+- `GET /api/v1/restaurants/{restaurantId}/orders?page=0&size=20&status=PENDING` — paginated list; optional status filter; service caps page size to 100 and whitelists sort properties.
+- `GET /api/v1/restaurants/{restaurantId}/orders/{orderId}` — order details, item/modifier snapshots, and status history. The service first scopes the order by both IDs, then loads child data in batches.
+- `PATCH /api/v1/restaurants/{restaurantId}/orders/{orderId}/status` — validated status transition and optional audit note. The update locks the order row scoped to that restaurant and records the authenticated actor in status history in the transaction.
+
+All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. A public queue tracking controller, delivery controller, restaurant administration controller, and customer account controllers are not exposed in the current backend source.
 
 ## Error handling
 
