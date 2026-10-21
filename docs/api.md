@@ -496,10 +496,15 @@ These endpoints require a valid bearer token and always scope by the authenticat
 | GET | `/api/v1/customer/orders?page=0&size=20&status=PENDING` | Paginated order history for the current customer |
 | GET | `/api/v1/customer/orders/{orderId}` | Own order details, items/modifiers, status timeline, payment records, and delivery status |
 | POST | `/api/v1/customer/orders/{orderId}/cancel` | Cancel own order while it remains PENDING |
+| POST | `/api/v1/customer/orders/{orderId}/reorder` | Create a new delivery order from an own completed/cancelled delivery order |
 
 Only orders still in `PENDING` can be cancelled by the customer. The order row is locked and ownership-checked; tracked stock reserved at checkout is released and pending payment rows are marked `CANCELLED` in the same transaction. Once the restaurant accepts the order, customer cancellation is rejected. The migration `20261022002000_allow_cancelled_payment_status.sql` adds `CANCELLED` to the payment status constraint.
 
 The optional status filter accepts `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, `OUT_FOR_DELIVERY`, `COMPLETED`, or `CANCELLED`. Page size is capped at 100. A customer cannot see an order solely by knowing its UUID; detail lookups require both the order ID and the authenticated customer ID. Status history is customer-safe (status and timestamp only), and payment responses omit private transaction references and staff identity.
+
+### Reorder a previous delivery
+
+`POST /api/v1/customer/orders/{orderId}/reorder` accepts `addressId`, `deliveryZoneId`, and optional recipient/contact/note/payment fields. It is available only for the authenticated customer's own completed or cancelled `DELIVERY` orders. The server rebuilds the item list from saved product/variant/modifier IDs and quantities, then calls the normal delivery checkout path, which revalidates current product availability, catalogue relationships, modifiers, stock, minimum order, delivery zone, and price. Historical prices and totals are never copied. The customer must choose a current saved address and active zone again. A successful reorder returns a new `CreateOrderResponse` and creates a new pending COD payment; it does not change the original order.
 
 ## Push-device registration
 
@@ -524,4 +529,4 @@ The response intentionally never exposes the raw push token. A token already ass
 
 ## Remaining backend work
 
-Customer reorder, online payment/refunds, advanced reporting beyond the daily report, external push-provider delivery, and client-side sound playback remain future work. Cash-on-delivery and cash-at-counter payment collection are implemented; online payment-provider integration requires selecting/configuring a provider.
+Online payment/refunds, advanced reporting beyond the daily report, external push-provider delivery, and client-side sound playback remain future work. Cash-on-delivery and cash-at-counter payment collection are implemented; online payment-provider integration requires selecting/configuring a provider.
