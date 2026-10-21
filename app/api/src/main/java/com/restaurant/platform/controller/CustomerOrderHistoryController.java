@@ -2,12 +2,15 @@ package com.restaurant.platform.controller;
 
 import com.restaurant.platform.dto.customer.CustomerOrderDetailDto;
 import com.restaurant.platform.dto.customer.CustomerOrderSummaryDto;
+import com.restaurant.platform.dto.customer.ReorderDeliveryOrderRequest;
+import com.restaurant.platform.dto.order.CreateOrderResponse;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.CustomerOrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,6 +37,15 @@ public class CustomerOrderHistoryController {
     public CustomerOrderDetailDto getMyOrder(@PathVariable UUID orderId) {
         UUID userId = authorization.requireAuthenticatedUserId();
         return customerOrderService.getMyOrder(userId, orderId);
+    }
+
+    @PostMapping("/{orderId}/reorder")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CreateOrderResponse reorderMyDeliveryOrder(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody ReorderDeliveryOrderRequest request) {
+        UUID userId = authorization.requireAuthenticatedUserId();
+        return customerOrderService.reorderMyDeliveryOrder(userId, orderId, request);
     }
 
     @PostMapping("/{orderId}/cancel")
