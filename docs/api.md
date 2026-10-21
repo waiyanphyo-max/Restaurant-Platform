@@ -212,6 +212,23 @@ An order status update to `READY` already moves a linked queue ticket to `READY`
 
 These APIs store and return in-app notification records. They do not integrate an external push provider and cannot by themselves make a browser/mobile device play a sound. For QR customers, the client can periodically call the queue status/notifications APIs with the tracking token and react when it sees a new `QUEUE_READY` or `QUEUE_CALLED` notification.
 
+## Restaurant settings and delivery zone administration
+
+These endpoints require a valid bearer token and `SETTINGS_MANAGE` for the restaurant.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/restaurants/{restaurantId}/settings` | Read safe operational settings; never returns the Common QR secret |
+| PUT | `/api/v1/restaurants/{restaurantId}/settings` | Update currency, timezone, minimum order, default fee, and ordering flags |
+| POST | `/api/v1/restaurants/{restaurantId}/settings/common-qr-token/rotate` | Replace the Common QR credential and return it once |
+| GET | `/api/v1/restaurants/{restaurantId}/delivery-zones` | List active and inactive zones for management |
+| POST | `/api/v1/restaurants/{restaurantId}/delivery-zones` | Create a delivery zone |
+| PUT | `/api/v1/restaurants/{restaurantId}/delivery-zones/{zoneId}` | Update a zone or deactivate it |
+
+Settings updates validate IANA timezone IDs and non-negative amounts. The Common QR token rotation response contains the raw token once; it is intentionally omitted from the normal settings response. Keep it private and use it when creating/regenerating the restaurant's Common QR code. Rotating the token invalidates previously printed Common QR codes and requires printing the new QR.
+
+A delivery zone includes only a name, fee, minimum order, and active flag. The current schema does not describe geographic boundaries, so the backend can validate that a selected zone is active and belongs to the restaurant but cannot infer zone membership from an address.
+
 ## Restaurant catalog and menu management
 
 All authenticated management routes are scoped to `restaurantId`. Reads require `MENU_READ`; create/update/attach/detach operations require `MENU_MANAGE`. STAFF can read active categories/products and available modifiers but cannot change the catalog.
