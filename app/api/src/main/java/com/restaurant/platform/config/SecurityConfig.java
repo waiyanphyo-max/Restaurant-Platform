@@ -140,7 +140,8 @@ public class SecurityConfig {
                         // Whitelist only the public routes that currently exist. New endpoints
                         // remain authenticated unless explicitly reviewed and added here.
                         .requestMatchers(HttpMethod.GET,
-                                "/api/v1/public/restaurants/*/menu").permitAll()
+                                "/api/v1/public/restaurants/*/menu",
+                                "/api/v1/public/restaurants/*/products/*/modifier-groups").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/public/restaurants/*/orders/common-qr",
                                 "/api/v1/public/restaurants/*/orders/table-qr").permitAll()
