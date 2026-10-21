@@ -29,7 +29,7 @@ Current role intent:
 - `STAFF`: order and queue operations needed for daily service; cannot assign drivers or manage membership/settings.
 - `DELIVERY_DRIVER`: basic restaurant read plus delivery read/status permissions. A driver must also be the delivery's assigned user and the linked order must belong to the requested restaurant.
 
-The delivery authorization helpers require checks against the delivery assignment and the linked order's restaurant. Do not replace them with a generic restaurant-membership check when adding delivery endpoints.
+The delivery authorization helpers require checks against the delivery assignment and the linked order's restaurant. Delivery list endpoints restrict DELIVERY_DRIVER users to their own assigned tasks; management users can view the restaurant queue when authorized.
 
 `ManagerOrderService` includes method-level `@PreAuthorize` checks for reading orders and updating order status, and retains service-level identity, permission, restaurant-scoping, transition, and cancellation checks. Controller-level protection must be maintained when protected controllers are added.
 
@@ -47,7 +47,7 @@ The following manager-order routes require a valid bearer token and an appropria
 - `GET /api/v1/restaurants/{restaurantId}/orders/{orderId}` — order details, item/modifier snapshots, and status history. The service first scopes the order by both IDs, then loads child data in batches.
 - `PATCH /api/v1/restaurants/{restaurantId}/orders/{orderId}/status` — validated status transition and optional audit note. The update locks the order row scoped to that restaurant and records the authenticated actor in status history in the transaction.
 
-All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. A public queue tracking controller, delivery controller, restaurant administration controller, and customer account controllers are not exposed in the current backend source.
+All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking and delivery management controllers are exposed, while restaurant/menu administration and customer account controllers are still pending.
 
 ## Queue tracking and notification flow
 
@@ -58,6 +58,12 @@ When a queue-linked order is marked `READY`, `ManagerOrderService` updates the q
 The public ticket notification endpoints scope every notification query/update to the validated queue ticket ID. Authenticated `/api/v1/notifications` endpoints scope by the validated JWT subject and do not accept a client-supplied user ID. Reading a notification marks its state `READ` with a UTC timestamp.
 
 This is a database-backed in-app notification workflow. No external push provider or sound player is wired in the backend. Web/mobile clients must poll the queue status/notification route and play a sound locally when a new ready/called notification is observed.
+
+## Delivery management flow
+
+A delivery order creates a delivery task when staff moves the order to `READY`. The restaurant's `restaurant_settings.default_delivery_driver_user_id` is used for automatic assignment. If unset, the backend selects the earliest-added `DELIVERY_DRIVER` member and persists that user as the default. A manager/owner can change this with `PATCH /api/v1/restaurants/{restaurantId}/delivery-settings/default-driver`; the endpoint rejects users who are not delivery-driver members of that exact restaurant. With no registered driver, the delivery is kept in `WAITING_ASSIGNMENT`.
+
+The delivery workflow locks the linked order before its delivery row to reduce concurrent status races. Assignment, delivery history, order history, and in-app notifications are persisted through the service layer. Driver task listing is scoped to the authenticated driver ID and restaurant ID. Driver pickup changes the linked order to `OUT_FOR_DELIVERY`; delivery completion changes it to `COMPLETED`. Failed deliveries require a reason and can be reassigned by authorized management.
 
 ## Error handling
 
@@ -78,4 +84,4 @@ GitHub Actions runs this command on pushes to `main` and `ai/**` branches, and r
 - Confirm the Supabase project signing algorithm, issuer, JWKS URL, and audience from its actual project settings.
 - Use least-privilege server-side database credentials and verify RLS behavior for the deployed DB role.
 - Add authenticated API integration tests around the eventual controllers, including invalid/missing bearer tokens and cross-restaurant requests.
-- Ensure each future delivery endpoint uses `canAccessDelivery`, `canUpdateDeliveryStatus`, or an equivalent scoped check before reading or mutating delivery data.
+- Add authenticated API integration tests around default-driver configuration and delivery status endpoints, including cross-restaurant IDs and drivers attempting to access another driver's delivery.
