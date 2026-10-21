@@ -105,6 +105,22 @@ class PaymentServiceTest {
     }
 
     @Test
+    void alreadyPaidCashOnDeliveryCannotUseCounterCollectionEndpoint() {
+        Order order = order("COMPLETED", "DELIVERY");
+        Payment payment = payment("CASH_ON_DELIVERY", "PAID");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order));
+        when(paymentRepository.findByIdAndOrderId(paymentId, orderId))
+                .thenReturn(Optional.of(payment));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.collectCashAtCounter(restaurantId, orderId, paymentId, cashierId));
+
+        assertEquals("PAYMENT_METHOD_NOT_COLLECTABLE", error.getCode());
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
+    @Test
     void orderOutsideRestaurantIsNotFound() {
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
                 .thenReturn(Optional.empty());
