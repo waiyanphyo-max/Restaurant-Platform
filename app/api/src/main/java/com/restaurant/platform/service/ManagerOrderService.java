@@ -124,7 +124,7 @@ public class ManagerOrderService {
 
         if (normalizedStatus == null || normalizedStatus.isBlank()) {
             orders = orderRepository
-                    .findByRestaurantIdOrderByCreatedAtDesc(
+                    .findByRestaurantId(
                             restaurantId,
                             safePageable
                     );
@@ -138,7 +138,7 @@ public class ManagerOrderService {
             }
 
             orders = orderRepository
-                    .findByRestaurantIdAndStatusOrderByCreatedAtDesc(
+                    .findByRestaurantIdAndStatus(
                             restaurantId,
                             normalizedStatus,
                             safePageable
