@@ -50,8 +50,13 @@ mvn -f app/api/pom.xml spring-boot:run
 | GET | `/api/v1/public/restaurants/{restaurantId}/menu` | Public |
 | POST | `/api/v1/public/restaurants/{restaurantId}/orders/common-qr` | Public QR flow; validates restaurant QR configuration/token in the service |
 | POST | `/api/v1/public/restaurants/{restaurantId}/orders/table-qr` | Public QR flow; validates restaurant/table QR data in the service |
+| GET | `/api/v1/restaurants/{restaurantId}/orders` | Authenticated member with `ORDER_READ`; supports `page`, `size`, and `status` |
+| GET | `/api/v1/restaurants/{restaurantId}/orders/{orderId}` | Authenticated member with `ORDER_READ`; order, items, modifiers, and status history |
+| PATCH | `/api/v1/restaurants/{restaurantId}/orders/{orderId}/status` | Authenticated member with applicable order/queue/delivery permissions |
 
-These are the controller routes currently present in the repository. Manager order HTTP routes and queue-tracking HTTP routes are not documented as available yet because controller exposure still needs to be implemented and verified. A notification database row does not by itself deliver a push notification or audible alert.
+Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
+
+These routes are currently present in the repository. Queue-tracking HTTP routes and delivery/customer administration controllers are not exposed yet. A notification database row does not by itself deliver a push notification or audible alert.
 
 ## Security model
 
