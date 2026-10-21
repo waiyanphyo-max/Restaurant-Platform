@@ -67,6 +67,7 @@ public class ManagerOrderService {
     private final QueueTicketRepository queueTicketRepository;
     private final AppNotificationRepository appNotificationRepository;
     private final RestaurantAuthorization restaurantAuthorization;
+    private final DeliveryService deliveryService;
 
     public ManagerOrderService(
             OrderRepository orderRepository,
@@ -75,7 +76,8 @@ public class ManagerOrderService {
             OrderStatusHistoryRepository orderStatusHistoryRepository,
             QueueTicketRepository queueTicketRepository,
             AppNotificationRepository appNotificationRepository,
-            RestaurantAuthorization restaurantAuthorization
+            RestaurantAuthorization restaurantAuthorization,
+            DeliveryService deliveryService
     ) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
@@ -84,6 +86,7 @@ public class ManagerOrderService {
         this.queueTicketRepository = queueTicketRepository;
         this.appNotificationRepository = appNotificationRepository;
         this.restaurantAuthorization = restaurantAuthorization;
+        this.deliveryService = deliveryService;
     }
 
     @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
@@ -332,6 +335,13 @@ public class ManagerOrderService {
             );
         }
 
+        // Keep delivery and order workflow state in sync for manager-driven transitions.
+        if ("DELIVERY".equals(orderType)
+                && ("OUT_FOR_DELIVERY".equals(nextStatus)
+                || "COMPLETED".equals(nextStatus))) {
+            deliveryService.synchronizeManagerOrderStatus(order, userId, nextStatus);
+        }
+
         // 9. Update and save the order.
         order.setStatus(nextStatus);
         orderRepository.save(order);
@@ -344,6 +354,11 @@ public class ManagerOrderService {
         history.setNote(request.note());
 
         orderStatusHistoryRepository.save(history);
+
+        // Create a delivery task as soon as a delivery order becomes READY.
+        if ("READY".equals(nextStatus) && "DELIVERY".equals(orderType)) {
+            deliveryService.ensureForReadyOrder(order, userId);
+        }
 
         // 11. Synchronize queue status and create notifications.
         if (queueStatusWillChange) {
