@@ -14,12 +14,14 @@ import com.restaurant.platform.entity.OrderItem;
 import com.restaurant.platform.entity.OrderItemModifier;
 import com.restaurant.platform.entity.OrderStatusHistory;
 import com.restaurant.platform.entity.Payment;
+import com.restaurant.platform.entity.Product;
 import com.restaurant.platform.repository.DeliveryRepository;
 import com.restaurant.platform.repository.OrderItemModifierRepository;
 import com.restaurant.platform.repository.OrderItemRepository;
 import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.repository.OrderStatusHistoryRepository;
 import com.restaurant.platform.repository.PaymentRepository;
+import com.restaurant.platform.repository.ProductRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
 
 import org.springframework.data.domain.Page;
@@ -48,6 +50,7 @@ public class CustomerOrderService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final ProductRepository productRepository;
     private final OrderItemModifierRepository modifierRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final PaymentRepository paymentRepository;
@@ -57,6 +60,7 @@ public class CustomerOrderService {
     public CustomerOrderService(
             OrderRepository orderRepository,
             OrderItemRepository orderItemRepository,
+            ProductRepository productRepository,
             OrderItemModifierRepository modifierRepository,
             OrderStatusHistoryRepository historyRepository,
             PaymentRepository paymentRepository,
@@ -64,6 +68,7 @@ public class CustomerOrderService {
             RestaurantAuthorization authorization) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
+        this.productRepository = productRepository;
         this.modifierRepository = modifierRepository;
         this.historyRepository = historyRepository;
         this.paymentRepository = paymentRepository;
@@ -144,6 +149,69 @@ public class CustomerOrderService {
                 order.getTotalAmount(), order.getDeliveryName(), order.getDeliveryPhone(),
                 order.getDeliveryAddress(), order.getDeliveryNote(), order.getCreatedAt(),
                 order.getUpdatedAt(), itemDtos, statusHistory, payments, delivery);
+    }
+
+    @Transactional
+    public CustomerOrderDetailDto cancelMyOrder(UUID userId, UUID orderId) {
+        authorization.requireAuthenticatedUserMatches(userId);
+        Order order = orderRepository.findByIdAndCustomerIdForUpdate(orderId, userId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "CUSTOMER_ORDER_NOT_FOUND",
+                        "error.customer-order.not-found"));
+
+        if (!"PENDING".equals(order.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "CUSTOMER_ORDER_CANNOT_BE_CANCELLED",
+                    "error.customer-order.cancel-not-allowed");
+        }
+
+        List<OrderItem> items = orderItemRepository
+                .findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(
+                        order.getId(), order.getRestaurantId());
+        // Release reserved stock in the same transaction as cancellation.
+        for (OrderItem item : items) {
+            Product product = productRepository
+                    .findByIdAndRestaurantId(item.getProductId(), order.getRestaurantId())
+                    .orElseThrow(() -> new ApiException(
+                            HttpStatus.CONFLICT,
+                            "ORDER_PRODUCT_NOT_FOUND",
+                            "error.customer-order.product-not-found"));
+            if (Boolean.TRUE.equals(product.getTrackStock())) {
+                int released = productRepository.releaseStock(
+                        product.getId(), order.getRestaurantId(), item.getQuantity());
+                if (released != 1) {
+                    throw new ApiException(HttpStatus.CONFLICT,
+                            "ORDER_STOCK_RELEASE_FAILED",
+                            "error.customer-order.stock-release-failed");
+                }
+            }
+        }
+
+        for (Payment payment : paymentRepository
+                .findByOrderIdOrderByCreatedAtDesc(order.getId())) {
+            if ("PAID".equals(payment.getStatus())) {
+                throw new ApiException(HttpStatus.CONFLICT,
+                        "REFUND_REQUIRED",
+                        "error.customer-order.refund-required");
+            }
+            if ("PENDING".equals(payment.getStatus())) {
+                payment.setStatus("CANCELLED");
+                paymentRepository.save(payment);
+            }
+        }
+
+        order.setStatus("CANCELLED");
+        orderRepository.save(order);
+
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrderId(order.getId());
+        history.setChangedByUserId(userId);
+        history.setStatus("CANCELLED");
+        history.setNote("Cancelled by customer before restaurant acceptance.");
+        historyRepository.save(history);
+
+        return getMyOrder(userId, orderId);
     }
 
     private CustomerOrderSummaryDto toSummary(Order order) {
