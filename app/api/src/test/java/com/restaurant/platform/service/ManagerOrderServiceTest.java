@@ -212,6 +212,52 @@ class ManagerOrderServiceTest {
     }
 
     @Test
+    void movingQueueOrderToReadyUpdatesTicketAndCreatesInAppNotification() {
+        Order order = order("PREPARING", "TAKEAWAY");
+        UUID ticketId = UUID.randomUUID();
+        order.setQueueTicketId(ticketId);
+
+        com.restaurant.platform.entity.QueueTicket ticket =
+                new com.restaurant.platform.entity.QueueTicket();
+        ticket.setId(ticketId);
+        ticket.setRestaurantId(restaurantId);
+        ticket.setDisplayCode("Q-008");
+        ticket.setStatus("WAITING");
+
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order));
+        when(queueTicketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+        OrderSummaryDto response = service.updateStatus(
+                restaurantId, orderId, userId,
+                new UpdateOrderStatusRequest("READY", "Ready for collection"));
+
+        assertEquals("READY", response.status());
+        assertEquals("READY", ticket.getStatus());
+        assertNotNull(ticket.getReadyAt());
+        verify(queueTicketRepository).save(ticket);
+        ArgumentCaptor<com.restaurant.platform.entity.AppNotification> notification =
+                ArgumentCaptor.forClass(com.restaurant.platform.entity.AppNotification.class);
+        verify(notificationRepository).save(notification.capture());
+        assertEquals(orderId, notification.getValue().getOrderId());
+        assertEquals(ticketId, notification.getValue().getQueueTicketId());
+        assertEquals("QUEUE_READY", notification.getValue().getNotificationType());
+        assertEquals("IN_APP", notification.getValue().getChannel());
+    }
+
+    @Test
+    void cancellationRequiresSeparateCancellationPermission() {
+        Order order = order("PENDING", "DINE_IN");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order));
+
+        service.updateStatus(restaurantId, orderId, userId,
+                new UpdateOrderStatusRequest("CANCELLED", "Customer cancelled"));
+
+        verify(authorization).requirePermission(restaurantId, RestaurantPermission.ORDER_CANCEL);
+    }
+
+    @Test
     void updateStatusRejectsCrossRestaurantOrderAndDoesNotWriteHistory() {
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
                 .thenReturn(Optional.empty());
