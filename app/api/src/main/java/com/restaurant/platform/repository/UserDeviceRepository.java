@@ -6,8 +6,13 @@ import java.util.UUID;
 import java.util.List;
 import java.util.Optional;
 
-/** Spring Data repository for user_devices. */
+/** Device ownership queries use the authenticated profile ID. */
 public interface UserDeviceRepository extends JpaRepository<UserDevice, UUID> {
     List<UserDevice> findByUserIdAndIsActiveTrue(UUID userId);
+
+    List<UserDevice> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
     Optional<UserDevice> findByPushToken(String pushToken);
+
+    Optional<UserDevice> findByIdAndUserId(UUID id, UUID userId);
 }
