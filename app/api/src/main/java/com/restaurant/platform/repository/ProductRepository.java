@@ -15,6 +15,7 @@ import java.util.List;
 
 /** Spring Data repository for products. */
 public interface ProductRepository extends JpaRepository<Product, UUID> {
+    List<Product> findByRestaurantId(UUID restaurantId);
     List<Product> findByRestaurantIdAndIsAvailableTrue(UUID restaurantId);
     List<Product> findByRestaurantIdAndCategoryIdAndIsAvailableTrue(UUID restaurantId, UUID categoryId);
     List<Product> findByRestaurantIdAndNameContainingIgnoreCase(UUID restaurantId, String name);
