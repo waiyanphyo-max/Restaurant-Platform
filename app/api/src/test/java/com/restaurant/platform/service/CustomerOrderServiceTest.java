@@ -5,12 +5,15 @@ import com.restaurant.platform.entity.Delivery;
 import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.OrderStatusHistory;
 import com.restaurant.platform.entity.Payment;
+import com.restaurant.platform.entity.OrderItem;
+import com.restaurant.platform.entity.Product;
 import com.restaurant.platform.repository.DeliveryRepository;
 import com.restaurant.platform.repository.OrderItemModifierRepository;
 import com.restaurant.platform.repository.OrderItemRepository;
 import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.repository.OrderStatusHistoryRepository;
 import com.restaurant.platform.repository.PaymentRepository;
+import com.restaurant.platform.repository.ProductRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +32,7 @@ import static org.mockito.Mockito.*;
 class CustomerOrderServiceTest {
     private OrderRepository orderRepository;
     private OrderItemRepository orderItemRepository;
+    private ProductRepository productRepository;
     private OrderItemModifierRepository modifierRepository;
     private OrderStatusHistoryRepository historyRepository;
     private PaymentRepository paymentRepository;
@@ -43,13 +47,14 @@ class CustomerOrderServiceTest {
     void setUp() {
         orderRepository = mock(OrderRepository.class);
         orderItemRepository = mock(OrderItemRepository.class);
+        productRepository = mock(ProductRepository.class);
         modifierRepository = mock(OrderItemModifierRepository.class);
         historyRepository = mock(OrderStatusHistoryRepository.class);
         paymentRepository = mock(PaymentRepository.class);
         deliveryRepository = mock(DeliveryRepository.class);
         authorization = mock(RestaurantAuthorization.class);
         service = new CustomerOrderService(orderRepository, orderItemRepository,
-                modifierRepository, historyRepository, paymentRepository,
+                productRepository, modifierRepository, historyRepository, paymentRepository,
                 deliveryRepository, authorization);
     }
 
@@ -89,6 +94,72 @@ class CustomerOrderServiceTest {
         assertEquals(HttpStatus.NOT_FOUND, error.getStatus());
         verify(orderItemRepository, never()).findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(any(), any());
         verify(paymentRepository, never()).findByOrderIdOrderByCreatedAtDesc(any());
+    }
+
+    @Test
+    void cancellingPendingOrderReleasesStockAndCancelsUnpaidCodPayment() {
+        Order order = order("PENDING");
+        when(orderRepository.findByIdAndCustomerIdForUpdate(orderId, userId))
+                .thenReturn(Optional.of(order));
+        when(orderRepository.findByIdAndCustomerId(orderId, userId))
+                .thenReturn(Optional.of(order));
+
+        OrderItem item = new OrderItem();
+        item.setId(UUID.randomUUID());
+        item.setOrderId(orderId);
+        item.setRestaurantId(restaurantId);
+        UUID productId = UUID.randomUUID();
+        item.setProductId(productId);
+        item.setQuantity(2);
+        item.setProductName("Tea");
+        item.setUnitPrice(1000L);
+        item.setSubtotal(2000L);
+        when(orderItemRepository.findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(orderId, restaurantId))
+                .thenReturn(List.of(item));
+
+        Product product = new Product();
+        product.setId(productId);
+        product.setRestaurantId(restaurantId);
+        product.setTrackStock(true);
+        when(productRepository.findByIdAndRestaurantId(productId, restaurantId))
+                .thenReturn(Optional.of(product));
+        when(productRepository.releaseStock(productId, restaurantId, 2)).thenReturn(1);
+
+        Payment payment = new Payment();
+        payment.setId(UUID.randomUUID());
+        payment.setOrderId(orderId);
+        payment.setMethod("CASH_ON_DELIVERY");
+        payment.setStatus("PENDING");
+        payment.setAmount(2250L);
+        when(paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(payment));
+
+        var response = service.cancelMyOrder(userId, orderId);
+
+        assertEquals("CANCELLED", order.getStatus());
+        assertEquals("CANCELLED", payment.getStatus());
+        assertEquals("CANCELLED", response.status());
+        verify(productRepository).releaseStock(productId, restaurantId, 2);
+        verify(paymentRepository).save(payment);
+        verify(orderRepository).save(order);
+        verify(historyRepository).save(argThat(history ->
+                "CANCELLED".equals(history.getStatus())
+                        && userId.equals(history.getChangedByUserId())));
+    }
+
+    @Test
+    void cannotCancelOrderAfterRestaurantAcceptance() {
+        Order order = order("ACCEPTED");
+        when(orderRepository.findByIdAndCustomerIdForUpdate(orderId, userId))
+                .thenReturn(Optional.of(order));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.cancelMyOrder(userId, orderId));
+
+        assertEquals("CUSTOMER_ORDER_CANNOT_BE_CANCELLED", error.getCode());
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(productRepository, never()).releaseStock(any(), any(), anyInt());
     }
 
     @Test
