@@ -109,13 +109,14 @@ mvn -f app/api/pom.xml spring-boot:run
 | GET | `/api/v1/customer/orders` | Paginated order history for the current customer |
 | GET | `/api/v1/customer/orders/{orderId}` | Own order detail, status timeline, payment and delivery status |
 | POST | `/api/v1/customer/orders/{orderId}/cancel` | Cancel own PENDING order and release reserved stock |
+| POST | `/api/v1/customer/orders/{orderId}/reorder` | Reorder an own completed/cancelled delivery using fresh checkout validation |
 | GET | `/api/v1/devices` | List own registered device metadata without raw push tokens |
 | POST | `/api/v1/devices` | Register or reactivate one's push token |
 | DELETE | `/api/v1/devices/{deviceId}` | Deactivate an owned device |
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Customer reorder, online payment/refund provider integration, reporting beyond the daily report, external push-provider delivery and client-side sound playback remain future work. Ownership transfer is available to the current owner through the dedicated member-management endpoint.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Online payment/refund provider integration, reporting beyond the daily report, external push-provider delivery and client-side sound playback remain future work. Ownership transfer and validated customer delivery reorder are available through their dedicated endpoints.
 
 ## Initial web client
 
