@@ -212,6 +212,78 @@ An order status update to `READY` already moves a linked queue ticket to `READY`
 
 These APIs store and return in-app notification records. They do not integrate an external push provider and cannot by themselves make a browser/mobile device play a sound. For QR customers, the client can periodically call the queue status/notifications APIs with the tracking token and react when it sees a new `QUEUE_READY` or `QUEUE_CALLED` notification.
 
+## Customer saved addresses
+
+These endpoints use the authenticated JWT subject as the owner ID; clients cannot provide another user's ID.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/customer/addresses` | List the authenticated customer's saved addresses |
+| POST | `/api/v1/customer/addresses` | Create an address; the first address is automatically default |
+| PUT | `/api/v1/customer/addresses/{addressId}` | Update an address owned by the current user |
+| PATCH | `/api/v1/customer/addresses/{addressId}/default` | Make an owned address the default |
+| DELETE | `/api/v1/customer/addresses/{addressId}` | Delete an owned address; if it was default, another saved address is promoted |
+
+Create/update example:
+
+```json
+{
+  "label": "Home",
+  "recipientName": "Example Customer",
+  "houseNo": "12",
+  "street": "Main Road",
+  "ward": "Ward 1",
+  "township": "Example Township",
+  "city": "Example City",
+  "latitude": null,
+  "longitude": null,
+  "deliveryNote": "Call when arriving",
+  "makeDefault": true
+}
+```
+
+The API validates required address fields and coordinate bounds. Address lookups are always scoped to the JWT subject. An address ID belonging to a different user returns `404 CUSTOMER_ADDRESS_NOT_FOUND`.
+
+## Customer delivery checkout
+
+### List available delivery zones
+
+`GET /api/v1/customer/restaurants/{restaurantId}/delivery-zones`
+
+Requires a valid bearer token. Returns active delivery zones for the restaurant with each zone's name, fee, and minimum order. The restaurant must be active and accepting delivery orders.
+
+### Create a delivery order
+
+`POST /api/v1/customer/restaurants/{restaurantId}/orders/delivery`
+
+Requires a valid bearer token. The current JWT subject becomes both `customerId` and `createdByUserId`; neither ID is accepted from the request.
+
+```json
+{
+  "addressId": "00000000-0000-0000-0000-000000000000",
+  "deliveryZoneId": "00000000-0000-0000-0000-000000000000",
+  "recipientName": "Example Customer",
+  "recipientPhone": "09123456789",
+  "deliveryNote": "Call on arrival",
+  "paymentMethod": "CASH_ON_DELIVERY",
+  "items": [
+    {
+      "productId": "00000000-0000-0000-0000-000000000000",
+      "variantId": null,
+      "quantity": 2,
+      "specialInstruction": "No onions",
+      "modifiers": []
+    }
+  ]
+}
+```
+
+The UUIDs above are placeholders; use IDs returned by the actual restaurant APIs. The address must belong to the authenticated customer, and the delivery zone must be active and belong to the route's restaurant. Product, category, variant, modifier, availability, and stock rules are validated server-side. Prices are read from the database; client-submitted prices and totals are not accepted. The computed subtotal must meet both the restaurant-wide and delivery-zone minimums. The saved address and recipient details are snapshotted onto the order to preserve the destination used at checkout.
+
+For now, only `CASH_ON_DELIVERY` is supported. An order and pending payment record are created in one database transaction. Online payment, payment confirmation/refunds, and customer-facing order history are not implemented. The selected zone is checked by restaurant, but the current schema does not contain geographic boundaries to automatically determine whether a street/township falls inside a zone; the customer chooses from the configured zones.
+
+When the order later reaches `READY`, the Milestone 5 workflow creates its delivery task and attempts to assign the configured default driver.
+
 ## Not yet exposed as HTTP routes
 
-Restaurant/menu administration, customer profile/address management, and payment processing are not yet implemented as complete HTTP workflows.
+Restaurant/menu administration, customer profile editing, customer-facing order history, online payment processing, payment confirmation/refunds, and external push notification integration are not yet implemented as complete HTTP workflows.
