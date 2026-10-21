@@ -167,6 +167,6 @@ class RestaurantAuthorizationTest {
                 .issuedAt(now.minusSeconds(1))
                 .expiresAt(now.plusSeconds(60))
                 .build();
-        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
     }
 }
