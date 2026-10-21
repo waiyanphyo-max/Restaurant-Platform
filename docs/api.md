@@ -212,6 +212,27 @@ An order status update to `READY` already moves a linked queue ticket to `READY`
 
 These APIs store and return in-app notification records. They do not integrate an external push provider and cannot by themselves make a browser/mobile device play a sound. For QR customers, the client can periodically call the queue status/notifications APIs with the tracking token and react when it sees a new `QUEUE_READY` or `QUEUE_CALLED` notification.
 
+## Customer profile
+
+These endpoints read/write only the profile whose ID equals the validated JWT subject.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/customer/profile` | Read the signed-in customer's profile |
+| PUT | `/api/v1/customer/profile` | Create or update the signed-in customer's full name, phone, and preferred language |
+
+PUT example:
+
+```json
+{
+  "fullName": "Example Customer",
+  "phone": "09123456789",
+  "preferredLanguage": "my-MM"
+}
+```
+
+Supported languages are `my-MM` and `en`. The database migration `20261022001000_sync_auth_user_profiles.sql` creates a `profiles` row when a Supabase Auth user is added and backfills existing users without a profile.
+
 ## Customer saved addresses
 
 These endpoints use the authenticated JWT subject as the owner ID; clients cannot provide another user's ID.
@@ -297,4 +318,4 @@ The optional status filter accepts `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, 
 
 ## Not yet exposed as HTTP routes
 
-Restaurant/menu administration, customer profile editing, online payment processing, payment confirmation/refunds, and external push notification integration are not yet implemented as complete HTTP workflows.
+Restaurant/menu administration, online payment processing, payment confirmation/refunds, and external push notification integration are not yet implemented as complete HTTP workflows.
