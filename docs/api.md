@@ -349,6 +349,17 @@ All authenticated management routes are scoped to `restaurantId`. Reads require 
 
 Product management requests use the database UUIDs returned by the API. Product category, price, stock state, variants, group selection rules, and same-restaurant relationships are validated server-side. Soft deactivation/availability flags are used where the schema preserves catalogue history; products cannot be ordered from an inactive category and unavailable variants/options cannot be selected. The public modifier endpoint only returns active groups attached to an available product and available options.
 
+## Counter payment collection
+
+QR orders create a `PENDING` `CASH_AT_COUNTER` payment record for the order total. The following routes require `PAYMENT_READ` or `PAYMENT_COLLECT` respectively; OWNER, MANAGER, and STAFF have these permissions.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/restaurants/{restaurantId}/orders/{orderId}/payments` | List safe payment metadata for a restaurant-scoped order |
+| PATCH | `/api/v1/restaurants/{restaurantId}/orders/{orderId}/payments/{paymentId}/collect` | Mark a pending cash-at-counter payment as paid |
+
+The collect action locks the order, scopes payment lookup by order ID, records `paid_at` in UTC, and is idempotent when a payment is already `PAID`. Cancelled orders cannot be collected. It only accepts `CASH_AT_COUNTER`; `CASH_ON_DELIVERY` must be confirmed by the assigned driver using the delivery status route and `cashCollected: true`. Online payments are not implemented. If the order belongs to a registered customer, an in-app `PAYMENT_RECEIVED` notification record is created.
+
 ## Daily operations report
 
 `GET /api/v1/restaurants/{restaurantId}/reports/daily?date=2026-10-21`
