@@ -6,6 +6,7 @@ import com.restaurant.platform.dto.customer.ReorderDeliveryOrderRequest;
 import com.restaurant.platform.dto.order.CreateOrderResponse;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.CustomerOrderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
