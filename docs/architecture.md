@@ -71,6 +71,10 @@ Customer-address APIs derive ownership from the validated JWT `sub`; all read/up
 
 The checkout service calculates item/modifier prices from database records, checks stock and both restaurant/zone minimums, snapshots the destination into the order, and creates a `PENDING` cash-on-delivery payment record in the same transaction. Clients cannot provide order totals, fees, customer IDs, or creator IDs. Online payment processing is not implemented. Delivery zones currently carry names, fees, and minimums but no geographic polygons or township boundaries, so the customer selects a zone and the backend can only validate that it belongs to the restaurant.
 
+## Customer profile lifecycle
+
+Migration `20261022001000_sync_auth_user_profiles.sql` adds an `auth.users` insert trigger that creates the matching `public.profiles` row and backfills existing Auth users that lack one. It does not overwrite existing profile data on conflict. The trigger function is security-definer, uses an empty search path with fully-qualified objects, and revokes direct execute privileges from end-user roles. Customer profile GET/PUT endpoints always use the validated JWT subject as the profile ID. Supported preference values are `my-MM` and `en`.
+
 ## Customer order history and privacy
 
 Customer order history queries use `orders.customer_id` derived from the validated JWT subject. The detail lookup combines `order_id` and `customer_id`; knowing an order UUID does not grant access. The response includes item/modifier snapshots, status timestamps, a safe summary of payment status, and the current delivery status without exposing internal payment transaction references or status-change actor IDs. Order history is read-only; customer cancellation/reorder workflows have not been implemented.
