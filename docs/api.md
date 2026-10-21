@@ -119,7 +119,7 @@ Relevant status codes:
 
 Send the raw tracking token returned in `CreateOrderResponse.queue.trackingToken` in the `X-Queue-Token` header. The token is generated with a cryptographically secure random source; only its SHA-256 hash is stored on the queue ticket. Unknown ticket IDs and invalid/missing tokens return the same `404 QUEUE_TICKET_NOT_FOUND` response.
 
-The response includes queue number/display code, ticket status, order number/status, creation time, ready time, and completed time. Customers can poll this endpoint to determine when the ticket reaches `READY` or `CALLED`.
+The response includes queue number/display code, ticket status, order number/status, creation time, ready time, called time, and completed time. Customers can poll this endpoint to determine when the ticket reaches `READY` or `CALLED`.
 
 ### Customer queue notifications
 
