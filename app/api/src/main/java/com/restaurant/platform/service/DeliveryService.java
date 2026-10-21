@@ -80,13 +80,22 @@ public class DeliveryService {
     @Transactional(readOnly = true)
     public Page<DeliveryTaskDto> listRestaurantDeliveries(
             UUID restaurantId, String status, Pageable pageable) {
+        UUID currentUserId = authorization.requireAuthenticatedUserId();
         authorization.requirePermission(restaurantId, RestaurantPermission.DELIVERY_READ);
         String normalizedStatus = normalizeStatusFilter(status);
         Pageable safePageable = safePageable(pageable);
-        return deliveryRepository
-                .findPageByRestaurantIdAndOptionalStatus(
-                        restaurantId, normalizedStatus, safePageable)
-                .map(delivery -> toTask(delivery, requireOrder(delivery, restaurantId)));
+
+        // Drivers may list only their own assigned deliveries, never the restaurant-wide queue.
+        boolean driverOnly = memberRepository
+                .findByRestaurantIdAndUserId(restaurantId, currentUserId)
+                .map(member -> member.getRole() == RestaurantRole.DELIVERY_DRIVER)
+                .orElse(false);
+        Page<Delivery> deliveries = driverOnly
+                ? deliveryRepository.findPageByDriverAndRestaurantIdAndOptionalStatus(
+                        restaurantId, currentUserId, normalizedStatus, safePageable)
+                : deliveryRepository.findPageByRestaurantIdAndOptionalStatus(
+                        restaurantId, normalizedStatus, safePageable);
+        return deliveries.map(delivery -> toTask(delivery, requireOrder(delivery, restaurantId)));
     }
 
     @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).DELIVERY_READ)")
