@@ -93,6 +93,23 @@ class ManagerOrderServiceTest {
     }
 
     @Test
+    void listOrdersIgnoresUnsupportedSortProperty() {
+        when(orderRepository.findByRestaurantIdOrderByCreatedAtDesc(eq(restaurantId), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        service.listOrders(
+                restaurantId, userId, null,
+                PageRequest.of(0, 20, Sort.by(Sort.Direction.ASC, "secretInternalProperty")));
+
+        ArgumentCaptor<org.springframework.data.domain.Pageable> pageable =
+                ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+        verify(orderRepository).findByRestaurantIdOrderByCreatedAtDesc(eq(restaurantId), pageable.capture());
+        assertEquals("createdAt", pageable.getValue().getSort().getOrderFor("createdAt").getProperty());
+        assertEquals(Sort.Direction.DESC, pageable.getValue().getSort().getOrderFor("createdAt").getDirection());
+        assertNull(pageable.getValue().getSort().getOrderFor("secretInternalProperty"));
+    }
+
+    @Test
     void listOrdersRejectsUnknownStatusFilter() {
         ApiException exception = assertThrows(
                 ApiException.class,
