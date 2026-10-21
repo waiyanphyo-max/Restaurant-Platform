@@ -32,12 +32,12 @@ public interface OrderRepository
             UUID queueTicketId
     );
 
-    Page<Order> findByRestaurantIdOrderByCreatedAtDesc(
+    Page<Order> findByRestaurantId(
             UUID restaurantId,
             Pageable pageable
     );
 
-    Page<Order> findByRestaurantIdAndStatusOrderByCreatedAtDesc(
+    Page<Order> findByRestaurantIdAndStatus(
             UUID restaurantId,
             String status,
             Pageable pageable
