@@ -72,6 +72,7 @@ mvn -f app/api/pom.xml spring-boot:run
 | GET | `/api/v1/my/restaurants` | List restaurants joined by the signed-in user |
 | POST | `/api/v1/restaurants` | Create restaurant and bootstrap current user as OWNER |
 | GET | `/api/v1/restaurants/{restaurantId}` | Read member-visible restaurant profile |
+| GET | `/api/v1/restaurants/{restaurantId}/reports/daily?date=2026-10-21` | OWNER/MANAGER daily operations report in restaurant timezone |
 | PUT | `/api/v1/restaurants/{restaurantId}/profile` | Update restaurant profile fields |
 | GET/PUT | `/api/v1/restaurants/{restaurantId}/settings` | Read or update operational settings |
 | POST | `/api/v1/restaurants/{restaurantId}/settings/common-qr-token/rotate` | Rotate Common QR token (returned once) |
