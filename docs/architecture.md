@@ -47,7 +47,7 @@ The following manager-order routes require a valid bearer token and an appropria
 - `GET /api/v1/restaurants/{restaurantId}/orders/{orderId}` — order details, item/modifier snapshots, and status history. The service first scopes the order by both IDs, then loads child data in batches.
 - `PATCH /api/v1/restaurants/{restaurantId}/orders/{orderId}/status` — validated status transition and optional audit note. The update locks the order row scoped to that restaurant and records the authenticated actor in status history in the transaction.
 
-All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking and delivery management controllers are exposed, while restaurant/menu administration and customer account controllers are still pending.
+All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, and customer delivery-checkout controllers are exposed, while customer profile editing, customer order history, and restaurant/menu administration are still pending.
 
 ## Queue tracking and notification flow
 
@@ -64,6 +64,12 @@ This is a database-backed in-app notification workflow. No external push provide
 A delivery order creates a delivery task when staff moves the order to `READY`. The restaurant's `restaurant_settings.default_delivery_driver_user_id` is used for automatic assignment. If unset, the backend selects the earliest-added `DELIVERY_DRIVER` member and persists that user as the default. A manager/owner can change this with `PATCH /api/v1/restaurants/{restaurantId}/delivery-settings/default-driver`; the endpoint rejects users who are not delivery-driver members of that exact restaurant. With no registered driver, the delivery is kept in `WAITING_ASSIGNMENT`.
 
 The delivery workflow locks the linked order before its delivery row to reduce concurrent status races. Assignment, delivery history, order history, and in-app notifications are persisted through the service layer. Driver task listing is scoped to the authenticated driver ID and restaurant ID. Driver pickup changes the linked order to `OUT_FOR_DELIVERY`; delivery completion changes it to `COMPLETED`. Failed deliveries require a reason and can be reassigned by authorized management.
+
+## Customer address and delivery checkout
+
+Customer-address APIs derive ownership from the validated JWT `sub`; all read/update/delete queries include that user ID. The first saved address becomes default, and deleting a default address promotes another saved address where available. The delivery checkout endpoint requires an active restaurant, enabled delivery, an active delivery zone belonging to that restaurant, and an address owned by the current user.
+
+The checkout service calculates item/modifier prices from database records, checks stock and both restaurant/zone minimums, snapshots the destination into the order, and creates a `PENDING` cash-on-delivery payment record in the same transaction. Clients cannot provide order totals, fees, customer IDs, or creator IDs. Online payment processing is not implemented. Delivery zones currently carry names, fees, and minimums but no geographic polygons or township boundaries, so the customer selects a zone and the backend can only validate that it belongs to the restaurant.
 
 ## Error handling
 
