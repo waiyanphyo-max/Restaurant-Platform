@@ -284,6 +284,17 @@ For now, only `CASH_ON_DELIVERY` is supported. An order and pending payment reco
 
 When the order later reaches `READY`, the Milestone 5 workflow creates its delivery task and attempts to assign the configured default driver.
 
+## Customer order history
+
+These endpoints require a valid bearer token and always scope by the authenticated JWT subject.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/customer/orders?page=0&size=20&status=PENDING` | Paginated order history for the current customer |
+| GET | `/api/v1/customer/orders/{orderId}` | Own order details, items/modifiers, status timeline, payment records, and delivery status |
+
+The optional status filter accepts `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, `OUT_FOR_DELIVERY`, `COMPLETED`, or `CANCELLED`. Page size is capped at 100. A customer cannot see an order solely by knowing its UUID; detail lookups require both the order ID and the authenticated customer ID. Status history is customer-safe (status and timestamp only), and payment responses omit private transaction references and staff identity.
+
 ## Not yet exposed as HTTP routes
 
-Restaurant/menu administration, customer profile editing, customer-facing order history, online payment processing, payment confirmation/refunds, and external push notification integration are not yet implemented as complete HTTP workflows.
+Restaurant/menu administration, customer profile editing, online payment processing, payment confirmation/refunds, and external push notification integration are not yet implemented as complete HTTP workflows.
