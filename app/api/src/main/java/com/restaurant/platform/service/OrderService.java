@@ -609,6 +609,14 @@ public class OrderService {
 
         orderStatusHistoryRepository.save(history);
 
+        // Table/Common QR orders are initially payable at the counter.
+        Payment payment = new Payment();
+        payment.setOrderId(order.getId());
+        payment.setMethod("CASH_AT_COUNTER");
+        payment.setStatus("PENDING");
+        payment.setAmount(order.getTotalAmount());
+        paymentRepository.save(payment);
+
         CreateOrderResponse.QueueInfo queueInfo = null;
 
         if (ticket != null) {
