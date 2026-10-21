@@ -318,6 +318,7 @@ The following endpoints require `MEMBERS_MANAGE`, which is granted to `OWNER` on
 | POST | `/api/v1/restaurants/{restaurantId}/members` | Add an existing profile as MANAGER, STAFF, or DELIVERY_DRIVER |
 | PUT | `/api/v1/restaurants/{restaurantId}/members/{memberId}` | Change an existing non-owner member's role |
 | DELETE | `/api/v1/restaurants/{restaurantId}/members/{memberId}` | Remove an existing non-owner member |
+| POST | `/api/v1/restaurants/{restaurantId}/members/transfer-ownership` | Transfer ownership to an existing member; former owner becomes MANAGER |
 
 Request example:
 
@@ -328,7 +329,7 @@ Request example:
 }
 ```
 
-The selected user must already have a `public.profiles` row (typically by signing in once after the profile-sync migration is applied). A user can join each restaurant only once. This general endpoint cannot create, demote, or delete an OWNER; owner transfer is intentionally not included yet. Removing or changing the role of the configured default driver clears the default driver setting.
+The selected user must already have a `public.profiles` row (typically by signing in once after the profile-sync migration is applied). A user can join each restaurant only once. This general endpoint cannot create, demote, or delete an OWNER. To transfer ownership, the current OWNER calls `POST /api/v1/restaurants/{restaurantId}/members/transfer-ownership` with `{ "newOwnerUserId": "<existing-member-user-uuid>" }`. The target must already be a member of the same restaurant; the target becomes OWNER and the former owner becomes MANAGER in one transaction. A former default driver is cleared if ownership transfer changes their role away from DELIVERY_DRIVER. Only the currently authenticated OWNER may transfer ownership. Removing or changing the role of the configured default driver clears the default driver setting.
 
 ## Restaurant settings and delivery zone administration
 
@@ -521,6 +522,6 @@ Request example:
 
 The response intentionally never exposes the raw push token. A token already associated with another account is rejected; callers cannot transfer token ownership by registering it again. Deactivation is soft (inactive flag) and only works for the authenticated owner. This API stores device tokens but does not send push messages; FCM/APNs/web-push provider integration and browser/mobile sound playback remain separate client/provider work.
 
-## Not yet exposed as HTTP routes
+## Remaining backend work
 
-Owner transfer, customer cancellation/reorder, online payments/refunds, advanced reporting, and external push notification integration are not yet implemented as complete HTTP workflows.
+Customer reorder, online payment/refunds, advanced reporting beyond the daily report, external push-provider delivery, and client-side sound playback remain future work. Cash-on-delivery and cash-at-counter payment collection are implemented; online payment-provider integration requires selecting/configuring a provider.
