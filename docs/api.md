@@ -85,6 +85,31 @@ Current supported transitions:
 
 Cancellation requires `ORDER_CANCEL`. Queue-ticket lifecycle changes require `QUEUE_MANAGE`. Delivery transitions require `DELIVERY_STATUS_UPDATE`. Repeating a current status or attempting an invalid transition returns a conflict.
 
+### Create an order entered by staff
+
+`POST /api/v1/restaurants/{restaurantId}/orders/staff`
+
+Requires `ORDER_CREATE`. This route is intended for staff entering orders for customers who are not placing the order through their own phone.
+
+Dine-in request:
+
+```json
+{
+  "orderType": "DINE_IN",
+  "tableId": "00000000-0000-0000-0000-000000000000",
+  "items": [
+    {
+      "productId": "00000000-0000-0000-0000-000000000000",
+      "quantity": 2,
+      "modifiers": []
+    }
+  ],
+  "note": "No onions"
+}
+```
+
+For takeaway, set `orderType` to `TAKEAWAY` and omit `tableId`. Dine-in requires an active table from the same restaurant; takeaway is rejected when takeaway ordering is disabled. Item prices, variants, modifiers, stock, minimum order, and totals are validated/calculated by the backend. The authenticated staff member is recorded as creator; the request cannot choose the customer or creator ID. A pending `CASH_AT_COUNTER` payment is created for collection through the payment endpoint.
+
 ## Delivery management and driver workflow
 
 All routes below require a valid Supabase bearer token.
