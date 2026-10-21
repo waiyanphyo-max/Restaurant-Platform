@@ -46,6 +46,7 @@ public class QueueTrackingService {
                 order.getStatus(),
                 ticket.getCreatedAt(),
                 ticket.getReadyAt(),
+                ticket.getCalledAt(),
                 ticket.getCompletedAt());
     }
 
