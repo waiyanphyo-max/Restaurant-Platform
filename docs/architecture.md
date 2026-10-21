@@ -47,7 +47,7 @@ The following manager-order routes require a valid bearer token and an appropria
 - `GET /api/v1/restaurants/{restaurantId}/orders/{orderId}` — order details, item/modifier snapshots, and status history. The service first scopes the order by both IDs, then loads child data in batches.
 - `PATCH /api/v1/restaurants/{restaurantId}/orders/{orderId}/status` — validated status transition and optional audit note. The update locks the order row scoped to that restaurant and records the authenticated actor in status history in the transaction.
 
-All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, and customer delivery-checkout controllers are exposed, while owner transfer, online payment/refunds, and full reporting endpoints are still pending.
+All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, and customer delivery-checkout controllers are exposed, while owner transfer, online payment/refunds, full reporting, and external push-provider delivery remain pending.
 
 ## Queue tracking and notification flow
 
@@ -98,6 +98,10 @@ Migration `20261022001000_sync_auth_user_profiles.sql` adds an `auth.users` inse
 ## Customer order history and privacy
 
 Customer order history queries use `orders.customer_id` derived from the validated JWT subject. The detail lookup combines `order_id` and `customer_id`; knowing an order UUID does not grant access. The response includes item/modifier snapshots, status timestamps, a safe summary of payment status, and the current delivery status without exposing internal payment transaction references or status-change actor IDs. Order history is read-only; customer cancellation/reorder workflows have not been implemented.
+
+## Push-device registration
+
+The authenticated `/api/v1/devices` endpoints associate device push tokens with the JWT subject, reject a token already owned by a different account, and never return raw tokens. Device deactivation is owner-scoped. Device-token persistence is not a push provider: server-side delivery to FCM/APNs/web-push is not yet connected, and the browser/mobile client remains responsible for local sound playback.
 
 ## Error handling
 
