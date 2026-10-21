@@ -12,6 +12,7 @@ import java.util.List;
 /** Spring Data repository for product_modifier_groups. */
 public interface ProductModifierGroupRepository extends JpaRepository<ProductModifierGroup, ProductModifierGroupId> {
     List<ProductModifierGroup> findById_ProductId(UUID productId);
+    List<ProductModifierGroup> findById_ProductIdInAndRestaurantId(List<UUID> productIds, UUID restaurantId);
     List<ProductModifierGroup> findById_ModifierGroupId(UUID modifierGroupId);
 
     @Query(value = """
