@@ -29,7 +29,7 @@ The access token is held only in component memory and is not persisted in local 
 - Server-side order-status filtering, refresh, and pagination
 - Safe forward-only order status updates following the backend lifecycle rules (permission-checked by the API)
 - Current-day queue view with a call action for READY pickup tickets (requires QUEUE_MANAGE)
-- Delivery task view with filtering, pagination, driver assignment, pickup, failure-reason, and delivery-completion actions (requires the matching restaurant permissions)
+- Delivery task view with filtering, pagination, default-driver setting (requires SETTINGS_MANAGE), driver assignment, pickup, failure-reason, and delivery-completion actions (requires the matching restaurant permissions)
 - Daily operations report with date selection, order-status counts, non-cancelled order totals, and payments collected (requires REPORT_READ)
 - Guest Common QR menu/cart/checkout with variants and modifier selections
 - Pickup status and queue notification polling every five seconds; browser sound is opt-in and requires a user click
