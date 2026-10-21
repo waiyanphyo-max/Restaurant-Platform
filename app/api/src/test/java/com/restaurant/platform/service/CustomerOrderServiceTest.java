@@ -1,11 +1,17 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.dto.customer.ReorderDeliveryOrderRequest;
+import com.restaurant.platform.dto.order.CreateDeliveryOrderRequest;
+import com.restaurant.platform.dto.order.CreateOrderItemRequest;
+import com.restaurant.platform.dto.order.CreateOrderResponse;
+import com.restaurant.platform.dto.order.ModifierSelectionRequest;
 import com.restaurant.platform.entity.Delivery;
 import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.OrderStatusHistory;
 import com.restaurant.platform.entity.Payment;
 import com.restaurant.platform.entity.OrderItem;
+import com.restaurant.platform.entity.OrderItemModifier;
 import com.restaurant.platform.entity.Product;
 import com.restaurant.platform.repository.DeliveryRepository;
 import com.restaurant.platform.repository.OrderItemModifierRepository;
@@ -38,6 +44,7 @@ class CustomerOrderServiceTest {
     private PaymentRepository paymentRepository;
     private DeliveryRepository deliveryRepository;
     private RestaurantAuthorization authorization;
+    private OrderService orderService;
     private CustomerOrderService service;
     private final UUID userId = UUID.randomUUID();
     private final UUID orderId = UUID.randomUUID();
@@ -53,9 +60,10 @@ class CustomerOrderServiceTest {
         paymentRepository = mock(PaymentRepository.class);
         deliveryRepository = mock(DeliveryRepository.class);
         authorization = mock(RestaurantAuthorization.class);
+        orderService = mock(OrderService.class);
         service = new CustomerOrderService(orderRepository, orderItemRepository,
                 productRepository, modifierRepository, historyRepository, paymentRepository,
-                deliveryRepository, authorization);
+                deliveryRepository, authorization, orderService);
     }
 
     @Test
@@ -196,6 +204,106 @@ class CustomerOrderServiceTest {
                 response.statusHistory().stream().map(x -> x.status()).toList());
         assertEquals("CASH_ON_DELIVERY", response.payments().getFirst().method());
         assertEquals("PICKED_UP", response.delivery().status());
+    }
+
+    @Test
+    void reorderCompletedDeliveryReusesItemIdentifiersButUsesNewCheckoutDetails() {
+        Order previous = order("COMPLETED");
+        previous.setCustomerId(userId);
+        previous.setOrderType("DELIVERY");
+        when(orderRepository.findByIdAndCustomerId(orderId, userId))
+                .thenReturn(Optional.of(previous));
+
+        UUID orderItemId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        UUID modifierOptionId = UUID.randomUUID();
+        OrderItem item = new OrderItem();
+        item.setId(orderItemId);
+        item.setRestaurantId(restaurantId);
+        item.setOrderId(orderId);
+        item.setProductId(productId);
+        item.setVariantId(variantId);
+        item.setQuantity(2);
+        item.setSpecialInstruction("Less spicy");
+        when(orderItemRepository.findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(
+                orderId, restaurantId)).thenReturn(List.of(item));
+
+        OrderItemModifier modifier = new OrderItemModifier();
+        modifier.setRestaurantId(restaurantId);
+        modifier.setOrderItemId(orderItemId);
+        modifier.setModifierOptionId(modifierOptionId);
+        modifier.setQuantity(2);
+        when(modifierRepository.findByOrderItemIdInAndRestaurantIdOrderByIdAsc(
+                List.of(orderItemId), restaurantId)).thenReturn(List.of(modifier));
+
+        CreateOrderResponse expected = new CreateOrderResponse(
+                UUID.randomUUID(), "ORD-NEW-001", "DELIVERY", "CUSTOMER_APP",
+                "PENDING", "MMK", 2000L, 250L, 0L, 2250L, null);
+        when(orderService.createDeliveryOrder(
+                eq(restaurantId), eq(userId), any(CreateDeliveryOrderRequest.class)))
+                .thenReturn(expected);
+
+        var response = service.reorderMyDeliveryOrder(
+                userId, orderId,
+                new ReorderDeliveryOrderRequest(
+                        UUID.randomUUID(), UUID.randomUUID(), "New recipient",
+                        "09123456789", "Ring on arrival", "CASH_ON_DELIVERY"));
+
+        assertSame(expected, response);
+        var captor = org.mockito.ArgumentCaptor.forClass(CreateDeliveryOrderRequest.class);
+        verify(orderService).createDeliveryOrder(eq(restaurantId), eq(userId), captor.capture());
+        CreateDeliveryOrderRequest checkout = captor.getValue();
+        assertEquals("New recipient", checkout.recipientName());
+        assertEquals("09123456789", checkout.recipientPhone());
+        assertEquals("CASH_ON_DELIVERY", checkout.paymentMethod());
+        assertEquals(1, checkout.items().size());
+        CreateOrderItemRequest checkoutItem = checkout.items().getFirst();
+        assertEquals(productId, checkoutItem.productId());
+        assertEquals(variantId, checkoutItem.variantId());
+        assertEquals(2, checkoutItem.quantity());
+        assertEquals("Less spicy", checkoutItem.specialInstruction());
+        assertEquals(List.of(new ModifierSelectionRequest(modifierOptionId, 2)),
+                checkoutItem.modifiers());
+    }
+
+    @Test
+    void reorderRejectsAnActiveOrder() {
+        Order previous = order("PREPARING");
+        previous.setCustomerId(userId);
+        previous.setOrderType("DELIVERY");
+        when(orderRepository.findByIdAndCustomerId(orderId, userId))
+                .thenReturn(Optional.of(previous));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.reorderMyDeliveryOrder(
+                        userId, orderId,
+                        new ReorderDeliveryOrderRequest(
+                                UUID.randomUUID(), UUID.randomUUID(),
+                                null, null, null, "CASH_ON_DELIVERY")));
+
+        assertEquals("CUSTOMER_REORDER_NOT_ALLOWED", error.getCode());
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        verify(orderItemRepository, never())
+                .findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(any(), any());
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void reorderCannotAccessAnotherCustomersOrder() {
+        when(orderRepository.findByIdAndCustomerId(orderId, userId))
+                .thenReturn(Optional.empty());
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.reorderMyDeliveryOrder(
+                        userId, orderId,
+                        new ReorderDeliveryOrderRequest(
+                                UUID.randomUUID(), UUID.randomUUID(),
+                                null, null, null, null)));
+
+        assertEquals("CUSTOMER_ORDER_NOT_FOUND", error.getCode());
+        assertEquals(HttpStatus.NOT_FOUND, error.getStatus());
+        verifyNoInteractions(orderService);
     }
 
     private Order order(String status) {
