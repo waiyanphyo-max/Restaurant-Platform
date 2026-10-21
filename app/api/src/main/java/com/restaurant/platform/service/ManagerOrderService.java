@@ -366,6 +366,9 @@ public class ManagerOrderService {
                 AppNotification notification = new AppNotification();
                 notification.setQueueTicketId(ticket.getId());
                 notification.setOrderId(order.getId());
+                if (order.getCustomerId() != null) {
+                    notification.setUserId(order.getCustomerId());
+                }
                 notification.setNotificationType("QUEUE_READY");
                 notification.setTitle("Your order is ready");
                 notification.setBody(
