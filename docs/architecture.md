@@ -47,7 +47,7 @@ The following manager-order routes require a valid bearer token and an appropria
 - `GET /api/v1/restaurants/{restaurantId}/orders/{orderId}` — order details, item/modifier snapshots, and status history. The service first scopes the order by both IDs, then loads child data in batches.
 - `PATCH /api/v1/restaurants/{restaurantId}/orders/{orderId}/status` — validated status transition and optional audit note. The update locks the order row scoped to that restaurant and records the authenticated actor in status history in the transaction.
 
-All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, and customer delivery-checkout controllers are exposed, while owner transfer, online payment/refunds, advanced reporting, and external push-provider delivery remain pending.
+All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, customer delivery-checkout, and owner-transfer controllers are exposed. Online payment/refunds, advanced reporting beyond daily operations, and external push-provider delivery remain pending.
 
 ## Queue tracking and notification flow
 
@@ -58,6 +58,10 @@ When a queue-linked order is marked `READY`, `ManagerOrderService` updates the q
 The public ticket notification endpoints scope every notification query/update to the validated queue ticket ID. Authenticated `/api/v1/notifications` endpoints scope by the validated JWT subject and do not accept a client-supplied user ID. Reading a notification marks its state `READ` with a UTC timestamp.
 
 This is a database-backed in-app notification workflow. No external push provider or sound player is wired in the backend. Web/mobile clients must poll the queue status/notification route and play a sound locally when a new ready/called notification is observed.
+
+## Restaurant ownership transfer
+
+`POST /api/v1/restaurants/{restaurantId}/members/transfer-ownership` requires the current restaurant OWNER and a target user who is already a member of the same restaurant. The service locks both membership rows and changes the target to OWNER while changing the former owner to MANAGER in one database transaction. Ordinary member management remains unable to create, promote, demote, or remove an OWNER. If the target was the configured default delivery driver, that setting is cleared because the target's role changes to OWNER.
 
 ## Delivery management flow
 
@@ -142,4 +146,4 @@ GitHub Actions runs this command on pushes to `main` and `ai/**` branches, and r
 - Confirm the Supabase project signing algorithm, issuer, JWKS URL, and audience from its actual project settings.
 - Use least-privilege server-side database credentials and verify RLS behavior for the deployed DB role.
 - Add authenticated API integration tests around the eventual controllers, including invalid/missing bearer tokens and cross-restaurant requests.
-- Add authenticated API integration tests around default-driver configuration and delivery status endpoints, including cross-restaurant IDs and drivers attempting to access another driver's delivery.
+- Add authenticated API integration tests around ownership transfer, default-driver configuration and delivery status endpoints, including cross-restaurant IDs and drivers attempting to access another driver's delivery.
