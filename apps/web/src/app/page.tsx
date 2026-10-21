@@ -471,6 +471,34 @@ export default function HomePage() {
   }
 
   useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const scannedRestaurantId = query.get("restaurantId");
+    const scannedQrToken = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("qrToken");
+    const customerMode = query.get("view") === "customer-pickup" || Boolean(scannedQrToken);
+
+    if (scannedRestaurantId) {
+      setRestaurantId(scannedRestaurantId);
+    }
+    if (customerMode) {
+      setActiveView("customer-pickup");
+    }
+    if (scannedQrToken) {
+      setCommonQrToken(scannedQrToken);
+      // Keep the Common QR credential in the URL fragment only long enough to load it.
+      // Remove it from the visible address bar before making any API requests.
+      const cleanQuery = new URLSearchParams(window.location.search);
+      cleanQuery.set("view", "customer-pickup");
+      if (scannedRestaurantId) cleanQuery.set("restaurantId", scannedRestaurantId);
+      const queryString = cleanQuery.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${queryString ? `?${queryString}` : ""}`,
+      );
+    }
+  }, []);
+
+  useEffect(() => {
     if (!trackedTicketId || !trackingToken) return;
     let stopped = false;
     let inFlight = false;
