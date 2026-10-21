@@ -47,7 +47,7 @@ The following manager-order routes require a valid bearer token and an appropria
 - `GET /api/v1/restaurants/{restaurantId}/orders/{orderId}` — order details, item/modifier snapshots, and status history. The service first scopes the order by both IDs, then loads child data in batches.
 - `PATCH /api/v1/restaurants/{restaurantId}/orders/{orderId}/status` — validated status transition and optional audit note. The update locks the order row scoped to that restaurant and records the authenticated actor in status history in the transaction.
 
-All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, and customer delivery-checkout controllers are exposed, while owner transfer, online payment/refunds, full reporting, and external push-provider delivery remain pending.
+All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, and customer delivery-checkout controllers are exposed, while owner transfer, online payment/refunds, advanced reporting, and external push-provider delivery remain pending.
 
 ## Queue tracking and notification flow
 
@@ -110,6 +110,10 @@ Customer order history queries use `orders.customer_id` derived from the validat
 ## Push-device registration
 
 The authenticated `/api/v1/devices` endpoints associate device push tokens with the JWT subject, reject a token already owned by a different account, and never return raw tokens. Device deactivation is owner-scoped. Device-token persistence is not a push provider: server-side delivery to FCM/APNs/web-push is not yet connected, and the browser/mobile client remains responsible for local sound playback.
+
+## Daily operations reporting
+
+`GET /api/v1/restaurants/{restaurantId}/reports/daily` requires `REPORT_READ`. Order counts and non-cancelled order amount are aggregated in one PostgreSQL query for a half-open timestamp window derived from the restaurant's timezone. The separately reported paid amount includes only payment rows marked `PAID` whose `paid_at` falls in the same local day. Because order-created totals and payment-paid totals are different metrics, clients should label them separately. Reports reject future dates in the restaurant's local calendar.
 
 ## Error handling
 
