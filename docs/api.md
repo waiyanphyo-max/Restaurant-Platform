@@ -368,7 +368,7 @@ PUT example:
 }
 ```
 
-Supported languages are `my-MM` and `en`. The database migration `20261022001000_sync_auth_user_profiles.sql` creates a `profiles` row when a Supabase Auth user is added and backfills existing users without a profile.
+Supported languages are `my-MM` and `en`. The database migration `20261022001000_sync_auth_user_profiles.sql` creates a `profiles` row when a Supabase Auth user is added and backfills existing users without a profile. The migration `20261022002000_allow_cancelled_payment_status.sql` permits cancelled unpaid payment records after customer cancellation.
 
 ## Customer saved addresses
 
@@ -450,6 +450,9 @@ These endpoints require a valid bearer token and always scope by the authenticat
 |---|---|---|
 | GET | `/api/v1/customer/orders?page=0&size=20&status=PENDING` | Paginated order history for the current customer |
 | GET | `/api/v1/customer/orders/{orderId}` | Own order details, items/modifiers, status timeline, payment records, and delivery status |
+| POST | `/api/v1/customer/orders/{orderId}/cancel` | Cancel own order while it remains PENDING |
+
+Only orders still in `PENDING` can be cancelled by the customer. The order row is locked and ownership-checked; tracked stock reserved at checkout is released and pending payment rows are marked `CANCELLED` in the same transaction. Once the restaurant accepts the order, customer cancellation is rejected. The migration `20261022002000_allow_cancelled_payment_status.sql` adds `CANCELLED` to the payment status constraint.
 
 The optional status filter accepts `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, `OUT_FOR_DELIVERY`, `COMPLETED`, or `CANCELLED`. Page size is capped at 100. A customer cannot see an order solely by knowing its UUID; detail lookups require both the order ID and the authenticated customer ID. Status history is customer-safe (status and timestamp only), and payment responses omit private transaction references and staff identity.
 
