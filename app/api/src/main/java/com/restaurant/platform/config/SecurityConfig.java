@@ -2,6 +2,7 @@ package com.restaurant.platform.config;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import com.restaurant.platform.common.error.ApiSecurityErrorHandler;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,14 +54,27 @@ public class SecurityConfig {
     @Value("${app.security.jwt.required-audience:authenticated}")
     private String requiredAudience;
 
+    @Value("${app.security.jwt.signing-algorithm:ES256}")
+    private String jwtSigningAlgorithm;
+
     public SecurityConfig(ApiSecurityErrorHandler apiSecurityErrorHandler) {
         this.apiSecurityErrorHandler = apiSecurityErrorHandler;
     }
 
     @Bean
     public JwtDecoder jwtDecoder() {
+        final SignatureAlgorithm signingAlgorithm;
+        try {
+            signingAlgorithm = SignatureAlgorithm.valueOf(
+                    jwtSigningAlgorithm.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException(
+                    "Unsupported Supabase JWT signing algorithm configured: " + jwtSigningAlgorithm,
+                    exception);
+        }
+
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
-                .jwsAlgorithm(SignatureAlgorithm.ES256)
+                .jwsAlgorithm(signingAlgorithm)
                 .build();
 
         OAuth2TokenValidator<Jwt> issuerValidator =
