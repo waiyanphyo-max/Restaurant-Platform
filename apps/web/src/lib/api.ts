@@ -253,3 +253,34 @@ export async function assignDeliveryDriver(
     { driverUserId, note: "Assigned from the web operations dashboard." },
   );
 }
+
+export type DailyOperationsReport = {
+  restaurantId: string;
+  reportDate: string;
+  timezone: string;
+  totalOrders: number;
+  pendingOrders: number;
+  acceptedOrders: number;
+  preparingOrders: number;
+  readyOrders: number;
+  outForDeliveryOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  orderAmountExcludingCancelled: number;
+  paidAmount: number;
+};
+
+export async function getDailyOperationsReport(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  reportDate = "",
+): Promise<DailyOperationsReport> {
+  const query = new URLSearchParams();
+  if (reportDate.trim()) query.set("date", reportDate.trim());
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return authenticatedJson<DailyOperationsReport>(
+    `${restaurantApiUrl(apiBaseUrl, restaurantId, "reports/daily")}${suffix}`,
+    accessToken,
+  );
+}
