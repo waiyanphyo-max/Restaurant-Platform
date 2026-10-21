@@ -214,6 +214,8 @@ class ManagerOrderServiceTest {
     @Test
     void movingQueueOrderToReadyUpdatesTicketAndCreatesInAppNotification() {
         Order order = order("PREPARING", "TAKEAWAY");
+        UUID customerId = UUID.randomUUID();
+        order.setCustomerId(customerId);
         UUID ticketId = UUID.randomUUID();
         order.setQueueTicketId(ticketId);
 
@@ -243,6 +245,7 @@ class ManagerOrderServiceTest {
         assertEquals(ticketId, notification.getValue().getQueueTicketId());
         assertEquals("QUEUE_READY", notification.getValue().getNotificationType());
         assertEquals("IN_APP", notification.getValue().getChannel());
+        assertEquals(customerId, notification.getValue().getUserId());
     }
 
     @Test
