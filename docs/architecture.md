@@ -71,6 +71,10 @@ Customer-address APIs derive ownership from the validated JWT `sub`; all read/up
 
 The checkout service calculates item/modifier prices from database records, checks stock and both restaurant/zone minimums, snapshots the destination into the order, and creates a `PENDING` cash-on-delivery payment record in the same transaction. Clients cannot provide order totals, fees, customer IDs, or creator IDs. Online payment processing is not implemented. Delivery zones currently carry names, fees, and minimums but no geographic polygons or township boundaries, so the customer selects a zone and the backend can only validate that it belongs to the restaurant.
 
+## Staff-entered orders
+
+`POST /api/v1/restaurants/{restaurantId}/orders/staff` allows a restaurant member with `ORDER_CREATE` to enter a dine-in or takeaway order on behalf of a customer without requiring the customer's account. The actor comes from the JWT subject, table selection is validated against the same restaurant, catalog pricing/modifiers and stock are checked server-side, and a pending `CASH_AT_COUNTER` payment is created. The customer ID remains null unless a future workflow explicitly associates an authenticated customer.
+
 ## Restaurant onboarding
 
 `POST /api/v1/restaurants` derives the initial owner from the authenticated JWT subject and creates the restaurant, settings (including a random Common QR token), and OWNER membership in one transaction. The raw Common QR token is returned only in the onboarding response for QR generation; settings/profile reads do not expose it. `GET /api/v1/my/restaurants` derives the user ID from the JWT and lists only their memberships. Restaurant profile changes require `SETTINGS_MANAGE`, and public slug is immutable through that endpoint.
@@ -105,7 +109,7 @@ Migration `20261022001000_sync_auth_user_profiles.sql` adds an `auth.users` inse
 
 ## Customer order history and privacy
 
-Customer order history queries use `orders.customer_id` derived from the validated JWT subject. The detail lookup combines `order_id` and `customer_id`; knowing an order UUID does not grant access. The response includes item/modifier snapshots, status timestamps, a safe summary of payment status, and the current delivery status without exposing internal payment transaction references or status-change actor IDs. Order history is read-only; customer cancellation/reorder workflows have not been implemented.
+Customer order history queries use `orders.customer_id` derived from the validated JWT subject. The detail lookup combines `order_id` and `customer_id`; knowing an order UUID does not grant access. The response includes item/modifier snapshots, status timestamps, a safe summary of payment status, and the current delivery status without exposing internal payment transaction references or status-change actor IDs. Order history is read-only apart from the separate cancellation endpoint. Reorder and paid-order refunds remain future workflows.
 
 ## Push-device registration
 
