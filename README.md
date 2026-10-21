@@ -76,10 +76,12 @@ mvn -f app/api/pom.xml spring-boot:run
 | DELETE | `/api/v1/customer/addresses/{addressId}` | Delete own address |
 | GET | `/api/v1/customer/restaurants/{restaurantId}/delivery-zones` | List the restaurant's active delivery zones |
 | POST | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery` | Authenticated delivery checkout using saved address, zone, and database-priced items |
+| GET | `/api/v1/customer/orders` | Paginated order history for the current customer |
+| GET | `/api/v1/customer/orders/{orderId}` | Own order detail, status timeline, payment and delivery status |
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer address management, and authenticated delivery checkout are exposed. The checkout computes prices and fees on the server and supports cash on delivery only. Online payments, customer order history/profile editing, restaurant/menu administration, external push delivery, and client-side sound playback remain future work.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer address management, authenticated delivery checkout, and customer order history are exposed. Checkout computes prices and fees on the server and supports cash on delivery only. Online payments, profile editing, restaurant/menu administration, external push delivery, and client-side sound playback remain future work.
 
 ## Security model
 
