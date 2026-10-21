@@ -19,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -63,6 +64,7 @@ public class ManagerOrderService {
         this.restaurantAuthorization = restaurantAuthorization;
     }
 
+    @PreAuthorize("@restaurantAuthorization.hasPermission(#restaurantId, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
     @Transactional(readOnly = true)
     public Page<OrderSummaryDto> listOrders(
             UUID restaurantId,
@@ -119,6 +121,7 @@ public class ManagerOrderService {
         return orders.map(this::toSummaryDto);
     }
 
+    @PreAuthorize("@restaurantAuthorization.hasPermission(#restaurantId, T(com.restaurant.platform.security.RestaurantPermission).ORDER_STATUS_UPDATE)")
     @Transactional
     public OrderSummaryDto updateStatus(
             UUID restaurantId,
