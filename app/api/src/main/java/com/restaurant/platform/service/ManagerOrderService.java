@@ -103,7 +103,7 @@ public class ManagerOrderService {
             if (!VALID_ORDER_STATUSES.contains(normalizedStatus)) {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
-                        "Invalid order status filter",
+                        "INVALID_ORDER_STATUS_FILTER",
                         "invalid-order-status-filter"
                 );
             }
@@ -141,7 +141,7 @@ public class ManagerOrderService {
                 || request.status().isBlank()) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
-                    "Order status is required",
+                    "ORDER_STATUS_REQUIRED",
                     "order-status-required"
             );
         }
@@ -151,7 +151,7 @@ public class ManagerOrderService {
         if (!VALID_ORDER_STATUSES.contains(nextStatus)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
-                    "Order status is required",
+                    "ORDER_STATUS_REQUIRED",
                     "order-status-required"
             );
         }
@@ -161,7 +161,7 @@ public class ManagerOrderService {
                 .findByIdAndRestaurantId(orderId, restaurantId)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
-                        "Order not found",
+                        "ORDER_NOT_FOUND",
                         "order-not-found"
                 ));
 
@@ -176,8 +176,7 @@ public class ManagerOrderService {
         )) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
-                    "Invalid order status transition from "
-                            + currentStatus + " to " + nextStatus,
+                    "INVALID_ORDER_STATUS_TRANSITION",
                     "invalid-order-status-transition",
                     currentStatus,
                     nextStatus
