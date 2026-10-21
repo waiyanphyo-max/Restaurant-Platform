@@ -86,3 +86,170 @@ export async function listOrders(
 
   return (await response.json()) as Page<OrderSummary>;
 }
+
+export type QueueTicket = {
+  ticketId: string;
+  queueNumber: number;
+  displayCode: string;
+  status: string;
+  createdAt: string | null;
+  readyAt: string | null;
+  calledAt: string | null;
+  completedAt: string | null;
+};
+
+export type DeliveryTask = {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  orderStatus: string;
+  status: string;
+  driverUserId: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  deliveryAddress: string | null;
+  deliveryNote: string | null;
+  totalAmount: number;
+  assignedAt: string | null;
+  pickedUpAt: string | null;
+  deliveredAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+async function authenticatedJson<T>(
+  url: string,
+  accessToken: string,
+  method = "GET",
+  body?: unknown,
+): Promise<T> {
+  const token = accessToken.trim();
+  if (!token) throw new ApiError("Enter a Supabase access token.");
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError("Cannot reach the backend. Check the API URL and CORS configuration.");
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new ApiError("Authentication failed. Check that the access token is valid.", 401);
+    }
+    if (response.status === 403) {
+      throw new ApiError("This account does not have permission to perform this operation.", 403);
+    }
+    if (response.status === 404) {
+      throw new ApiError("The requested record was not found.", 404);
+    }
+    let serverMessage = "";
+    try {
+      const payload: unknown = await response.json();
+      if (payload && typeof payload === "object" && "message" in payload
+          && typeof payload.message === "string") {
+        serverMessage = payload.message;
+      }
+    } catch {
+      // Some gateway errors do not return JSON.
+    }
+    throw new ApiError(serverMessage || `The backend returned HTTP ${response.status}.`, response.status);
+  }
+
+  return (await response.json()) as T;
+}
+
+function restaurantApiUrl(apiBaseUrl: string, restaurantId: string, resource: string) {
+  const base = apiBaseUrl.trim().replace(/\/+$/, "");
+  const normalizedRestaurantId = restaurantId.trim();
+  if (!base) throw new ApiError("Enter the backend API URL.");
+  if (!normalizedRestaurantId) throw new ApiError("Enter the restaurant ID.");
+  return `${base}/api/v1/restaurants/${encodeURIComponent(normalizedRestaurantId)}/${resource}`;
+}
+
+export async function listQueueTickets(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+): Promise<QueueTicket[]> {
+  return authenticatedJson<QueueTicket[]>(
+    restaurantApiUrl(apiBaseUrl, restaurantId, "queue-tickets"),
+    accessToken,
+  );
+}
+
+export async function callQueueTicket(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  ticketId: string,
+): Promise<QueueTicket> {
+  return authenticatedJson<QueueTicket>(
+    `${restaurantApiUrl(apiBaseUrl, restaurantId, "queue-tickets")}/${encodeURIComponent(ticketId)}/call`,
+    accessToken,
+    "PATCH",
+  );
+}
+
+export async function listDeliveries(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  pageIndex = 0,
+  status = "",
+): Promise<Page<DeliveryTask>> {
+  const query = new URLSearchParams({
+    page: String(Math.max(0, Math.floor(pageIndex))),
+    size: "20",
+  });
+  if (status.trim()) query.set("status", status.trim());
+  return authenticatedJson<Page<DeliveryTask>>(
+    `${restaurantApiUrl(apiBaseUrl, restaurantId, "deliveries")}?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function updateDeliveryStatus(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  deliveryId: string,
+  request: {
+    status: string;
+    failureReason?: string;
+    note?: string;
+    cashCollected?: boolean;
+  },
+): Promise<DeliveryTask> {
+  return authenticatedJson<DeliveryTask>(
+    `${restaurantApiUrl(apiBaseUrl, restaurantId, "deliveries")}/${encodeURIComponent(deliveryId)}/status`,
+    accessToken,
+    "PATCH",
+    request,
+  );
+}
+
+export async function assignDeliveryDriver(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  deliveryId: string,
+  driverUserId: string,
+): Promise<DeliveryTask> {
+  return authenticatedJson<DeliveryTask>(
+    `${restaurantApiUrl(apiBaseUrl, restaurantId, "deliveries")}/${encodeURIComponent(deliveryId)}/assign`,
+    accessToken,
+    "PATCH",
+    { driverUserId, note: "Assigned from the web operations dashboard." },
+  );
+}
