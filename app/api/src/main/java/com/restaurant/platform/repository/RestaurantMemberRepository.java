@@ -11,7 +11,11 @@ import java.util.List;
 /** Spring Data repository for restaurant_members. */
 public interface RestaurantMemberRepository extends JpaRepository<RestaurantMember, UUID> {
     List<RestaurantMember> findByUserId(UUID userId);
+
     List<RestaurantMember> findByRestaurantIdAndRole(UUID restaurantId, RestaurantRole role);
+
+    List<RestaurantMember> findByRestaurantIdAndRoleOrderByCreatedAtAsc(
+            UUID restaurantId, RestaurantRole role);
 
     Optional<RestaurantMember> findByRestaurantIdAndUserId(
             UUID restaurantId, UUID userId);
