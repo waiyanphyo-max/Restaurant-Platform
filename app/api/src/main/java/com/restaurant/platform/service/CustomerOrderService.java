@@ -6,6 +6,11 @@ import com.restaurant.platform.dto.customer.CustomerOrderDetailDto;
 import com.restaurant.platform.dto.customer.CustomerOrderStatusDto;
 import com.restaurant.platform.dto.customer.CustomerOrderSummaryDto;
 import com.restaurant.platform.dto.customer.CustomerPaymentDto;
+import com.restaurant.platform.dto.customer.ReorderDeliveryOrderRequest;
+import com.restaurant.platform.dto.order.CreateDeliveryOrderRequest;
+import com.restaurant.platform.dto.order.CreateOrderItemRequest;
+import com.restaurant.platform.dto.order.CreateOrderResponse;
+import com.restaurant.platform.dto.order.ModifierSelectionRequest;
 import com.restaurant.platform.dto.order.OrderItemDetailDto;
 import com.restaurant.platform.dto.order.OrderItemModifierDto;
 import com.restaurant.platform.entity.Delivery;
@@ -56,6 +61,7 @@ public class CustomerOrderService {
     private final PaymentRepository paymentRepository;
     private final DeliveryRepository deliveryRepository;
     private final RestaurantAuthorization authorization;
+    private final OrderService orderService;
 
     public CustomerOrderService(
             OrderRepository orderRepository,
@@ -65,7 +71,8 @@ public class CustomerOrderService {
             OrderStatusHistoryRepository historyRepository,
             PaymentRepository paymentRepository,
             DeliveryRepository deliveryRepository,
-            RestaurantAuthorization authorization) {
+            RestaurantAuthorization authorization,
+            OrderService orderService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.productRepository = productRepository;
@@ -74,6 +81,7 @@ public class CustomerOrderService {
         this.paymentRepository = paymentRepository;
         this.deliveryRepository = deliveryRepository;
         this.authorization = authorization;
+        this.orderService = orderService;
     }
 
     @Transactional(readOnly = true)
@@ -149,6 +157,79 @@ public class CustomerOrderService {
                 order.getTotalAmount(), order.getDeliveryName(), order.getDeliveryPhone(),
                 order.getDeliveryAddress(), order.getDeliveryNote(), order.getCreatedAt(),
                 order.getUpdatedAt(), itemDtos, statusHistory, payments, delivery);
+    }
+
+    /**
+     * Recreates a new delivery checkout from a previous completed/cancelled delivery.
+     * Product prices, stock, variants, modifiers, minimums and fees are all revalidated
+     * by OrderService; only product/variant/modifier identifiers and quantities are reused.
+     */
+    @Transactional
+    public CreateOrderResponse reorderMyDeliveryOrder(
+            UUID userId, UUID sourceOrderId, ReorderDeliveryOrderRequest request) {
+        authorization.requireAuthenticatedUserMatches(userId);
+        if (request == null || request.addressId() == null
+                || request.deliveryZoneId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "CUSTOMER_REORDER_FIELDS_REQUIRED",
+                    "error.customer-order.reorder-fields-required");
+        }
+
+        Order sourceOrder = orderRepository.findByIdAndCustomerId(sourceOrderId, userId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "CUSTOMER_ORDER_NOT_FOUND",
+                        "error.customer-order.not-found"));
+        if (!"DELIVERY".equals(sourceOrder.getOrderType())
+                || !Set.of("COMPLETED", "CANCELLED").contains(sourceOrder.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "CUSTOMER_REORDER_NOT_ALLOWED",
+                    "error.customer-order.reorder-not-allowed");
+        }
+
+        List<OrderItem> sourceItems = orderItemRepository
+                .findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(
+                        sourceOrder.getId(), sourceOrder.getRestaurantId());
+        if (sourceItems.isEmpty()) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "CUSTOMER_REORDER_ITEMS_MISSING",
+                    "error.customer-order.reorder-items-missing");
+        }
+
+        List<UUID> sourceItemIds = sourceItems.stream()
+                .map(OrderItem::getId)
+                .toList();
+        List<OrderItemModifier> sourceModifiers = modifierRepository
+                .findByOrderItemIdInAndRestaurantIdOrderByIdAsc(
+                        sourceItemIds, sourceOrder.getRestaurantId());
+
+        Map<UUID, List<ModifierSelectionRequest>> selectionsByItem =
+                sourceModifiers.stream().collect(Collectors.groupingBy(
+                        OrderItemModifier::getOrderItemId,
+                        Collectors.mapping(modifier -> new ModifierSelectionRequest(
+                                modifier.getModifierOptionId(), modifier.getQuantity()),
+                                Collectors.toList())));
+
+        List<CreateOrderItemRequest> checkoutItems = sourceItems.stream()
+                .map(item -> new CreateOrderItemRequest(
+                        item.getProductId(),
+                        item.getVariantId(),
+                        item.getQuantity(),
+                        item.getSpecialInstruction(),
+                        selectionsByItem.getOrDefault(item.getId(), List.of())))
+                .toList();
+
+        CreateDeliveryOrderRequest checkout = new CreateDeliveryOrderRequest(
+                request.addressId(),
+                request.deliveryZoneId(),
+                request.recipientName(),
+                request.recipientPhone(),
+                request.deliveryNote(),
+                request.paymentMethod(),
+                checkoutItems);
+
+        return orderService.createDeliveryOrder(
+                sourceOrder.getRestaurantId(), userId, checkout);
     }
 
     @Transactional
