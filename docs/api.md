@@ -349,6 +349,14 @@ All authenticated management routes are scoped to `restaurantId`. Reads require 
 
 Product management requests use the database UUIDs returned by the API. Product category, price, stock state, variants, group selection rules, and same-restaurant relationships are validated server-side. Soft deactivation/availability flags are used where the schema preserves catalogue history; products cannot be ordered from an inactive category and unavailable variants/options cannot be selected. The public modifier endpoint only returns active groups attached to an available product and available options.
 
+## Daily operations report
+
+`GET /api/v1/restaurants/{restaurantId}/reports/daily?date=2026-10-21`
+
+Requires `REPORT_READ` (OWNER and MANAGER in the current role map). If `date` is omitted, the report uses the current date in the restaurant's configured timezone. Future local dates are rejected. The service computes local-day boundaries using the IANA timezone and aggregates orders created during that window; paid amount is aggregated separately from payment rows whose `paid_at` falls inside that window.
+
+The report contains total orders, counts for `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, `OUT_FOR_DELIVERY`, `COMPLETED`, and `CANCELLED`, the total amount of non-cancelled orders created that day, and the amount of payments actually marked `PAID` that day. These two amount fields represent different dates/semantics and should not be treated as interchangeable revenue figures.
+
 ## Customer profile
 
 These endpoints read/write only the profile whose ID equals the validated JWT subject.
@@ -479,4 +487,4 @@ The response intentionally never exposes the raw push token. A token already ass
 
 ## Not yet exposed as HTTP routes
 
-Owner transfer, customer cancellation/reorder, online payments/refunds, full reporting, and external push notification integration are not yet implemented as complete HTTP workflows.
+Owner transfer, customer cancellation/reorder, online payments/refunds, advanced reporting, and external push notification integration are not yet implemented as complete HTTP workflows.
