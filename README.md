@@ -69,10 +69,17 @@ mvn -f app/api/pom.xml spring-boot:run
 | PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/status` | Driver/authorized member updates delivery lifecycle |
 | GET | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Read the restaurant's default delivery driver |
 | PATCH | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Owner/manager sets a default driver member |
+| GET | `/api/v1/customer/addresses` | List addresses owned by the signed-in customer |
+| POST | `/api/v1/customer/addresses` | Save a customer delivery address |
+| PUT | `/api/v1/customer/addresses/{addressId}` | Update own saved address |
+| PATCH | `/api/v1/customer/addresses/{addressId}/default` | Set own default address |
+| DELETE | `/api/v1/customer/addresses/{addressId}` | Delete own address |
+| GET | `/api/v1/customer/restaurants/{restaurantId}/delivery-zones` | List the restaurant's active delivery zones |
+| POST | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery` | Authenticated delivery checkout using saved address, zone, and database-priced items |
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notification records, delivery assignment, driver task listing/status updates, and default-driver configuration are exposed. When a delivery order becomes READY, the configured default driver is assigned automatically. If no default is configured, the earliest-added driver member is saved as the default; if there are no driver members, the task remains waiting for assignment. Actual mobile/browser sound playback requires client polling and local audio playback; an in-app database record does not deliver external push notifications.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer address management, and authenticated delivery checkout are exposed. The checkout computes prices and fees on the server and supports cash on delivery only. Online payments, customer order history/profile editing, restaurant/menu administration, external push delivery, and client-side sound playback remain future work.
 
 ## Security model
 
