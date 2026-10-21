@@ -6,7 +6,9 @@ A multi-restaurant ordering and management backend built with Spring Boot, Sprin
 
 - `app/api`: Spring Boot API, DTOs, entities, repositories, security, and service layer.
 - `supabase/migrations`: versioned SQL schema. Apply migrations in timestamp order before running the API.
-- `docs/architecture.md` and `docs/database-erd.md`: architecture and schema documentation (still to be completed against the verified implementation).
+- `docs/architecture.md`: architecture, authentication, and authorization flow.
+- `docs/api.md`: currently implemented HTTP routes, DTOs, permissions, and error codes.
+- `docs/database-erd.md`: database ERD documentation remains to be completed against the current migrations.
 - `.env.example`: sample backend environment variables only; never put real secrets in this file or in the frontend.
 
 The database schema remains the source of truth. Hibernate is configured with `ddl-auto: validate`; it must not create or modify production schema.
