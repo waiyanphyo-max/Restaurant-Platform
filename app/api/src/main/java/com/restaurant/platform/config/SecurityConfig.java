@@ -3,6 +3,7 @@ package com.restaurant.platform.config;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 import com.restaurant.platform.common.error.ApiSecurityErrorHandler;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,9 +32,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Security configuration for the Restaurant Platform REST API.
- * Supabase Auth issues access tokens; this API validates the current ES256 tokens.
- * Restaurant-specific permissions must still be checked by services using
- * restaurant_members and deliveries records.
+ * Supabase Auth issues access tokens; this API validates their signature,
+ * issuer, timestamps, audience, and UUID subject. Restaurant permissions are
+ * resolved from server-side membership records, not JWT role claims.
  */
 @Configuration
 @EnableWebSecurity
@@ -80,20 +81,44 @@ public class SecurityConfig {
         OAuth2TokenValidator<Jwt> issuerValidator =
                 JwtValidators.createDefaultWithIssuer(issuerUri);
 
-        OAuth2TokenValidator<Jwt> audienceValidator = jwt -> {
-            if (jwt.getAudience() != null && jwt.getAudience().contains(requiredAudience)) {
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                issuerValidator,
+                audienceValidator(requiredAudience),
+                userSubjectValidator()));
+        return decoder;
+    }
+
+    /**
+     * Supabase Auth user IDs are UUIDs. Reject tokens whose subject cannot be
+     * mapped unambiguously to a profile ID before they reach application services.
+     */
+    static OAuth2TokenValidator<Jwt> userSubjectValidator() {
+        return jwt -> {
+            try {
+                UUID.fromString(jwt.getSubject());
+                return OAuth2TokenValidatorResult.success();
+            } catch (IllegalArgumentException | NullPointerException exception) {
+                return OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                        "invalid_token",
+                        "The token subject must be a valid user UUID",
+                        null));
+            }
+        };
+    }
+
+    static OAuth2TokenValidator<Jwt> audienceValidator(String requiredAudience) {
+        return jwt -> {
+            if (requiredAudience != null
+                    && !requiredAudience.isBlank()
+                    && jwt.getAudience() != null
+                    && jwt.getAudience().contains(requiredAudience)) {
                 return OAuth2TokenValidatorResult.success();
             }
-            return OAuth2TokenValidatorResult.failure(
-                    new OAuth2Error(
-                            "invalid_token",
-                            "Required audience '" + requiredAudience + "' is missing",
-                            null));
+            return OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                    "invalid_token",
+                    "The required token audience is missing",
+                    null));
         };
-
-        decoder.setJwtValidator(
-                new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator));
-        return decoder;
     }
 
     @Bean
@@ -112,8 +137,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
-                        // Only genuinely public menu/QR endpoints should be placed here.
-                        .requestMatchers("/api/v1/public/**").permitAll()
+                        // Whitelist only the public routes that currently exist. New endpoints
+                        // remain authenticated unless explicitly reviewed and added here.
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/public/restaurants/*/menu").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/public/restaurants/*/orders/common-qr",
+                                "/api/v1/public/restaurants/*/orders/table-qr").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         // Also use the localized handler for invalid/missing bearer tokens.
