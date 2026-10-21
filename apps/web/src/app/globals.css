@@ -111,3 +111,19 @@ button.nav-item:focus-visible{outline:2px solid #6e9c81;outline-offset:2px}
 .delivery-confirm label{display:flex;align-items:flex-start;gap:9px;max-width:600px;font-size:10px;line-height:1.6;font-weight:500;color:#56635c}
 .delivery-confirm input{margin-top:2px}
 @media(max-width:600px){.queue-card{align-items:flex-start;flex-wrap:wrap;padding:14px}.queue-number{width:45px;height:45px;flex-basis:45px;font-size:19px}.queue-card .primary-action{margin-left:62px}.delivery-meta{grid-template-columns:1fr;gap:10px}.delivery-card{padding:14px}.delivery-card-heading{flex-direction:column}.inline-action .secondary-button{width:100%}.delivery-actions>.primary-action,.delivery-actions>.secondary-button{flex:1}.delivery-confirm{align-items:stretch}.delivery-confirm .primary-action{width:100%}}
+
+.report-date-form{display:flex;align-items:flex-end;gap:12px;padding:2px 0 18px}
+.report-date-form .filter-field{max-width:260px}
+.report-date-form input[type="date"]{width:100%;border:1px solid #dfe5df;border-radius:8px;padding:10px 12px;font-size:12px;font-weight:500;color:var(--ink);background:#fff;outline:none}
+.report-date-form input[type="date"]:focus{border-color:#6e9c81;box-shadow:0 0 0 3px #dcebe2}
+.report-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:6px 0 18px}
+.report-metric{border:1px solid var(--line);border-radius:12px;padding:17px;background:#fbfcfa;min-width:0}
+.report-metric span{display:block;font-size:10px;font-weight:700;color:#718079;text-transform:uppercase;letter-spacing:.65px;margin-bottom:9px}
+.report-metric strong{display:block;font:800 clamp(20px,2.2vw,27px) Manrope,sans-serif;letter-spacing:-.5px;color:var(--green);overflow-wrap:anywhere}
+.report-metric small{display:block;font-size:10px;line-height:1.6;color:#929c96;margin-top:8px}
+.report-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.report-status{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #edf0ec;border-radius:9px;padding:12px}
+.report-status span{font-size:10px;color:#667169;line-height:1.5}
+.report-status strong{font:800 16px Manrope,sans-serif;color:#34483c}
+.report-note{font-size:10px;line-height:1.7;color:#89948d;margin:16px 0 0}
+@media(max-width:700px){.report-summary-grid{grid-template-columns:1fr}.report-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.report-date-form{align-items:stretch;flex-direction:column}.report-date-form .filter-field{max-width:none}.report-date-form .primary-action{align-self:flex-start}}
