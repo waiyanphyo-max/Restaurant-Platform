@@ -18,7 +18,7 @@
 | `queue_tickets` | `QueueTicket` | `QueueTicketRepository` |
 | `customer_addresses` | `CustomerAddress` | `CustomerAddressRepository` |
 | `delivery_zones` | `DeliveryZone` | `DeliveryZoneRepository` |
-| `orders` | `RestaurantOrder` | `RestaurantOrderRepository` |
+| `orders` | `Order` | `OrderRepository` |
 | `order_items` | `OrderItem` | `OrderItemRepository` |
 | `order_item_modifiers` | `OrderItemModifier` | `OrderItemModifierRepository` |
 | `order_status_history` | `OrderStatusHistory` | `OrderStatusHistoryRepository` |
