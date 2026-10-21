@@ -12,6 +12,7 @@ public record QueueTrackingResponse(
         String orderStatus,
         OffsetDateTime createdAt,
         OffsetDateTime readyAt,
+        OffsetDateTime calledAt,
         OffsetDateTime completedAt
 ) {
 }

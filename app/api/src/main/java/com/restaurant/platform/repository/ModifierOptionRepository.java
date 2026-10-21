@@ -13,4 +13,16 @@ public interface ModifierOptionRepository extends JpaRepository<ModifierOption, 
     List<ModifierOption> findByModifierGroupIdAndIsAvailableTrue(UUID modifierGroupId);
 
     Optional<ModifierOption> findByIdAndRestaurantIdAndIsAvailableTrue(@NotNull UUID uuid, UUID restaurantId);
+
+    Optional<ModifierOption> findByIdAndModifierGroupIdAndRestaurantId(
+            UUID id, UUID modifierGroupId, UUID restaurantId);
+
+    List<ModifierOption> findByModifierGroupIdAndRestaurantIdOrderByNameAsc(
+            UUID modifierGroupId, UUID restaurantId);
+
+    List<ModifierOption> findByModifierGroupIdAndRestaurantIdAndIsAvailableTrueOrderByNameAsc(
+            UUID modifierGroupId, UUID restaurantId);
+
+    List<ModifierOption> findByModifierGroupIdInAndRestaurantIdAndIsAvailableTrueOrderByNameAsc(
+            List<UUID> modifierGroupIds, UUID restaurantId);
 }

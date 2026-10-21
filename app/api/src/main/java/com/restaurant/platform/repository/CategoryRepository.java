@@ -11,6 +11,10 @@ import java.util.List;
 public interface CategoryRepository extends JpaRepository<Category, UUID> {
     List<Category> findByRestaurantIdAndIsActiveTrueOrderByDisplayOrderAsc(UUID restaurantId);
 
+    List<Category> findByRestaurantIdOrderByDisplayOrderAsc(UUID restaurantId);
+
+    Optional<Category> findByIdAndRestaurantId(UUID categoryId, UUID restaurantId);
+
     Optional<Category> findByIdAndRestaurantIdAndIsActiveTrue(
             UUID categoryId, UUID restaurantId);
 

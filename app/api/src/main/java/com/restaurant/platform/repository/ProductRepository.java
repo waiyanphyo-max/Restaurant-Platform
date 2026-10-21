@@ -15,6 +15,7 @@ import java.util.List;
 
 /** Spring Data repository for products. */
 public interface ProductRepository extends JpaRepository<Product, UUID> {
+    List<Product> findByRestaurantId(UUID restaurantId);
     List<Product> findByRestaurantIdAndIsAvailableTrue(UUID restaurantId);
     List<Product> findByRestaurantIdAndCategoryIdAndIsAvailableTrue(UUID restaurantId, UUID categoryId);
     List<Product> findByRestaurantIdAndNameContainingIgnoreCase(UUID restaurantId, String name);
@@ -36,6 +37,20 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
        and p.stockQuantity >= :quantity
     """)
     int reserveStock(
+            @Param("productId") UUID productId,
+            @Param("restaurantId") UUID restaurantId,
+            @Param("quantity") int quantity
+    );
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+    update Product p
+       set p.stockQuantity = p.stockQuantity + :quantity
+     where p.id = :productId
+       and p.restaurantId = :restaurantId
+       and p.trackStock = true
+    """)
+    int releaseStock(
             @Param("productId") UUID productId,
             @Param("restaurantId") UUID restaurantId,
             @Param("quantity") int quantity

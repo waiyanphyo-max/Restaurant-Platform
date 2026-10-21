@@ -8,4 +8,5 @@ import java.util.List;
 /** Spring Data repository for order_item_modifiers. */
 public interface OrderItemModifierRepository extends JpaRepository<OrderItemModifier, UUID> {
     List<OrderItemModifier> findByOrderItemId(UUID orderItemId);
+    List<OrderItemModifier> findByOrderItemIdInAndRestaurantIdOrderByIdAsc(List<UUID> orderItemIds, UUID restaurantId);
 }

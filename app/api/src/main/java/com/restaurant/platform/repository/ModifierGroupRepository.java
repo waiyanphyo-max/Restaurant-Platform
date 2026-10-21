@@ -13,4 +13,8 @@ public interface ModifierGroupRepository extends JpaRepository<ModifierGroup, UU
     List<ModifierGroup> findByRestaurantIdAndIsActiveTrue(UUID restaurantId);
 
     Optional<ModifierGroup> findByIdAndRestaurantIdAndIsActiveTrue(UUID groupId, UUID restaurantId);
+
+    Optional<ModifierGroup> findByIdAndRestaurantId(UUID groupId, UUID restaurantId);
+
+    List<ModifierGroup> findByRestaurantIdOrderByNameAsc(UUID restaurantId);
 }

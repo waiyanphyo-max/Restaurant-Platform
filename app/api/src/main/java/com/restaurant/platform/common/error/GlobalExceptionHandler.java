@@ -12,11 +12,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Returns localized API error messages according to the request's Accept-Language.
@@ -102,6 +104,64 @@ public class GlobalExceptionHandler {
                 List.of());
     }
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatusException(
+            ResponseStatusException exception,
+            HttpServletRequest request,
+            Locale locale) {
+
+        HttpStatusCode statusCode = exception.getStatusCode();
+        HttpStatus status = HttpStatus.resolve(statusCode.value());
+
+        // Preserve expected framework status codes without exposing exception reasons
+        // that may contain implementation details or untranslated English text.
+        String code;
+        String messageKey;
+        if (status == null) {
+            code = statusCode.is4xxClientError() ? "REQUEST_REJECTED" : "INTERNAL_ERROR";
+            messageKey = statusCode.is4xxClientError() ? "error.bad-request" : "error.internal";
+        } else {
+            switch (status) {
+                case BAD_REQUEST -> {
+                    code = "BAD_REQUEST";
+                    messageKey = "error.bad-request";
+                }
+                case UNAUTHORIZED -> {
+                    code = "UNAUTHORIZED";
+                    messageKey = "error.unauthorized";
+                }
+                case FORBIDDEN -> {
+                    code = "FORBIDDEN";
+                    messageKey = "error.forbidden";
+                }
+                case NOT_FOUND -> {
+                    code = "NOT_FOUND";
+                    messageKey = "error.not-found";
+                }
+                case CONFLICT -> {
+                    code = "CONFLICT";
+                    messageKey = "error.conflict";
+                }
+                default -> {
+                    if (status.is4xxClientError()) {
+                        code = status.name();
+                        messageKey = "error.bad-request";
+                    } else {
+                        code = "INTERNAL_ERROR";
+                        messageKey = "error.internal";
+                    }
+                }
+            }
+        }
+
+        return response(
+                statusCode,
+                code,
+                message(messageKey, locale),
+                request,
+                List.of());
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleDataConflict(
             DataIntegrityViolationException exception,
@@ -134,7 +194,7 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ApiErrorResponse> response(
-            HttpStatus status,
+            HttpStatusCode status,
             String code,
             String message,
             HttpServletRequest request,

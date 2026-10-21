@@ -19,5 +19,8 @@ public enum RestaurantPermission {
     DELIVERY_ASSIGN,
     DELIVERY_STATUS_UPDATE,
 
+    PAYMENT_READ,
+    PAYMENT_COLLECT,
+
     REPORT_READ
 }
