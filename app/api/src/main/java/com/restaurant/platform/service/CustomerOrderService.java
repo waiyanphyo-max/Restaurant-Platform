@@ -181,7 +181,8 @@ public class CustomerOrderService {
                         "CUSTOMER_ORDER_NOT_FOUND",
                         "error.customer-order.not-found"));
         if (!"DELIVERY".equals(sourceOrder.getOrderType())
-                || !Set.of("COMPLETED", "CANCELLED").contains(sourceOrder.getStatus())) {
+                || (!"COMPLETED".equals(sourceOrder.getStatus())
+                && !"CANCELLED".equals(sourceOrder.getStatus()))) {
             throw new ApiException(HttpStatus.CONFLICT,
                     "CUSTOMER_REORDER_NOT_ALLOWED",
                     "error.customer-order.reorder-not-allowed");
