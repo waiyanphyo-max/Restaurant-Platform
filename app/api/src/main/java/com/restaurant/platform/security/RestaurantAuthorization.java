@@ -145,7 +145,9 @@ public class RestaurantAuthorization {
 
     public boolean canAssignDelivery(UUID restaurantId, UUID deliveryId) {
         UUID userId = getCurrentUserIdOrNull();
-        return userId != null
+        return restaurantId != null
+                && deliveryId != null
+                && userId != null
                 && hasPermission(restaurantId, userId, RestaurantPermission.DELIVERY_ASSIGN)
                 && deliveryRepository.findById(deliveryId)
                         .map(delivery -> orderBelongsToRestaurant(delivery, restaurantId))
