@@ -42,4 +42,12 @@ public interface OrderRepository
             String status,
             Pageable pageable
     );
+
+    Page<Order> findByCustomerIdOrderByCreatedAtDesc(
+            UUID customerId, Pageable pageable);
+
+    Page<Order> findByCustomerIdAndStatusOrderByCreatedAtDesc(
+            UUID customerId, String status, Pageable pageable);
+
+    Optional<Order> findByIdAndCustomerId(UUID id, UUID customerId);
 }
