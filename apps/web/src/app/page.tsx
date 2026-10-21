@@ -190,6 +190,10 @@ export default function HomePage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (activeView === "customer-pickup") {
+      await loadPublicMenu();
+      return;
+    }
     setActiveView("orders");
     setLoaded(false);
     await loadOrders(0, statusFilter);
@@ -286,6 +290,228 @@ export default function HomePage() {
       setActivityLoading(false);
     }
   }
+
+  async function loadPublicMenu() {
+    setActiveView("customer-pickup");
+    setGuestError("");
+    if (!hasRestaurantDetails) {
+      setGuestError("Enter the backend API URL and restaurant ID first.");
+      return;
+    }
+    setGuestLoading(true);
+    setPublicMenu(null);
+    setMenuLoaded(false);
+    try {
+      const menu = await getPublicMenu(apiUrl, restaurantId);
+      setPublicMenu(menu);
+      setMenuLoaded(true);
+    } catch (cause) {
+      setGuestError(errorMessage(cause, "Could not load the public menu."));
+    } finally {
+      setGuestLoading(false);
+    }
+  }
+
+  function updateGuestCartLine(productId: string, changes: Partial<GuestCartLine>) {
+    setGuestCart(previous => {
+      const current = previous[productId] ?? {
+        quantity: 0,
+        variantId: "",
+        specialInstruction: "",
+        modifiers: {},
+      };
+      return { ...previous, [productId]: { ...current, ...changes } };
+    });
+  }
+
+  function toggleGuestModifier(
+    productId: string,
+    modifierOptionId: string,
+    checked: boolean,
+  ) {
+    setGuestCart(previous => {
+      const current = previous[productId] ?? {
+        quantity: 0,
+        variantId: "",
+        specialInstruction: "",
+        modifiers: {},
+      };
+      const modifiers = { ...current.modifiers };
+      if (checked) modifiers[modifierOptionId] = 1;
+      else delete modifiers[modifierOptionId];
+      return { ...previous, [productId]: { ...current, modifiers } };
+    });
+  }
+
+  async function handlePlaceCommonOrder() {
+    setGuestError("");
+    if (!publicMenu || !menuLoaded) {
+      setGuestError("Load the restaurant menu before placing an order.");
+      return;
+    }
+    if (!commonQrToken.trim()) {
+      setGuestError("Enter the Common QR token printed on the restaurant's QR.");
+      return;
+    }
+
+    const products = publicMenu.categories.flatMap(category => category.products);
+    const selectedProducts = products.filter(
+      product => (guestCart[product.id]?.quantity ?? 0) > 0,
+    );
+    if (selectedProducts.length === 0) {
+      setGuestError("Choose at least one available product and set its quantity.");
+      return;
+    }
+
+    for (const product of selectedProducts) {
+      const line = guestCart[product.id];
+      if (!product.available) {
+        setGuestError(`${product.name} is no longer available.`);
+        return;
+      }
+      if (product.variants.length > 0
+          && !product.variants.some(variant =>
+            variant.id === line.variantId && variant.available)) {
+        setGuestError(`Choose an available size/variant for ${product.name}.`);
+        return;
+      }
+      for (const group of product.modifierGroups) {
+        const selectedCount = group.options.filter(
+          option => (line.modifiers[option.id] ?? 0) > 0,
+        ).length;
+        if (selectedCount < group.minSelections || selectedCount > group.maxSelections) {
+          setGuestError(
+            `${product.name}: choose between ${group.minSelections} and ${group.maxSelections} options for ${group.name}.`,
+          );
+          return;
+        }
+      }
+    }
+
+    setGuestLoading(true);
+    try {
+      const response = await createCommonQrOrder(apiUrl, restaurantId, {
+        qrToken: commonQrToken.trim(),
+        items: selectedProducts.map(product => {
+          const line = guestCart[product.id];
+          return {
+            productId: product.id,
+            variantId: line.variantId || null,
+            quantity: line.quantity,
+            specialInstruction: line.specialInstruction.trim() || null,
+            modifiers: product.modifierGroups.flatMap(group =>
+              group.options
+                .filter(option => (line.modifiers[option.id] ?? 0) > 0)
+                .map(option => ({
+                  modifierOptionId: option.id,
+                  quantity: line.modifiers[option.id],
+                })),
+            ),
+          };
+        }),
+      });
+      if (!response.queue) {
+        throw new ApiError("No queue tracking ticket was returned for this Common QR order.");
+      }
+      setCommonOrder(response);
+      setTrackedTicketId(response.queue.ticketId);
+      setTrackingToken(response.queue.trackingToken);
+      setCopiedTrackingToken(false);
+      setTrackedStatus({
+        ticketId: response.queue.ticketId,
+        queueNumber: response.queue.queueNumber,
+        displayCode: response.queue.displayCode,
+        queueStatus: response.queue.status,
+        orderNumber: response.orderNumber,
+        orderStatus: response.status,
+        createdAt: new Date().toISOString(),
+        readyAt: null,
+        calledAt: null,
+        completedAt: null,
+      });
+      previousQueueStatusRef.current = response.queue.status;
+      setTrackedNotifications([]);
+      setTrackingError("");
+      setGuestCart({});
+    } catch (cause) {
+      setGuestError(errorMessage(cause, "Could not place this Common QR order."));
+    } finally {
+      setGuestLoading(false);
+    }
+  }
+
+  async function copyTrackingToken() {
+    if (!trackingToken) return;
+    try {
+      await navigator.clipboard.writeText(trackingToken);
+      setCopiedTrackingToken(true);
+      setTrackingError("");
+    } catch {
+      setTrackingError("Your browser could not copy the tracking token. Keep this page open to continue tracking.");
+    }
+  }
+
+  function enablePickupSound() {
+    try {
+      if (typeof window.AudioContext !== "function") {
+        setTrackingError("This browser does not support sound alerts. Queue status will still refresh on screen.");
+        return;
+      }
+      if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+        audioContextRef.current = new window.AudioContext();
+      }
+      soundEnabledRef.current = true;
+      setSoundEnabled(true);
+      setTrackingError("");
+      playQueueAlert(audioContextRef.current);
+    } catch {
+      setTrackingError("The browser blocked audio. Queue status will continue without sound.");
+    }
+  }
+
+  useEffect(() => {
+    if (!trackedTicketId || !trackingToken) return;
+    let stopped = false;
+    let inFlight = false;
+
+    async function pollQueue() {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const [status, notifications] = await Promise.all([
+          getQueueTrackingStatus(apiUrl, trackedTicketId, trackingToken),
+          getTicketNotifications(apiUrl, trackedTicketId, trackingToken),
+        ]);
+        if (stopped) return;
+        const previousStatus = previousQueueStatusRef.current;
+        if (soundEnabledRef.current
+            && previousStatus !== status.queueStatus
+            && ["READY", "CALLED"].includes(status.queueStatus)) {
+          playQueueAlert(audioContextRef.current);
+        }
+        previousQueueStatusRef.current = status.queueStatus;
+        setTrackedStatus(status);
+        setTrackedNotifications(notifications);
+        setTrackingError("");
+      } catch (cause) {
+        if (!stopped) {
+          setTrackingError(errorMessage(
+            cause,
+            "Could not refresh queue status. Check your connection and tracking token.",
+          ));
+        }
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    void pollQueue();
+    const intervalId = window.setInterval(() => void pollQueue(), 5000);
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
+  }, [apiUrl, trackedTicketId, trackingToken]);
 
   async function handleCallQueueTicket(ticket: QueueTicket) {
     setActivityError("");
