@@ -47,7 +47,7 @@ The following manager-order routes require a valid bearer token and an appropria
 - `GET /api/v1/restaurants/{restaurantId}/orders/{orderId}` — order details, item/modifier snapshots, and status history. The service first scopes the order by both IDs, then loads child data in batches.
 - `PATCH /api/v1/restaurants/{restaurantId}/orders/{orderId}/status` — validated status transition and optional audit note. The update locks the order row scoped to that restaurant and records the authenticated actor in status history in the transaction.
 
-All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, and customer delivery-checkout controllers are exposed, while customer profile editing, customer order history, and restaurant/menu administration are still pending.
+All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, and customer delivery-checkout controllers are exposed, while owner transfer, online payment/refunds, and full reporting endpoints are still pending.
 
 ## Queue tracking and notification flow
 
@@ -70,6 +70,18 @@ The delivery workflow locks the linked order before its delivery row to reduce c
 Customer-address APIs derive ownership from the validated JWT `sub`; all read/update/delete queries include that user ID. The first saved address becomes default, and deleting a default address promotes another saved address where available. The delivery checkout endpoint requires an active restaurant, enabled delivery, an active delivery zone belonging to that restaurant, and an address owned by the current user.
 
 The checkout service calculates item/modifier prices from database records, checks stock and both restaurant/zone minimums, snapshots the destination into the order, and creates a `PENDING` cash-on-delivery payment record in the same transaction. Clients cannot provide order totals, fees, customer IDs, or creator IDs. Online payment processing is not implemented. Delivery zones currently carry names, fees, and minimums but no geographic polygons or township boundaries, so the customer selects a zone and the backend can only validate that it belongs to the restaurant.
+
+## Membership administration
+
+Membership mutation is restricted to `MEMBERS_MANAGE`, which the current role map grants to OWNER only. A new member must reference an existing profile, and the API accepts MANAGER, STAFF, or DELIVERY_DRIVER; it does not allow creating/deleting an OWNER without a dedicated owner-transfer process. If the configured default driver is removed or demoted, its restaurant setting is cleared.
+
+## Table QR management
+
+Dining table list/update responses never include their QR secrets. Creating a table or rotating its token returns the new random token once. A rotation invalidates the old printed QR token; the operator must reprint the corresponding table QR. The table creation/update APIs require `SETTINGS_MANAGE` and scope all IDs to a restaurant.
+
+## Cash-on-delivery completion
+
+A driver marking a delivery as `DELIVERED` must explicitly set `cashCollected: true` when a pending `CASH_ON_DELIVERY` payment exists. Payment status and `paid_at` are written together with delivery/order completion in the same transaction. The legacy manager order-status route rejects completion while a COD payment remains pending, avoiding a payment-confirmation bypass.
 
 ## Restaurant settings and delivery zones
 
