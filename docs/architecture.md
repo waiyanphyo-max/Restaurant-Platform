@@ -41,7 +41,8 @@ The filter chain permits only these current public route shapes:
 - `POST /api/v1/public/restaurants/{restaurantId}/orders/common-qr`
 - `POST /api/v1/public/restaurants/{restaurantId}/orders/table-qr`
 
-All other routes require authentication by default. A public queue tracking controller, manager order controller, delivery controller, restaurant administration controller, and customer account controllers have not yet been exposed in the current backend source.
+
+Actuator health endpoints and Spring's `/error` path are also explicitly permitted; health response details are hidden by configuration. All other routes require authentication by default. A public queue tracking controller, manager order controller, delivery controller, restaurant administration controller, and customer account controllers have not yet been exposed in the current backend source.
 
 ## Error handling
 
