@@ -7,6 +7,7 @@ import {
   DailyOperationsReport,
   assignDeliveryDriver,
   callQueueTicket,
+  getDefaultDeliveryDriver,
   DeliveryTask,
   getDailyOperationsReport,
   getPublicMenu,
@@ -24,6 +25,7 @@ import {
   updateOrderStatus,
   QueueTicket,
   updateDeliveryStatus,
+  setDefaultDeliveryDriver,
 } from "@/lib/api";
 
 const initialApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -133,6 +135,9 @@ export default function HomePage() {
   const [deliveriesPage, setDeliveriesPage] = useState<Page<DeliveryTask> | null>(null);
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("");
   const [deliveryPageIndex, setDeliveryPageIndex] = useState(0);
+  const [defaultDriverUserId, setDefaultDriverUserId] = useState("");
+  const [defaultDriverLoaded, setDefaultDriverLoaded] = useState(false);
+  const [defaultDriverLoading, setDefaultDriverLoading] = useState(false);
   const [reportDate, setReportDate] = useState("");
   const [dailyReport, setDailyReport] = useState<DailyOperationsReport | null>(null);
 
@@ -190,6 +195,10 @@ export default function HomePage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (activeView === "customer-pickup") {
+      await loadPublicMenu();
+      return;
+    }
     setActiveView("orders");
     setLoaded(false);
     await loadOrders(0, statusFilter);
@@ -263,6 +272,53 @@ export default function HomePage() {
     }
   }
 
+  async function loadDefaultDriver() {
+    setActivityError("");
+    if (!hasConnectionDetails) {
+      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      return;
+    }
+    setDefaultDriverLoading(true);
+    try {
+      const settings = await getDefaultDeliveryDriver(apiUrl, restaurantId, accessToken);
+      setDefaultDriverUserId(settings.defaultDriverUserId ?? "");
+      setDefaultDriverLoaded(true);
+    } catch (cause) {
+      setActivityError(errorMessage(
+        cause,
+        "Could not read the default driver setting. This requires SETTINGS_MANAGE permission.",
+      ));
+    } finally {
+      setDefaultDriverLoading(false);
+    }
+  }
+
+  async function saveDefaultDriver(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setActivityError("");
+    const driverUserId = defaultDriverUserId.trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(driverUserId)) {
+      setActivityError("Enter a valid driver user UUID from this restaurant.");
+      return;
+    }
+    setDefaultDriverLoading(true);
+    try {
+      const settings = await setDefaultDeliveryDriver(
+        apiUrl, restaurantId, accessToken, driverUserId,
+      );
+      setDefaultDriverUserId(settings.defaultDriverUserId ?? "");
+      setDefaultDriverLoaded(true);
+      setActivityError("");
+    } catch (cause) {
+      setActivityError(errorMessage(
+        cause,
+        "Could not save the default driver. The user must be a DELIVERY_DRIVER member of this restaurant and your account needs SETTINGS_MANAGE permission.",
+      ));
+    } finally {
+      setDefaultDriverLoading(false);
+    }
+  }
+
   async function loadDailyReport(date = reportDate) {
     setActiveView("reports");
     setActivityError("");
@@ -286,6 +342,257 @@ export default function HomePage() {
       setActivityLoading(false);
     }
   }
+
+  async function loadPublicMenu() {
+    setActiveView("customer-pickup");
+    setGuestError("");
+    setError("");
+    if (!hasRestaurantDetails) {
+      setGuestError("Enter the backend API URL and restaurant ID first.");
+      return;
+    }
+    setGuestLoading(true);
+    setPublicMenu(null);
+    setMenuLoaded(false);
+    try {
+      const menu = await getPublicMenu(apiUrl, restaurantId);
+      setPublicMenu(menu);
+      setMenuLoaded(true);
+    } catch (cause) {
+      setGuestError(errorMessage(cause, "Could not load the public menu."));
+    } finally {
+      setGuestLoading(false);
+    }
+  }
+
+  function updateGuestCartLine(productId: string, changes: Partial<GuestCartLine>) {
+    setGuestCart(previous => {
+      const current = previous[productId] ?? {
+        quantity: 0,
+        variantId: "",
+        specialInstruction: "",
+        modifiers: {},
+      };
+      return { ...previous, [productId]: { ...current, ...changes } };
+    });
+  }
+
+  function toggleGuestModifier(
+    productId: string,
+    modifierOptionId: string,
+    checked: boolean,
+  ) {
+    setGuestCart(previous => {
+      const current = previous[productId] ?? {
+        quantity: 0,
+        variantId: "",
+        specialInstruction: "",
+        modifiers: {},
+      };
+      const modifiers = { ...current.modifiers };
+      if (checked) modifiers[modifierOptionId] = 1;
+      else delete modifiers[modifierOptionId];
+      return { ...previous, [productId]: { ...current, modifiers } };
+    });
+  }
+
+  async function handlePlaceCommonOrder() {
+    setGuestError("");
+    if (!publicMenu || !menuLoaded) {
+      setGuestError("Load the restaurant menu before placing an order.");
+      return;
+    }
+    if (!commonQrToken.trim()) {
+      setGuestError("Enter the Common QR token printed on the restaurant's QR.");
+      return;
+    }
+
+    const products = publicMenu.categories.flatMap(category => category.products);
+    const selectedProducts = products.filter(
+      product => (guestCart[product.id]?.quantity ?? 0) > 0,
+    );
+    if (selectedProducts.length === 0) {
+      setGuestError("Choose at least one available product and set its quantity.");
+      return;
+    }
+
+    for (const product of selectedProducts) {
+      const line = guestCart[product.id];
+      if (!product.available) {
+        setGuestError(`${product.name} is no longer available.`);
+        return;
+      }
+      if (product.variants.length > 0
+          && !product.variants.some(variant =>
+            variant.id === line.variantId && variant.available)) {
+        setGuestError(`Choose an available size/variant for ${product.name}.`);
+        return;
+      }
+      for (const group of product.modifierGroups) {
+        const selectedCount = group.options.filter(
+          option => (line.modifiers[option.id] ?? 0) > 0,
+        ).length;
+        if (selectedCount < group.minSelections || selectedCount > group.maxSelections) {
+          setGuestError(
+            `${product.name}: choose between ${group.minSelections} and ${group.maxSelections} options for ${group.name}.`,
+          );
+          return;
+        }
+      }
+    }
+
+    setGuestLoading(true);
+    try {
+      const response = await createCommonQrOrder(apiUrl, restaurantId, {
+        qrToken: commonQrToken.trim(),
+        items: selectedProducts.map(product => {
+          const line = guestCart[product.id];
+          return {
+            productId: product.id,
+            variantId: line.variantId || null,
+            quantity: line.quantity,
+            specialInstruction: line.specialInstruction.trim() || null,
+            modifiers: product.modifierGroups.flatMap(group =>
+              group.options
+                .filter(option => (line.modifiers[option.id] ?? 0) > 0)
+                .map(option => ({
+                  modifierOptionId: option.id,
+                  quantity: line.modifiers[option.id],
+                })),
+            ),
+          };
+        }),
+      });
+      if (!response.queue) {
+        throw new ApiError("No queue tracking ticket was returned for this Common QR order.");
+      }
+      setCommonOrder(response);
+      setTrackedTicketId(response.queue.ticketId);
+      setTrackingToken(response.queue.trackingToken);
+      setCopiedTrackingToken(false);
+      setTrackedStatus({
+        ticketId: response.queue.ticketId,
+        queueNumber: response.queue.queueNumber,
+        displayCode: response.queue.displayCode,
+        queueStatus: response.queue.status,
+        orderNumber: response.orderNumber,
+        orderStatus: response.status,
+        createdAt: new Date().toISOString(),
+        readyAt: null,
+        calledAt: null,
+        completedAt: null,
+      });
+      previousQueueStatusRef.current = response.queue.status;
+      setTrackedNotifications([]);
+      setTrackingError("");
+      setGuestCart({});
+    } catch (cause) {
+      setGuestError(errorMessage(cause, "Could not place this Common QR order."));
+    } finally {
+      setGuestLoading(false);
+    }
+  }
+
+  async function copyTrackingToken() {
+    if (!trackingToken) return;
+    try {
+      await navigator.clipboard.writeText(trackingToken);
+      setCopiedTrackingToken(true);
+      setTrackingError("");
+    } catch {
+      setTrackingError("Your browser could not copy the tracking token. Keep this page open to continue tracking.");
+    }
+  }
+
+  function enablePickupSound() {
+    try {
+      if (typeof window.AudioContext !== "function") {
+        setTrackingError("This browser does not support sound alerts. Queue status will still refresh on screen.");
+        return;
+      }
+      if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+        audioContextRef.current = new window.AudioContext();
+      }
+      soundEnabledRef.current = true;
+      setSoundEnabled(true);
+      setTrackingError("");
+      playQueueAlert(audioContextRef.current);
+    } catch {
+      setTrackingError("The browser blocked audio. Queue status will continue without sound.");
+    }
+  }
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const scannedRestaurantId = query.get("restaurantId");
+    const scannedQrToken = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("qrToken");
+    const customerMode = query.get("view") === "customer-pickup" || Boolean(scannedQrToken);
+
+    if (scannedRestaurantId) {
+      setRestaurantId(scannedRestaurantId);
+    }
+    if (customerMode) {
+      setActiveView("customer-pickup");
+    }
+    if (scannedQrToken) {
+      setCommonQrToken(scannedQrToken);
+      // Keep the Common QR credential in the URL fragment only long enough to load it.
+      // Remove it from the visible address bar before making any API requests.
+      const cleanQuery = new URLSearchParams(window.location.search);
+      cleanQuery.set("view", "customer-pickup");
+      if (scannedRestaurantId) cleanQuery.set("restaurantId", scannedRestaurantId);
+      const queryString = cleanQuery.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${queryString ? `?${queryString}` : ""}`,
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!trackedTicketId || !trackingToken) return;
+    let stopped = false;
+    let inFlight = false;
+
+    async function pollQueue() {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const [status, notifications] = await Promise.all([
+          getQueueTrackingStatus(apiUrl, trackedTicketId, trackingToken),
+          getTicketNotifications(apiUrl, trackedTicketId, trackingToken),
+        ]);
+        if (stopped) return;
+        const previousStatus = previousQueueStatusRef.current;
+        if (soundEnabledRef.current
+            && previousStatus !== status.queueStatus
+            && ["READY", "CALLED"].includes(status.queueStatus)) {
+          playQueueAlert(audioContextRef.current);
+        }
+        previousQueueStatusRef.current = status.queueStatus;
+        setTrackedStatus(status);
+        setTrackedNotifications(notifications);
+        setTrackingError("");
+      } catch (cause) {
+        if (!stopped) {
+          setTrackingError(errorMessage(
+            cause,
+            "Could not refresh queue status. Check your connection and tracking token.",
+          ));
+        }
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    void pollQueue();
+    const intervalId = window.setInterval(() => void pollQueue(), 5000);
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
+  }, [apiUrl, trackedTicketId, trackingToken]);
 
   async function handleCallQueueTicket(ticket: QueueTicket) {
     setActivityError("");
@@ -351,7 +658,22 @@ export default function HomePage() {
   const viewTitle = activeView === "orders"
     ? "Order overview"
     : activeView === "queue" ? "Queue & pickup"
-      : activeView === "deliveries" ? "Deliveries" : "Daily report";
+      : activeView === "deliveries" ? "Deliveries"
+        : activeView === "reports" ? "Daily report" : "Common QR order";
+
+  const menuProducts = publicMenu?.categories.flatMap(category => category.products) ?? [];
+  const selectedMenuProducts = menuProducts.filter(
+    product => (guestCart[product.id]?.quantity ?? 0) > 0,
+  );
+  const estimatedGuestSubtotal = selectedMenuProducts.reduce((total, product) => {
+    const line = guestCart[product.id];
+    const variantPrice = product.variants.find(variant => variant.id === line.variantId)?.price;
+    const modifierPrice = product.modifierGroups.reduce((groupTotal, group) =>
+      groupTotal + group.options
+        .filter(option => (line.modifiers[option.id] ?? 0) > 0)
+        .reduce((sum, option) => sum + option.additionalPrice * line.modifiers[option.id], 0), 0);
+    return total + ((variantPrice ?? product.price) + modifierPrice) * line.quantity;
+  }, 0);
 
   return (
     <main className="app-shell">
@@ -408,7 +730,7 @@ export default function HomePage() {
 
         <section className="connection-card">
           <div className="section-heading">
-            <div><h3>Connect to your backend</h3><p>Use a valid Supabase access token for the restaurant operations you need to access.</p></div>
+            <div><h3>Connect to your backend</h3><p>Staff operations need a Supabase access token; public Common QR checkout does not.</p></div>
             <span className="secure-label">Private request</span>
           </div>
           <form onSubmit={handleSubmit} className="connection-form">
@@ -418,14 +740,162 @@ export default function HomePage() {
             <label>Restaurant ID
               <input value={restaurantId} onChange={e => setRestaurantId(e.target.value)} placeholder="Restaurant UUID" autoComplete="off" required />
             </label>
-            <label className="token-field">Supabase access token
-              <input type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="Paste access token" autoComplete="off" required />
+            <label className="token-field">Supabase access token (staff only)
+              <input type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="Optional for Common QR checkout" autoComplete="off" />
             </label>
-            <button type="submit" disabled={loading}>{loading ? "Connecting…" : "Load orders"} <span aria-hidden="true">→</span></button>
+            <button type="submit" disabled={loading || guestLoading}>{loading || guestLoading ? "Connecting…" : activeView === "customer-pickup" ? "Load menu" : "Load orders"} <span aria-hidden="true">→</span></button>
           </form>
-          <p className="privacy-note">Token stays in this page&apos;s memory and is sent only to the API URL above. Don&apos;t use a service-role key here.</p>
+          <p className="privacy-note">Staff access tokens stay in page memory only. The guest Common QR flow uses public endpoints and its queue tracking token; never use a service-role key here.</p>
           {error && <div className="feedback error" role="alert">{error}</div>}
         </section>
+
+        {activeView === "customer-pickup" && <section className="orders-section guest-order-section" aria-busy={guestLoading}>
+          <div className="orders-heading">
+            <div>
+              <h3>Common QR pickup order</h3>
+              <p>Browse the public menu, place a pickup order, and track its queue number without signing in.</p>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => void loadPublicMenu()} disabled={guestLoading || !hasRestaurantDetails}>
+              {guestLoading ? "Loading…" : "Refresh menu"}
+            </button>
+          </div>
+
+          {publicMenu && <div className="guest-restaurant-info">
+            <h4>{publicMenu.restaurantName}</h4>
+            {publicMenu.description && <p>{publicMenu.description}</p>}
+            {publicMenu.address && <p>{publicMenu.address}</p>}
+            <label className="filter-field guest-token-field">
+              Common QR token
+              <input type="password" value={commonQrToken} onChange={event => setCommonQrToken(event.target.value)}
+                placeholder="Token from the restaurant's Common QR" autoComplete="off" />
+            </label>
+          </div>}
+
+          {guestError && <div className="feedback error" role="alert">{guestError}</div>}
+          {guestLoading && !menuLoaded && <div className="empty-state"><div className="loader" /><h4>Loading menu</h4><p>Fetching the active public menu for this restaurant.</p></div>}
+          {!publicMenu && !guestLoading && !guestError && <div className="empty-state"><div className="empty-icon">☷</div><h4>Load a restaurant menu</h4><p>Enter the backend URL and restaurant UUID above, then choose Load menu.</p></div>}
+
+          {menuLoaded && publicMenu && <div className="guest-menu">
+            {publicMenu.categories.length === 0 && <div className="empty-state"><h4>No active menu yet</h4><p>This restaurant has not published any active categories.</p></div>}
+            {publicMenu.categories.map(category => <section className="guest-category" key={category.id}>
+              <div className="guest-category-heading"><h4>{category.name}</h4><span>{category.products.length} item(s)</span></div>
+              <div className="guest-product-list">
+                {category.products.map(product => {
+                  const line = guestCart[product.id] ?? {
+                    quantity: 0, variantId: "", specialInstruction: "", modifiers: {},
+                  };
+                  const selectedCount = (groupId: string) => {
+                    const group = product.modifierGroups.find(item => item.id === groupId);
+                    return group?.options.filter(option => (line.modifiers[option.id] ?? 0) > 0).length ?? 0;
+                  };
+                  const selectedVariantPrice = product.variants.find(
+                    variant => variant.id === line.variantId,
+                  )?.price ?? product.price;
+                  const selectedModifierPrice = product.modifierGroups.reduce((groupTotal, group) =>
+                    groupTotal + group.options
+                      .filter(option => (line.modifiers[option.id] ?? 0) > 0)
+                      .reduce((sum, option) => sum + option.additionalPrice * line.modifiers[option.id], 0), 0);
+                  const lineTotal = (selectedVariantPrice + selectedModifierPrice) * line.quantity;
+
+                  return <article className={`guest-product ${product.available ? "" : "unavailable"}`} key={product.id}>
+                    <div className="guest-product-heading">
+                      <div><h5>{product.name}</h5>{product.description && <p>{product.description}</p>}</div>
+                      <strong>{formatMoney(product.price)} {publicMenu.currency}</strong>
+                    </div>
+                    {!product.available && <p className="unavailable-label">Currently unavailable</p>}
+                    {product.variants.length > 0 && <label className="guest-control">
+                      Size / variant
+                      <select value={line.variantId}
+                        onChange={event => updateGuestCartLine(product.id, { variantId: event.target.value })}
+                        disabled={!product.available || guestLoading}>
+                        <option value="">Choose a variant</option>
+                        {product.variants.filter(variant => variant.available).map(variant =>
+                          <option key={variant.id} value={variant.id}>{variant.name} — {formatMoney(variant.price)} {publicMenu.currency}</option>,
+                        )}
+                      </select>
+                    </label>}
+                    {product.modifierGroups.map(group => {
+                      const count = selectedCount(group.id);
+                      return <fieldset className="guest-modifier-group" key={group.id} disabled={!product.available || guestLoading}>
+                        <legend>{group.name} <span>{group.minSelections}–{group.maxSelections} choice(s){group.required ? " · Required" : ""}</span></legend>
+                        {group.options.length === 0 && <p className="modifier-empty">No selectable options are available for this group.</p>}
+                        {group.options.map(option => {
+                          const selected = (line.modifiers[option.id] ?? 0) > 0;
+                          const maxReached = count >= group.maxSelections;
+                          return <label className="guest-modifier-option" key={option.id}>
+                            <input type="checkbox" checked={selected}
+                              disabled={!option.available || (!selected && maxReached)}
+                              onChange={event => toggleGuestModifier(product.id, option.id, event.target.checked)} />
+                            <span>{option.name}</span><small>+{formatMoney(option.additionalPrice)} {publicMenu.currency}</small>
+                          </label>;
+                        })}
+                      </fieldset>;
+                    })}
+                    <label className="guest-control">Special instruction
+                      <input value={line.specialInstruction}
+                        onChange={event => updateGuestCartLine(product.id, { specialInstruction: event.target.value })}
+                        maxLength={500} placeholder="Optional request" disabled={!product.available || guestLoading} />
+                    </label>
+                    <div className="guest-product-footer">
+                      <label className="quantity-field">Qty
+                        <input type="number" min={0} max={50} step={1} value={line.quantity}
+                          onChange={event => {
+                            const parsed = Number.parseInt(event.target.value, 10);
+                            const quantity = Number.isFinite(parsed) ? Math.min(50, Math.max(0, parsed)) : 0;
+                            updateGuestCartLine(product.id, { quantity });
+                          }}
+                          disabled={!product.available || guestLoading} />
+                      </label>
+                      <strong className="guest-line-total">{formatMoney(lineTotal)} {publicMenu.currency}</strong>
+                    </div>
+                  </article>;
+                })}
+              </div>
+            </section>)}
+            <div className="guest-cart-summary">
+              <div><span>Estimated subtotal</span><strong>{formatMoney(estimatedGuestSubtotal)} {publicMenu.currency}</strong><small>Final prices, options, availability, and stock are verified by the backend when you place the order.</small></div>
+              <button className="primary-action" type="button" onClick={() => void handlePlaceCommonOrder()}
+                disabled={guestLoading || selectedMenuProducts.length === 0 || !commonQrToken.trim()}>
+                {guestLoading ? "Placing order…" : "Place pickup order"}
+              </button>
+            </div>
+          </div>}
+
+          {commonOrder?.queue && trackedStatus && <section className="guest-tracking-card">
+            <div className="guest-tracking-heading">
+              <div><p className="intro-kicker">ORDER CONFIRMED</p><h4>{commonOrder.orderNumber}</h4><p>Keep this screen open to follow your pickup number.</p></div>
+              <div className="queue-number">{trackedStatus.displayCode}</div>
+            </div>
+            <div className="guest-tracking-status">
+              <span>Pickup status</span>
+              <strong className={statusClass(trackedStatus.queueStatus)}>{humanizeStatus(trackedStatus.queueStatus)}</strong>
+              <p>Queue {trackedStatus.displayCode} · Order {humanizeStatus(trackedStatus.orderStatus)}</p>
+              {trackedStatus.readyAt && <p>Ready at {formatDate(trackedStatus.readyAt)}</p>}
+              {trackedStatus.calledAt && <p>Called at {formatDate(trackedStatus.calledAt)}</p>}
+              {trackedStatus.completedAt && <p>Completed at {formatDate(trackedStatus.completedAt)}</p>}
+            </div>
+            <div className="guest-tracking-actions">
+              <button className="secondary-button" type="button" onClick={enablePickupSound}>
+                {soundEnabled ? "Sound enabled" : "Enable sound alert"}
+              </button>
+              <button className="secondary-button" type="button" onClick={() => void copyTrackingToken()}>
+                {copiedTrackingToken ? "Tracking token copied" : "Copy tracking token"}
+              </button>
+            </div>
+            <p className="privacy-note">The tracking token is a secret that allows access to this queue ticket. It stays in this page&apos;s memory and is not put in the URL or saved to browser storage.</p>
+            {trackingError && <div className="feedback error" role="alert">{trackingError}</div>}
+            {trackedNotifications.some(notification =>
+              ["QUEUE_READY", "QUEUE_CALLED"].includes(notification.notificationType),
+            ) && <div className="guest-notification-list">
+              {trackedNotifications.filter(notification =>
+                ["QUEUE_READY", "QUEUE_CALLED"].includes(notification.notificationType),
+              ).map(notification => <article className="guest-notification" key={notification.id}>
+                <strong>{notification.title}</strong><p>{notification.body}</p><small>{formatDate(notification.createdAt)}</small>
+              </article>)}
+            </div>}
+            <p className="tracking-poll-note">Queue status refreshes automatically every 5 seconds while this screen stays open. Sound alerts play after you enable sound in your browser.</p>
+          </section>}
+        </section>}
 
         {activeView === "orders" && <section className="orders-section" aria-busy={loading}>
           <div className="orders-heading">
@@ -532,6 +1002,33 @@ export default function HomePage() {
               {activityLoading ? "Refreshing…" : "Refresh"}
             </button>
           </div>
+          <section className="default-driver-panel">
+            <div className="default-driver-info">
+              <h4>Restaurant default driver</h4>
+              <p>New delivery orders use this driver automatically when they become READY. The user must already be a DELIVERY_DRIVER member of this restaurant.</p>
+              <small>{defaultDriverLoaded
+                ? defaultDriverUserId || "No default driver currently saved"
+                : "Load the current setting or enter a driver UUID to set it."}</small>
+            </div>
+            <form className="default-driver-form" onSubmit={saveDefaultDriver}>
+              <label>Default driver user UUID
+                <input
+                  value={defaultDriverUserId}
+                  onChange={event => setDefaultDriverUserId(event.target.value)}
+                  placeholder="Driver user UUID"
+                  autoComplete="off"
+                />
+              </label>
+              <div className="default-driver-actions">
+                <button className="secondary-button" type="button" onClick={() => void loadDefaultDriver()} disabled={defaultDriverLoading || activityLoading}>
+                  {defaultDriverLoading && !defaultDriverLoaded ? "Loading…" : "Load current"}
+                </button>
+                <button className="primary-action" type="submit" disabled={defaultDriverLoading || activityLoading || !defaultDriverUserId.trim()}>
+                  {defaultDriverLoading ? "Saving…" : "Save default"}
+                </button>
+              </div>
+            </form>
+          </section>
           <div className="orders-toolbar">
             <label className="filter-field">
               Filter by status

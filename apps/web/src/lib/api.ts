@@ -307,6 +307,22 @@ export type MenuVariant = {
   available: boolean;
 };
 
+export type MenuModifierOption = {
+  id: string;
+  name: string;
+  additionalPrice: number;
+  available: boolean;
+};
+
+export type MenuModifierGroup = {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number;
+  options: MenuModifierOption[];
+};
+
 export type MenuProduct = {
   id: string;
   name: string;
@@ -317,6 +333,7 @@ export type MenuProduct = {
   trackStock: boolean;
   stockQuantity: number | null;
   variants: MenuVariant[];
+  modifierGroups: MenuModifierGroup[];
 };
 
 export type MenuCategory = {
@@ -496,5 +513,35 @@ export async function getTicketNotifications(
     "GET",
     undefined,
     { "X-Queue-Token": trackingToken },
+  );
+}
+
+export type DefaultDeliveryDriverResponse = {
+  restaurantId: string;
+  defaultDriverUserId: string | null;
+};
+
+export async function getDefaultDeliveryDriver(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+): Promise<DefaultDeliveryDriverResponse> {
+  return authenticatedJson<DefaultDeliveryDriverResponse>(
+    `${restaurantApiUrl(apiBaseUrl, restaurantId, "delivery-settings/default-driver")}`,
+    accessToken,
+  );
+}
+
+export async function setDefaultDeliveryDriver(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  driverUserId: string,
+): Promise<DefaultDeliveryDriverResponse> {
+  return authenticatedJson<DefaultDeliveryDriverResponse>(
+    `${restaurantApiUrl(apiBaseUrl, restaurantId, "delivery-settings/default-driver")}`,
+    accessToken,
+    "PATCH",
+    { driverUserId },
   );
 }
