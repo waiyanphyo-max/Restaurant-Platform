@@ -1,11 +1,11 @@
 # Restaurant Platform
 
-A multi-restaurant ordering and management platform with a Spring Boot backend, Supabase PostgreSQL/Auth, and an initial Next.js manager web client.
+A multi-restaurant ordering and management platform with a Spring Boot backend, Supabase PostgreSQL/Auth, and a Next.js operations dashboard with a Common QR guest pickup flow.
 
 ## Current backend structure
 
 - `app/api`: Spring Boot API, DTOs, entities, repositories, security, and service layer.
-- `apps/web`: initial Next.js order-overview client; see `apps/web/README.md` for local setup.
+- `apps/web`: Next.js operations dashboard (orders, queue, deliveries, daily report) and Common QR guest pickup checkout/tracking; see `apps/web/README.md` for local setup.
 - `supabase/migrations`: versioned SQL schema. Apply migrations in timestamp order before running the API.
 - `docs/architecture.md`: architecture, authentication, and authorization flow.
 - `docs/api.md`: currently implemented HTTP routes, DTOs, permissions, and error codes.
@@ -116,11 +116,11 @@ mvn -f app/api/pom.xml spring-boot:run
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Online payment/refund provider integration, reporting beyond the daily report, external push-provider delivery and client-side sound playback remain future work. Ownership transfer and validated customer delivery reorder are available through their dedicated endpoints.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, customer order history/reorder, owner transfer, and the daily operations report are exposed. A migration keeps `profiles` rows synchronized with Supabase Auth and another configures each restaurant's default delivery driver. Checkout computes prices and fees on the server and supports cash on delivery for customer delivery orders. The web client includes order status filtering/progression, queue calling, delivery operations, daily reports, and guest Common QR pickup checkout with queue tracking. Online payment/refund provider integration and external push-provider delivery remain future work; browser sound for guest pickup uses opt-in client-side polling.
 
-## Initial web client
+## Web client
 
-The manager order-overview client is in `apps/web`. It can request the first page of restaurant orders using the backend URL, a restaurant UUID, and a Supabase user access token. The token stays in page memory and is not persisted. This is an integration preview; Supabase browser sign-in, customer checkout UI, delivery/queue screens, and production deployment configuration remain future work.
+The Next.js app in `apps/web` provides an operations dashboard for orders, queue pickup, deliveries, and daily reports, as well as a public Common QR guest ordering/queue tracking screen. Staff features use a Supabase access token supplied in the form; it stays in page memory and is not persisted. Guest checkout uses the public QR APIs without a staff login. This remains an integration preview; production Supabase browser sign-in, payment-provider integration, external push-provider setup, and deployment configuration remain future work.
 
 Run it locally with:
 
