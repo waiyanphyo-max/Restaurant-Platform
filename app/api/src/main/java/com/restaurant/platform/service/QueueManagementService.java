@@ -130,6 +130,9 @@ public class QueueManagementService {
         Order order = orderRepository.findByQueueTicketId(saved.getId()).orElse(null);
         if (order != null) {
             notification.setOrderId(order.getId());
+            if (order.getCustomerId() != null) {
+                notification.setUserId(order.getCustomerId());
+            }
         }
         notification.setNotificationType("QUEUE_CALLED");
         notification.setTitle("Your queue number is being called");
