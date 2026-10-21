@@ -92,6 +92,113 @@ class CustomerDeliveryCheckoutTest {
     }
 
     @Test
+    void successfulCheckoutUsesDatabasePricesAndCreatesPendingCodPayment() {
+        Restaurant restaurant = new Restaurant();
+        when(restaurantRepository.findByIdAndIsActiveTrue(restaurantId))
+                .thenReturn(Optional.of(restaurant));
+        RestaurantSettings settings = new RestaurantSettings();
+        settings.setRestaurantId(restaurantId);
+        settings.setCurrency("MMK");
+        settings.setMinimumOrder(0L);
+        settings.setAcceptsOrders(true);
+        settings.setAllowDelivery(true);
+        when(settingsRepository.findById(restaurantId)).thenReturn(Optional.of(settings));
+
+        com.restaurant.platform.entity.CustomerAddress address =
+                new com.restaurant.platform.entity.CustomerAddress();
+        address.setId(addressId);
+        address.setUserId(userId);
+        address.setHouseNo("12");
+        address.setStreet("Main Road");
+        address.setTownship("Township");
+        address.setCity("City");
+        when(addressRepository.findByIdAndUserId(addressId, userId))
+                .thenReturn(Optional.of(address));
+
+        com.restaurant.platform.entity.DeliveryZone zone =
+                new com.restaurant.platform.entity.DeliveryZone();
+        zone.setId(zoneId);
+        zone.setRestaurantId(restaurantId);
+        zone.setName("Nearby");
+        zone.setDeliveryFee(250L);
+        zone.setMinimumOrder(0L);
+        when(zoneRepository.findByIdAndRestaurantIdAndIsActiveTrue(zoneId, restaurantId))
+                .thenReturn(Optional.of(zone));
+
+        UUID productId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        com.restaurant.platform.entity.Product product =
+                new com.restaurant.platform.entity.Product();
+        product.setId(productId);
+        product.setRestaurantId(restaurantId);
+        product.setCategoryId(categoryId);
+        product.setName("Tea");
+        product.setPrice(1000L);
+        product.setIsAvailable(true);
+        product.setTrackStock(false);
+        when(productRepository.findByIdAndRestaurantId(productId, restaurantId))
+                .thenReturn(Optional.of(product));
+
+        com.restaurant.platform.entity.Category category =
+                new com.restaurant.platform.entity.Category();
+        category.setId(categoryId);
+        category.setRestaurantId(restaurantId);
+        category.setIsActive(true);
+        when(categoryRepository.findByIdAndRestaurantIdAndIsActiveTrue(categoryId, restaurantId))
+                .thenReturn(Optional.of(category));
+        when(variantRepository.findByProductId(productId)).thenReturn(List.of());
+        when(productModifierGroupRepository.findModifierGroupIdsByProductIdAndRestaurantId(
+                productId, restaurantId)).thenReturn(List.of());
+
+        when(orderRepository.saveAndFlush(any(com.restaurant.platform.entity.Order.class)))
+                .thenAnswer(invocation -> {
+                    com.restaurant.platform.entity.Order saved = invocation.getArgument(0);
+                    saved.setId(UUID.randomUUID());
+                    return saved;
+                });
+        when(orderItemRepository.saveAndFlush(any(com.restaurant.platform.entity.OrderItem.class)))
+                .thenAnswer(invocation -> {
+                    com.restaurant.platform.entity.OrderItem saved = invocation.getArgument(0);
+                    saved.setId(UUID.randomUUID());
+                    return saved;
+                });
+
+        CreateDeliveryOrderRequest request = new CreateDeliveryOrderRequest(
+                addressId, zoneId, "Customer", "0912345678",
+                "Ring bell", "CASH_ON_DELIVERY",
+                List.of(new CreateOrderItemRequest(productId, null, 2, null, List.of())));
+
+        var response = service.createDeliveryOrder(restaurantId, userId, request);
+
+        assertEquals("DELIVERY", response.orderType());
+        assertEquals("CUSTOMER_APP", response.orderChannel());
+        assertEquals("PENDING", response.status());
+        assertEquals(2000L, response.subtotal());
+        assertEquals(250L, response.deliveryFee());
+        assertEquals(2250L, response.totalAmount());
+        assertEquals("MMK", response.currency());
+
+        var orderCaptor = org.mockito.ArgumentCaptor.forClass(
+                com.restaurant.platform.entity.Order.class);
+        verify(orderRepository).saveAndFlush(orderCaptor.capture());
+        var savedOrder = orderCaptor.getValue();
+        assertEquals(userId, savedOrder.getCustomerId());
+        assertEquals(userId, savedOrder.getCreatedByUserId());
+        assertEquals(zoneId, savedOrder.getDeliveryZoneId());
+        assertEquals("12, Main Road, Township, City", savedOrder.getDeliveryAddress());
+        assertEquals("Ring bell", savedOrder.getDeliveryNote());
+
+        var paymentCaptor = org.mockito.ArgumentCaptor.forClass(
+                com.restaurant.platform.entity.Payment.class);
+        verify(paymentRepository).save(paymentCaptor.capture());
+        assertEquals("CASH_ON_DELIVERY", paymentCaptor.getValue().getMethod());
+        assertEquals("PENDING", paymentCaptor.getValue().getStatus());
+        assertEquals(2250L, paymentCaptor.getValue().getAmount());
+        verify(orderStatusHistoryRepository).save(any(
+                com.restaurant.platform.entity.OrderStatusHistory.class));
+    }
+
+    @Test
     void checkoutRejectsAddressNotOwnedByAuthenticatedCustomer() {
         when(restaurantRepository.findByIdAndIsActiveTrue(restaurantId))
                 .thenReturn(Optional.of(new Restaurant()));
