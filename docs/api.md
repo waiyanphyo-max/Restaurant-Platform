@@ -212,6 +212,33 @@ An order status update to `READY` already moves a linked queue ticket to `READY`
 
 These APIs store and return in-app notification records. They do not integrate an external push provider and cannot by themselves make a browser/mobile device play a sound. For QR customers, the client can periodically call the queue status/notifications APIs with the tracking token and react when it sees a new `QUEUE_READY` or `QUEUE_CALLED` notification.
 
+## Restaurant catalog and menu management
+
+All authenticated management routes are scoped to `restaurantId`. Reads require `MENU_READ`; create/update/attach/detach operations require `MENU_MANAGE`. STAFF can read active categories/products and available modifiers but cannot change the catalog.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/restaurants/{restaurantId}/categories` | List categories |
+| POST | `/api/v1/restaurants/{restaurantId}/categories` | Create category |
+| PUT | `/api/v1/restaurants/{restaurantId}/categories/{categoryId}` | Rename, reorder, or activate/deactivate category |
+| GET | `/api/v1/restaurants/{restaurantId}/products` | List products; managers can also see unavailable products |
+| POST | `/api/v1/restaurants/{restaurantId}/products` | Create product |
+| PUT | `/api/v1/restaurants/{restaurantId}/products/{productId}` | Update product and stock settings |
+| GET | `/api/v1/restaurants/{restaurantId}/products/{productId}/variants` | List variants |
+| POST | `/api/v1/restaurants/{restaurantId}/products/{productId}/variants` | Create variant |
+| PUT | `/api/v1/restaurants/{restaurantId}/products/{productId}/variants/{variantId}` | Update variant or mark unavailable |
+| GET | `/api/v1/restaurants/{restaurantId}/modifier-groups` | List modifier groups and options |
+| POST | `/api/v1/restaurants/{restaurantId}/modifier-groups` | Create modifier group |
+| PUT | `/api/v1/restaurants/{restaurantId}/modifier-groups/{groupId}` | Update selection rules or activate/deactivate |
+| POST | `/api/v1/restaurants/{restaurantId}/modifier-groups/{groupId}/options` | Add option |
+| PUT | `/api/v1/restaurants/{restaurantId}/modifier-groups/{groupId}/options/{optionId}` | Update option price or availability |
+| GET | `/api/v1/restaurants/{restaurantId}/products/{productId}/modifier-groups` | List groups linked to a product |
+| PUT | `/api/v1/restaurants/{restaurantId}/products/{productId}/modifier-groups/{groupId}` | Attach a group to a product |
+| DELETE | `/api/v1/restaurants/{restaurantId}/products/{productId}/modifier-groups/{groupId}` | Detach a group from a product |
+| GET | `/api/v1/public/restaurants/{restaurantId}/products/{productId}/modifier-groups` | Public options for an available product |
+
+Product management requests use the database UUIDs returned by the API. Product category, price, stock state, variants, group selection rules, and same-restaurant relationships are validated server-side. Soft deactivation/availability flags are used where the schema preserves catalogue history; products cannot be ordered from an inactive category and unavailable variants/options cannot be selected. The public modifier endpoint only returns active groups attached to an available product and available options.
+
 ## Customer profile
 
 These endpoints read/write only the profile whose ID equals the validated JWT subject.
