@@ -8,5 +8,8 @@ import java.util.List;
 /** Spring Data repository for notifications. */
 public interface AppNotificationRepository extends JpaRepository<AppNotification, UUID> {
     List<AppNotification> findByUserIdAndStatusOrderByCreatedAtDesc(UUID userId, String status);
+    List<AppNotification> findByUserIdOrderByCreatedAtDesc(UUID userId);
+    java.util.Optional<AppNotification> findByIdAndUserId(UUID id, UUID userId);
+    java.util.Optional<AppNotification> findByIdAndQueueTicketId(UUID id, UUID queueTicketId);
     List<AppNotification> findByQueueTicketIdOrderByCreatedAtDesc(UUID queueTicketId);
 }
