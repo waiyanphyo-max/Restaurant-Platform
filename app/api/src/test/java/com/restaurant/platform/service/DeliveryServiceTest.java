@@ -7,6 +7,7 @@ import com.restaurant.platform.entity.Delivery;
 import com.restaurant.platform.entity.DeliveryStatusHistory;
 import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.OrderStatusHistory;
+import com.restaurant.platform.entity.Payment;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.entity.RestaurantSettings;
 import com.restaurant.platform.repository.AppNotificationRepository;
@@ -14,6 +15,7 @@ import com.restaurant.platform.repository.DeliveryRepository;
 import com.restaurant.platform.repository.DeliveryStatusHistoryRepository;
 import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.repository.OrderStatusHistoryRepository;
+import com.restaurant.platform.repository.PaymentRepository;
 import com.restaurant.platform.repository.RestaurantMemberRepository;
 import com.restaurant.platform.repository.RestaurantSettingsRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
@@ -37,6 +39,7 @@ class DeliveryServiceTest {
     private DeliveryStatusHistoryRepository deliveryHistoryRepository;
     private OrderRepository orderRepository;
     private OrderStatusHistoryRepository orderHistoryRepository;
+    private PaymentRepository paymentRepository;
     private RestaurantSettingsRepository settingsRepository;
     private RestaurantMemberRepository memberRepository;
     private AppNotificationRepository notificationRepository;
@@ -55,6 +58,7 @@ class DeliveryServiceTest {
         deliveryHistoryRepository = mock(DeliveryStatusHistoryRepository.class);
         orderRepository = mock(OrderRepository.class);
         orderHistoryRepository = mock(OrderStatusHistoryRepository.class);
+        paymentRepository = mock(PaymentRepository.class);
         settingsRepository = mock(RestaurantSettingsRepository.class);
         memberRepository = mock(RestaurantMemberRepository.class);
         notificationRepository = mock(AppNotificationRepository.class);
@@ -64,6 +68,7 @@ class DeliveryServiceTest {
                 deliveryHistoryRepository,
                 orderRepository,
                 orderHistoryRepository,
+                paymentRepository,
                 settingsRepository,
                 memberRepository,
                 notificationRepository,
@@ -139,7 +144,7 @@ class DeliveryServiceTest {
 
         var response = service.updateDeliveryStatus(
                 restaurantId, deliveryId, driverId,
-                new UpdateDeliveryStatusRequest("PICKED_UP", null, "Collected"));
+                new UpdateDeliveryStatusRequest("PICKED_UP", null, "Collected", null));
 
         assertEquals("PICKED_UP", response.status());
         assertEquals("OUT_FOR_DELIVERY", order.getStatus());
@@ -161,7 +166,7 @@ class DeliveryServiceTest {
         ApiException error = assertThrows(ApiException.class, () ->
                 service.updateDeliveryStatus(
                         restaurantId, deliveryId, driverId,
-                        new UpdateDeliveryStatusRequest("PICKED_UP", null, null)));
+                        new UpdateDeliveryStatusRequest("PICKED_UP", null, null, null)));
 
         assertEquals("DELIVERY_NOT_FOUND", error.getCode());
         verify(deliveryRepository, never()).findByIdForUpdate(any(UUID.class));
@@ -180,11 +185,88 @@ class DeliveryServiceTest {
         ApiException error = assertThrows(ApiException.class, () ->
                 service.updateDeliveryStatus(
                         restaurantId, deliveryId, driverId,
-                        new UpdateDeliveryStatusRequest("FAILED", "   ", null)));
+                        new UpdateDeliveryStatusRequest("FAILED", "   ", null, null)));
 
         assertEquals("DELIVERY_FAILURE_REASON_REQUIRED", error.getCode());
         assertEquals("ASSIGNED", delivery.getStatus());
         verify(deliveryRepository, never()).save(any(Delivery.class));
+    }
+
+    @Test
+    void cashOnDeliveryCannotBeMarkedDeliveredWithoutCashConfirmation() {
+        Delivery delivery = delivery("PICKED_UP");
+        Order order = order("OUT_FOR_DELIVERY");
+        Payment payment = cashOnDeliveryPayment();
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order));
+        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
+        when(paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(payment));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.updateDeliveryStatus(restaurantId, deliveryId, driverId,
+                        new UpdateDeliveryStatusRequest("DELIVERED", null, "Left at door", false)));
+
+        assertEquals("CASH_COLLECTION_REQUIRED", error.getCode());
+        assertEquals("PICKED_UP", delivery.getStatus());
+        assertEquals("OUT_FOR_DELIVERY", order.getStatus());
+        assertEquals("PENDING", payment.getStatus());
+        verify(deliveryRepository, never()).save(any(Delivery.class));
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
+    @Test
+    void cashOnDeliveryIsMarkedPaidWhenDriverConfirmsCollection() {
+        Delivery delivery = delivery("PICKED_UP");
+        Order order = order("OUT_FOR_DELIVERY");
+        Payment payment = cashOnDeliveryPayment();
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order));
+        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
+        when(paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(payment));
+        when(paymentRepository.save(any(Payment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.updateDeliveryStatus(
+                restaurantId, deliveryId, driverId,
+                new UpdateDeliveryStatusRequest("DELIVERED", null, "Cash received", true));
+
+        assertEquals("DELIVERED", response.status());
+        assertEquals("COMPLETED", order.getStatus());
+        assertEquals("DELIVERED", delivery.getStatus());
+        assertEquals("PAID", payment.getStatus());
+        assertNotNull(payment.getPaidAt());
+        verify(paymentRepository).save(payment);
+    }
+
+    @Test
+    void managerCannotBypassPendingCashOnDeliveryConfirmation() {
+        Order order = order("OUT_FOR_DELIVERY");
+        Delivery delivery = delivery("PICKED_UP");
+        when(deliveryRepository.findByOrderId(orderId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
+        when(paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId))
+                .thenReturn(List.of(cashOnDeliveryPayment()));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.synchronizeManagerOrderStatus(order, managerId, "COMPLETED"));
+
+        assertEquals("CASH_COLLECTION_REQUIRED", error.getCode());
+        assertEquals("PICKED_UP", delivery.getStatus());
+        verify(deliveryRepository, never()).save(any(Delivery.class));
+    }
+
+    private Payment cashOnDeliveryPayment() {
+        Payment payment = new Payment();
+        payment.setId(UUID.randomUUID());
+        payment.setOrderId(orderId);
+        payment.setMethod("CASH_ON_DELIVERY");
+        payment.setStatus("PENDING");
+        payment.setAmount(550L);
+        return payment;
     }
 
     @Test
