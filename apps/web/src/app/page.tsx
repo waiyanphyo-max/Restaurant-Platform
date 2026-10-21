@@ -13,6 +13,7 @@ import {
   listQueueTickets,
   OrderSummary,
   Page,
+  updateOrderStatus,
   QueueTicket,
   updateDeliveryStatus,
 } from "@/lib/api";
@@ -58,6 +59,23 @@ function humanizeStatus(status: string) {
   return status.replaceAll("_", " ");
 }
 
+function nextOrderStatus(order: OrderSummary): string | null {
+  switch (order.status) {
+    case "PENDING":
+      return "ACCEPTED";
+    case "ACCEPTED":
+      return "PREPARING";
+    case "PREPARING":
+      return "READY";
+    case "READY":
+      return order.orderType === "DELIVERY" ? "OUT_FOR_DELIVERY" : "COMPLETED";
+    case "OUT_FOR_DELIVERY":
+      return "COMPLETED";
+    default:
+      return null;
+  }
+}
+
 function errorMessage(cause: unknown, fallback: string) {
   return cause instanceof ApiError ? cause.message : fallback;
 }
@@ -74,6 +92,7 @@ export default function HomePage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [statusFilter, setStatusFilter] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [orderActionId, setOrderActionId] = useState<string | null>(null);
 
   const [queueTickets, setQueueTickets] = useState<QueueTicket[]>([]);
   const [queueLoaded, setQueueLoaded] = useState(false);
@@ -128,6 +147,21 @@ export default function HomePage() {
   function changeStatusFilter(nextStatus: string) {
     setStatusFilter(nextStatus);
     if (loaded) void loadOrders(0, nextStatus);
+  }
+
+  async function handleAdvanceOrder(order: OrderSummary) {
+    const nextStatus = nextOrderStatus(order);
+    if (!nextStatus) return;
+    setOrderActionId(order.id);
+    setError("");
+    try {
+      await updateOrderStatus(apiUrl, restaurantId, accessToken, order.id, nextStatus);
+      await loadOrders(currentPage, statusFilter);
+    } catch (cause) {
+      setError(errorMessage(cause, "Could not update this order."));
+    } finally {
+      setOrderActionId(null);
+    }
   }
 
   async function loadQueue() {
@@ -377,13 +411,23 @@ export default function HomePage() {
 
           {loaded && orders.length > 0 && <div className="orders-table-wrap">
             <table>
-              <thead><tr><th>Order</th><th>Type</th><th>Status</th><th>Total</th><th>Created</th></tr></thead>
+              <thead><tr><th>Order</th><th>Type</th><th>Status</th><th>Total</th><th>Created</th><th>Next action</th></tr></thead>
               <tbody>{orders.map(order => <tr key={order.id}>
                 <td><strong>{order.orderNumber}</strong><small>{order.orderChannel}</small></td>
                 <td>{humanizeStatus(order.orderType)}</td>
                 <td><span className={statusClass(order.status)}>{humanizeStatus(order.status)}</span></td>
                 <td className="amount">{formatMoney(order.totalAmount)}</td>
                 <td className="date-cell">{formatDate(order.createdAt)}</td>
+                <td>{nextOrderStatus(order)
+                  ? <button
+                      className="secondary-button order-action"
+                      type="button"
+                      onClick={() => void handleAdvanceOrder(order)}
+                      disabled={loading || orderActionId !== null}
+                    >{orderActionId === order.id
+                      ? "Saving…"
+                      : `Move to ${humanizeStatus(nextOrderStatus(order) ?? "")}`}</button>
+                  : <span className="order-action-none">Final state</span>}</td>
               </tr>)}</tbody>
             </table>
           </div>}
