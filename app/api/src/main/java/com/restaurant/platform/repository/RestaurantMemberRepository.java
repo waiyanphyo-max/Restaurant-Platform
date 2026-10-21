@@ -17,6 +17,10 @@ public interface RestaurantMemberRepository extends JpaRepository<RestaurantMemb
     List<RestaurantMember> findByRestaurantIdAndRoleOrderByCreatedAtAsc(
             UUID restaurantId, RestaurantRole role);
 
+    List<RestaurantMember> findByRestaurantIdOrderByCreatedAtAsc(UUID restaurantId);
+
+    Optional<RestaurantMember> findByIdAndRestaurantId(UUID id, UUID restaurantId);
+
     Optional<RestaurantMember> findByRestaurantIdAndUserId(
             UUID restaurantId, UUID userId);
 }
