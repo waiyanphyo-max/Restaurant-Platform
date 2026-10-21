@@ -55,10 +55,17 @@ mvn -f app/api/pom.xml spring-boot:run
 | GET | `/api/v1/restaurants/{restaurantId}/orders` | Authenticated member with `ORDER_READ`; supports `page`, `size`, and `status` |
 | GET | `/api/v1/restaurants/{restaurantId}/orders/{orderId}` | Authenticated member with `ORDER_READ`; order, items, modifiers, and status history |
 | PATCH | `/api/v1/restaurants/{restaurantId}/orders/{orderId}/status` | Authenticated member with applicable order/queue/delivery permissions |
+| GET | `/api/v1/restaurants/{restaurantId}/queue-tickets?status=READY` | Authenticated member with `QUEUE_MANAGE`; current local queue day |
+| PATCH | `/api/v1/restaurants/{restaurantId}/queue-tickets/{ticketId}/call` | Authenticated member with `QUEUE_MANAGE`; calls a READY ticket and creates an in-app notification |
+| GET | `/api/v1/public/queue-tickets/{ticketId}/status` | Requires the ticket's `X-Queue-Token` header |
+| GET | `/api/v1/public/queue-tickets/{ticketId}/notifications` | Requires the ticket's `X-Queue-Token` header |
+| PATCH | `/api/v1/public/queue-tickets/{ticketId}/notifications/{notificationId}/read` | Requires the ticket's `X-Queue-Token` header |
+| GET | `/api/v1/notifications?status=PENDING` | Authenticated user; returns only notifications addressed to the JWT subject |
+| PATCH | `/api/v1/notifications/{notificationId}/read` | Authenticated user; read access is scoped by notification ID and user ID |
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-These routes are currently present in the repository. Queue-tracking HTTP routes and delivery/customer administration controllers are not exposed yet. A notification database row does not by itself deliver a push notification or audible alert.
+Queue polling and in-app notification records are now exposed. Actual mobile/browser sound playback requires the client to poll the queue endpoint and react to an unseen `QUEUE_READY` or `QUEUE_CALLED` notification; a database record alone does not deliver push notifications or play audio. Delivery/customer administration and external push-provider integration are not implemented yet.
 
 ## Security model
 
