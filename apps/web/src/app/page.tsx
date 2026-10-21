@@ -294,6 +294,7 @@ export default function HomePage() {
   async function loadPublicMenu() {
     setActiveView("customer-pickup");
     setGuestError("");
+    setError("");
     if (!hasRestaurantDetails) {
       setGuestError("Enter the backend API URL and restaurant ID first.");
       return;
@@ -667,6 +668,154 @@ export default function HomePage() {
           <p className="privacy-note">Staff access tokens stay in page memory only. The guest Common QR flow uses public endpoints and its queue tracking token; never use a service-role key here.</p>
           {error && <div className="feedback error" role="alert">{error}</div>}
         </section>
+
+        {activeView === "customer-pickup" && <section className="orders-section guest-order-section" aria-busy={guestLoading}>
+          <div className="orders-heading">
+            <div>
+              <h3>Common QR pickup order</h3>
+              <p>Browse the public menu, place a pickup order, and track its queue number without signing in.</p>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => void loadPublicMenu()} disabled={guestLoading || !hasRestaurantDetails}>
+              {guestLoading ? "Loading…" : "Refresh menu"}
+            </button>
+          </div>
+
+          {publicMenu && <div className="guest-restaurant-info">
+            <h4>{publicMenu.restaurantName}</h4>
+            {publicMenu.description && <p>{publicMenu.description}</p>}
+            {publicMenu.address && <p>{publicMenu.address}</p>}
+            <label className="filter-field guest-token-field">
+              Common QR token
+              <input type="password" value={commonQrToken} onChange={event => setCommonQrToken(event.target.value)}
+                placeholder="Token from the restaurant's Common QR" autoComplete="off" />
+            </label>
+          </div>}
+
+          {guestError && <div className="feedback error" role="alert">{guestError}</div>}
+          {guestLoading && !menuLoaded && <div className="empty-state"><div className="loader" /><h4>Loading menu</h4><p>Fetching the active public menu for this restaurant.</p></div>}
+          {!publicMenu && !guestLoading && !guestError && <div className="empty-state"><div className="empty-icon">☷</div><h4>Load a restaurant menu</h4><p>Enter the backend URL and restaurant UUID above, then choose Load menu.</p></div>}
+
+          {menuLoaded && publicMenu && <div className="guest-menu">
+            {publicMenu.categories.length === 0 && <div className="empty-state"><h4>No active menu yet</h4><p>This restaurant has not published any active categories.</p></div>}
+            {publicMenu.categories.map(category => <section className="guest-category" key={category.id}>
+              <div className="guest-category-heading"><h4>{category.name}</h4><span>{category.products.length} item(s)</span></div>
+              <div className="guest-product-list">
+                {category.products.map(product => {
+                  const line = guestCart[product.id] ?? {
+                    quantity: 0, variantId: "", specialInstruction: "", modifiers: {},
+                  };
+                  const selectedCount = (groupId: string) => {
+                    const group = product.modifierGroups.find(item => item.id === groupId);
+                    return group?.options.filter(option => (line.modifiers[option.id] ?? 0) > 0).length ?? 0;
+                  };
+                  const selectedVariantPrice = product.variants.find(
+                    variant => variant.id === line.variantId,
+                  )?.price ?? product.price;
+                  const selectedModifierPrice = product.modifierGroups.reduce((groupTotal, group) =>
+                    groupTotal + group.options
+                      .filter(option => (line.modifiers[option.id] ?? 0) > 0)
+                      .reduce((sum, option) => sum + option.additionalPrice * line.modifiers[option.id], 0), 0);
+                  const lineTotal = (selectedVariantPrice + selectedModifierPrice) * line.quantity;
+
+                  return <article className={`guest-product ${product.available ? "" : "unavailable"}`} key={product.id}>
+                    <div className="guest-product-heading">
+                      <div><h5>{product.name}</h5>{product.description && <p>{product.description}</p>}</div>
+                      <strong>{formatMoney(product.price)} {publicMenu.currency}</strong>
+                    </div>
+                    {!product.available && <p className="unavailable-label">Currently unavailable</p>}
+                    {product.variants.length > 0 && <label className="guest-control">
+                      Size / variant
+                      <select value={line.variantId}
+                        onChange={event => updateGuestCartLine(product.id, { variantId: event.target.value })}
+                        disabled={!product.available || guestLoading}>
+                        <option value="">Choose a variant</option>
+                        {product.variants.filter(variant => variant.available).map(variant =>
+                          <option key={variant.id} value={variant.id}>{variant.name} — {formatMoney(variant.price)} {publicMenu.currency}</option>,
+                        )}
+                      </select>
+                    </label>}
+                    {product.modifierGroups.map(group => {
+                      const count = selectedCount(group.id);
+                      return <fieldset className="guest-modifier-group" key={group.id} disabled={!product.available || guestLoading}>
+                        <legend>{group.name} <span>{group.minSelections}–{group.maxSelections} choice(s){group.required ? " · Required" : ""}</span></legend>
+                        {group.options.length === 0 && <p className="modifier-empty">No selectable options are available for this group.</p>}
+                        {group.options.map(option => {
+                          const selected = (line.modifiers[option.id] ?? 0) > 0;
+                          const maxReached = count >= group.maxSelections;
+                          return <label className="guest-modifier-option" key={option.id}>
+                            <input type="checkbox" checked={selected}
+                              disabled={!option.available || (!selected && maxReached)}
+                              onChange={event => toggleGuestModifier(product.id, option.id, event.target.checked)} />
+                            <span>{option.name}</span><small>+{formatMoney(option.additionalPrice)} {publicMenu.currency}</small>
+                          </label>;
+                        })}
+                      </fieldset>;
+                    })}
+                    <label className="guest-control">Special instruction
+                      <input value={line.specialInstruction}
+                        onChange={event => updateGuestCartLine(product.id, { specialInstruction: event.target.value })}
+                        maxLength={500} placeholder="Optional request" disabled={!product.available || guestLoading} />
+                    </label>
+                    <div className="guest-product-footer">
+                      <label className="quantity-field">Qty
+                        <input type="number" min={0} max={50} step={1} value={line.quantity}
+                          onChange={event => {
+                            const parsed = Number.parseInt(event.target.value, 10);
+                            const quantity = Number.isFinite(parsed) ? Math.min(50, Math.max(0, parsed)) : 0;
+                            updateGuestCartLine(product.id, { quantity });
+                          }}
+                          disabled={!product.available || guestLoading} />
+                      </label>
+                      <strong className="guest-line-total">{formatMoney(lineTotal)} {publicMenu.currency}</strong>
+                    </div>
+                  </article>;
+                })}
+              </div>
+            </section>)}
+            <div className="guest-cart-summary">
+              <div><span>Estimated subtotal</span><strong>{formatMoney(estimatedGuestSubtotal)} {publicMenu.currency}</strong><small>Final prices, options, availability, and stock are verified by the backend when you place the order.</small></div>
+              <button className="primary-action" type="button" onClick={() => void handlePlaceCommonOrder()}
+                disabled={guestLoading || selectedMenuProducts.length === 0 || !commonQrToken.trim()}>
+                {guestLoading ? "Placing order…" : "Place pickup order"}
+              </button>
+            </div>
+          </div>}
+
+          {commonOrder?.queue && trackedStatus && <section className="guest-tracking-card">
+            <div className="guest-tracking-heading">
+              <div><p className="intro-kicker">ORDER CONFIRMED</p><h4>{commonOrder.orderNumber}</h4><p>Keep this screen open to follow your pickup number.</p></div>
+              <div className="queue-number">{trackedStatus.displayCode}</div>
+            </div>
+            <div className="guest-tracking-status">
+              <span>Pickup status</span>
+              <strong className={statusClass(trackedStatus.queueStatus)}>{humanizeStatus(trackedStatus.queueStatus)}</strong>
+              <p>Queue {trackedStatus.displayCode} · Order {humanizeStatus(trackedStatus.orderStatus)}</p>
+              {trackedStatus.readyAt && <p>Ready at {formatDate(trackedStatus.readyAt)}</p>}
+              {trackedStatus.calledAt && <p>Called at {formatDate(trackedStatus.calledAt)}</p>}
+              {trackedStatus.completedAt && <p>Completed at {formatDate(trackedStatus.completedAt)}</p>}
+            </div>
+            <div className="guest-tracking-actions">
+              <button className="secondary-button" type="button" onClick={enablePickupSound}>
+                {soundEnabled ? "Sound enabled" : "Enable sound alert"}
+              </button>
+              <button className="secondary-button" type="button" onClick={() => void copyTrackingToken()}>
+                {copiedTrackingToken ? "Tracking token copied" : "Copy tracking token"}
+              </button>
+            </div>
+            <p className="privacy-note">The tracking token is a secret that allows access to this queue ticket. It stays in this page&apos;s memory and is not put in the URL or saved to browser storage.</p>
+            {trackingError && <div className="feedback error" role="alert">{trackingError}</div>}
+            {trackedNotifications.some(notification =>
+              ["QUEUE_READY", "QUEUE_CALLED"].includes(notification.notificationType),
+            ) && <div className="guest-notification-list">
+              {trackedNotifications.filter(notification =>
+                ["QUEUE_READY", "QUEUE_CALLED"].includes(notification.notificationType),
+              ).map(notification => <article className="guest-notification" key={notification.id}>
+                <strong>{notification.title}</strong><p>{notification.body}</p><small>{formatDate(notification.createdAt)}</small>
+              </article>)}
+            </div>}
+            <p className="tracking-poll-note">Queue status refreshes automatically every 5 seconds while this screen stays open. Sound alerts play after you enable sound in your browser.</p>
+          </section>}
+        </section>}
 
         {activeView === "orders" && <section className="orders-section" aria-busy={loading}>
           <div className="orders-heading">
