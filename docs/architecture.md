@@ -111,6 +111,10 @@ Customer order history queries use `orders.customer_id` derived from the validat
 
 The authenticated `/api/v1/devices` endpoints associate device push tokens with the JWT subject, reject a token already owned by a different account, and never return raw tokens. Device deactivation is owner-scoped. Device-token persistence is not a push provider: server-side delivery to FCM/APNs/web-push is not yet connected, and the browser/mobile client remains responsible for local sound playback.
 
+## Counter payment lifecycle
+
+Common/Table QR orders create a pending `CASH_AT_COUNTER` payment row during checkout. Staff and managers can collect it through the payment API, which locks the restaurant-scoped order, requires the payment to belong to that order, and writes `PAID` plus a UTC `paid_at`. Collection is idempotent for an already-paid payment. The endpoint rejects cancelled orders and non-counter methods so it cannot bypass the driver-confirmed cash-on-delivery path. Online payment processing is not implemented.
+
 ## Daily operations reporting
 
 `GET /api/v1/restaurants/{restaurantId}/reports/daily` requires `REPORT_READ`. Order counts and non-cancelled order amount are aggregated in one PostgreSQL query for a half-open timestamp window derived from the restaurant's timezone. The separately reported paid amount includes only payment rows marked `PAID` whose `paid_at` falls in the same local day. Because order-created totals and payment-paid totals are different metrics, clients should label them separately. Reports reject future dates in the restaurant's local calendar.
