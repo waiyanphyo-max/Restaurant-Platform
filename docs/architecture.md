@@ -71,6 +71,10 @@ Customer-address APIs derive ownership from the validated JWT `sub`; all read/up
 
 The checkout service calculates item/modifier prices from database records, checks stock and both restaurant/zone minimums, snapshots the destination into the order, and creates a `PENDING` cash-on-delivery payment record in the same transaction. Clients cannot provide order totals, fees, customer IDs, or creator IDs. Online payment processing is not implemented. Delivery zones currently carry names, fees, and minimums but no geographic polygons or township boundaries, so the customer selects a zone and the backend can only validate that it belongs to the restaurant.
 
+## Catalog management
+
+Category, product, variant, modifier-group, and modifier-option mutations require the restaurant's `MENU_MANAGE` permission; reads require `MENU_READ`. Every management lookup is scoped by restaurant ID and product/variant/group relationships. Stock tracking requires a non-negative quantity. Modifier selection rules enforce `minSelections <= maxSelections` and required groups need a positive minimum. Products cannot be ordered through inactive categories, and the public modifier endpoint only exposes active groups linked to an active product and available options.
+
 ## Customer profile lifecycle
 
 Migration `20261022001000_sync_auth_user_profiles.sql` adds an `auth.users` insert trigger that creates the matching `public.profiles` row and backfills existing Auth users that lack one. It does not overwrite existing profile data on conflict. The trigger function is security-definer, uses an empty search path with fully-qualified objects, and revokes direct execute privileges from end-user roles. Customer profile GET/PUT endpoints always use the validated JWT subject as the profile ID. Supported preference values are `my-MM` and `en`.
