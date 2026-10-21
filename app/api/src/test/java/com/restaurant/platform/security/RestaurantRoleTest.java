@@ -20,6 +20,7 @@ class RestaurantRoleTest {
         assertTrue(RestaurantRole.MANAGER.allows(RestaurantPermission.ORDER_READ));
         assertTrue(RestaurantRole.MANAGER.allows(RestaurantPermission.DELIVERY_ASSIGN));
         assertTrue(RestaurantRole.MANAGER.allows(RestaurantPermission.REPORT_READ));
+        assertTrue(RestaurantRole.MANAGER.allows(RestaurantPermission.PAYMENT_COLLECT));
         assertFalse(RestaurantRole.MANAGER.allows(RestaurantPermission.MEMBERS_MANAGE));
     }
 
@@ -29,6 +30,8 @@ class RestaurantRoleTest {
         assertTrue(RestaurantRole.STAFF.allows(RestaurantPermission.ORDER_CREATE));
         assertTrue(RestaurantRole.STAFF.allows(RestaurantPermission.QUEUE_MANAGE));
         assertTrue(RestaurantRole.STAFF.allows(RestaurantPermission.DELIVERY_STATUS_UPDATE));
+        assertTrue(RestaurantRole.STAFF.allows(RestaurantPermission.PAYMENT_READ));
+        assertTrue(RestaurantRole.STAFF.allows(RestaurantPermission.PAYMENT_COLLECT));
         assertFalse(RestaurantRole.STAFF.allows(RestaurantPermission.DELIVERY_ASSIGN));
         assertFalse(RestaurantRole.STAFF.allows(RestaurantPermission.MEMBERS_MANAGE));
         assertFalse(RestaurantRole.STAFF.allows(RestaurantPermission.SETTINGS_MANAGE));
@@ -41,6 +44,8 @@ class RestaurantRoleTest {
         assertTrue(RestaurantRole.DELIVERY_DRIVER.allows(RestaurantPermission.RESTAURANT_READ));
 
         assertFalse(RestaurantRole.DELIVERY_DRIVER.allows(RestaurantPermission.ORDER_READ));
+        assertFalse(RestaurantRole.DELIVERY_DRIVER.allows(RestaurantPermission.PAYMENT_READ));
+        assertFalse(RestaurantRole.DELIVERY_DRIVER.allows(RestaurantPermission.PAYMENT_COLLECT));
         assertFalse(RestaurantRole.DELIVERY_DRIVER.allows(RestaurantPermission.ORDER_CREATE));
         assertFalse(RestaurantRole.DELIVERY_DRIVER.allows(RestaurantPermission.ORDER_STATUS_UPDATE));
         assertFalse(RestaurantRole.DELIVERY_DRIVER.allows(RestaurantPermission.ORDER_CANCEL));
