@@ -99,6 +99,10 @@ Category, product, variant, modifier-group, and modifier-option mutations requir
 
 Migration `20261022001000_sync_auth_user_profiles.sql` adds an `auth.users` insert trigger that creates the matching `public.profiles` row and backfills existing Auth users that lack one. It does not overwrite existing profile data on conflict. The trigger function is security-definer, uses an empty search path with fully-qualified objects, and revokes direct execute privileges from end-user roles. Customer profile GET/PUT endpoints always use the validated JWT subject as the profile ID. Supported preference values are `my-MM` and `en`.
 
+## Customer order cancellation
+
+`POST /api/v1/customer/orders/{orderId}/cancel` takes a pessimistic lock on the customer-owned order row and only permits cancellation while the order is `PENDING`. The same transaction releases each tracked product's reserved stock, marks pending payments `CANCELLED`, saves the order status and audit history, and returns the current customer order detail. The SQL migration `20261022002000_allow_cancelled_payment_status.sql` expands the allowed payment status values. Accepted/preparing orders cannot be cancelled through this endpoint; paid-payment refunds remain a separate future workflow.
+
 ## Customer order history and privacy
 
 Customer order history queries use `orders.customer_id` derived from the validated JWT subject. The detail lookup combines `order_id` and `customer_id`; knowing an order UUID does not grant access. The response includes item/modifier snapshots, status timestamps, a safe summary of payment status, and the current delivery status without exposing internal payment transaction references or status-change actor IDs. Order history is read-only; customer cancellation/reorder workflows have not been implemented.
