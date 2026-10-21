@@ -307,6 +307,22 @@ export type MenuVariant = {
   available: boolean;
 };
 
+export type MenuModifierOption = {
+  id: string;
+  name: string;
+  additionalPrice: number;
+  available: boolean;
+};
+
+export type MenuModifierGroup = {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number;
+  options: MenuModifierOption[];
+};
+
 export type MenuProduct = {
   id: string;
   name: string;
@@ -317,6 +333,7 @@ export type MenuProduct = {
   trackStock: boolean;
   stockQuantity: number | null;
   variants: MenuVariant[];
+  modifierGroups: MenuModifierGroup[];
 };
 
 export type MenuCategory = {
