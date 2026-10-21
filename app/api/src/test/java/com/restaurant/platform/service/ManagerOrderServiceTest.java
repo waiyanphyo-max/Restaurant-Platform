@@ -43,6 +43,7 @@ class ManagerOrderServiceTest {
     private QueueTicketRepository queueTicketRepository;
     private AppNotificationRepository notificationRepository;
     private RestaurantAuthorization authorization;
+    private DeliveryService deliveryService;
     private ManagerOrderService service;
 
     private final UUID restaurantId = UUID.randomUUID();
@@ -58,6 +59,7 @@ class ManagerOrderServiceTest {
         queueTicketRepository = mock(QueueTicketRepository.class);
         notificationRepository = mock(AppNotificationRepository.class);
         authorization = mock(RestaurantAuthorization.class);
+        deliveryService = mock(DeliveryService.class);
         service = new ManagerOrderService(
                 orderRepository,
                 orderItemRepository,
@@ -65,7 +67,8 @@ class ManagerOrderServiceTest {
                 historyRepository,
                 queueTicketRepository,
                 notificationRepository,
-                authorization);
+                authorization,
+                deliveryService);
     }
 
     @Test
