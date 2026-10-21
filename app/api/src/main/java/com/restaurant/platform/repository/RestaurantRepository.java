@@ -12,4 +12,6 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, UUID> {
     List<Restaurant> findByIsActiveTrueOrderByNameAsc();
 
     Optional<Restaurant> findByIdAndIsActiveTrue(UUID id);
+
+    boolean existsBySlug(String slug);
 }
