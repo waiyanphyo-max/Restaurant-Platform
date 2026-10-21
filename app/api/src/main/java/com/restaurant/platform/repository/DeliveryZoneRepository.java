@@ -13,4 +13,8 @@ public interface DeliveryZoneRepository extends JpaRepository<DeliveryZone, UUID
 
     Optional<DeliveryZone> findByIdAndRestaurantIdAndIsActiveTrue(
             UUID id, UUID restaurantId);
+
+    Optional<DeliveryZone> findByIdAndRestaurantId(UUID id, UUID restaurantId);
+
+    List<DeliveryZone> findByRestaurantIdOrderByNameAsc(UUID restaurantId);
 }
