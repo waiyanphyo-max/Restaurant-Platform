@@ -7,8 +7,22 @@ public enum RestaurantRole {
 
     OWNER(EnumSet.allOf(RestaurantPermission.class)),
 
-    // Managers can administer restaurant operations but cannot manage membership.
-    MANAGER(EnumSet.complementOf(EnumSet.of(RestaurantPermission.MEMBERS_MANAGE))),
+    // Explicit grants avoid accidentally granting newly added permissions to managers.
+    MANAGER(EnumSet.of(
+            RestaurantPermission.RESTAURANT_READ,
+            RestaurantPermission.SETTINGS_MANAGE,
+            RestaurantPermission.MENU_READ,
+            RestaurantPermission.MENU_MANAGE,
+            RestaurantPermission.ORDER_READ,
+            RestaurantPermission.ORDER_CREATE,
+            RestaurantPermission.ORDER_STATUS_UPDATE,
+            RestaurantPermission.ORDER_CANCEL,
+            RestaurantPermission.QUEUE_MANAGE,
+            RestaurantPermission.DELIVERY_READ,
+            RestaurantPermission.DELIVERY_ASSIGN,
+            RestaurantPermission.DELIVERY_STATUS_UPDATE,
+            RestaurantPermission.REPORT_READ
+    )),
 
     STAFF(EnumSet.of(
             RestaurantPermission.RESTAURANT_READ,
