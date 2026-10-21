@@ -4,6 +4,16 @@ import { FormEvent, useState } from "react";
 import { ApiError, listOrders, OrderSummary } from "@/lib/api";
 
 const initialApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const pageSize = 20;
+const orderStatuses = [
+  "PENDING",
+  "ACCEPTED",
+  "PREPARING",
+  "READY",
+  "OUT_FOR_DELIVERY",
+  "COMPLETED",
+  "CANCELLED",
+] as const;
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
@@ -21,34 +31,58 @@ function statusClass(status: string) {
   return `status status-${status.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
 
+function humanizeStatus(status: string) {
+  return status.replaceAll("_", " ");
+}
+
 export default function HomePage() {
   const [apiUrl, setApiUrl] = useState(initialApiUrl);
   const [restaurantId, setRestaurantId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [totalOrders, setTotalOrders] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function loadOrders(pageIndex = 0, status = statusFilter) {
     setLoading(true);
     setError("");
-    setLoaded(false);
     try {
-      const page = await listOrders(apiUrl, restaurantId, accessToken);
+      const page = await listOrders(apiUrl, restaurantId, accessToken, pageIndex, status, pageSize);
       setOrders(page.content ?? []);
       setTotalOrders(page.totalElements ?? 0);
+      setTotalPages(page.totalPages ?? 0);
+      setCurrentPage(page.number ?? pageIndex);
       setLoaded(true);
     } catch (cause) {
       setOrders([]);
       setTotalOrders(0);
+      setTotalPages(0);
+      setCurrentPage(0);
+      setLoaded(false);
       setError(cause instanceof ApiError ? cause.message : "Something went wrong while loading orders.");
     } finally {
       setLoading(false);
     }
   }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoaded(false);
+    await loadOrders(0, statusFilter);
+  }
+
+  function changeStatusFilter(nextStatus: string) {
+    setStatusFilter(nextStatus);
+    if (loaded) void loadOrders(0, nextStatus);
+  }
+
+  const firstVisibleOrder = totalOrders === 0 ? 0 : currentPage * pageSize + 1;
+  const lastVisibleOrder = Math.min((currentPage + 1) * pageSize, totalOrders);
 
   return (
     <main className="app-shell">
@@ -105,12 +139,59 @@ export default function HomePage() {
           {error && <div className="feedback error" role="alert">{error}</div>}
         </section>
 
-        <section className="orders-section">
-          <div className="orders-heading"><div><h3>Recent orders</h3><p>{loaded ? `${totalOrders} order(s) in total` : "Connect to load live data"}</p></div>{loaded && <span className="result-count">{orders.length} shown</span>}</div>
+        <section className="orders-section" aria-busy={loading}>
+          <div className="orders-heading">
+            <div>
+              <h3>Recent orders</h3>
+              <p>{loaded
+                ? `${totalOrders} order(s) total · showing ${firstVisibleOrder}–${lastVisibleOrder}`
+                : "Connect to load live data"}</p>
+            </div>
+            {loaded && <span className="result-count">{orders.length} shown</span>}
+          </div>
+
+          {loaded && <div className="orders-toolbar">
+            <label className="filter-field">
+              Filter by status
+              <select
+                value={statusFilter}
+                onChange={event => changeStatusFilter(event.target.value)}
+                disabled={loading}
+                aria-label="Filter orders by status"
+              >
+                <option value="">All statuses</option>
+                {orderStatuses.map(status => <option key={status} value={status}>{humanizeStatus(status)}</option>)}
+              </select>
+            </label>
+            <button className="secondary-button" type="button" onClick={() => void loadOrders(currentPage)} disabled={loading}>
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>}
+
           {!loaded && !loading && !error && <div className="empty-state"><div className="empty-icon">▤</div><h4>Your orders will appear here</h4><p>Enter the backend URL, restaurant ID, and a valid user access token above.</p></div>}
-          {loading && <div className="empty-state"><div className="loader" /><h4>Loading orders</h4><p>Requesting the first page from your backend.</p></div>}
-          {loaded && orders.length === 0 && <div className="empty-state"><div className="empty-icon">✓</div><h4>No orders found</h4><p>The connection worked, but this restaurant has no orders matching the current query.</p></div>}
-          {orders.length > 0 && <div className="orders-table-wrap"><table><thead><tr><th>Order</th><th>Type</th><th>Status</th><th>Total</th><th>Created</th></tr></thead><tbody>{orders.map(order => <tr key={order.id}><td><strong>{order.orderNumber}</strong><small>{order.orderChannel}</small></td><td>{order.orderType.replaceAll("_", " ")}</td><td><span className={statusClass(order.status)}>{order.status.replaceAll("_", " ")}</span></td><td className="amount">{formatMoney(order.totalAmount)}</td><td className="date-cell">{formatDate(order.createdAt)}</td></tr>)}</tbody></table></div>}
+          {loading && !loaded && <div className="empty-state"><div className="loader" /><h4>Loading orders</h4><p>Requesting the first page from your backend.</p></div>}
+          {loaded && !loading && orders.length === 0 && <div className="empty-state"><div className="empty-icon">✓</div><h4>No orders found</h4><p>The connection worked, but this restaurant has no orders matching the current filter.</p></div>}
+
+          {loaded && orders.length > 0 && <div className="orders-table-wrap">
+            <table>
+              <thead><tr><th>Order</th><th>Type</th><th>Status</th><th>Total</th><th>Created</th></tr></thead>
+              <tbody>{orders.map(order => <tr key={order.id}>
+                <td><strong>{order.orderNumber}</strong><small>{order.orderChannel}</small></td>
+                <td>{humanizeStatus(order.orderType)}</td>
+                <td><span className={statusClass(order.status)}>{humanizeStatus(order.status)}</span></td>
+                <td className="amount">{formatMoney(order.totalAmount)}</td>
+                <td className="date-cell">{formatDate(order.createdAt)}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>}
+
+          {loaded && totalPages > 1 && <div className="pagination">
+            <span>Page {currentPage + 1} of {totalPages}</span>
+            <div className="pagination-actions">
+              <button className="secondary-button" type="button" onClick={() => void loadOrders(currentPage - 1)} disabled={loading || currentPage <= 0}>Previous</button>
+              <button className="secondary-button" type="button" onClick={() => void loadOrders(currentPage + 1)} disabled={loading || currentPage + 1 >= totalPages}>Next</button>
+            </div>
+          </div>}
         </section>
         <footer>Restaurant Platform <span>•</span> Web integration preview <span>•</span> No credentials are persisted by this page</footer>
       </section>
