@@ -27,5 +27,7 @@ The access token is held only in component memory and is not persisted in local 
 
 - Manager order-list integration with clear authentication, permission, query, and network errors
 - Server-side order-status filtering, refresh, and pagination
+- Current-day queue view with a call action for READY pickup tickets (requires QUEUE_MANAGE)
+- Delivery task view with filtering, pagination, driver assignment, pickup, failure-reason, and delivery-completion actions (requires the matching restaurant permissions)
 - Responsive dashboard shell for desktop and mobile widths
-- No token persistence, customer checkout UI, Supabase browser auth integration, or delivery/queue screens yet
+- No token persistence, customer checkout UI, or Supabase browser auth integration yet
