@@ -299,3 +299,202 @@ export async function updateOrderStatus(
     { status, note: "Updated from the web operations dashboard." },
   );
 }
+
+export type MenuVariant = {
+  id: string;
+  name: string;
+  price: number;
+  available: boolean;
+};
+
+export type MenuProduct = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  imageUrl: string | null;
+  available: boolean;
+  trackStock: boolean;
+  stockQuantity: number | null;
+  variants: MenuVariant[];
+};
+
+export type MenuCategory = {
+  id: string;
+  name: string;
+  displayOrder: number;
+  products: MenuProduct[];
+};
+
+export type PublicMenu = {
+  restaurantId: string;
+  restaurantName: string;
+  slug: string;
+  description: string | null;
+  phone: string | null;
+  address: string | null;
+  logoUrl: string | null;
+  currency: string;
+  categories: MenuCategory[];
+};
+
+export type CreateQrOrderResponse = {
+  orderId: string;
+  orderNumber: string;
+  orderType: string;
+  orderChannel: string;
+  status: string;
+  currency: string;
+  subtotal: number;
+  deliveryFee: number;
+  discountAmount: number;
+  totalAmount: number;
+  queue: {
+    ticketId: string;
+    queueNumber: number;
+    displayCode: string;
+    status: string;
+    trackingToken: string;
+  } | null;
+};
+
+export type QueueTrackingStatus = {
+  ticketId: string;
+  queueNumber: number;
+  displayCode: string;
+  queueStatus: string;
+  orderNumber: string;
+  orderStatus: string;
+  createdAt: string;
+  readyAt: string | null;
+  calledAt: string | null;
+  completedAt: string | null;
+};
+
+export type TicketNotification = {
+  id: string;
+  orderId: string | null;
+  queueTicketId: string | null;
+  notificationType: string;
+  title: string;
+  body: string;
+  channel: string;
+  status: string;
+  createdAt: string;
+  readAt: string | null;
+};
+
+async function publicJson<T>(
+  url: string,
+  method = "GET",
+  body?: unknown,
+  extraHeaders: Record<string, string> = {},
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: {
+        Accept: "application/json",
+        ...extraHeaders,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError("Cannot reach the backend. Check the API URL and CORS configuration.");
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new ApiError("Restaurant, order, or queue ticket was not found.", 404);
+    }
+    if (response.status === 400 || response.status === 409 || response.status === 422) {
+      let message = "";
+      try {
+        const payload: unknown = await response.json();
+        if (payload && typeof payload === "object" && "message" in payload
+            && typeof payload.message === "string") {
+          message = payload.message;
+        }
+      } catch {
+        // Some proxy errors may not have a JSON body.
+      }
+      throw new ApiError(message || `The request could not be completed (HTTP ${response.status}).`, response.status);
+    }
+    throw new ApiError(`The backend returned HTTP ${response.status}.`, response.status);
+  }
+
+  return (await response.json()) as T;
+}
+
+function publicApiBase(apiBaseUrl: string, restaurantId: string) {
+  const base = apiBaseUrl.trim().replace(/\/+$/, "");
+  const normalizedRestaurantId = restaurantId.trim();
+  if (!base) throw new ApiError("Enter the backend API URL.");
+  if (!normalizedRestaurantId) throw new ApiError("Enter the restaurant ID.");
+  return { base, restaurantId: encodeURIComponent(normalizedRestaurantId) };
+}
+
+export async function getPublicMenu(
+  apiBaseUrl: string,
+  restaurantId: string,
+): Promise<PublicMenu> {
+  const location = publicApiBase(apiBaseUrl, restaurantId);
+  return publicJson<PublicMenu>(
+    `${location.base}/api/v1/public/restaurants/${location.restaurantId}/menu`,
+  );
+}
+
+export async function createCommonQrOrder(
+  apiBaseUrl: string,
+  restaurantId: string,
+  request: {
+    qrToken: string;
+    items: Array<{
+      productId: string;
+      variantId: string | null;
+      quantity: number;
+      specialInstruction: string | null;
+      modifiers: Array<{ modifierOptionId: string; quantity: number }>;
+    }>;
+  },
+): Promise<CreateQrOrderResponse> {
+  const location = publicApiBase(apiBaseUrl, restaurantId);
+  return publicJson<CreateQrOrderResponse>(
+    `${location.base}/api/v1/public/restaurants/${location.restaurantId}/orders/common-qr`,
+    "POST",
+    request,
+  );
+}
+
+export async function getQueueTrackingStatus(
+  apiBaseUrl: string,
+  ticketId: string,
+  trackingToken: string,
+): Promise<QueueTrackingStatus> {
+  const base = apiBaseUrl.trim().replace(/\/+$/, "");
+  if (!base) throw new ApiError("Enter the backend API URL.");
+  return publicJson<QueueTrackingStatus>(
+    `${base}/api/v1/public/queue-tickets/${encodeURIComponent(ticketId)}/status`,
+    "GET",
+    undefined,
+    { "X-Queue-Token": trackingToken },
+  );
+}
+
+export async function getTicketNotifications(
+  apiBaseUrl: string,
+  ticketId: string,
+  trackingToken: string,
+): Promise<TicketNotification[]> {
+  const base = apiBaseUrl.trim().replace(/\/+$/, "");
+  if (!base) throw new ApiError("Enter the backend API URL.");
+  return publicJson<TicketNotification[]>(
+    `${base}/api/v1/public/queue-tickets/${encodeURIComponent(ticketId)}/notifications`,
+    "GET",
+    undefined,
+    { "X-Queue-Token": trackingToken },
+  );
+}
