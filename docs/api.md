@@ -111,6 +111,46 @@ Relevant status codes:
 | 409 | Invalid order-state transition or database conflict |
 | 500 | Unexpected server error; implementation details are not included in the response |
 
+## Queue tracking and queue management
+
+### Customer queue status
+
+`GET /api/v1/public/queue-tickets/{ticketId}/status`
+
+Send the raw tracking token returned in `CreateOrderResponse.queue.trackingToken` in the `X-Queue-Token` header. The token is generated with a cryptographically secure random source; only its SHA-256 hash is stored on the queue ticket. Unknown ticket IDs and invalid/missing tokens return the same `404 QUEUE_TICKET_NOT_FOUND` response.
+
+The response includes queue number/display code, ticket status, order number/status, creation time, ready time, and completed time. Customers can poll this endpoint to determine when the ticket reaches `READY` or `CALLED`.
+
+### Customer queue notifications
+
+`GET /api/v1/public/queue-tickets/{ticketId}/notifications`
+
+Requires the same `X-Queue-Token` header. Returns notification records tied to that exact queue ticket, newest first.
+
+`PATCH /api/v1/public/queue-tickets/{ticketId}/notifications/{notificationId}/read`
+
+Also requires the tracking token. The notification lookup is scoped by both notification ID and ticket ID; it cannot mark a different ticket's notification read. Read is idempotent and sets status to `READ` and `readAt`.
+
+### Manager queue list and call
+
+`GET /api/v1/restaurants/{restaurantId}/queue-tickets?status=READY`
+
+Requires `QUEUE_MANAGE`. Lists the current queue date using the restaurant's configured timezone. Without a status filter, it returns active tickets (`WAITING`, `READY`, `CALLED`). Valid filters are `WAITING`, `READY`, `CALLED`, `COMPLETED`, and `CANCELLED`.
+
+`PATCH /api/v1/restaurants/{restaurantId}/queue-tickets/{ticketId}/call`
+
+Requires `QUEUE_MANAGE`. A ticket must belong to the route's restaurant and be in `READY` status. The service locks the ticket row, changes it to `CALLED`, stamps `calledAt`, and creates a `QUEUE_CALLED` in-app notification in the same transaction. Tickets in any other state are rejected with `409 INVALID_QUEUE_TRANSITION`.
+
+An order status update to `READY` already moves a linked queue ticket to `READY` and creates a `QUEUE_READY` in-app notification. A subsequent manager call records `QUEUE_CALLED`.
+
+### Authenticated notification inbox
+
+- `GET /api/v1/notifications` — returns notifications addressed to the authenticated JWT subject.
+- `GET /api/v1/notifications?status=PENDING` — optional status filter; valid values are `PENDING`, `SENT`, `FAILED`, and `READ`.
+- `PATCH /api/v1/notifications/{notificationId}/read` — marks only a notification owned by the authenticated user as read.
+
+These APIs store and return in-app notification records. They do not integrate an external push provider and cannot by themselves make a browser/mobile device play a sound. For QR customers, the client can periodically call the queue status/notifications APIs with the tracking token and react when it sees a new `QUEUE_READY` or `QUEUE_CALLED` notification.
+
 ## Not yet exposed as HTTP routes
 
 Queue tracking, delivery assignment/status operations, restaurant/menu administration, customer profile/address management, and payments are not described as implemented endpoints because their controllers/workflows have not yet been completed and verified.
