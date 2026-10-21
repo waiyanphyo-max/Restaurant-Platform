@@ -62,10 +62,17 @@ mvn -f app/api/pom.xml spring-boot:run
 | PATCH | `/api/v1/public/queue-tickets/{ticketId}/notifications/{notificationId}/read` | Requires the ticket's `X-Queue-Token` header |
 | GET | `/api/v1/notifications?status=PENDING` | Authenticated user; returns only notifications addressed to the JWT subject |
 | PATCH | `/api/v1/notifications/{notificationId}/read` | Authenticated user; read access is scoped by notification ID and user ID |
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries?status=ASSIGNED` | Restaurant delivery queue; drivers are restricted to their own deliveries |
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries/mine` | Tasks assigned to the authenticated user |
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}` | Restaurant-scoped delivery detail; assigned-driver checks apply |
+| PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/assign` | Manager/owner assigns a same-restaurant delivery driver |
+| PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/status` | Driver/authorized member updates delivery lifecycle |
+| GET | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Read the restaurant's default delivery driver |
+| PATCH | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Owner/manager sets a default driver member |
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling and in-app notification records are now exposed. Actual mobile/browser sound playback requires the client to poll the queue endpoint and react to an unseen `QUEUE_READY` or `QUEUE_CALLED` notification; a database record alone does not deliver push notifications or play audio. Delivery/customer administration and external push-provider integration are not implemented yet.
+Queue polling, in-app notification records, delivery assignment, driver task listing/status updates, and default-driver configuration are exposed. When a delivery order becomes READY, the configured default driver is assigned automatically. If no default is configured, the earliest-added driver member is saved as the default; if there are no driver members, the task remains waiting for assignment. Actual mobile/browser sound playback requires client polling and local audio playback; an in-app database record does not deliver external push notifications.
 
 ## Security model
 
