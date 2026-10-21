@@ -103,7 +103,6 @@ public class QueueManagementService {
     @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).QUEUE_MANAGE)")
     @Transactional
     public QueueTicketManagerDto callTicket(UUID restaurantId, UUID ticketId) {
-        UUID actorUserId = restaurantAuthorization.requireAuthenticatedUserId();
         restaurantAuthorization.requirePermission(restaurantId, RestaurantPermission.QUEUE_MANAGE);
 
         QueueTicket ticket = queueTicketRepository
