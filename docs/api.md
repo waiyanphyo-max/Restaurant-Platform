@@ -18,11 +18,23 @@ Restaurant permissions are resolved from `restaurant_members` for the authentica
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/v1/public/restaurants/{restaurantId}/menu` | Return the active public menu |
+| GET | `/api/v1/public/restaurants/{restaurantId}/menu` | Return active categories/products, available variants, stock state, and product-specific active modifier groups/options |
 | POST | `/api/v1/public/restaurants/{restaurantId}/orders/common-qr` | Create a Common QR order |
 | POST | `/api/v1/public/restaurants/{restaurantId}/orders/table-qr` | Create a Table QR order |
 
-These routes do not require a bearer token at the security-filter level; the QR-order service must still validate the restaurant/table QR credential and order rules.
+These routes do not require a bearer token at the security-filter level; the QR-order service must still validate the restaurant/table QR credential and order rules. The public menu returns available product variants and product-specific active modifier groups/options so guest clients can build a valid cart. The backend revalidates current catalog links, modifier selection limits, stock, and prices when an order is submitted.
+
+### Common QR guest web flow
+
+The operations web client now includes a guest-facing Common QR pickup screen. A QR printed for this web deployment can open a URL in this shape:
+
+```text
+https://YOUR-WEB-ORIGIN/?view=customer-pickup&restaurantId=YOUR_RESTAURANT_UUID#qrToken=URL_ENCODED_COMMON_QR_TOKEN
+```
+
+Replace the origin, restaurant UUID, and token with real values. The token belongs in the URL fragment (after `#`), not in a query parameter, because fragments are not sent to the web server in the HTTP request. The client removes the fragment from the visible address bar after reading it. The guest screen still needs the customer to choose **Load menu** before it contacts the public menu endpoint. The token is kept in page memory, and guest checkout submits through the existing `POST .../orders/common-qr` route.
+
+After checkout, the server returns the pickup number and a one-time queue tracking token. The page retains the token in memory and polls `/status` and `/notifications` every five seconds. The customer can opt in to browser sound on the page; local audio plays when the queue changes to `READY` or `CALLED`. This is client-side polling/audio only, not an external push notification, and polling stops when the page is closed or navigated away.
 
 ## Manager/staff order routes
 
