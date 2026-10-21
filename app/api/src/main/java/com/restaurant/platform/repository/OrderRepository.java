@@ -50,4 +50,11 @@ public interface OrderRepository
             UUID customerId, String status, Pageable pageable);
 
     Optional<Order> findByIdAndCustomerId(UUID id, UUID customerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o where o.id = :orderId and o.customerId = :customerId")
+    Optional<Order> findByIdAndCustomerIdForUpdate(
+            @Param("orderId") UUID orderId,
+            @Param("customerId") UUID customerId);
+
 }
