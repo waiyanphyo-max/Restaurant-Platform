@@ -9,5 +9,6 @@ import java.util.Optional;
 /** Spring Data repository for deliveries. */
 public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
     Optional<Delivery> findByOrderId(UUID orderId);
+    Optional<Delivery> findByIdAndDriverUserId(UUID id, UUID driverUserId);
     List<Delivery> findByDriverUserIdAndStatusOrderByCreatedAtDesc(UUID driverUserId, String status);
 }
