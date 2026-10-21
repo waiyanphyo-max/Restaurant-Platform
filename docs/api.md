@@ -70,7 +70,7 @@ Request:
 - `note` is optional and limited to 500 characters by request validation.
 - The authenticated JWT subject is recorded as `changedByUserId`. No user ID is accepted from the request body.
 - The order row is locked within the transaction before its state is changed, preventing concurrent requests from both transitioning the same current state.
-- Order update and status-history insertion share the transaction. When a queue-linked order becomes `READY`, `COMPLETED`, or `CANCELLED`, the related queue ticket is synchronized in that transaction; becoming ready also creates an in-app notification database row. This does not itself deliver a push notification or audible alert.
+- Order update and status-history insertion share the transaction. When a queue-linked order becomes `READY`, `COMPLETED`, or `CANCELLED`, the related queue ticket is synchronized in that transaction. When a delivery order becomes `READY`, a delivery task is created and assigned to the restaurant's default driver where available.
 
 Current supported transitions:
 
@@ -84,6 +84,67 @@ Current supported transitions:
 | `OUT_FOR_DELIVERY` | `COMPLETED` |
 
 Cancellation requires `ORDER_CANCEL`. Queue-ticket lifecycle changes require `QUEUE_MANAGE`. Delivery transitions require `DELIVERY_STATUS_UPDATE`. Repeating a current status or attempting an invalid transition returns a conflict.
+
+## Delivery management and driver workflow
+
+All routes below require a valid Supabase bearer token.
+
+### Default driver
+
+- `GET /api/v1/restaurants/{restaurantId}/delivery-settings/default-driver`
+- `PATCH /api/v1/restaurants/{restaurantId}/delivery-settings/default-driver`
+
+Required permission: `SETTINGS_MANAGE`.
+
+Request body for the PATCH route:
+
+```json
+{
+  "driverUserId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+The selected user must be a `DELIVERY_DRIVER` member of the same restaurant. At the first transition of a delivery order to `READY`, the backend uses the configured default. If no default is configured, it selects the earliest-added `DELIVERY_DRIVER` member and persists that user as the default. If there is no delivery driver yet, the delivery remains `WAITING_ASSIGNMENT`. The UUID shown above is only an example; use a real user UUID from that restaurant's membership data.
+
+### Delivery queue and individual task
+
+| Method | Route | Required permission / behavior |
+|---|---|---|
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries?status=ASSIGNED&page=0&size=20` | `DELIVERY_READ`; paginated restaurant queue, except drivers see only their own assigned tasks |
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries/mine` | `DELIVERY_READ`; returns tasks assigned to the authenticated user in this restaurant |
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}` | Delivery must belong to the restaurant; drivers must be the assigned driver |
+| PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/assign` | `DELIVERY_ASSIGN`; assigns or reassigns to a same-restaurant driver |
+| PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/status` | `DELIVERY_STATUS_UPDATE`; updates delivery and linked order state in one transaction |
+
+Assignment request:
+
+```json
+{
+  "driverUserId": "00000000-0000-0000-0000-000000000000",
+  "note": "Assigned by manager"
+}
+```
+
+Driver status request examples:
+
+```json
+{
+  "status": "PICKED_UP",
+  "note": "Collected from restaurant"
+}
+```
+
+```json
+{
+  "status": "FAILED",
+  "failureReason": "Customer could not be reached",
+  "note": "Contact manager for next steps"
+}
+```
+
+The supported delivery lifecycle is `WAITING_ASSIGNMENT → ASSIGNED → PICKED_UP → DELIVERED`, with `FAILED` and pre-pickup `CANCELLED` branches. Failed deliveries can be reassigned by a manager; if the order was `OUT_FOR_DELIVERY`, reassignment returns the order to `READY`. A driver can change only deliveries assigned to their authenticated user. Managers can override delivery transitions through the manager order status endpoint, and both paths write delivery/order status history.
+
+Picking up a task changes the linked order from `READY` to `OUT_FOR_DELIVERY`; confirming delivery changes it to `COMPLETED`. If the customer has an account, status updates create in-app notification records. External push notifications and actual browser/mobile sound playback are not wired in the backend.
 
 ## Error response shape
 
@@ -153,4 +214,4 @@ These APIs store and return in-app notification records. They do not integrate a
 
 ## Not yet exposed as HTTP routes
 
-Queue tracking, delivery assignment/status operations, restaurant/menu administration, customer profile/address management, and payments are not described as implemented endpoints because their controllers/workflows have not yet been completed and verified.
+Restaurant/menu administration, customer profile/address management, and payment processing are not yet implemented as complete HTTP workflows.
