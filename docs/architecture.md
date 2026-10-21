@@ -71,6 +71,10 @@ Customer-address APIs derive ownership from the validated JWT `sub`; all read/up
 
 The checkout service calculates item/modifier prices from database records, checks stock and both restaurant/zone minimums, snapshots the destination into the order, and creates a `PENDING` cash-on-delivery payment record in the same transaction. Clients cannot provide order totals, fees, customer IDs, or creator IDs. Online payment processing is not implemented. Delivery zones currently carry names, fees, and minimums but no geographic polygons or township boundaries, so the customer selects a zone and the backend can only validate that it belongs to the restaurant.
 
+## Restaurant settings and delivery zones
+
+Only members with `SETTINGS_MANAGE` can change operational settings or delivery zones. The settings response never includes the Common QR credential. Rotation creates a cryptographically random token and returns it once; since the database stores the token in plaintext to validate public QR orders, treat the returned value like a secret and reprint the QR after rotation. Settings validation checks the timezone and non-negative amount fields. Zone lookups and updates are scoped to the restaurant, with availability/minimum values checked by the checkout service.
+
 ## Catalog management
 
 Category, product, variant, modifier-group, and modifier-option mutations require the restaurant's `MENU_MANAGE` permission; reads require `MENU_READ`. Every management lookup is scoped by restaurant ID and product/variant/group relationships. Stock tracking requires a non-negative quantity. Modifier selection rules enforce `minSelections <= maxSelections` and required groups need a positive minimum. Products cannot be ordered through inactive categories, and the public modifier endpoint only exposes active groups linked to an active product and available options.
