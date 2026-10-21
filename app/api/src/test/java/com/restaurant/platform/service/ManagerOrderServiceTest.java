@@ -71,7 +71,7 @@ class ManagerOrderServiceTest {
     @Test
     void listOrdersScopesByRestaurantAndStatusAndCapsPageSize() {
         Order order = order("PENDING", "DINE_IN");
-        when(orderRepository.findByRestaurantIdAndStatusOrderByCreatedAtDesc(
+        when(orderRepository.findByRestaurantIdAndStatus(
                 eq(restaurantId), eq("PENDING"), any()))
                 .thenReturn(new PageImpl<>(List.of(order)));
 
@@ -85,7 +85,7 @@ class ManagerOrderServiceTest {
         assertEquals(orderId, page.getContent().getFirst().id());
         ArgumentCaptor<org.springframework.data.domain.Pageable> pageable =
                 ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
-        verify(orderRepository).findByRestaurantIdAndStatusOrderByCreatedAtDesc(
+        verify(orderRepository).findByRestaurantIdAndStatus(
                 eq(restaurantId), eq("PENDING"), pageable.capture());
         assertEquals(100, pageable.getValue().getPageSize());
         verify(authorization).requireAuthenticatedUserMatches(userId);
@@ -94,7 +94,7 @@ class ManagerOrderServiceTest {
 
     @Test
     void listOrdersIgnoresUnsupportedSortProperty() {
-        when(orderRepository.findByRestaurantIdOrderByCreatedAtDesc(eq(restaurantId), any()))
+        when(orderRepository.findByRestaurantId(eq(restaurantId), any()))
                 .thenReturn(new PageImpl<>(List.of()));
 
         service.listOrders(
@@ -103,7 +103,7 @@ class ManagerOrderServiceTest {
 
         ArgumentCaptor<org.springframework.data.domain.Pageable> pageable =
                 ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
-        verify(orderRepository).findByRestaurantIdOrderByCreatedAtDesc(eq(restaurantId), pageable.capture());
+        verify(orderRepository).findByRestaurantId(eq(restaurantId), pageable.capture());
         assertEquals("createdAt", pageable.getValue().getSort().getOrderFor("createdAt").getProperty());
         assertEquals(Sort.Direction.DESC, pageable.getValue().getSort().getOrderFor("createdAt").getDirection());
         assertNull(pageable.getValue().getSort().getOrderFor("secretInternalProperty"));
