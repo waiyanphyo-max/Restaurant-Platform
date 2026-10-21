@@ -1,10 +1,11 @@
 # Restaurant Platform
 
-A multi-restaurant ordering and management backend built with Spring Boot, Spring Security, Spring Data JPA, and Supabase PostgreSQL/Auth.
+A multi-restaurant ordering and management platform with a Spring Boot backend, Supabase PostgreSQL/Auth, and an initial Next.js manager web client.
 
 ## Current backend structure
 
 - `app/api`: Spring Boot API, DTOs, entities, repositories, security, and service layer.
+- `apps/web`: initial Next.js order-overview client; see `apps/web/README.md` for local setup.
 - `supabase/migrations`: versioned SQL schema. Apply migrations in timestamp order before running the API.
 - `docs/architecture.md`: architecture, authentication, and authorization flow.
 - `docs/api.md`: currently implemented HTTP routes, DTOs, permissions, and error codes.
@@ -53,6 +54,7 @@ mvn -f app/api/pom.xml spring-boot:run
 | POST | `/api/v1/public/restaurants/{restaurantId}/orders/common-qr` | Public QR flow; validates restaurant QR configuration/token in the service |
 | POST | `/api/v1/public/restaurants/{restaurantId}/orders/table-qr` | Public QR flow; validates restaurant/table QR data in the service |
 | GET | `/api/v1/restaurants/{restaurantId}/orders` | Authenticated member with `ORDER_READ`; supports `page`, `size`, and `status` |
+| POST | `/api/v1/restaurants/{restaurantId}/orders/staff` | Member with `ORDER_CREATE`; creates dine-in or takeaway order for walk-in customers |
 | GET | `/api/v1/restaurants/{restaurantId}/orders/{orderId}` | Authenticated member with `ORDER_READ`; order, items, modifiers, and status history |
 | PATCH | `/api/v1/restaurants/{restaurantId}/orders/{orderId}/status` | Authenticated member with applicable order/queue/delivery permissions |
 | GET | `/api/v1/restaurants/{restaurantId}/queue-tickets?status=READY` | Authenticated member with `QUEUE_MANAGE`; current local queue day |
@@ -114,6 +116,21 @@ mvn -f app/api/pom.xml spring-boot:run
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
 Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Customer reorder, online payment/refund provider integration, reporting beyond the daily report, external push-provider delivery and client-side sound playback remain future work. Ownership transfer is available to the current owner through the dedicated member-management endpoint.
+
+## Initial web client
+
+The manager order-overview client is in `apps/web`. It can request the first page of restaurant orders using the backend URL, a restaurant UUID, and a Supabase user access token. The token stays in page memory and is not persisted. This is an integration preview; Supabase browser sign-in, customer checkout UI, delivery/queue screens, and production deployment configuration remain future work.
+
+Run it locally with:
+
+```powershell
+cd apps/web
+Copy-Item .env.example .env.local
+npm install
+npm run dev
+```
+
+The default API URL is `http://localhost:8080`. Update `NEXT_PUBLIC_API_BASE_URL` in `.env.local` when the API runs elsewhere, and configure Spring CORS to allow the web origin.
 
 ## Security model
 
