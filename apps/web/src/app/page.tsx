@@ -1,18 +1,26 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   ApiError,
+  CreateQrOrderResponse,
   DailyOperationsReport,
   assignDeliveryDriver,
   callQueueTicket,
   DeliveryTask,
   getDailyOperationsReport,
+  getPublicMenu,
+  getQueueTrackingStatus,
+  getTicketNotifications,
   listDeliveries,
   listOrders,
   listQueueTickets,
   OrderSummary,
   Page,
+  PublicMenu,
+  QueueTrackingStatus,
+  TicketNotification,
+  createCommonQrOrder,
   updateOrderStatus,
   QueueTicket,
   updateDeliveryStatus,
@@ -37,7 +45,13 @@ const deliveryStatuses = [
   "FAILED",
   "CANCELLED",
 ] as const;
-type WorkspaceView = "orders" | "queue" | "deliveries" | "reports";
+type WorkspaceView = "orders" | "queue" | "deliveries" | "reports" | "customer-pickup";
+type GuestCartLine = {
+  quantity: number;
+  variantId: string;
+  specialInstruction: string;
+  modifiers: Record<string, number>;
+};
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
@@ -80,6 +94,26 @@ function errorMessage(cause: unknown, fallback: string) {
   return cause instanceof ApiError ? cause.message : fallback;
 }
 
+function playQueueAlert(context: AudioContext | null) {
+  if (!context || context.state === "closed") return;
+  try {
+    if (context.state === "suspended") void context.resume().catch(() => undefined);
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, context.currentTime);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.28);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.29);
+  } catch {
+    // Sound is a convenience. Queue polling remains available if audio is blocked.
+  }
+}
+
 export default function HomePage() {
   const [apiUrl, setApiUrl] = useState(initialApiUrl);
   const [restaurantId, setRestaurantId] = useState("");
@@ -111,9 +145,26 @@ export default function HomePage() {
   const [failureReasons, setFailureReasons] = useState<Record<string, string>>({});
   const [deliveryConfirmations, setDeliveryConfirmations] = useState<Record<string, boolean>>({});
 
-  const hasConnectionDetails = Boolean(
-    apiUrl.trim() && restaurantId.trim() && accessToken.trim(),
-  );
+  const [publicMenu, setPublicMenu] = useState<PublicMenu | null>(null);
+  const [menuLoaded, setMenuLoaded] = useState(false);
+  const [commonQrToken, setCommonQrToken] = useState("");
+  const [guestCart, setGuestCart] = useState<Record<string, GuestCartLine>>({});
+  const [guestLoading, setGuestLoading] = useState(false);
+  const [guestError, setGuestError] = useState("");
+  const [commonOrder, setCommonOrder] = useState<CreateQrOrderResponse | null>(null);
+  const [trackedTicketId, setTrackedTicketId] = useState("");
+  const [trackingToken, setTrackingToken] = useState("");
+  const [trackedStatus, setTrackedStatus] = useState<QueueTrackingStatus | null>(null);
+  const [trackedNotifications, setTrackedNotifications] = useState<TicketNotification[]>([]);
+  const [trackingError, setTrackingError] = useState("");
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [copiedTrackingToken, setCopiedTrackingToken] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const soundEnabledRef = useRef(false);
+  const previousQueueStatusRef = useRef("");
+
+  const hasRestaurantDetails = Boolean(apiUrl.trim() && restaurantId.trim());
+  const hasConnectionDetails = Boolean(hasRestaurantDetails && accessToken.trim());
 
   async function loadOrders(pageIndex = 0, status = statusFilter) {
     setLoading(true);
