@@ -109,6 +109,8 @@ class QueueManagementServiceTest {
         when(ticketRepository.save(ticket)).thenReturn(ticket);
         Order order = new Order();
         order.setId(orderId);
+        UUID customerId = UUID.randomUUID();
+        order.setCustomerId(customerId);
         when(orderRepository.findByQueueTicketId(ticketId)).thenReturn(Optional.of(order));
 
         QueueTicketManagerDto response = service.callTicket(restaurantId, ticketId);
@@ -123,6 +125,7 @@ class QueueManagementServiceTest {
         assertEquals(orderId, notification.getValue().getOrderId());
         assertEquals("QUEUE_CALLED", notification.getValue().getNotificationType());
         assertEquals("IN_APP", notification.getValue().getChannel());
+        assertEquals(customerId, notification.getValue().getUserId());
         assertEquals("PENDING", notification.getValue().getStatus());
     }
 
