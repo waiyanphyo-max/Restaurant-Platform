@@ -7,6 +7,7 @@ import {
   DailyOperationsReport,
   assignDeliveryDriver,
   callQueueTicket,
+  getDefaultDeliveryDriver,
   DeliveryTask,
   getDailyOperationsReport,
   getPublicMenu,
@@ -24,6 +25,7 @@ import {
   updateOrderStatus,
   QueueTicket,
   updateDeliveryStatus,
+  setDefaultDeliveryDriver,
 } from "@/lib/api";
 
 const initialApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -133,6 +135,9 @@ export default function HomePage() {
   const [deliveriesPage, setDeliveriesPage] = useState<Page<DeliveryTask> | null>(null);
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("");
   const [deliveryPageIndex, setDeliveryPageIndex] = useState(0);
+  const [defaultDriverUserId, setDefaultDriverUserId] = useState("");
+  const [defaultDriverLoaded, setDefaultDriverLoaded] = useState(false);
+  const [defaultDriverLoading, setDefaultDriverLoading] = useState(false);
   const [reportDate, setReportDate] = useState("");
   const [dailyReport, setDailyReport] = useState<DailyOperationsReport | null>(null);
 
@@ -264,6 +269,53 @@ export default function HomePage() {
       ));
     } finally {
       setActivityLoading(false);
+    }
+  }
+
+  async function loadDefaultDriver() {
+    setActivityError("");
+    if (!hasConnectionDetails) {
+      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      return;
+    }
+    setDefaultDriverLoading(true);
+    try {
+      const settings = await getDefaultDeliveryDriver(apiUrl, restaurantId, accessToken);
+      setDefaultDriverUserId(settings.defaultDriverUserId ?? "");
+      setDefaultDriverLoaded(true);
+    } catch (cause) {
+      setActivityError(errorMessage(
+        cause,
+        "Could not read the default driver setting. This requires SETTINGS_MANAGE permission.",
+      ));
+    } finally {
+      setDefaultDriverLoading(false);
+    }
+  }
+
+  async function saveDefaultDriver(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setActivityError("");
+    const driverUserId = defaultDriverUserId.trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(driverUserId)) {
+      setActivityError("Enter a valid driver user UUID from this restaurant.");
+      return;
+    }
+    setDefaultDriverLoading(true);
+    try {
+      const settings = await setDefaultDeliveryDriver(
+        apiUrl, restaurantId, accessToken, driverUserId,
+      );
+      setDefaultDriverUserId(settings.defaultDriverUserId ?? "");
+      setDefaultDriverLoaded(true);
+      setActivityError("");
+    } catch (cause) {
+      setActivityError(errorMessage(
+        cause,
+        "Could not save the default driver. The user must be a DELIVERY_DRIVER member of this restaurant and your account needs SETTINGS_MANAGE permission.",
+      ));
+    } finally {
+      setDefaultDriverLoading(false);
     }
   }
 
@@ -950,6 +1002,33 @@ export default function HomePage() {
               {activityLoading ? "Refreshing…" : "Refresh"}
             </button>
           </div>
+          <section className="default-driver-panel">
+            <div className="default-driver-info">
+              <h4>Restaurant default driver</h4>
+              <p>New delivery orders use this driver automatically when they become READY. The user must already be a DELIVERY_DRIVER member of this restaurant.</p>
+              <small>{defaultDriverLoaded
+                ? defaultDriverUserId || "No default driver currently saved"
+                : "Load the current setting or enter a driver UUID to set it."}</small>
+            </div>
+            <form className="default-driver-form" onSubmit={saveDefaultDriver}>
+              <label>Default driver user UUID
+                <input
+                  value={defaultDriverUserId}
+                  onChange={event => setDefaultDriverUserId(event.target.value)}
+                  placeholder="Driver user UUID"
+                  autoComplete="off"
+                />
+              </label>
+              <div className="default-driver-actions">
+                <button className="secondary-button" type="button" onClick={() => void loadDefaultDriver()} disabled={defaultDriverLoading || activityLoading}>
+                  {defaultDriverLoading && !defaultDriverLoaded ? "Loading…" : "Load current"}
+                </button>
+                <button className="primary-action" type="submit" disabled={defaultDriverLoading || activityLoading || !defaultDriverUserId.trim()}>
+                  {defaultDriverLoading ? "Saving…" : "Save default"}
+                </button>
+              </div>
+            </form>
+          </section>
           <div className="orders-toolbar">
             <label className="filter-field">
               Filter by status
