@@ -64,6 +64,7 @@ class QueueTrackingServiceTest {
         assertEquals("008", response.displayCode());
         assertEquals("WAITING", response.queueStatus());
         assertEquals("PREPARING", response.orderStatus());
+        assertNull(response.calledAt());
     }
 
     @Test
