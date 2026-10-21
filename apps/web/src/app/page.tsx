@@ -577,7 +577,22 @@ export default function HomePage() {
   const viewTitle = activeView === "orders"
     ? "Order overview"
     : activeView === "queue" ? "Queue & pickup"
-      : activeView === "deliveries" ? "Deliveries" : "Daily report";
+      : activeView === "deliveries" ? "Deliveries"
+        : activeView === "reports" ? "Daily report" : "Common QR order";
+
+  const menuProducts = publicMenu?.categories.flatMap(category => category.products) ?? [];
+  const selectedMenuProducts = menuProducts.filter(
+    product => (guestCart[product.id]?.quantity ?? 0) > 0,
+  );
+  const estimatedGuestSubtotal = selectedMenuProducts.reduce((total, product) => {
+    const line = guestCart[product.id];
+    const variantPrice = product.variants.find(variant => variant.id === line.variantId)?.price;
+    const modifierPrice = product.modifierGroups.reduce((groupTotal, group) =>
+      groupTotal + group.options
+        .filter(option => (line.modifiers[option.id] ?? 0) > 0)
+        .reduce((sum, option) => sum + option.additionalPrice * line.modifiers[option.id], 0), 0);
+    return total + ((variantPrice ?? product.price) + modifierPrice) * line.quantity;
+  }, 0);
 
   return (
     <main className="app-shell">
@@ -634,7 +649,7 @@ export default function HomePage() {
 
         <section className="connection-card">
           <div className="section-heading">
-            <div><h3>Connect to your backend</h3><p>Use a valid Supabase access token for the restaurant operations you need to access.</p></div>
+            <div><h3>Connect to your backend</h3><p>Staff operations need a Supabase access token; public Common QR checkout does not.</p></div>
             <span className="secure-label">Private request</span>
           </div>
           <form onSubmit={handleSubmit} className="connection-form">
@@ -644,12 +659,12 @@ export default function HomePage() {
             <label>Restaurant ID
               <input value={restaurantId} onChange={e => setRestaurantId(e.target.value)} placeholder="Restaurant UUID" autoComplete="off" required />
             </label>
-            <label className="token-field">Supabase access token
-              <input type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="Paste access token" autoComplete="off" required />
+            <label className="token-field">Supabase access token (staff only)
+              <input type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="Optional for Common QR checkout" autoComplete="off" />
             </label>
-            <button type="submit" disabled={loading}>{loading ? "Connecting…" : "Load orders"} <span aria-hidden="true">→</span></button>
+            <button type="submit" disabled={loading || guestLoading}>{loading || guestLoading ? "Connecting…" : activeView === "customer-pickup" ? "Load menu" : "Load orders"} <span aria-hidden="true">→</span></button>
           </form>
-          <p className="privacy-note">Token stays in this page&apos;s memory and is sent only to the API URL above. Don&apos;t use a service-role key here.</p>
+          <p className="privacy-note">Staff access tokens stay in page memory only. The guest Common QR flow uses public endpoints and its queue tracking token; never use a service-role key here.</p>
           {error && <div className="feedback error" role="alert">{error}</div>}
         </section>
 
