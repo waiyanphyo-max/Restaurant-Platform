@@ -35,4 +35,10 @@ public class CustomerOrderHistoryController {
         UUID userId = authorization.requireAuthenticatedUserId();
         return customerOrderService.getMyOrder(userId, orderId);
     }
+
+    @PostMapping("/{orderId}/cancel")
+    public CustomerOrderDetailDto cancelMyOrder(@PathVariable UUID orderId) {
+        UUID userId = authorization.requireAuthenticatedUserId();
+        return customerOrderService.cancelMyOrder(userId, orderId);
+    }
 }
