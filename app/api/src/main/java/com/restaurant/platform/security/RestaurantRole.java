@@ -7,7 +7,8 @@ public enum RestaurantRole {
 
     OWNER(EnumSet.allOf(RestaurantPermission.class)),
 
-    MANAGER(EnumSet.allOf(RestaurantPermission.class)),
+    // Managers can administer restaurant operations but cannot manage membership.
+    MANAGER(EnumSet.complementOf(EnumSet.of(RestaurantPermission.MEMBERS_MANAGE))),
 
     STAFF(EnumSet.of(
             RestaurantPermission.RESTAURANT_READ,
@@ -17,13 +18,11 @@ public enum RestaurantRole {
             RestaurantPermission.ORDER_STATUS_UPDATE,
             RestaurantPermission.QUEUE_MANAGE,
             RestaurantPermission.DELIVERY_READ,
-            RestaurantPermission.DELIVERY_ASSIGN,
             RestaurantPermission.DELIVERY_STATUS_UPDATE
     )),
 
     DELIVERY_DRIVER(EnumSet.of(
-            // Drivers may view basic restaurant context and work with assigned deliveries.
-            // Delivery records must still be scoped to the authenticated driver in the service layer.
+            // Driver data access is additionally restricted to deliveries assigned to them.
             RestaurantPermission.RESTAURANT_READ,
             RestaurantPermission.DELIVERY_READ,
             RestaurantPermission.DELIVERY_STATUS_UPDATE
