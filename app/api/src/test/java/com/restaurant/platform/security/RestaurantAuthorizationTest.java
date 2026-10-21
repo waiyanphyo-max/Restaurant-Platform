@@ -145,6 +145,32 @@ class RestaurantAuthorizationTest {
         assertFalse(authorization.canAccessDelivery(restaurantA, deliveryId));
     }
 
+    @Test
+    void rejectsClientSuppliedUserIdThatDoesNotMatchJwtSubject() {
+        authenticate(userId);
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> authorization.requireAuthenticatedUserMatches(UUID.randomUUID()));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatus());
+        assertEquals("AUTHENTICATED_USER_MISMATCH", exception.getCode());
+    }
+
+    @Test
+    void missingRestaurantMembershipCannotUseProtectedPermission() {
+        authenticate(userId);
+        when(memberRepository.findByRestaurantIdAndUserId(restaurantA, userId))
+                .thenReturn(Optional.empty());
+
+        ApiException exception = assertThrows(
+                ApiException.class,
+                () -> authorization.requirePermission(restaurantA, RestaurantPermission.ORDER_READ));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatus());
+        assertEquals("INSUFFICIENT_RESTAURANT_PERMISSION", exception.getCode());
+    }
+
     private static RestaurantMember member(UUID restaurantId, UUID memberUserId, RestaurantRole role) {
         RestaurantMember member = new RestaurantMember();
         member.setRestaurantId(restaurantId);
