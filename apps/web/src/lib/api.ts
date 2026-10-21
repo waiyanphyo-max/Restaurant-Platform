@@ -29,20 +29,37 @@ export async function listOrders(
   apiBaseUrl: string,
   restaurantId: string,
   accessToken: string,
+  pageIndex = 0,
+  status = "",
+  pageSize = 20,
 ): Promise<Page<OrderSummary>> {
   const base = apiBaseUrl.trim().replace(/\/+$/, "");
+  const normalizedRestaurantId = restaurantId.trim();
+  const token = accessToken.trim();
+
   if (!base) throw new ApiError("Enter the backend API URL.");
-  if (!restaurantId.trim()) throw new ApiError("Enter the restaurant ID.");
-  if (!accessToken.trim()) throw new ApiError("Enter a Supabase access token.");
+  if (!normalizedRestaurantId) throw new ApiError("Enter the restaurant ID.");
+  if (!token) throw new ApiError("Enter a Supabase access token.");
+
+  const safePage = Number.isFinite(pageIndex) ? Math.max(0, Math.floor(pageIndex)) : 0;
+  const safeSize = Number.isFinite(pageSize)
+    ? Math.min(100, Math.max(1, Math.floor(pageSize)))
+    : 20;
+  const query = new URLSearchParams({
+    page: String(safePage),
+    size: String(safeSize),
+  });
+  const normalizedStatus = status.trim();
+  if (normalizedStatus) query.set("status", normalizedStatus);
 
   let response: Response;
   try {
     response = await fetch(
-      `${base}/api/v1/restaurants/${encodeURIComponent(restaurantId.trim())}/orders?page=0&size=20`,
+      `${base}/api/v1/restaurants/${encodeURIComponent(normalizedRestaurantId)}/orders?${query.toString()}`,
       {
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${accessToken.trim()}`,
+          Authorization: `Bearer ${token}`,
         },
         cache: "no-store",
       },
@@ -60,6 +77,9 @@ export async function listOrders(
     }
     if (response.status === 404) {
       throw new ApiError("Restaurant or endpoint not found.", 404);
+    }
+    if (response.status === 400) {
+      throw new ApiError("The order filter or query parameters are invalid.", 400);
     }
     throw new ApiError(`The backend returned HTTP ${response.status}.`, response.status);
   }
