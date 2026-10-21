@@ -3,6 +3,8 @@ package com.restaurant.platform.service;
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.member.RestaurantMemberRequest;
 import com.restaurant.platform.dto.member.RestaurantMemberResponse;
+import com.restaurant.platform.dto.member.TransferRestaurantOwnershipRequest;
+import com.restaurant.platform.dto.member.TransferRestaurantOwnershipResponse;
 import com.restaurant.platform.entity.Profile;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.entity.RestaurantSettings;
@@ -44,6 +46,66 @@ public class RestaurantMemberService {
         requireMemberManagement(restaurantId, actorUserId);
         return memberRepository.findByRestaurantIdOrderByCreatedAtAsc(restaurantId)
                 .stream().map(this::toResponse).toList();
+    }
+
+    /**
+     * Transfers ownership to an existing member. The former owner becomes MANAGER,
+     * preserving operational access without leaving two owner accounts.
+     */
+    @Transactional
+    public TransferRestaurantOwnershipResponse transferOwnership(
+            UUID restaurantId, UUID actorUserId,
+            TransferRestaurantOwnershipRequest request) {
+        authorization.requireAuthenticatedUserMatches(actorUserId);
+        authorization.requirePermission(restaurantId, RestaurantPermission.MEMBERS_MANAGE);
+
+        if (request == null || request.newOwnerUserId() == null
+                || actorUserId.equals(request.newOwnerUserId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "OWNER_TRANSFER_TARGET_REQUIRED",
+                    "error.member.transfer-target-required");
+        }
+
+        RestaurantMember currentOwner = memberRepository
+                .findByRestaurantIdAndUserIdForUpdate(restaurantId, actorUserId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.FORBIDDEN,
+                        "OWNER_TRANSFER_FORBIDDEN",
+                        "error.member.owner-required"));
+        if (currentOwner.getRole() != RestaurantRole.OWNER) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "OWNER_TRANSFER_FORBIDDEN",
+                    "error.member.owner-required");
+        }
+
+        RestaurantMember newOwner = memberRepository
+                .findByRestaurantIdAndUserIdForUpdate(
+                        restaurantId, request.newOwnerUserId())
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "OWNER_TRANSFER_TARGET_NOT_MEMBER",
+                        "error.member.transfer-target-not-member"));
+        if (newOwner.getRole() == RestaurantRole.OWNER) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "OWNER_TRANSFER_TARGET_ALREADY_OWNER",
+                    "error.member.transfer-target-already-owner");
+        }
+
+        UUID newOwnerUserId = newOwner.getUserId();
+        clearDefaultDriverIfNeeded(restaurantId, newOwnerUserId, RestaurantRole.OWNER);
+
+        // One transaction guarantees that the ownership transition commits together.
+        newOwner.setRole(RestaurantRole.OWNER);
+        currentOwner.setRole(RestaurantRole.MANAGER);
+        memberRepository.save(newOwner);
+        memberRepository.save(currentOwner);
+
+        return new TransferRestaurantOwnershipResponse(
+                restaurantId,
+                currentOwner.getUserId(),
+                newOwnerUserId,
+                RestaurantRole.MANAGER.name(),
+                RestaurantRole.OWNER.name());
     }
 
     @Transactional
