@@ -10,6 +10,7 @@ import com.restaurant.platform.entity.Delivery;
 import com.restaurant.platform.entity.DeliveryStatusHistory;
 import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.OrderStatusHistory;
+import com.restaurant.platform.entity.Payment;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.entity.RestaurantSettings;
 import com.restaurant.platform.repository.AppNotificationRepository;
@@ -17,6 +18,7 @@ import com.restaurant.platform.repository.DeliveryRepository;
 import com.restaurant.platform.repository.DeliveryStatusHistoryRepository;
 import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.repository.OrderStatusHistoryRepository;
+import com.restaurant.platform.repository.PaymentRepository;
 import com.restaurant.platform.repository.RestaurantMemberRepository;
 import com.restaurant.platform.repository.RestaurantSettingsRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
@@ -52,6 +54,7 @@ public class DeliveryService {
     private final DeliveryStatusHistoryRepository deliveryHistoryRepository;
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderHistoryRepository;
+    private final PaymentRepository paymentRepository;
     private final RestaurantSettingsRepository settingsRepository;
     private final RestaurantMemberRepository memberRepository;
     private final AppNotificationRepository notificationRepository;
@@ -62,6 +65,7 @@ public class DeliveryService {
             DeliveryStatusHistoryRepository deliveryHistoryRepository,
             OrderRepository orderRepository,
             OrderStatusHistoryRepository orderHistoryRepository,
+            PaymentRepository paymentRepository,
             RestaurantSettingsRepository settingsRepository,
             RestaurantMemberRepository memberRepository,
             AppNotificationRepository notificationRepository,
@@ -70,6 +74,7 @@ public class DeliveryService {
         this.deliveryHistoryRepository = deliveryHistoryRepository;
         this.orderRepository = orderRepository;
         this.orderHistoryRepository = orderHistoryRepository;
+        this.paymentRepository = paymentRepository;
         this.settingsRepository = settingsRepository;
         this.memberRepository = memberRepository;
         this.notificationRepository = notificationRepository;
@@ -235,6 +240,7 @@ public class DeliveryService {
                 requireTransition("PICKED_UP".equals(currentStatus)
                                 && "OUT_FOR_DELIVERY".equals(order.getStatus()),
                         currentStatus, nextStatus);
+                confirmCashOnDeliveryPayment(order, request.cashCollected(), now);
                 delivery.setStatus("DELIVERED");
                 delivery.setDeliveredAt(now);
                 order.setStatus("COMPLETED");
@@ -404,6 +410,9 @@ public class DeliveryService {
         } else {
             requireTransition("PICKED_UP".equals(delivery.getStatus()),
                     delivery.getStatus(), "DELIVERED");
+            // This legacy manager endpoint has no cash-collected confirmation flag.
+            // Pending cash-on-delivery payments must be completed through the delivery API.
+            ensureNoPendingCashOnDelivery(order);
             delivery.setStatus("DELIVERED");
             delivery.setDeliveredAt(OffsetDateTime.now(ZoneOffset.UTC));
             deliveryRepository.save(delivery);
@@ -411,6 +420,42 @@ public class DeliveryService {
                     "Marked delivered from manager order workflow.");
             notifyCustomer(order, "DELIVERY_COMPLETED", "Order delivered",
                     "Order " + order.getOrderNumber() + " has been delivered.");
+        }
+    }
+
+    private void confirmCashOnDeliveryPayment(
+            Order order, Boolean cashCollected, OffsetDateTime paidAt) {
+        List<Payment> payments = paymentRepository
+                .findByOrderIdOrderByCreatedAtDesc(order.getId());
+        List<Payment> pendingCod = payments.stream()
+                .filter(payment -> "CASH_ON_DELIVERY".equals(payment.getMethod())
+                        && "PENDING".equals(payment.getStatus()))
+                .toList();
+        if (pendingCod.isEmpty()) {
+            return;
+        }
+        if (!Boolean.TRUE.equals(cashCollected)) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "CASH_COLLECTION_REQUIRED",
+                    "error.delivery.cash-collection-required");
+        }
+        for (Payment payment : pendingCod) {
+            payment.setStatus("PAID");
+            payment.setPaidAt(paidAt);
+            paymentRepository.save(payment);
+        }
+    }
+
+    private void ensureNoPendingCashOnDelivery(Order order) {
+        boolean pendingCod = paymentRepository
+                .findByOrderIdOrderByCreatedAtDesc(order.getId())
+                .stream()
+                .anyMatch(payment -> "CASH_ON_DELIVERY".equals(payment.getMethod())
+                        && "PENDING".equals(payment.getStatus()));
+        if (pendingCod) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "CASH_COLLECTION_REQUIRED",
+                    "error.delivery.cash-collection-required");
         }
     }
 
