@@ -3,9 +3,11 @@
 import { FormEvent, useState } from "react";
 import {
   ApiError,
+  DailyOperationsReport,
   assignDeliveryDriver,
   callQueueTicket,
   DeliveryTask,
+  getDailyOperationsReport,
   listDeliveries,
   listOrders,
   listQueueTickets,
@@ -34,7 +36,7 @@ const deliveryStatuses = [
   "FAILED",
   "CANCELLED",
 ] as const;
-type WorkspaceView = "orders" | "queue" | "deliveries";
+type WorkspaceView = "orders" | "queue" | "deliveries" | "reports";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
@@ -78,6 +80,8 @@ export default function HomePage() {
   const [deliveriesPage, setDeliveriesPage] = useState<Page<DeliveryTask> | null>(null);
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("");
   const [deliveryPageIndex, setDeliveryPageIndex] = useState(0);
+  const [reportDate, setReportDate] = useState("");
+  const [dailyReport, setDailyReport] = useState<DailyOperationsReport | null>(null);
 
   const [error, setError] = useState("");
   const [activityError, setActivityError] = useState("");
@@ -174,6 +178,30 @@ export default function HomePage() {
     }
   }
 
+  async function loadDailyReport(date = reportDate) {
+    setActiveView("reports");
+    setActivityError("");
+    if (!hasConnectionDetails) {
+      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      return;
+    }
+    setActivityLoading(true);
+    setDailyReport(null);
+    try {
+      const report = await getDailyOperationsReport(
+        apiUrl, restaurantId, accessToken, date,
+      );
+      setDailyReport(report);
+    } catch (cause) {
+      setActivityError(errorMessage(
+        cause,
+        "Something went wrong while loading the daily report.",
+      ));
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
   async function handleCallQueueTicket(ticket: QueueTicket) {
     setActivityError("");
     setActiveActionId(ticket.ticketId);
@@ -237,7 +265,8 @@ export default function HomePage() {
   const lastVisibleOrder = Math.min((currentPage + 1) * pageSize, totalOrders);
   const viewTitle = activeView === "orders"
     ? "Order overview"
-    : activeView === "queue" ? "Queue & pickup" : "Deliveries";
+    : activeView === "queue" ? "Queue & pickup"
+      : activeView === "deliveries" ? "Deliveries" : "Daily report";
 
   return (
     <main className="app-shell">
@@ -265,6 +294,11 @@ export default function HomePage() {
           className={`nav-item ${activeView === "deliveries" ? "active" : ""}`}
           onClick={() => void loadDeliveries(0, deliveryStatusFilter)}
         ><span className="nav-icon">↗</span> Deliveries</button>
+        <button
+          type="button"
+          className={`nav-item ${activeView === "reports" ? "active" : ""}`}
+          onClick={() => void loadDailyReport()}
+        ><span className="nav-icon">▤</span> Daily report</button>
         <div className="sidebar-bottom">
           <span className="online-dot" />
           Backend integration preview
@@ -490,6 +524,55 @@ export default function HomePage() {
               <button className="secondary-button" type="button" onClick={() => void loadDeliveries(deliveryPageIndex + 1)} disabled={activityLoading || deliveryPageIndex + 1 >= deliveriesPage.totalPages}>Next</button>
             </div>
           </div>}
+        </section>}
+
+        {activeView === "reports" && <section className="orders-section" aria-busy={activityLoading}>
+          <div className="orders-heading">
+            <div>
+              <h3>Daily operations report</h3>
+              <p>{dailyReport
+                ? `${dailyReport.reportDate} · ${dailyReport.timezone}`
+                : "Choose a date or use the restaurant's current local day."}</p>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => void loadDailyReport()} disabled={activityLoading}>
+              {activityLoading ? "Loading…" : "Refresh report"}
+            </button>
+          </div>
+          <form className="report-date-form" onSubmit={event => {
+            event.preventDefault();
+            void loadDailyReport(reportDate);
+          }}>
+            <label className="filter-field">
+              Report date
+              <input type="date" value={reportDate} onChange={event => setReportDate(event.target.value)} />
+            </label>
+            <button className="primary-action" type="submit" disabled={activityLoading}>
+              {activityLoading ? "Loading…" : "Load date"}
+            </button>
+          </form>
+          {activityError && <div className="feedback error" role="alert">{activityError}</div>}
+          {activityLoading && !dailyReport && <div className="empty-state"><div className="loader" /><h4>Loading daily report</h4><p>Aggregating order and payment data for the selected local day.</p></div>}
+          {dailyReport && <>
+            <div className="report-summary-grid">
+              <article className="report-metric"><span>Total orders</span><strong>{dailyReport.totalOrders}</strong><small>Created on report date</small></article>
+              <article className="report-metric"><span>Order amount</span><strong>{formatMoney(dailyReport.orderAmountExcludingCancelled)}</strong><small>Non-cancelled orders created that day</small></article>
+              <article className="report-metric"><span>Payments collected</span><strong>{formatMoney(dailyReport.paidAmount)}</strong><small>Payments marked paid that day</small></article>
+            </div>
+            <div className="report-status-grid">
+              {[
+                ["Pending", dailyReport.pendingOrders],
+                ["Accepted", dailyReport.acceptedOrders],
+                ["Preparing", dailyReport.preparingOrders],
+                ["Ready", dailyReport.readyOrders],
+                ["Out for delivery", dailyReport.outForDeliveryOrders],
+                ["Completed", dailyReport.completedOrders],
+                ["Cancelled", dailyReport.cancelledOrders],
+              ].map(([label, value]) => <div className="report-status" key={label}>
+                <span>{label}</span><strong>{value}</strong>
+              </div>)}
+            </div>
+            <p className="report-note">Order amount is based on orders created that day; payments collected is based on payments marked paid that day. They are different measures and should not be treated as the same revenue figure.</p>
+          </>}
         </section>}
 
         <footer>Restaurant Platform <span>•</span> Web integration preview <span>•</span> No credentials are persisted by this page</footer>
