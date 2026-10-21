@@ -333,7 +333,8 @@ public class CatalogManagementService {
         List<ModifierOption> options = manage
                 ? modifierOptionRepository.findByModifierGroupIdAndRestaurantIdOrderByNameAsc(
                         group.getId(), group.getRestaurantId())
-                : modifierOptionRepository.findByModifierGroupIdAndIsAvailableTrue(group.getId());
+                : modifierOptionRepository.findByModifierGroupIdAndRestaurantIdAndIsAvailableTrueOrderByNameAsc(
+                        group.getId(), group.getRestaurantId());
         return new ModifierGroupResponse(
                 group.getId(), group.getName(), Boolean.TRUE.equals(group.getIsRequired()),
                 group.getMinSelections(), group.getMaxSelections(),
