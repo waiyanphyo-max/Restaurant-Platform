@@ -5,6 +5,8 @@ import com.restaurant.platform.dto.order.QueueTrackingResponse;
 import com.restaurant.platform.service.QueueTrackingService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,24 +24,30 @@ public class QueueTrackingController {
      * Do not put that token into the URL, where it can be captured by URL logs.
      */
     @GetMapping("/status")
-    public QueueTrackingResponse getStatus(
+    public ResponseEntity<QueueTrackingResponse> getStatus(
             @PathVariable UUID ticketId,
             @RequestHeader(name = "X-Queue-Token", required = false) String trackingToken) {
-        return queueTrackingService.getStatus(ticketId, trackingToken);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(queueTrackingService.getStatus(ticketId, trackingToken));
     }
 
     @GetMapping("/notifications")
-    public List<NotificationResponse> getNotifications(
+    public ResponseEntity<List<NotificationResponse>> getNotifications(
             @PathVariable UUID ticketId,
             @RequestHeader(name = "X-Queue-Token", required = false) String trackingToken) {
-        return queueTrackingService.getNotifications(ticketId, trackingToken);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(queueTrackingService.getNotifications(ticketId, trackingToken));
     }
 
     @PatchMapping("/notifications/{notificationId}/read")
-    public NotificationResponse markNotificationRead(
+    public ResponseEntity<NotificationResponse> markNotificationRead(
             @PathVariable UUID ticketId,
             @PathVariable UUID notificationId,
             @RequestHeader(name = "X-Queue-Token", required = false) String trackingToken) {
-        return queueTrackingService.markNotificationRead(ticketId, notificationId, trackingToken);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(queueTrackingService.markNotificationRead(ticketId, notificationId, trackingToken));
     }
 }
