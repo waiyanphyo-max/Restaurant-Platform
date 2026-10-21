@@ -416,6 +416,27 @@ These endpoints require a valid bearer token and always scope by the authenticat
 
 The optional status filter accepts `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, `OUT_FOR_DELIVERY`, `COMPLETED`, or `CANCELLED`. Page size is capped at 100. A customer cannot see an order solely by knowing its UUID; detail lookups require both the order ID and the authenticated customer ID. Status history is customer-safe (status and timestamp only), and payment responses omit private transaction references and staff identity.
 
+## Push-device registration
+
+These routes require authentication and always use the validated JWT subject as the device owner.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/devices` | List the current user's device metadata |
+| POST | `/api/v1/devices` | Register or reactivate a push token for ANDROID, IOS, or WEB |
+| DELETE | `/api/v1/devices/{deviceId}` | Deactivate an owned device |
+
+Request example:
+
+```json
+{
+  "pushToken": "TOKEN_FROM_THE_PUSH_PROVIDER_SDK",
+  "platform": "ANDROID"
+}
+```
+
+The response intentionally never exposes the raw push token. A token already associated with another account is rejected; callers cannot transfer token ownership by registering it again. Deactivation is soft (inactive flag) and only works for the authenticated owner. This API stores device tokens but does not send push messages; FCM/APNs/web-push provider integration and browser/mobile sound playback remain separate client/provider work.
+
 ## Not yet exposed as HTTP routes
 
 Owner transfer, customer cancellation/reorder, online payments/refunds, full reporting, and external push notification integration are not yet implemented as complete HTTP workflows.
