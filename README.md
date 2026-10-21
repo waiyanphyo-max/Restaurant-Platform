@@ -102,6 +102,7 @@ mvn -f app/api/pom.xml spring-boot:run
 | POST | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery` | Authenticated delivery checkout using saved address, zone, and database-priced items |
 | GET | `/api/v1/customer/orders` | Paginated order history for the current customer |
 | GET | `/api/v1/customer/orders/{orderId}` | Own order detail, status timeline, payment and delivery status |
+| POST | `/api/v1/customer/orders/{orderId}/cancel` | Cancel own PENDING order and release reserved stock |
 | GET | `/api/v1/devices` | List own registered device metadata without raw push tokens |
 | POST | `/api/v1/devices` | Register or reactivate one's push token |
 | DELETE | `/api/v1/devices/{deviceId}` | Deactivate an owned device |
