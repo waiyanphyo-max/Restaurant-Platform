@@ -284,3 +284,18 @@ export async function getDailyOperationsReport(
     accessToken,
   );
 }
+
+export async function updateOrderStatus(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  orderId: string,
+  status: string,
+): Promise<OrderSummary> {
+  return authenticatedJson<OrderSummary>(
+    `${restaurantApiUrl(apiBaseUrl, restaurantId, "orders")}/${encodeURIComponent(orderId)}/status`,
+    accessToken,
+    "PATCH",
+    { status, note: "Updated from the web operations dashboard." },
+  );
+}
