@@ -69,6 +69,10 @@ mvn -f app/api/pom.xml spring-boot:run
 | PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/status` | Driver/authorized member updates delivery lifecycle |
 | GET | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Read the restaurant's default delivery driver |
 | PATCH | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Owner/manager sets a default driver member |
+| GET/PUT | `/api/v1/restaurants/{restaurantId}/settings` | Read or update operational settings |
+| POST | `/api/v1/restaurants/{restaurantId}/settings/common-qr-token/rotate` | Rotate Common QR token (returned once) |
+| GET/POST | `/api/v1/restaurants/{restaurantId}/delivery-zones` | List or create delivery zones |
+| PUT | `/api/v1/restaurants/{restaurantId}/delivery-zones/{zoneId}` | Update or deactivate a delivery zone |
 | GET/POST | `/api/v1/restaurants/{restaurantId}/categories` | List or create categories |
 | PUT | `/api/v1/restaurants/{restaurantId}/categories/{categoryId}` | Update or deactivate a category |
 | GET/POST | `/api/v1/restaurants/{restaurantId}/products` | List or create products |
@@ -92,7 +96,7 @@ mvn -f app/api/pom.xml spring-boot:run
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Online payments, comprehensive restaurant settings administration, external push delivery, and client-side sound playback remain future work.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Online payments, full membership invitations and reporting endpoints, external push delivery, and client-side sound playback remain future work.
 
 ## Security model
 
