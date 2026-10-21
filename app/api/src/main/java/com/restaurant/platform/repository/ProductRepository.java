@@ -42,6 +42,20 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("quantity") int quantity
     );
 
+    @Modifying(flushAutomatically = true)
+    @Query("""
+    update Product p
+       set p.stockQuantity = p.stockQuantity + :quantity
+     where p.id = :productId
+       and p.restaurantId = :restaurantId
+       and p.trackStock = true
+    """)
+    int releaseStock(
+            @Param("productId") UUID productId,
+            @Param("restaurantId") UUID restaurantId,
+            @Param("quantity") int quantity
+    );
+
     Optional<Product> findByIdAndRestaurantId(
             UUID productId, UUID restaurantId);
 }
