@@ -1,7 +1,19 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { ApiError, listOrders, OrderSummary } from "@/lib/api";
+import {
+  ApiError,
+  assignDeliveryDriver,
+  callQueueTicket,
+  DeliveryTask,
+  listDeliveries,
+  listOrders,
+  listQueueTickets,
+  OrderSummary,
+  Page,
+  QueueTicket,
+  updateDeliveryStatus,
+} from "@/lib/api";
 
 const initialApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const pageSize = 20;
@@ -14,12 +26,21 @@ const orderStatuses = [
   "COMPLETED",
   "CANCELLED",
 ] as const;
+const deliveryStatuses = [
+  "WAITING_ASSIGNMENT",
+  "ASSIGNED",
+  "PICKED_UP",
+  "DELIVERED",
+  "FAILED",
+  "CANCELLED",
+] as const;
+type WorkspaceView = "orders" | "queue" | "deliveries";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
 }
 
-function formatDate(value: string) {
+function formatDate(value: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   return Number.isNaN(date.getTime())
@@ -35,18 +56,41 @@ function humanizeStatus(status: string) {
   return status.replaceAll("_", " ");
 }
 
+function errorMessage(cause: unknown, fallback: string) {
+  return cause instanceof ApiError ? cause.message : fallback;
+}
+
 export default function HomePage() {
   const [apiUrl, setApiUrl] = useState(initialApiUrl);
   const [restaurantId, setRestaurantId] = useState("");
   const [accessToken, setAccessToken] = useState("");
+
+  const [activeView, setActiveView] = useState<WorkspaceView>("orders");
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [statusFilter, setStatusFilter] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  const [queueTickets, setQueueTickets] = useState<QueueTicket[]>([]);
+  const [queueLoaded, setQueueLoaded] = useState(false);
+  const [deliveriesPage, setDeliveriesPage] = useState<Page<DeliveryTask> | null>(null);
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("");
+  const [deliveryPageIndex, setDeliveryPageIndex] = useState(0);
+
+  const [error, setError] = useState("");
+  const [activityError, setActivityError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [driverInputs, setDriverInputs] = useState<Record<string, string>>({});
+  const [failureReasons, setFailureReasons] = useState<Record<string, string>>({});
+  const [deliveryConfirmations, setDeliveryConfirmations] = useState<Record<string, boolean>>({});
+
+  const hasConnectionDetails = Boolean(
+    apiUrl.trim() && restaurantId.trim() && accessToken.trim(),
+  );
 
   async function loadOrders(pageIndex = 0, status = statusFilter) {
     setLoading(true);
@@ -64,7 +108,7 @@ export default function HomePage() {
       setTotalPages(0);
       setCurrentPage(0);
       setLoaded(false);
-      setError(cause instanceof ApiError ? cause.message : "Something went wrong while loading orders.");
+      setError(errorMessage(cause, "Something went wrong while loading orders."));
     } finally {
       setLoading(false);
     }
@@ -72,6 +116,7 @@ export default function HomePage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setActiveView("orders");
     setLoaded(false);
     await loadOrders(0, statusFilter);
   }
@@ -81,8 +126,118 @@ export default function HomePage() {
     if (loaded) void loadOrders(0, nextStatus);
   }
 
+  async function loadQueue() {
+    setActiveView("queue");
+    setActivityError("");
+    if (!hasConnectionDetails) {
+      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      return;
+    }
+    setActivityLoading(true);
+    try {
+      const tickets = await listQueueTickets(apiUrl, restaurantId, accessToken);
+      setQueueTickets(tickets);
+      setQueueLoaded(true);
+    } catch (cause) {
+      setQueueTickets([]);
+      setQueueLoaded(false);
+      setActivityError(errorMessage(
+        cause,
+        "Something went wrong while loading the queue.",
+      ));
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
+  async function loadDeliveries(pageIndex = 0, status = deliveryStatusFilter) {
+    setActiveView("deliveries");
+    setActivityError("");
+    if (!hasConnectionDetails) {
+      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      return;
+    }
+    setActivityLoading(true);
+    try {
+      const page = await listDeliveries(apiUrl, restaurantId, accessToken, pageIndex, status);
+      setDeliveriesPage(page);
+      setDeliveryPageIndex(page.number ?? pageIndex);
+    } catch (cause) {
+      setDeliveriesPage(null);
+      setDeliveryPageIndex(0);
+      setActivityError(errorMessage(
+        cause,
+        "Something went wrong while loading deliveries.",
+      ));
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
+  async function handleCallQueueTicket(ticket: QueueTicket) {
+    setActivityError("");
+    setActiveActionId(ticket.ticketId);
+    try {
+      await callQueueTicket(apiUrl, restaurantId, accessToken, ticket.ticketId);
+      await loadQueue();
+    } catch (cause) {
+      setActivityError(errorMessage(cause, "Could not call this queue number."));
+    } finally {
+      setActiveActionId(null);
+    }
+  }
+
+  async function handleAssignDriver(task: DeliveryTask) {
+    const driverUserId = (driverInputs[task.id] ?? task.driverUserId ?? "").trim();
+    if (!driverUserId) {
+      setActivityError("Enter the user UUID of a delivery driver from this restaurant.");
+      return;
+    }
+    setActiveActionId(task.id);
+    setActivityError("");
+    try {
+      await assignDeliveryDriver(apiUrl, restaurantId, accessToken, task.id, driverUserId);
+      await loadDeliveries(deliveryPageIndex, deliveryStatusFilter);
+    } catch (cause) {
+      setActivityError(errorMessage(cause, "Could not assign this delivery."));
+    } finally {
+      setActiveActionId(null);
+    }
+  }
+
+  async function handleDeliveryStatus(task: DeliveryTask, nextStatus: string) {
+    const failureReason = (failureReasons[task.id] ?? "").trim();
+    if (nextStatus === "FAILED" && !failureReason) {
+      setActivityError("Enter a reason before marking a delivery as failed.");
+      return;
+    }
+    if (nextStatus === "DELIVERED" && !deliveryConfirmations[task.id]) {
+      setActivityError("Confirm delivery completion and collection of any cash-on-delivery payment.");
+      return;
+    }
+
+    setActiveActionId(task.id);
+    setActivityError("");
+    try {
+      await updateDeliveryStatus(apiUrl, restaurantId, accessToken, task.id, {
+        status: nextStatus,
+        ...(nextStatus === "FAILED" ? { failureReason } : {}),
+        ...(nextStatus === "DELIVERED" ? { cashCollected: true } : {}),
+        note: `Updated from the web dashboard to ${nextStatus}.`,
+      });
+      await loadDeliveries(deliveryPageIndex, deliveryStatusFilter);
+    } catch (cause) {
+      setActivityError(errorMessage(cause, "Could not update the delivery status."));
+    } finally {
+      setActiveActionId(null);
+    }
+  }
+
   const firstVisibleOrder = totalOrders === 0 ? 0 : currentPage * pageSize + 1;
   const lastVisibleOrder = Math.min((currentPage + 1) * pageSize, totalOrders);
+  const viewTitle = activeView === "orders"
+    ? "Order overview"
+    : activeView === "queue" ? "Queue & pickup" : "Deliveries";
 
   return (
     <main className="app-shell">
@@ -92,10 +247,24 @@ export default function HomePage() {
           <span>Restaurant<span className="brand-light">Platform</span></span>
         </a>
         <div className="nav-label">WORKSPACE</div>
-        <div className="nav-item active"><span className="nav-icon">▦</span> Order overview</div>
-        <div className="nav-item muted"><span className="nav-icon">◷</span> Queue & pickup <span className="soon">API</span></div>
-        <div className="nav-item muted"><span className="nav-icon">↗</span> Deliveries <span className="soon">API</span></div>
-        <div className="nav-item muted"><span className="nav-icon">☷</span> Menu & tables <span className="soon">API</span></div>
+        <button
+          type="button"
+          className={`nav-item ${activeView === "orders" ? "active" : ""}`}
+          onClick={() => {
+            setActiveView("orders");
+            if (hasConnectionDetails) void loadOrders(0, statusFilter);
+          }}
+        ><span className="nav-icon">▦</span> Order overview</button>
+        <button
+          type="button"
+          className={`nav-item ${activeView === "queue" ? "active" : ""}`}
+          onClick={() => void loadQueue()}
+        ><span className="nav-icon">◷</span> Queue & pickup</button>
+        <button
+          type="button"
+          className={`nav-item ${activeView === "deliveries" ? "active" : ""}`}
+          onClick={() => void loadDeliveries(0, deliveryStatusFilter)}
+        ><span className="nav-icon">↗</span> Deliveries</button>
         <div className="sidebar-bottom">
           <span className="online-dot" />
           Backend integration preview
@@ -105,7 +274,7 @@ export default function HomePage() {
 
       <section className="main-panel">
         <header className="topbar">
-          <div><div className="eyebrow">RESTAURANT OPERATIONS</div><h1>Order overview</h1></div>
+          <div><div className="eyebrow">RESTAURANT OPERATIONS</div><h1>{viewTitle}</h1></div>
           <div className="topbar-pill"><span className="online-dot" /> API preview</div>
         </header>
 
@@ -113,14 +282,14 @@ export default function HomePage() {
           <div>
             <p className="intro-kicker">YOUR WORKSPACE, AT A GLANCE</p>
             <h2>Keep service moving.</h2>
-            <p className="intro-copy">Connect to your Restaurant Platform backend to view live orders for one restaurant.</p>
+            <p className="intro-copy">Connect to your Restaurant Platform backend to manage orders, queue pickup, and deliveries for one restaurant.</p>
           </div>
           <div className="intro-symbol" aria-hidden="true"><span>R</span><i /><b /></div>
         </section>
 
         <section className="connection-card">
           <div className="section-heading">
-            <div><h3>Connect to your backend</h3><p>Use a valid Supabase access token with the restaurant&apos;s ORDER_READ permission.</p></div>
+            <div><h3>Connect to your backend</h3><p>Use a valid Supabase access token for the restaurant operations you need to access.</p></div>
             <span className="secure-label">Private request</span>
           </div>
           <form onSubmit={handleSubmit} className="connection-form">
@@ -139,7 +308,7 @@ export default function HomePage() {
           {error && <div className="feedback error" role="alert">{error}</div>}
         </section>
 
-        <section className="orders-section" aria-busy={loading}>
+        {activeView === "orders" && <section className="orders-section" aria-busy={loading}>
           <div className="orders-heading">
             <div>
               <h3>Recent orders</h3>
@@ -192,7 +361,137 @@ export default function HomePage() {
               <button className="secondary-button" type="button" onClick={() => void loadOrders(currentPage + 1)} disabled={loading || currentPage + 1 >= totalPages}>Next</button>
             </div>
           </div>}
-        </section>
+        </section>}
+
+        {activeView === "queue" && <section className="orders-section" aria-busy={activityLoading}>
+          <div className="orders-heading">
+            <div><h3>Today&apos;s queue</h3><p>Active Common QR pickup tickets in the restaurant&apos;s local day.</p></div>
+            <button className="secondary-button" type="button" onClick={() => void loadQueue()} disabled={activityLoading}>
+              {activityLoading ? "Refreshing…" : "Refresh queue"}
+            </button>
+          </div>
+          {activityError && <div className="feedback error" role="alert">{activityError}</div>}
+          {activityLoading && !queueLoaded && <div className="empty-state"><div className="loader" /><h4>Loading queue</h4><p>Requesting today&apos;s pickup tickets.</p></div>}
+          {queueLoaded && queueTickets.length === 0 && <div className="empty-state"><div className="empty-icon">✓</div><h4>No active pickup tickets</h4><p>New Common QR tickets will appear here after customers submit orders.</p></div>}
+          {queueLoaded && queueTickets.length > 0 && <div className="queue-list">
+            {queueTickets.map(ticket => <article className="queue-card" key={ticket.ticketId}>
+              <div className="queue-number">{ticket.displayCode}</div>
+              <div className="queue-details">
+                <h4>Queue {ticket.displayCode}</h4>
+                <span className={statusClass(ticket.status)}>{humanizeStatus(ticket.status)}</span>
+                <p>Placed {formatDate(ticket.createdAt)}</p>
+                {ticket.readyAt && <p>Ready {formatDate(ticket.readyAt)}</p>}
+                {ticket.calledAt && <p>Called {formatDate(ticket.calledAt)}</p>}
+              </div>
+              {ticket.status === "READY" && <button
+                className="primary-action"
+                type="button"
+                onClick={() => void handleCallQueueTicket(ticket)}
+                disabled={activeActionId === ticket.ticketId || activityLoading}
+              >{activeActionId === ticket.ticketId ? "Calling…" : "Call number"}</button>}
+            </article>)}
+          </div>}
+        </section>}
+
+        {activeView === "deliveries" && <section className="orders-section" aria-busy={activityLoading}>
+          <div className="orders-heading">
+            <div>
+              <h3>Delivery tasks</h3>
+              <p>{deliveriesPage ? `${deliveriesPage.totalElements} delivery task(s) in total` : "View assigned delivery work and update its progress."}</p>
+            </div>
+            <button className="secondary-button" type="button" onClick={() => void loadDeliveries(deliveryPageIndex)} disabled={activityLoading}>
+              {activityLoading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+          <div className="orders-toolbar">
+            <label className="filter-field">
+              Filter by status
+              <select
+                value={deliveryStatusFilter}
+                onChange={event => {
+                  setDeliveryStatusFilter(event.target.value);
+                  void loadDeliveries(0, event.target.value);
+                }}
+                disabled={activityLoading}
+                aria-label="Filter deliveries by status"
+              >
+                <option value="">All statuses</option>
+                {deliveryStatuses.map(status => <option key={status} value={status}>{humanizeStatus(status)}</option>)}
+              </select>
+            </label>
+          </div>
+          {activityError && <div className="feedback error" role="alert">{activityError}</div>}
+          {activityLoading && !deliveriesPage && <div className="empty-state"><div className="loader" /><h4>Loading deliveries</h4><p>Requesting delivery tasks from the backend.</p></div>}
+          {deliveriesPage && deliveriesPage.content.length === 0 && !activityLoading && <div className="empty-state"><div className="empty-icon">✓</div><h4>No deliveries found</h4><p>No tasks match the selected status.</p></div>}
+          {deliveriesPage && deliveriesPage.content.length > 0 && <div className="delivery-list">
+            {deliveriesPage.content.map(task => <article className="delivery-card" key={task.id}>
+              <div className="delivery-card-heading">
+                <div>
+                  <h4>{task.orderNumber}</h4>
+                  <p>Order status: {humanizeStatus(task.orderStatus)}</p>
+                </div>
+                <span className={statusClass(task.status)}>{humanizeStatus(task.status)}</span>
+              </div>
+              <div className="delivery-meta">
+                <p><strong>Recipient</strong>{task.customerName || "Name not provided"}{task.customerPhone ? ` · ${task.customerPhone}` : ""}</p>
+                <p><strong>Address</strong>{task.deliveryAddress || "Address not provided"}</p>
+                {task.deliveryNote && <p><strong>Note</strong>{task.deliveryNote}</p>}
+                <p><strong>Total</strong>{formatMoney(task.totalAmount)}</p>
+                <p><strong>Driver UUID</strong>{task.driverUserId || "Waiting for assignment"}</p>
+                {task.failureReason && <p><strong>Last failure</strong>{task.failureReason}</p>}
+              </div>
+
+              {["WAITING_ASSIGNMENT", "FAILED", "ASSIGNED"].includes(task.status) && <div className="inline-action">
+                <label>Assign or reassign driver
+                  <input
+                    value={driverInputs[task.id] ?? task.driverUserId ?? ""}
+                    onChange={event => setDriverInputs(previous => ({ ...previous, [task.id]: event.target.value }))}
+                    placeholder="Driver user UUID"
+                    autoComplete="off"
+                  />
+                </label>
+                <button className="secondary-button" type="button" onClick={() => void handleAssignDriver(task)} disabled={activityLoading || activeActionId === task.id}>
+                  {activeActionId === task.id ? "Saving…" : "Assign driver"}
+                </button>
+              </div>}
+
+              {["ASSIGNED", "PICKED_UP"].includes(task.status) && <div className="delivery-actions">
+                {task.status === "ASSIGNED" && <button className="primary-action" type="button" onClick={() => void handleDeliveryStatus(task, "PICKED_UP")} disabled={activityLoading || activeActionId === task.id}>Mark picked up</button>}
+                <label className="failure-field">If delivery fails, provide a reason
+                  <input
+                    value={failureReasons[task.id] ?? ""}
+                    onChange={event => setFailureReasons(previous => ({ ...previous, [task.id]: event.target.value }))}
+                    placeholder="Reason for failed delivery"
+                  />
+                </label>
+                <button className="secondary-button" type="button" onClick={() => void handleDeliveryStatus(task, "FAILED")} disabled={activityLoading || activeActionId === task.id || !(failureReasons[task.id] ?? "").trim()}>
+                  Mark failed
+                </button>
+                {task.status === "PICKED_UP" && <div className="delivery-confirm">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={deliveryConfirmations[task.id] ?? false}
+                      onChange={event => setDeliveryConfirmations(previous => ({ ...previous, [task.id]: event.target.checked }))}
+                    />
+                    I confirm the order was delivered and any cash-on-delivery payment was collected.
+                  </label>
+                  <button className="primary-action" type="button" onClick={() => void handleDeliveryStatus(task, "DELIVERED")} disabled={activityLoading || activeActionId === task.id || !deliveryConfirmations[task.id]}>
+                    Mark delivered
+                  </button>
+                </div>}
+              </div>}
+            </article>)}
+          </div>}
+          {deliveriesPage && deliveriesPage.totalPages > 1 && <div className="pagination">
+            <span>Page {deliveryPageIndex + 1} of {deliveriesPage.totalPages}</span>
+            <div className="pagination-actions">
+              <button className="secondary-button" type="button" onClick={() => void loadDeliveries(deliveryPageIndex - 1)} disabled={activityLoading || deliveryPageIndex <= 0}>Previous</button>
+              <button className="secondary-button" type="button" onClick={() => void loadDeliveries(deliveryPageIndex + 1)} disabled={activityLoading || deliveryPageIndex + 1 >= deliveriesPage.totalPages}>Next</button>
+            </div>
+          </div>}
+        </section>}
+
         <footer>Restaurant Platform <span>•</span> Web integration preview <span>•</span> No credentials are persisted by this page</footer>
       </section>
     </main>
