@@ -98,10 +98,13 @@ mvn -f app/api/pom.xml spring-boot:run
 | POST | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery` | Authenticated delivery checkout using saved address, zone, and database-priced items |
 | GET | `/api/v1/customer/orders` | Paginated order history for the current customer |
 | GET | `/api/v1/customer/orders/{orderId}` | Own order detail, status timeline, payment and delivery status |
+| GET | `/api/v1/devices` | List own registered device metadata without raw push tokens |
+| POST | `/api/v1/devices` | Register or reactivate one's push token |
+| DELETE | `/api/v1/devices/{deviceId}` | Deactivate an owned device |
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Online payments/refunds, owner transfer, full reporting, external push delivery, and client-side sound playback remain future work.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Online payments/refunds, owner transfer, full reporting, external push-provider delivery and client-side sound playback remain future work.
 
 ## Security model
 
