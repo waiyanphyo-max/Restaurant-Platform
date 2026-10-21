@@ -246,6 +246,43 @@ Table creation request:
 
 The QR token is generated with a cryptographically secure random source and is intentionally not included in table list/update responses. If a token is rotated, the old printed Table QR becomes invalid and must be replaced with the new QR code.
 
+## Restaurant onboarding and owner bootstrap
+
+These authenticated routes let a signed-in user create and manage their own restaurant memberships.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/my/restaurants` | List restaurants where the current user is a member, including their role |
+| POST | `/api/v1/restaurants` | Create a restaurant, initial settings, and OWNER membership in one transaction |
+| GET | `/api/v1/restaurants/{restaurantId}` | Read active restaurant details with `RESTAURANT_READ` |
+| PUT | `/api/v1/restaurants/{restaurantId}/profile` | Update restaurant profile fields with `SETTINGS_MANAGE` |
+
+Create request:
+
+```json
+{
+  "name": "Tea Shop",
+  "slug": "tea-shop",
+  "description": "Tea and snacks",
+  "phone": "09123456789",
+  "address": "Example street",
+  "houseNo": "12",
+  "street": "Main Road",
+  "ward": "Ward 1",
+  "township": "Min Buri",
+  "city": "Bangkok",
+  "latitude": null,
+  "longitude": null,
+  "logoUrl": null,
+  "currency": "MMK",
+  "timezone": "Asia/Yangon"
+}
+```
+
+The caller's JWT subject becomes the initial OWNER; the client cannot choose the owner ID or role. The response includes the newly-created Common QR token once so it can be encoded for printing. Keep that token private and do not log/share it. Later settings reads do not expose the token; rotating it invalidates old printed Common QR codes.
+
+The endpoint creates a profile row for the authenticated user when missing, as a safety net for Auth-profile synchronization. Restaurant slug is immutable through the profile update endpoint to avoid silently breaking public links. This endpoint is for restaurant creation by the current authenticated user; it is not a public endpoint.
+
 ## Restaurant member management
 
 The following endpoints require `MEMBERS_MANAGE`, which is granted to `OWNER` only in the current role policy.
