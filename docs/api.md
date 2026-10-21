@@ -142,6 +142,18 @@ Driver status request examples:
 }
 ```
 
+For `DELIVERED`, include `"cashCollected": true` when a pending `CASH_ON_DELIVERY` payment is associated with the order:
+
+```json
+{
+  "status": "DELIVERED",
+  "cashCollected": true,
+  "note": "Cash received"
+}
+```
+
+If a COD payment is pending and `cashCollected` is missing or false, delivery completion returns `409 CASH_COLLECTION_REQUIRED` and the order, delivery, and payment remain unchanged. The legacy manager order-status endpoint cannot bypass this check.
+
 The supported delivery lifecycle is `WAITING_ASSIGNMENT → ASSIGNED → PICKED_UP → DELIVERED`, with `FAILED` and pre-pickup `CANCELLED` branches. Failed deliveries can be reassigned by a manager; if the order was `OUT_FOR_DELIVERY`, reassignment returns the order to `READY`. A driver can change only deliveries assigned to their authenticated user. Managers can override delivery transitions through the manager order status endpoint, and both paths write delivery/order status history.
 
 Picking up a task changes the linked order from `READY` to `OUT_FOR_DELIVERY`; confirming delivery changes it to `COMPLETED`. If the customer has an account, status updates create in-app notification records. External push notifications and actual browser/mobile sound playback are not wired in the backend.
@@ -211,6 +223,50 @@ An order status update to `READY` already moves a linked queue ticket to `READY`
 - `PATCH /api/v1/notifications/{notificationId}/read` — marks only a notification owned by the authenticated user as read.
 
 These APIs store and return in-app notification records. They do not integrate an external push provider and cannot by themselves make a browser/mobile device play a sound. For QR customers, the client can periodically call the queue status/notifications APIs with the tracking token and react when it sees a new `QUEUE_READY` or `QUEUE_CALLED` notification.
+
+## Dine-in table and Table QR management
+
+These endpoints require `SETTINGS_MANAGE`.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/restaurants/{restaurantId}/tables` | List tables without exposing their QR tokens |
+| POST | `/api/v1/restaurants/{restaurantId}/tables` | Create table and return its raw QR token once |
+| PUT | `/api/v1/restaurants/{restaurantId}/tables/{tableId}` | Rename or activate/deactivate a table |
+| POST | `/api/v1/restaurants/{restaurantId}/tables/{tableId}/qr-token/rotate` | Rotate the table QR token and return it once |
+
+Table creation request:
+
+```json
+{
+  "tableNumber": "T1",
+  "active": true
+}
+```
+
+The QR token is generated with a cryptographically secure random source and is intentionally not included in table list/update responses. If a token is rotated, the old printed Table QR becomes invalid and must be replaced with the new QR code.
+
+## Restaurant member management
+
+The following endpoints require `MEMBERS_MANAGE`, which is granted to `OWNER` only in the current role policy.
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/restaurants/{restaurantId}/members` | List this restaurant's members |
+| POST | `/api/v1/restaurants/{restaurantId}/members` | Add an existing profile as MANAGER, STAFF, or DELIVERY_DRIVER |
+| PUT | `/api/v1/restaurants/{restaurantId}/members/{memberId}` | Change an existing non-owner member's role |
+| DELETE | `/api/v1/restaurants/{restaurantId}/members/{memberId}` | Remove an existing non-owner member |
+
+Request example:
+
+```json
+{
+  "userId": "00000000-0000-0000-0000-000000000000",
+  "role": "DELIVERY_DRIVER"
+}
+```
+
+The selected user must already have a `public.profiles` row (typically by signing in once after the profile-sync migration is applied). A user can join each restaurant only once. This general endpoint cannot create, demote, or delete an OWNER; owner transfer is intentionally not included yet. Removing or changing the role of the configured default driver clears the default driver setting.
 
 ## Restaurant settings and delivery zone administration
 
@@ -345,7 +401,7 @@ Requires a valid bearer token. The current JWT subject becomes both `customerId`
 
 The UUIDs above are placeholders; use IDs returned by the actual restaurant APIs. The address must belong to the authenticated customer, and the delivery zone must be active and belong to the route's restaurant. Product, category, variant, modifier, availability, and stock rules are validated server-side. Prices are read from the database; client-submitted prices and totals are not accepted. The computed subtotal must meet both the restaurant-wide and delivery-zone minimums. The saved address and recipient details are snapshotted onto the order to preserve the destination used at checkout.
 
-For now, only `CASH_ON_DELIVERY` is supported. An order and pending payment record are created in one database transaction. Online payment, payment confirmation/refunds, and customer-facing order history are not implemented. The selected zone is checked by restaurant, but the current schema does not contain geographic boundaries to automatically determine whether a street/township falls inside a zone; the customer chooses from the configured zones.
+For now, only `CASH_ON_DELIVERY` is supported. An order and pending payment record are created in one database transaction. Online payment and refunds are not implemented. The selected zone is checked by restaurant, but the current schema does not contain geographic boundaries to automatically determine whether a street/township falls inside a zone; the customer chooses from the configured zones.
 
 When the order later reaches `READY`, the Milestone 5 workflow creates its delivery task and attempts to assign the configured default driver.
 
@@ -362,4 +418,4 @@ The optional status filter accepts `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, 
 
 ## Not yet exposed as HTTP routes
 
-Restaurant/menu administration, online payment processing, payment confirmation/refunds, and external push notification integration are not yet implemented as complete HTTP workflows.
+Owner transfer, customer cancellation/reorder, online payments/refunds, full reporting, and external push notification integration are not yet implemented as complete HTTP workflows.
