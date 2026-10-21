@@ -11,6 +11,12 @@ import java.util.List;
 public interface DiningTableRepository extends JpaRepository<DiningTable, UUID> {
     List<DiningTable> findByRestaurantIdAndIsActiveTrue(UUID restaurantId);
 
+    List<DiningTable> findByRestaurantIdOrderByTableNumberAsc(UUID restaurantId);
+
+    Optional<DiningTable> findByIdAndRestaurantId(UUID id, UUID restaurantId);
+
+    Optional<DiningTable> findByRestaurantIdAndTableNumber(UUID restaurantId, String tableNumber);
+
     Optional<DiningTable> findByRestaurantIdAndQrTokenAndIsActiveTrue(
             UUID restaurantId, String qrToken);
 }
