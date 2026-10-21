@@ -12,6 +12,7 @@ public record MenuProductDto(
         boolean available,
         boolean trackStock,
         Integer stockQuantity,
-        List<MenuVariantDto> variants
+        List<MenuVariantDto> variants,
+        List<MenuModifierGroupDto> modifierGroups
 ) {
 }
