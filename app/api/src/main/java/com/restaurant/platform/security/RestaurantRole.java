@@ -22,13 +22,9 @@ public enum RestaurantRole {
     )),
 
     DELIVERY_DRIVER(EnumSet.of(
+            // Drivers may view basic restaurant context and work with assigned deliveries.
+            // Delivery records must still be scoped to the authenticated driver in the service layer.
             RestaurantPermission.RESTAURANT_READ,
-            RestaurantPermission.MENU_READ,
-            RestaurantPermission.ORDER_READ,
-            RestaurantPermission.ORDER_CREATE,
-            RestaurantPermission.ORDER_STATUS_UPDATE,
-            RestaurantPermission.QUEUE_MANAGE,
-            RestaurantPermission.DELIVERY_ASSIGN,
             RestaurantPermission.DELIVERY_READ,
             RestaurantPermission.DELIVERY_STATUS_UPDATE
     ));
