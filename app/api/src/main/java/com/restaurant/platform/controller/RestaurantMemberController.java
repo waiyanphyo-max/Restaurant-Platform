@@ -2,6 +2,8 @@ package com.restaurant.platform.controller;
 
 import com.restaurant.platform.dto.member.RestaurantMemberRequest;
 import com.restaurant.platform.dto.member.RestaurantMemberResponse;
+import com.restaurant.platform.dto.member.TransferRestaurantOwnershipRequest;
+import com.restaurant.platform.dto.member.TransferRestaurantOwnershipResponse;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.RestaurantMemberService;
 import jakarta.validation.Valid;
@@ -31,6 +33,14 @@ public class RestaurantMemberController {
             @PathVariable UUID restaurantId,
             @Valid @RequestBody RestaurantMemberRequest request) {
         return memberService.add(
+                restaurantId, authorization.requireAuthenticatedUserId(), request);
+    }
+
+    @PostMapping("/transfer-ownership")
+    public TransferRestaurantOwnershipResponse transferOwnership(
+            @PathVariable UUID restaurantId,
+            @Valid @RequestBody TransferRestaurantOwnershipRequest request) {
+        return memberService.transferOwnership(
                 restaurantId, authorization.requireAuthenticatedUserId(), request);
     }
 
