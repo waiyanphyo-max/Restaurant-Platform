@@ -127,3 +127,5 @@ button.nav-item:focus-visible{outline:2px solid #6e9c81;outline-offset:2px}
 .report-status strong{font:800 16px Manrope,sans-serif;color:#34483c}
 .report-note{font-size:10px;line-height:1.7;color:#89948d;margin:16px 0 0}
 @media(max-width:700px){.report-summary-grid{grid-template-columns:1fr}.report-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.report-date-form{align-items:stretch;flex-direction:column}.report-date-form .filter-field{max-width:none}.report-date-form .primary-action{align-self:flex-start}}
+.order-action{white-space:nowrap}
+.order-action-none{font-size:10px;color:#9aa39d}
