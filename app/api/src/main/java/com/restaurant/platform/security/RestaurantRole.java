@@ -21,6 +21,8 @@ public enum RestaurantRole {
             RestaurantPermission.DELIVERY_READ,
             RestaurantPermission.DELIVERY_ASSIGN,
             RestaurantPermission.DELIVERY_STATUS_UPDATE,
+            RestaurantPermission.PAYMENT_READ,
+            RestaurantPermission.PAYMENT_COLLECT,
             RestaurantPermission.REPORT_READ
     )),
 
@@ -32,7 +34,9 @@ public enum RestaurantRole {
             RestaurantPermission.ORDER_STATUS_UPDATE,
             RestaurantPermission.QUEUE_MANAGE,
             RestaurantPermission.DELIVERY_READ,
-            RestaurantPermission.DELIVERY_STATUS_UPDATE
+            RestaurantPermission.DELIVERY_STATUS_UPDATE,
+            RestaurantPermission.PAYMENT_READ,
+            RestaurantPermission.PAYMENT_COLLECT
     )),
 
     DELIVERY_DRIVER(EnumSet.of(
