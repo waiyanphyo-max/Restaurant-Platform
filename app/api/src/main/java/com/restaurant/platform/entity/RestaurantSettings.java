@@ -35,6 +35,9 @@ public class RestaurantSettings {
     @Column(name = "default_delivery_fee", nullable = false)
     private Long defaultDeliveryFee = 0L;
 
+    @Column(name = "default_delivery_driver_user_id")
+    private UUID defaultDeliveryDriverUserId;
+
     @Column(name = "accepts_orders", nullable = false)
     private Boolean acceptsOrders = true;
 
@@ -54,5 +57,4 @@ public class RestaurantSettings {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
-
 }
