@@ -2,14 +2,22 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.dto.order.ManagerOrderDetailDto;
+import com.restaurant.platform.dto.order.OrderItemDetailDto;
+import com.restaurant.platform.dto.order.OrderItemModifierDto;
+import com.restaurant.platform.dto.order.OrderStatusHistoryDto;
 import com.restaurant.platform.dto.order.OrderSummaryDto;
 import com.restaurant.platform.dto.order.UpdateOrderStatusRequest;
 import com.restaurant.platform.entity.AppNotification;
 import com.restaurant.platform.entity.Order;
+import com.restaurant.platform.entity.OrderItem;
+import com.restaurant.platform.entity.OrderItemModifier;
 import com.restaurant.platform.entity.OrderStatusHistory;
 import com.restaurant.platform.entity.QueueTicket;
 import com.restaurant.platform.repository.AppNotificationRepository;
 import com.restaurant.platform.repository.OrderRepository;
+import com.restaurant.platform.repository.OrderItemRepository;
+import com.restaurant.platform.repository.OrderItemModifierRepository;
 import com.restaurant.platform.repository.OrderStatusHistoryRepository;
 import com.restaurant.platform.repository.QueueTicketRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
@@ -27,6 +35,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 @Service
@@ -45,6 +56,8 @@ public class ManagerOrderService {
     );
 
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final OrderItemModifierRepository orderItemModifierRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final QueueTicketRepository queueTicketRepository;
     private final AppNotificationRepository appNotificationRepository;
@@ -52,12 +65,16 @@ public class ManagerOrderService {
 
     public ManagerOrderService(
             OrderRepository orderRepository,
+            OrderItemRepository orderItemRepository,
+            OrderItemModifierRepository orderItemModifierRepository,
             OrderStatusHistoryRepository orderStatusHistoryRepository,
             QueueTicketRepository queueTicketRepository,
             AppNotificationRepository appNotificationRepository,
             RestaurantAuthorization restaurantAuthorization
     ) {
         this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.orderItemModifierRepository = orderItemModifierRepository;
         this.orderStatusHistoryRepository = orderStatusHistoryRepository;
         this.queueTicketRepository = queueTicketRepository;
         this.appNotificationRepository = appNotificationRepository;
@@ -121,6 +138,92 @@ public class ManagerOrderService {
         return orders.map(this::toSummaryDto);
     }
 
+    @PreAuthorize("@restaurantAuthorization.hasPermission(#restaurantId, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
+    @Transactional(readOnly = true)
+    public ManagerOrderDetailDto getOrderDetail(UUID restaurantId, UUID orderId) {
+        restaurantAuthorization.requirePermission(restaurantId, RestaurantPermission.ORDER_READ);
+
+        Order order = orderRepository.findByIdAndRestaurantId(orderId, restaurantId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "ORDER_NOT_FOUND",
+                        "order-not-found"));
+
+        List<OrderItem> items = orderItemRepository
+                .findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(orderId, restaurantId);
+
+        List<UUID> itemIds = items.stream().map(OrderItem::getId).toList();
+        Map<UUID, List<OrderItemModifier>> modifiersByItemId;
+        if (itemIds.isEmpty()) {
+            modifiersByItemId = Map.of();
+        } else {
+            modifiersByItemId = orderItemModifierRepository
+                    .findByOrderItemIdInAndRestaurantIdOrderByIdAsc(itemIds, restaurantId)
+                    .stream()
+                    .collect(Collectors.groupingBy(
+                            OrderItemModifier::getOrderItemId,
+                            LinkedHashMap::new,
+                            Collectors.toList()));
+        }
+
+        List<OrderItemDetailDto> itemDtos = items.stream()
+                .map(item -> new OrderItemDetailDto(
+                        item.getId(),
+                        item.getProductId(),
+                        item.getVariantId(),
+                        item.getProductName(),
+                        item.getVariantName(),
+                        item.getUnitPrice(),
+                        item.getQuantity(),
+                        item.getSubtotal(),
+                        item.getSpecialInstruction(),
+                        modifiersByItemId.getOrDefault(item.getId(), List.of()).stream()
+                                .map(modifier -> new OrderItemModifierDto(
+                                        modifier.getId(),
+                                        modifier.getModifierOptionId(),
+                                        modifier.getName(),
+                                        modifier.getAdditionalPrice(),
+                                        modifier.getQuantity()))
+                                .toList()))
+                .toList();
+
+        List<OrderStatusHistoryDto> historyDtos = orderStatusHistoryRepository
+                .findByOrderIdOrderByCreatedAtAsc(orderId)
+                .stream()
+                .map(history -> new OrderStatusHistoryDto(
+                        history.getId(),
+                        history.getStatus(),
+                        history.getChangedByUserId(),
+                        history.getNote(),
+                        history.getCreatedAt()))
+                .toList();
+
+        return new ManagerOrderDetailDto(
+                order.getId(),
+                order.getRestaurantId(),
+                order.getOrderNumber(),
+                order.getCustomerId(),
+                order.getCreatedByUserId(),
+                order.getTableId(),
+                order.getQueueTicketId(),
+                order.getDeliveryZoneId(),
+                order.getOrderType(),
+                order.getOrderChannel(),
+                order.getStatus(),
+                order.getSubtotal(),
+                order.getDeliveryFee(),
+                order.getDiscountAmount(),
+                order.getTotalAmount(),
+                order.getDeliveryName(),
+                order.getDeliveryPhone(),
+                order.getDeliveryAddress(),
+                order.getDeliveryNote(),
+                order.getCreatedAt(),
+                order.getUpdatedAt(),
+                itemDtos,
+                historyDtos);
+    }
+
     @PreAuthorize("@restaurantAuthorization.hasPermission(#restaurantId, T(com.restaurant.platform.security.RestaurantPermission).ORDER_STATUS_UPDATE)")
     @Transactional
     public OrderSummaryDto updateStatus(
@@ -154,14 +257,14 @@ public class ManagerOrderService {
         if (!VALID_ORDER_STATUSES.contains(nextStatus)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
-                    "ORDER_STATUS_REQUIRED",
-                    "order-status-required"
+                    "INVALID_ORDER_STATUS",
+                    "invalid-order-status-filter"
             );
         }
 
         // 4. Find the order belonging to this restaurant.
         Order order = orderRepository
-                .findByIdAndRestaurantId(orderId, restaurantId)
+                .findByIdAndRestaurantIdForUpdate(orderId, restaurantId)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
                         "ORDER_NOT_FOUND",
