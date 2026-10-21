@@ -132,6 +132,154 @@ public class OrderService {
     }
 
     @Transactional
+    public CreateStaffOrderResponse createStaffOrder(
+            UUID restaurantId,
+            UUID actorUserId,
+            CreateStaffOrderRequest request) {
+        restaurantAuthorization.requireAuthenticatedUserMatches(actorUserId);
+        restaurantAuthorization.requirePermission(restaurantId,
+                com.restaurant.platform.security.RestaurantPermission.ORDER_CREATE);
+        if (request == null || request.items() == null || request.items().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "STAFF_ORDER_FIELDS_REQUIRED", "error.order.staff-fields-required");
+        }
+
+        String orderType = request.orderType().trim();
+        boolean dineIn = "DINE_IN".equals(orderType);
+        boolean takeaway = "TAKEAWAY".equals(orderType);
+        if (!dineIn && !takeaway) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "INVALID_STAFF_ORDER_TYPE", "error.order.invalid-staff-type");
+        }
+        if (dineIn && request.tableId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "TABLE_REQUIRED_FOR_DINE_IN", "error.order.table-required");
+        }
+        if (takeaway && request.tableId() != null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "TABLE_NOT_ALLOWED_FOR_TAKEAWAY", "error.order.table-not-allowed");
+        }
+
+        Restaurant restaurant = restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "RESTAURANT_NOT_FOUND", "error.restaurant.not-found"));
+        RestaurantSettings settings = settingsRepository.findById(restaurantId)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
+                        "RESTAURANT_SETTINGS_MISSING", "error.restaurant.settings-missing"));
+        if (!Boolean.TRUE.equals(settings.getAcceptsOrders())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "ORDERS_NOT_ACCEPTED", "error.restaurant.orders-not-accepted");
+        }
+        if (takeaway && !Boolean.TRUE.equals(settings.getAllowTakeaway())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "TAKEAWAY_UNAVAILABLE", "error.order.takeaway-unavailable");
+        }
+
+        DiningTable table = null;
+        if (dineIn) {
+            table = diningTableRepository.findByIdAndRestaurantIdAndIsActiveTrue(
+                            request.tableId(), restaurantId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
+                            "INVALID_DINING_TABLE", "error.order.table-not-found"));
+        }
+
+        List<PreparedLine> lines = request.items().stream()
+                .map(item -> prepareLine(restaurantId, item))
+                .toList();
+        long subtotal = 0L;
+        try {
+            for (PreparedLine line : lines) {
+                subtotal = Math.addExact(subtotal, line.subtotal());
+            }
+        } catch (ArithmeticException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "ORDER_AMOUNT_TOO_LARGE", "error.order.amount-too-large");
+        }
+        if (subtotal < (settings.getMinimumOrder() == null ? 0L : settings.getMinimumOrder())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "MINIMUM_ORDER_NOT_MET", "error.order.minimum-not-met");
+        }
+
+        for (PreparedLine line : lines) {
+            if (Boolean.TRUE.equals(line.product().getTrackStock())) {
+                int changedRows = productRepository.reserveStock(
+                        line.product().getId(), restaurantId, line.quantity());
+                if (changedRows != 1) {
+                    throw new ApiException(HttpStatus.CONFLICT,
+                            "INSUFFICIENT_STOCK", "error.product.insufficient-stock-name",
+                            line.product().getName());
+                }
+            }
+        }
+
+        ZoneId zone = ZoneId.of(settings.getTimezone() == null
+                ? "Asia/Yangon" : settings.getTimezone());
+        String orderNumber = "ORD-"
+                + LocalDate.now(zone).format(DateTimeFormatter.BASIC_ISO_DATE)
+                + "-" + UUID.randomUUID().toString().substring(0, 8)
+                        .toUpperCase(Locale.ROOT);
+
+        Order order = new Order();
+        order.setRestaurantId(restaurantId);
+        order.setOrderNumber(orderNumber);
+        order.setCreatedByUserId(actorUserId);
+        order.setTableId(table == null ? null : table.getId());
+        order.setOrderType(orderType);
+        order.setOrderChannel("STAFF");
+        order.setStatus("PENDING");
+        order.setSubtotal(subtotal);
+        order.setDeliveryFee(0L);
+        order.setDiscountAmount(0L);
+        order.setTotalAmount(subtotal);
+        order.setDeliveryNote(request.note());
+        order = orderRepository.saveAndFlush(order);
+
+        for (PreparedLine line : lines) {
+            OrderItem item = new OrderItem();
+            item.setRestaurantId(restaurantId);
+            item.setOrderId(order.getId());
+            item.setProductId(line.product().getId());
+            item.setVariantId(line.variant() == null ? null : line.variant().getId());
+            item.setProductName(line.product().getName());
+            item.setVariantName(line.variant() == null ? null : line.variant().getName());
+            item.setUnitPrice(line.unitPrice());
+            item.setQuantity(line.quantity());
+            item.setSubtotal(line.subtotal());
+            item.setSpecialInstruction(line.specialInstruction());
+            item = orderItemRepository.saveAndFlush(item);
+            for (PreparedModifier modifierLine : line.modifiers()) {
+                OrderItemModifier modifier = new OrderItemModifier();
+                modifier.setRestaurantId(restaurantId);
+                modifier.setOrderItemId(item.getId());
+                modifier.setModifierOptionId(modifierLine.option().getId());
+                modifier.setName(modifierLine.option().getName());
+                modifier.setAdditionalPrice(modifierLine.option().getAdditionalPrice());
+                modifier.setQuantity(modifierLine.quantity());
+                orderItemModifierRepository.save(modifier);
+            }
+        }
+
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrderId(order.getId());
+        history.setChangedByUserId(actorUserId);
+        history.setStatus("PENDING");
+        history.setNote("Order created by restaurant staff.");
+        orderStatusHistoryRepository.save(history);
+
+        Payment payment = new Payment();
+        payment.setOrderId(order.getId());
+        payment.setMethod("CASH_AT_COUNTER");
+        payment.setStatus("PENDING");
+        payment.setAmount(subtotal);
+        paymentRepository.save(payment);
+
+        return new CreateStaffOrderResponse(
+                order.getId(), order.getOrderNumber(), orderType, "STAFF",
+                "PENDING", settings.getCurrency(), subtotal, subtotal,
+                null, null, null, "PENDING");
+    }
+
+    @Transactional
     public CreateOrderResponse createDeliveryOrder(
             UUID restaurantId,
             UUID userId,
