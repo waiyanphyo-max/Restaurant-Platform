@@ -49,6 +49,16 @@ The following manager-order routes require a valid bearer token and an appropria
 
 All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. A public queue tracking controller, delivery controller, restaurant administration controller, and customer account controllers are not exposed in the current backend source.
 
+## Queue tracking and notification flow
+
+Common QR order creation returns a high-entropy tracking token once. The server persists only its SHA-256 hash on `queue_tickets.public_token_hash`; the client must retain the raw token and send it in `X-Queue-Token`, not in the URL. Public queue status and ticket-notification requests validate that token before returning ticket data. Invalid tokens and unknown ticket IDs use the same not-found response.
+
+When a queue-linked order is marked `READY`, `ManagerOrderService` updates the queue ticket and creates a `QUEUE_READY` in-app notification record in the order-status transaction. The manager queue operation `PATCH .../queue-tickets/{ticketId}/call` only accepts a ticket in `READY`, locks the ticket row scoped to its restaurant, updates it to `CALLED`, sets `called_at`, and inserts a `QUEUE_CALLED` notification record.
+
+The public ticket notification endpoints scope every notification query/update to the validated queue ticket ID. Authenticated `/api/v1/notifications` endpoints scope by the validated JWT subject and do not accept a client-supplied user ID. Reading a notification marks its state `READ` with a UTC timestamp.
+
+This is a database-backed in-app notification workflow. No external push provider or sound player is wired in the backend. Web/mobile clients must poll the queue status/notification route and play a sound locally when a new ready/called notification is observed.
+
 ## Error handling
 
 Business errors use `ApiException` and stable machine-readable codes. `GlobalExceptionHandler` maps validation, data conflicts, and framework `ResponseStatusException` errors into the shared `ApiErrorResponse` structure. Authentication/authorization filter errors are handled by `ApiSecurityErrorHandler`.
