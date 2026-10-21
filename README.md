@@ -69,6 +69,10 @@ mvn -f app/api/pom.xml spring-boot:run
 | PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/status` | Driver/authorized member updates delivery lifecycle |
 | GET | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Read the restaurant's default delivery driver |
 | PATCH | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Owner/manager sets a default driver member |
+| GET | `/api/v1/my/restaurants` | List restaurants joined by the signed-in user |
+| POST | `/api/v1/restaurants` | Create restaurant and bootstrap current user as OWNER |
+| GET | `/api/v1/restaurants/{restaurantId}` | Read member-visible restaurant profile |
+| PUT | `/api/v1/restaurants/{restaurantId}/profile` | Update restaurant profile fields |
 | GET/PUT | `/api/v1/restaurants/{restaurantId}/settings` | Read or update operational settings |
 | POST | `/api/v1/restaurants/{restaurantId}/settings/common-qr-token/rotate` | Rotate Common QR token (returned once) |
 | GET/POST | `/api/v1/restaurants/{restaurantId}/delivery-zones` | List or create delivery zones |
