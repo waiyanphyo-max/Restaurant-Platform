@@ -26,6 +26,7 @@ import com.restaurant.platform.security.RestaurantPermission;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.stream.Collectors;
 import java.util.UUID;
@@ -44,6 +47,8 @@ import java.util.UUID;
 public class ManagerOrderService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "createdAt", "orderNumber", "status", "orderType", "totalAmount");
 
     private static final List<String> VALID_ORDER_STATUSES = List.of(
             "PENDING",
@@ -101,14 +106,19 @@ public class ManagerOrderService {
                 Math.min(pageable.getPageSize(), MAX_PAGE_SIZE)
         );
 
-        Pageable safePageable = PageRequest.of(
-                page,
-                size,
-                pageable.getSort()
-        );
+        List<Sort.Order> requestedSorts = pageable.getSort().stream()
+                .filter(order -> ALLOWED_SORT_FIELDS.contains(order.getProperty()))
+                .map(order -> new Sort.Order(order.getDirection(), order.getProperty()))
+                .toList();
+        Sort safeSort = requestedSorts.isEmpty()
+                ? Sort.by(Sort.Direction.DESC, "createdAt")
+                : Sort.by(requestedSorts);
 
-        String normalizedStatus =
-                status == null ? null : status.trim();
+        Pageable safePageable = PageRequest.of(page, size, safeSort);
+
+        String normalizedStatus = status == null || status.isBlank()
+                ? null
+                : status.trim().toUpperCase(Locale.ROOT);
 
         Page<Order> orders;
 
