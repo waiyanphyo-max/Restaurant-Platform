@@ -27,6 +27,7 @@ The access token is held only in component memory and is not persisted in local 
 
 - Manager order-list integration with clear authentication, permission, query, and network errors
 - Server-side order-status filtering, refresh, and pagination
+- Safe forward-only order status updates following the backend lifecycle rules (permission-checked by the API)
 - Current-day queue view with a call action for READY pickup tickets (requires QUEUE_MANAGE)
 - Delivery task view with filtering, pagination, driver assignment, pickup, failure-reason, and delivery-completion actions (requires the matching restaurant permissions)
 - Daily operations report with date selection, order-status counts, non-cancelled order totals, and payments collected (requires REPORT_READ)
