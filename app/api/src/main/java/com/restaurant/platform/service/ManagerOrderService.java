@@ -86,7 +86,7 @@ public class ManagerOrderService {
         this.restaurantAuthorization = restaurantAuthorization;
     }
 
-    @PreAuthorize("@restaurantAuthorization.hasPermission(#restaurantId, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
+    @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
     @Transactional(readOnly = true)
     public Page<OrderSummaryDto> listOrders(
             UUID restaurantId,
@@ -148,7 +148,7 @@ public class ManagerOrderService {
         return orders.map(this::toSummaryDto);
     }
 
-    @PreAuthorize("@restaurantAuthorization.hasPermission(#restaurantId, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
+    @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
     @Transactional(readOnly = true)
     public ManagerOrderDetailDto getOrderDetail(UUID restaurantId, UUID orderId) {
         restaurantAuthorization.requirePermission(restaurantId, RestaurantPermission.ORDER_READ);
@@ -234,7 +234,7 @@ public class ManagerOrderService {
                 historyDtos);
     }
 
-    @PreAuthorize("@restaurantAuthorization.hasPermission(#restaurantId, T(com.restaurant.platform.security.RestaurantPermission).ORDER_STATUS_UPDATE)")
+    @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_STATUS_UPDATE)")
     @Transactional
     public OrderSummaryDto updateStatus(
             UUID restaurantId,
