@@ -5,6 +5,7 @@ import com.restaurant.platform.dto.order.*;
 import com.restaurant.platform.entity.*;
 import com.restaurant.platform.repository.*;
 import com.restaurant.platform.security.TokenUtils;
+import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.common.error.ApiException;
 
 import org.springframework.http.HttpStatus;
@@ -36,9 +37,34 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final OrderItemModifierRepository orderItemModifierRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final CustomerAddressRepository customerAddressRepository;
+    private final DeliveryZoneRepository deliveryZoneRepository;
+    private final ProfileRepository profileRepository;
+    private final PaymentRepository paymentRepository;
+    private final RestaurantAuthorization restaurantAuthorization;
     private final NamedParameterJdbcTemplate jdbc;
 
-    public OrderService(RestaurantRepository restaurantRepository, RestaurantSettingsRepository settingsRepository, CategoryRepository categoryRepository, ProductRepository productRepository, ProductVariantRepository variantRepository, ProductModifierGroupRepository productModifierGroupRepository, ModifierGroupRepository modifierGroupRepository, ModifierOptionRepository modifierOptionRepository, DiningTableRepository diningTableRepository, QueueTicketRepository queueTicketRepository, OrderRepository orderRepository, OrderItemRepository orderItemRepository, OrderItemModifierRepository orderItemModifierRepository, OrderStatusHistoryRepository orderStatusHistoryRepository, NamedParameterJdbcTemplate jdbc) {
+    public OrderService(
+            RestaurantRepository restaurantRepository,
+            RestaurantSettingsRepository settingsRepository,
+            CategoryRepository categoryRepository,
+            ProductRepository productRepository,
+            ProductVariantRepository variantRepository,
+            ProductModifierGroupRepository productModifierGroupRepository,
+            ModifierGroupRepository modifierGroupRepository,
+            ModifierOptionRepository modifierOptionRepository,
+            DiningTableRepository diningTableRepository,
+            QueueTicketRepository queueTicketRepository,
+            OrderRepository orderRepository,
+            OrderItemRepository orderItemRepository,
+            OrderItemModifierRepository orderItemModifierRepository,
+            OrderStatusHistoryRepository orderStatusHistoryRepository,
+            CustomerAddressRepository customerAddressRepository,
+            DeliveryZoneRepository deliveryZoneRepository,
+            ProfileRepository profileRepository,
+            PaymentRepository paymentRepository,
+            RestaurantAuthorization restaurantAuthorization,
+            NamedParameterJdbcTemplate jdbc) {
         this.restaurantRepository = restaurantRepository;
         this.settingsRepository = settingsRepository;
         this.categoryRepository = categoryRepository;
@@ -53,6 +79,11 @@ public class OrderService {
         this.orderItemRepository = orderItemRepository;
         this.orderItemModifierRepository = orderItemModifierRepository;
         this.orderStatusHistoryRepository = orderStatusHistoryRepository;
+        this.customerAddressRepository = customerAddressRepository;
+        this.deliveryZoneRepository = deliveryZoneRepository;
+        this.profileRepository = profileRepository;
+        this.paymentRepository = paymentRepository;
+        this.restaurantAuthorization = restaurantAuthorization;
         this.jdbc = jdbc;
     }
 
@@ -70,6 +101,246 @@ public class OrderService {
             CreateQrOrderRequest request
     ) {
         return createQrOrder(restaurantId, request, false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DeliveryZoneDto> listCustomerDeliveryZones(
+            UUID restaurantId, UUID userId) {
+        restaurantAuthorization.requireAuthenticatedUserMatches(userId);
+        restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "RESTAURANT_NOT_FOUND",
+                        "error.restaurant.not-found"));
+
+        RestaurantSettings settings = settingsRepository.findById(restaurantId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.CONFLICT,
+                        "RESTAURANT_SETTINGS_MISSING",
+                        "error.restaurant.settings-missing"));
+        if (!Boolean.TRUE.equals(settings.getAllowDelivery())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "DELIVERY_UNAVAILABLE", "error.delivery.unavailable");
+        }
+
+        return deliveryZoneRepository.findByRestaurantIdAndIsActiveTrue(restaurantId)
+                .stream()
+                .map(zone -> new DeliveryZoneDto(
+                        zone.getId(), zone.getName(),
+                        zone.getDeliveryFee(), zone.getMinimumOrder()))
+                .toList();
+    }
+
+    @Transactional
+    public CreateOrderResponse createDeliveryOrder(
+            UUID restaurantId,
+            UUID userId,
+            CreateDeliveryOrderRequest request) {
+        restaurantAuthorization.requireAuthenticatedUserMatches(userId);
+        if (request == null || request.addressId() == null
+                || request.deliveryZoneId() == null
+                || request.items() == null || request.items().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "DELIVERY_ORDER_FIELDS_REQUIRED",
+                    "error.delivery.order-fields-required");
+        }
+
+        Restaurant restaurant = restaurantRepository
+                .findByIdAndIsActiveTrue(restaurantId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "RESTAURANT_NOT_FOUND",
+                        "error.restaurant.not-found"));
+        RestaurantSettings settings = settingsRepository
+                .findById(restaurantId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.CONFLICT,
+                        "RESTAURANT_SETTINGS_MISSING",
+                        "error.restaurant.settings-missing"));
+        if (!Boolean.TRUE.equals(settings.getAcceptsOrders())
+                || !Boolean.TRUE.equals(settings.getAllowDelivery())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "DELIVERY_UNAVAILABLE", "error.delivery.unavailable");
+        }
+
+        CustomerAddress address = customerAddressRepository
+                .findByIdAndUserId(request.addressId(), userId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "INVALID_CUSTOMER_ADDRESS",
+                        "error.address.not-found"));
+
+        DeliveryZone zone = deliveryZoneRepository
+                .findByIdAndRestaurantIdAndIsActiveTrue(
+                        request.deliveryZoneId(), restaurantId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "INVALID_DELIVERY_ZONE",
+                        "error.delivery.zone-not-available"));
+
+        Profile profile = profileRepository.findById(userId).orElse(null);
+        String recipientName = firstNonBlank(
+                request.recipientName(),
+                address.getRecipientName(),
+                profile == null ? null : profile.getFullName());
+        String recipientPhone = firstNonBlank(
+                request.recipientPhone(),
+                profile == null ? null : profile.getPhone());
+        if (recipientName == null || recipientPhone == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "DELIVERY_CONTACT_REQUIRED",
+                    "error.delivery.contact-required");
+        }
+
+        List<PreparedLine> lines;
+        long subtotal = 0L;
+        try {
+            lines = request.items().stream()
+                    .map(item -> prepareLine(restaurantId, item))
+                    .toList();
+            for (PreparedLine line : lines) {
+                subtotal = Math.addExact(subtotal, line.subtotal());
+            }
+        } catch (ArithmeticException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "ORDER_AMOUNT_TOO_LARGE", "error.order.amount-too-large");
+        }
+
+        long requiredMinimum = Math.max(
+                settings.getMinimumOrder() == null ? 0L : settings.getMinimumOrder(),
+                zone.getMinimumOrder() == null ? 0L : zone.getMinimumOrder());
+        if (subtotal < requiredMinimum) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "MINIMUM_ORDER_NOT_MET", "error.order.minimum-not-met");
+        }
+
+        for (PreparedLine line : lines) {
+            if (Boolean.TRUE.equals(line.product().getTrackStock())) {
+                int changedRows = productRepository.reserveStock(
+                        line.product().getId(), restaurantId, line.quantity());
+                if (changedRows != 1) {
+                    throw new ApiException(HttpStatus.CONFLICT,
+                            "INSUFFICIENT_STOCK",
+                            "error.product.insufficient-stock-name",
+                            line.product().getName());
+                }
+            }
+        }
+
+        String paymentMethod = request.paymentMethod() == null
+                || request.paymentMethod().isBlank()
+                ? "CASH_ON_DELIVERY"
+                : request.paymentMethod().trim().toUpperCase(Locale.ROOT);
+        if (!"CASH_ON_DELIVERY".equals(paymentMethod)) {
+            throw new ApiException(
+                    "ONLINE".equals(paymentMethod) || "CASH_AT_COUNTER".equals(paymentMethod)
+                            ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST,
+                    "PAYMENT_METHOD_NOT_AVAILABLE",
+                    "error.delivery.payment-method-not-available");
+        }
+
+        long deliveryFee = zone.getDeliveryFee() == null ? 0L : zone.getDeliveryFee();
+        long totalAmount;
+        try {
+            totalAmount = Math.addExact(subtotal, deliveryFee);
+        } catch (ArithmeticException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "ORDER_AMOUNT_TOO_LARGE", "error.order.amount-too-large");
+        }
+
+        ZoneId zoneId = ZoneId.of(
+                settings.getTimezone() == null ? "Asia/Yangon" : settings.getTimezone());
+        String orderNumber = "ORD-"
+                + LocalDate.now(zoneId).format(DateTimeFormatter.BASIC_ISO_DATE)
+                + "-"
+                + UUID.randomUUID().toString().substring(0, 8)
+                        .toUpperCase(Locale.ROOT);
+
+        Order order = new Order();
+        order.setRestaurantId(restaurantId);
+        order.setOrderNumber(orderNumber);
+        order.setCustomerId(userId);
+        order.setCreatedByUserId(userId);
+        order.setDeliveryZoneId(zone.getId());
+        order.setOrderType("DELIVERY");
+        order.setOrderChannel("CUSTOMER_APP");
+        order.setStatus("PENDING");
+        order.setSubtotal(subtotal);
+        order.setDeliveryFee(deliveryFee);
+        order.setDiscountAmount(0L);
+        order.setTotalAmount(totalAmount);
+        order.setDeliveryName(recipientName);
+        order.setDeliveryPhone(recipientPhone);
+        order.setDeliveryAddress(formatAddress(address));
+        order.setDeliveryNote(firstNonBlank(
+                request.deliveryNote(), address.getDeliveryNote()));
+        order = orderRepository.saveAndFlush(order);
+
+        for (PreparedLine line : lines) {
+            OrderItem item = new OrderItem();
+            item.setRestaurantId(restaurantId);
+            item.setOrderId(order.getId());
+            item.setProductId(line.product().getId());
+            item.setVariantId(line.variant() == null ? null : line.variant().getId());
+            item.setProductName(line.product().getName());
+            item.setVariantName(line.variant() == null ? null : line.variant().getName());
+            item.setUnitPrice(line.unitPrice());
+            item.setQuantity(line.quantity());
+            item.setSubtotal(line.subtotal());
+            item.setSpecialInstruction(line.specialInstruction());
+            item = orderItemRepository.saveAndFlush(item);
+
+            for (PreparedModifier prepared : line.modifiers()) {
+                OrderItemModifier modifier = new OrderItemModifier();
+                modifier.setRestaurantId(restaurantId);
+                modifier.setOrderItemId(item.getId());
+                modifier.setModifierOptionId(prepared.option().getId());
+                modifier.setName(prepared.option().getName());
+                modifier.setAdditionalPrice(prepared.option().getAdditionalPrice());
+                modifier.setQuantity(prepared.quantity());
+                orderItemModifierRepository.save(modifier);
+            }
+        }
+
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrderId(order.getId());
+        history.setChangedByUserId(userId);
+        history.setStatus("PENDING");
+        history.setNote("Order placed through authenticated customer delivery checkout.");
+        orderStatusHistoryRepository.save(history);
+
+        Payment payment = new Payment();
+        payment.setOrderId(order.getId());
+        payment.setMethod(paymentMethod);
+        payment.setStatus("PENDING");
+        payment.setAmount(totalAmount);
+        paymentRepository.save(payment);
+
+        return new CreateOrderResponse(
+                order.getId(), order.getOrderNumber(), order.getOrderType(),
+                order.getOrderChannel(), order.getStatus(), settings.getCurrency(),
+                subtotal, deliveryFee, 0L, totalAmount, null);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String formatAddress(CustomerAddress address) {
+        return java.util.stream.Stream.of(
+                        address.getHouseNo(), address.getStreet(), address.getWard(),
+                        address.getTownship(), address.getCity())
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private QueueCounter nextQueueCounter(
