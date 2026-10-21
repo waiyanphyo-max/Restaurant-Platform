@@ -144,6 +144,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/public/restaurants/*/orders/common-qr",
                                 "/api/v1/public/restaurants/*/orders/table-qr").permitAll()
+                        // These endpoints use the unguessable X-Queue-Token issued at QR checkout.
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/public/queue-tickets/*/status",
+                                "/api/v1/public/queue-tickets/*/notifications").permitAll()
+                        .requestMatchers(HttpMethod.PATCH,
+                                "/api/v1/public/queue-tickets/*/notifications/*/read").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         // Also use the localized handler for invalid/missing bearer tokens.
