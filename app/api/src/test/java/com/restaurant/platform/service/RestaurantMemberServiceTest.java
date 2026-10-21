@@ -2,6 +2,7 @@ package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.member.RestaurantMemberRequest;
+import com.restaurant.platform.dto.member.TransferRestaurantOwnershipRequest;
 import com.restaurant.platform.entity.Profile;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.entity.RestaurantSettings;
@@ -113,6 +114,89 @@ class RestaurantMemberServiceTest {
         assertNull(settings.getDefaultDeliveryDriverUserId());
         verify(settingsRepository).save(settings);
         verify(memberRepository).delete(member);
+    }
+
+    @Test
+    void ownerCanTransferOwnershipToExistingMemberAndBecomesManager() {
+        RestaurantMember currentOwner = member(ownerId, RestaurantRole.OWNER);
+        RestaurantMember target = member(targetUserId, RestaurantRole.STAFF);
+        when(memberRepository.findByRestaurantIdAndUserIdForUpdate(restaurantId, ownerId))
+                .thenReturn(Optional.of(currentOwner));
+        when(memberRepository.findByRestaurantIdAndUserIdForUpdate(restaurantId, targetUserId))
+                .thenReturn(Optional.of(target));
+
+        var response = service.transferOwnership(
+                restaurantId, ownerId, new TransferRestaurantOwnershipRequest(targetUserId));
+
+        assertEquals(restaurantId, response.restaurantId());
+        assertEquals(ownerId, response.previousOwnerUserId());
+        assertEquals(targetUserId, response.newOwnerUserId());
+        assertEquals("MANAGER", response.previousOwnerRole());
+        assertEquals("OWNER", response.newOwnerRole());
+        assertEquals(RestaurantRole.MANAGER, currentOwner.getRole());
+        assertEquals(RestaurantRole.OWNER, target.getRole());
+        verify(memberRepository).save(target);
+        verify(memberRepository).save(currentOwner);
+        verify(authorization).requireAuthenticatedUserMatches(ownerId);
+        verify(authorization).requirePermission(
+                restaurantId, RestaurantPermission.MEMBERS_MANAGE);
+    }
+
+    @Test
+    void nonOwnerCannotTransferOwnershipEvenIfMemberPermissionCheckPasses() {
+        RestaurantMember currentMember = member(ownerId, RestaurantRole.MANAGER);
+        when(memberRepository.findByRestaurantIdAndUserIdForUpdate(restaurantId, ownerId))
+                .thenReturn(Optional.of(currentMember));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.transferOwnership(
+                        restaurantId, ownerId,
+                        new TransferRestaurantOwnershipRequest(targetUserId)));
+
+        assertEquals("OWNER_TRANSFER_FORBIDDEN", error.getCode());
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
+        verify(memberRepository, never()).save(any(RestaurantMember.class));
+        verify(memberRepository, never())
+                .findByRestaurantIdAndUserIdForUpdate(restaurantId, targetUserId);
+    }
+
+    @Test
+    void ownershipTransferRejectsTargetOutsideRestaurant() {
+        RestaurantMember currentOwner = member(ownerId, RestaurantRole.OWNER);
+        when(memberRepository.findByRestaurantIdAndUserIdForUpdate(restaurantId, ownerId))
+                .thenReturn(Optional.of(currentOwner));
+        when(memberRepository.findByRestaurantIdAndUserIdForUpdate(restaurantId, targetUserId))
+                .thenReturn(Optional.empty());
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.transferOwnership(
+                        restaurantId, ownerId,
+                        new TransferRestaurantOwnershipRequest(targetUserId)));
+
+        assertEquals("OWNER_TRANSFER_TARGET_NOT_MEMBER", error.getCode());
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
+        verify(memberRepository, never()).save(any(RestaurantMember.class));
+    }
+
+    @Test
+    void ownershipCannotBeTransferredToCurrentOwner() {
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.transferOwnership(
+                        restaurantId, ownerId,
+                        new TransferRestaurantOwnershipRequest(ownerId)));
+
+        assertEquals("OWNER_TRANSFER_TARGET_REQUIRED", error.getCode());
+        verify(memberRepository, never()).findByRestaurantIdAndUserIdForUpdate(
+                any(UUID.class), any(UUID.class));
+    }
+
+    private RestaurantMember member(UUID userId, RestaurantRole role) {
+        RestaurantMember member = new RestaurantMember();
+        member.setId(UUID.randomUUID());
+        member.setRestaurantId(restaurantId);
+        member.setUserId(userId);
+        member.setRole(role);
+        return member;
     }
 
     @Test
