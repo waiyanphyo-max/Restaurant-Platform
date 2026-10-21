@@ -67,18 +67,18 @@ public class PaymentService {
         Payment payment = paymentRepository.findByIdAndOrderId(paymentId, orderId)
                 .orElseThrow(this::paymentNotFound);
 
-        // Repeated collection requests are idempotent and cannot duplicate revenue.
+        if (!"CASH_AT_COUNTER".equals(payment.getMethod())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "PAYMENT_METHOD_NOT_COLLECTABLE",
+                    "error.payment.method-not-collectable");
+        }
+        // Repeated collection requests for a counter payment are idempotent.
         if ("PAID".equals(payment.getStatus())) {
             return toResponse(payment);
         }
         if (!"PENDING".equals(payment.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT,
                     "PAYMENT_NOT_COLLECTABLE", "error.payment.not-collectable");
-        }
-        if (!"CASH_AT_COUNTER".equals(payment.getMethod())) {
-            throw new ApiException(HttpStatus.CONFLICT,
-                    "PAYMENT_METHOD_NOT_COLLECTABLE",
-                    "error.payment.method-not-collectable");
         }
 
         OffsetDateTime paidAt = OffsetDateTime.now(ZoneOffset.UTC);
