@@ -69,6 +69,8 @@ mvn -f app/api/pom.xml spring-boot:run
 | PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/status` | Driver/authorized member updates delivery lifecycle |
 | GET | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Read the restaurant's default delivery driver |
 | PATCH | `/api/v1/restaurants/{restaurantId}/delivery-settings/default-driver` | Owner/manager sets a default driver member |
+| GET | `/api/v1/customer/profile` | Get the signed-in customer's profile |
+| PUT | `/api/v1/customer/profile` | Update full name, phone and preferred language |
 | GET | `/api/v1/customer/addresses` | List addresses owned by the signed-in customer |
 | POST | `/api/v1/customer/addresses` | Save a customer delivery address |
 | PUT | `/api/v1/customer/addresses/{addressId}` | Update own saved address |
@@ -81,7 +83,7 @@ mvn -f app/api/pom.xml spring-boot:run
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer address management, authenticated delivery checkout, and customer order history are exposed. Checkout computes prices and fees on the server and supports cash on delivery only. Online payments, profile editing, restaurant/menu administration, external push delivery, and client-side sound playback remain future work.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, and customer order history are exposed. A new migration keeps `profiles` rows synchronized with Supabase Auth. Checkout computes prices and fees on the server and supports cash on delivery only. Online payments, restaurant/menu administration, external push delivery, and client-side sound playback remain future work.
 
 ## Security model
 
