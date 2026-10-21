@@ -71,6 +71,10 @@ Customer-address APIs derive ownership from the validated JWT `sub`; all read/up
 
 The checkout service calculates item/modifier prices from database records, checks stock and both restaurant/zone minimums, snapshots the destination into the order, and creates a `PENDING` cash-on-delivery payment record in the same transaction. Clients cannot provide order totals, fees, customer IDs, or creator IDs. Online payment processing is not implemented. Delivery zones currently carry names, fees, and minimums but no geographic polygons or township boundaries, so the customer selects a zone and the backend can only validate that it belongs to the restaurant.
 
+## Restaurant onboarding
+
+`POST /api/v1/restaurants` derives the initial owner from the authenticated JWT subject and creates the restaurant, settings (including a random Common QR token), and OWNER membership in one transaction. The raw Common QR token is returned only in the onboarding response for QR generation; settings/profile reads do not expose it. `GET /api/v1/my/restaurants` derives the user ID from the JWT and lists only their memberships. Restaurant profile changes require `SETTINGS_MANAGE`, and public slug is immutable through that endpoint.
+
 ## Membership administration
 
 Membership mutation is restricted to `MEMBERS_MANAGE`, which the current role map grants to OWNER only. A new member must reference an existing profile, and the API accepts MANAGER, STAFF, or DELIVERY_DRIVER; it does not allow creating/deleting an OWNER without a dedicated owner-transfer process. If the configured default driver is removed or demoted, its restaurant setting is cleared.
