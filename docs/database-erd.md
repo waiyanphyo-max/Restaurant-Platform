@@ -38,7 +38,7 @@ erDiagram
 - **Authentication and profiles:** Supabase Auth owns `auth.users`; `public.profiles.id` references the Auth user ID. The migration `20261022001000_sync_auth_user_profiles.sql` creates/backfills profile rows. Customer-facing endpoints derive profile/customer IDs from the validated JWT subject.
 - **Restaurant roles:** `restaurant_members` uniquely associates one user with one restaurant and a role. Application permissions are computed from the server-side role mapping, not from client-provided IDs or role claims.
 - **Saved addresses:** `customer_addresses.user_id` references a profile. Address CRUD queries additionally scope by the authenticated user ID. Address data is snapshotted on an order at checkout.
-- **Prices:** monetary values are whole-unit `BIGINT` values. Prices, modifiers, delivery fees and order totals are computed server-side. `orders.total_amount` must equal `subtotal + delivery_fee - discount_amount`.
+- **Prices and payments:** monetary values are whole-unit `BIGINT` values. Prices, modifiers, delivery fees and order totals are computed server-side. `orders.total_amount` must equal `subtotal + delivery_fee - discount_amount`. Payment states include `CANCELLED` for unpaid payment records when a customer cancels a still-pending order.
 - **Customer delivery checkout:** a delivery order references a valid zone for the same restaurant. Active-zone selection and minimums are checked on the server. The current schema does not encode geographic boundaries for zones.
 - **Delivery:** one `deliveries` row per order. The default driver is stored at `restaurant_settings.default_delivery_driver_user_id`, which references a profile; the service validates that the configured user is a `DELIVERY_DRIVER` member of that same restaurant.
 - **Queues:** daily queue numbers are scoped through `daily_queue_counters` per restaurant and date. Common QR tracking stores a hash of a high-entropy token, not its raw value.
@@ -47,7 +47,7 @@ erDiagram
 
 ## Migration workflow
 
-1. Add new schema changes as a new timestamped file; do not edit an already-applied migration.
+1. Add new schema changes as a new timestamped file; do not edit an already-applied migration. Current follow-up migrations include `20261021110000_add_default_delivery_driver.sql`, `20261022001000_sync_auth_user_profiles.sql`, and `20261022002000_allow_cancelled_payment_status.sql`.
 2. Inspect `npx supabase migration list` and `npx supabase db push --dry-run` before applying any migration.
 3. Run `npx supabase db push` only after confirming the pending migrations are the intended changes.
 4. Run `mvn --batch-mode -f app/api/pom.xml clean verify` to validate the Java model and tests against the migration-backed schema.
