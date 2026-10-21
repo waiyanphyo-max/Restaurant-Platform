@@ -19,12 +19,13 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The default API origin is `http://localhost:8080`; set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` to override it. Enter the restaurant UUID and a user access token to request the first page of orders.
+Open http://localhost:3000. The default API origin is `http://localhost:8080`; set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` to override it. Enter the restaurant UUID and a user access token to load orders. You can filter by status, refresh the current results, and move through pages of up to 20 orders.
 
 The access token is held only in component memory and is not persisted in local storage or cookies. Do not paste a Supabase service-role key. Configure backend CORS to allow the web app origin.
 
 ## Current scope
 
-- Manager order-list integration with clear authentication, permission, and network errors
+- Manager order-list integration with clear authentication, permission, query, and network errors
+- Server-side order-status filtering, refresh, and pagination
 - Responsive dashboard shell for desktop and mobile widths
 - No token persistence, customer checkout UI, Supabase browser auth integration, or delivery/queue screens yet
