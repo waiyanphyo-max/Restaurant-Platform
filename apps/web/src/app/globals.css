@@ -186,3 +186,16 @@ button.nav-item:focus-visible{outline:2px solid #6e9c81;outline-offset:2px}
 .tracking-poll-note{font-size:10px;line-height:1.6;color:#829087;margin:14px 0 0}
 @media(max-width:850px){.guest-product-list{grid-template-columns:1fr}.guest-cart-summary{bottom:8px}}
 @media(max-width:500px){.guest-order-section{padding:15px 12px}.guest-restaurant-info{padding:13px}.guest-product{padding:12px}.guest-product-heading{gap:8px}.guest-cart-summary{align-items:stretch;flex-direction:column;padding:14px}.guest-cart-summary .primary-action{width:100%;white-space:normal}.guest-tracking-card{padding:14px}.guest-tracking-heading h4{font-size:15px}.guest-tracking-actions{flex-direction:column}.guest-tracking-actions .secondary-button{width:100%}.guest-tracking-heading .queue-number{width:45px;height:45px;flex-basis:45px}}
+
+.default-driver-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,1fr);gap:22px;padding:16px 17px;margin:0 0 18px;border:1px solid #e1ebe3;border-radius:12px;background:#f8fbf8}
+.default-driver-info h4{font:800 13px Manrope,sans-serif;margin:0 0 7px;color:#2d4737}
+.default-driver-info p{font-size:10px;line-height:1.65;color:#748178;margin:0 0 10px;max-width:520px}
+.default-driver-info small{font-size:10px;line-height:1.5;color:#5e7565;overflow-wrap:anywhere}
+.default-driver-form{display:flex;flex-direction:column;gap:10px}
+.default-driver-form>label{display:flex;flex-direction:column;gap:7px;font-size:10px;font-weight:700;color:#56635c}
+.default-driver-form input{width:100%;min-width:0;border:1px solid #dfe5df;border-radius:8px;padding:10px 11px;font-size:11px;font-weight:500;color:var(--ink);background:#fff;outline:none}
+.default-driver-form input:focus{border-color:#6e9c81;box-shadow:0 0 0 3px #dcebe2}
+.default-driver-actions{display:flex;flex-wrap:wrap;gap:8px}
+.default-driver-actions .secondary-button,.default-driver-actions .primary-action{flex:1}
+@media(max-width:700px){.default-driver-panel{grid-template-columns:1fr;gap:13px;padding:14px}}
+@media(max-width:500px){.default-driver-actions{flex-direction:column}.default-driver-actions button{width:100%}}
