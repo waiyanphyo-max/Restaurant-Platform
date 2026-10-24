@@ -9,6 +9,8 @@ public record DeliveryZoneRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull @PositiveOrZero Long deliveryFee,
         @NotNull @PositiveOrZero Long minimumOrder,
-        Boolean active
+        Boolean active,
+        @Size(max = 100) String coverageCity,
+        @Size(max = 100) String coverageTownship
 ) {
 }
