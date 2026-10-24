@@ -20,6 +20,9 @@ public class Profile {
     @Column(name = "id", nullable = false)
     private UUID id;
 
+    @Column(name = "email", length = 320)
+    private String email;
+
     @Column(name = "full_name", length = 150)
     private String fullName;
 
