@@ -1,6 +1,8 @@
 package com.restaurant.platform.config;
 
 import com.restaurant.platform.common.error.ApiSecurityErrorHandler;
+import com.restaurant.platform.security.RestaurantAuthorization;
+import com.restaurant.platform.security.RestaurantPermission;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -42,6 +44,9 @@ class SecurityConfigHttpIntegrationTest {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
+    @MockitoBean
+    private RestaurantAuthorization restaurantAuthorization;
+
     @Test
     void protectedApiRejectsRequestsWithoutBearerToken() throws Exception {
         mockMvc.perform(get("/api/v1/protected-probe"))
@@ -69,6 +74,21 @@ class SecurityConfigHttpIntegrationTest {
                                 .jwt(jwt -> jwt.subject(UUID.randomUUID().toString()))
                                 .authorities()))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void restaurantScopedRouteRejectsMemberWithoutPermissionForThatRestaurant() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        when(restaurantAuthorization.hasPermission(restaurantId, RestaurantPermission.ORDER_READ))
+                .thenReturn(false);
+
+        mockMvc.perform(get("/api/v1/restaurants/{restaurantId}/orders-probe", restaurantId)
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(jwt -> jwt.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isForbidden());
+
+        org.mockito.Mockito.verify(restaurantAuthorization)
+                .hasPermission(restaurantId, RestaurantPermission.ORDER_READ);
     }
 
     @Test
