@@ -571,8 +571,21 @@ Request example:
 }
 ```
 
-The response intentionally never exposes the raw push token. A token already associated with another account is rejected; callers cannot transfer token ownership by registering it again. Deactivation is soft (inactive flag) and only works for the authenticated owner. This API stores device tokens but does not send push messages; FCM/APNs/web-push provider integration and browser/mobile sound playback remain separate client/provider work.
+The response intentionally never exposes the raw push token. A token already associated with another account is rejected; callers cannot transfer token ownership by registering it again. Deactivation is soft (inactive flag) and only works for the authenticated owner.
+
+### Firebase Cloud Messaging setup
+
+The backend includes an optional Firebase Admin sender and a durable per-device outbox. Apply migration `20261024100000_add_push_notification_outbox.sql` before deploying the new backend. To enable external delivery:
+
+1. Configure a Firebase project with Cloud Messaging enabled and configure the mobile/web client to register that project's device token through `POST /api/v1/devices`.
+2. Set `APP_PUSH_FIREBASE_ENABLED=true` in the API environment.
+3. Provide `APP_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON` as a server-only secret containing Firebase service-account JSON, or configure Google Application Default Credentials in the hosting environment.
+4. Keep credentials out of Git, browser variables, logs, and API responses.
+
+The sender is disabled by default. When enabled, an insert into `public.notifications` for a signed-in user with channel `IN_APP` creates one outbox row per active device. Delivery status is tracked per device; transient failures retry with bounded backoff, and FCM `UNREGISTERED` errors deactivate the stale device. Tokens are never copied into outbox rows or logged. Public queue-ticket notifications without a user ID do not enter this outbox and continue to use the queue-token polling flow.
+
+If Firebase is disabled, in-app notifications continue to work, but no external push message is sent. Outbox rows are retained for dispatch when enabled and should be monitored until Firebase is configured. Client-side sound playback remains a separate client feature.
 
 ## Remaining backend work
 
-Online payment/refunds, advanced reporting beyond the daily report, external push-provider delivery, and client-side sound playback remain future work. Cash-on-delivery and cash-at-counter payment collection are implemented; online payment-provider integration requires selecting/configuring a provider.
+Online payment/refunds, advanced reporting beyond the daily report, cross-tenant end-to-end tests, precise geospatial delivery-zone coverage, and client-side sound playback remain future work. Cash-on-delivery and cash-at-counter payment collection are implemented; online payment-provider integration requires selecting/configuring a provider. Firebase delivery requires a real project, server credentials, and matching client token registration.

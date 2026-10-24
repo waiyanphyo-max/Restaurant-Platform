@@ -123,7 +123,11 @@ Customer order history queries use `orders.customer_id` derived from the validat
 
 ## Push-device registration
 
-The authenticated `/api/v1/devices` endpoints associate device push tokens with the JWT subject, reject a token already owned by a different account, and never return raw tokens. Device deactivation is owner-scoped. Device-token persistence is not a push provider: server-side delivery to FCM/APNs/web-push is not yet connected, and the browser/mobile client remains responsible for local sound playback.
+The authenticated `/api/v1/devices` endpoints associate device push tokens with the JWT subject, reject a token already owned by a different account, and never return raw tokens. Device deactivation is owner-scoped.
+
+The optional Firebase Cloud Messaging sender is enabled only when `APP_PUSH_FIREBASE_ENABLED=true`. Migration `20261024100000_add_push_notification_outbox.sql` adds a database trigger that records a separate outbox row for each active device receiving a user-scoped `IN_APP` notification. The trigger and notification insert share a transaction, so a committed notification cannot lose its outbox record. The worker claims tasks using `FOR UPDATE SKIP LOCKED`, tracks attempts per device, retries transient errors with bounded backoff, marks terminal failures, and deactivates devices that FCM reports as `UNREGISTERED`. Device tokens remain in `user_devices`; only notification/device IDs are stored in the outbox. Public queue notifications have no user ID and continue to use queue-token polling/client-side sound.
+
+Firebase service-account JSON must be stored as a server secret, or application-default credentials must be configured on the hosting environment. The integration is disabled by default; without valid credentials, external messages are not sent. Provider activation still requires a real Firebase project and a client configured to register tokens for that same project.
 
 ## Counter payment lifecycle
 
