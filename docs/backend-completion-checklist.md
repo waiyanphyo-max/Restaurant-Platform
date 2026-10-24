@@ -19,7 +19,8 @@ These are present in the current code and documented in `README.md`, `docs/api.m
 
 ### P0 — HTTP and database integration confidence
 
-- [x] Verify the actual Spring Security filter chain via MockMvc: missing/invalid tokens return 401, authenticated users without permission return 403, tenant/resource mismatches do not leak records, and only explicitly whitelisted public routes are anonymous.
+- [x] Add MockMvc tests for an anonymous protected route returning 401, the explicitly whitelisted public menu route, and an unknown public-looking route remaining protected.
+- [ ] Add HTTP-level tests for invalid/expired bearer tokens, authenticated users without permission returning 403, and cross-restaurant/cross-customer/other-driver resource access. Existing service and JWT-validator unit tests do not replace these HTTP-level checks.
 - [ ] Add PostgreSQL-backed integration tests that apply migrations to a clean database and start Hibernate with `ddl-auto=validate`.
 - [ ] Exercise checkout, order status transitions, cancellation/stock release, queue counters, payment collection, ownership transfer, default-driver assignment, and delivery completion in database transactions.
 - [ ] Add PostgreSQL concurrency tests for queue-number allocation, QR idempotency claims, and stock reservation; prove concurrent duplicate requests cannot create duplicate orders or oversell stock.
