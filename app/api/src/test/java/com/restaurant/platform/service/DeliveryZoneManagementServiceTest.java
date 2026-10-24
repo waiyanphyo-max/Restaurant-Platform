@@ -46,7 +46,7 @@ class DeliveryZoneManagementServiceTest {
                 });
 
         var response = service.create(restaurantId, userId,
-                new DeliveryZoneRequest("Nearby", 500L, 1000L, null));
+                new DeliveryZoneRequest("Nearby", 500L, 1000L, null, null, null));
 
         assertEquals(zoneId, response.id());
         assertEquals(restaurantId, response.restaurantId());
@@ -62,7 +62,7 @@ class DeliveryZoneManagementServiceTest {
 
         ApiException error = assertThrows(ApiException.class,
                 () -> service.update(restaurantId, userId, zoneId,
-                        new DeliveryZoneRequest("Another", 0L, 0L, false)));
+                        new DeliveryZoneRequest("Another", 0L, 0L, false, null, null)));
 
         assertEquals("DELIVERY_ZONE_NOT_FOUND", error.getCode());
         assertEquals(HttpStatus.NOT_FOUND, error.getStatus());
@@ -70,10 +70,57 @@ class DeliveryZoneManagementServiceTest {
     }
 
     @Test
+    void createZoneCanRestrictCoverageToCityAndTownship() {
+        when(settingsRepository.findById(restaurantId)).thenReturn(Optional.of(new RestaurantSettings()));
+        when(zoneRepository.save(any(DeliveryZone.class)))
+                .thenAnswer(invocation -> {
+                    DeliveryZone zone = invocation.getArgument(0);
+                    zone.setId(zoneId);
+                    return zone;
+                });
+
+        var response = service.create(restaurantId, userId,
+                new DeliveryZoneRequest("Tamwe", 500L, 1000L, true, " Yangon ", " Tamwe "));
+
+        assertEquals("Yangon", response.coverageCity());
+        assertEquals("Tamwe", response.coverageTownship());
+    }
+
+    @Test
+    void partialCoverageConfigurationIsRejected() {
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.create(restaurantId, userId,
+                        new DeliveryZoneRequest("Tamwe", 0L, 0L, true, "Yangon", null)));
+
+        assertEquals("INVALID_DELIVERY_ZONE", error.getCode());
+        verify(zoneRepository, never()).save(any(DeliveryZone.class));
+    }
+
+    @Test
+    void legacyUpdateThatOmitsCoverageFieldsPreservesExistingRestriction() {
+        DeliveryZone existing = new DeliveryZone();
+        existing.setId(zoneId);
+        existing.setRestaurantId(restaurantId);
+        existing.setName("Tamwe");
+        existing.setCoverageCity("Yangon");
+        existing.setCoverageTownship("Tamwe");
+        when(zoneRepository.findByIdAndRestaurantId(zoneId, restaurantId))
+                .thenReturn(Optional.of(existing));
+        when(zoneRepository.save(any(DeliveryZone.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.update(restaurantId, userId, zoneId,
+                new DeliveryZoneRequest("Tamwe East", 200L, 0L, true, null, null));
+
+        assertEquals("Yangon", response.coverageCity());
+        assertEquals("Tamwe", response.coverageTownship());
+    }
+
+    @Test
     void negativeFeesAreRejected() {
         ApiException error = assertThrows(ApiException.class,
                 () -> service.create(restaurantId, userId,
-                        new DeliveryZoneRequest("Nearby", -1L, 0L, true)));
+                        new DeliveryZoneRequest("Nearby", -1L, 0L, true, null, null)));
 
         assertEquals("INVALID_DELIVERY_ZONE", error.getCode());
         verify(settingsRepository, never()).findById(restaurantId);
