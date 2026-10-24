@@ -8,6 +8,8 @@ public record DeliveryZoneResponse(
         String name,
         long deliveryFee,
         long minimumOrder,
-        boolean active
+        boolean active,
+        String coverageCity,
+        String coverageTownship
 ) {
 }
