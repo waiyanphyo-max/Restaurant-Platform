@@ -1,10 +1,15 @@
 package com.restaurant.platform.integration;
 
+import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.dto.order.CreateOrderResponse;
+import com.restaurant.platform.dto.order.CreateQrOrderRequest;
+import com.restaurant.platform.service.QrOrderIdempotencyService;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
@@ -21,7 +26,10 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.util.Base64;
 import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
 import java.util.Properties;
 import java.util.stream.Stream;
 
@@ -112,6 +120,58 @@ class PostgresMigrationSchemaTest {
                   AND table_name = 'restaurant_settings'
                   AND column_name = 'default_delivery_driver_user_id'
                 """, Integer.class));
+    }
+
+    @Test
+    void postgresIdempotencyStoreReplaysEncryptedResponseAndRejectsChangedPayload() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        UUID restaurantId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO public.restaurants (id, name, slug, township, city)
+                VALUES (?, ?, ?, ?, ?)
+                """, restaurantId, "Idempotency Test",
+                "idem-" + restaurantId.toString().replace("-", ""),
+                "Tamwe", "Yangon");
+
+        String encryptionKey = Base64.getEncoder().encodeToString(new byte[32]);
+        QrOrderIdempotencyService idempotency = new QrOrderIdempotencyService(
+                new NamedParameterJdbcTemplate(dataSource),
+                tools.jackson.databind.json.JsonMapper.builder().build(),
+                encryptionKey);
+        String key = "db-checkout-replay-0001";
+        CreateQrOrderRequest originalRequest =
+                new CreateQrOrderRequest("common-qr-secret", List.of());
+        String privateTrackingToken = "db-integration-private-queue-token";
+        CreateOrderResponse response = new CreateOrderResponse(
+                UUID.randomUUID(), "ORD-20261024-DBTEST01",
+                "TAKEAWAY", "COMMON_QR", "PENDING", "MMK",
+                3500L, 0L, 0L, 3500L,
+                new CreateOrderResponse.QueueInfo(
+                        UUID.randomUUID(), 12, "012", "WAITING", privateTrackingToken));
+
+        var claim = idempotency.begin(restaurantId, "COMMON_QR", key, originalRequest);
+        assertTrue(claim.claimed(), "The first request should claim the idempotency key.");
+        idempotency.complete(claim, response);
+
+        byte[] ciphertext = jdbc.queryForObject("""
+                SELECT response_ciphertext
+                FROM public.qr_order_idempotency
+                WHERE restaurant_id = ?
+                  AND operation = 'COMMON_QR'
+                """, byte[].class, restaurantId);
+        assertNotNull(ciphertext);
+        assertFalse(new String(ciphertext, StandardCharsets.UTF_8).contains(privateTrackingToken),
+                "The queue tracking token must not be stored as plaintext.");
+
+        var replay = idempotency.begin(restaurantId, "COMMON_QR", key, originalRequest);
+        assertNotNull(replay.replayResponse());
+        assertEquals(response, replay.replayResponse(),
+                "A retry with the same key and payload should return the original response.");
+
+        ApiException mismatch = assertThrows(ApiException.class, () ->
+                idempotency.begin(restaurantId, "COMMON_QR", key,
+                        new CreateQrOrderRequest("different-qr-secret", List.of())));
+        assertEquals("IDEMPOTENCY_KEY_REUSED", mismatch.getCode());
     }
 
     @Test
