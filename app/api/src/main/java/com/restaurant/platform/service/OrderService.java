@@ -43,6 +43,7 @@ public class OrderService {
     private final PaymentRepository paymentRepository;
     private final RestaurantAuthorization restaurantAuthorization;
     private final NamedParameterJdbcTemplate jdbc;
+    private final QrOrderIdempotencyService qrOrderIdempotencyService;
 
     public OrderService(
             RestaurantRepository restaurantRepository,
@@ -64,7 +65,8 @@ public class OrderService {
             ProfileRepository profileRepository,
             PaymentRepository paymentRepository,
             RestaurantAuthorization restaurantAuthorization,
-            NamedParameterJdbcTemplate jdbc) {
+            NamedParameterJdbcTemplate jdbc,
+            QrOrderIdempotencyService qrOrderIdempotencyService) {
         this.restaurantRepository = restaurantRepository;
         this.settingsRepository = settingsRepository;
         this.categoryRepository = categoryRepository;
@@ -85,22 +87,25 @@ public class OrderService {
         this.paymentRepository = paymentRepository;
         this.restaurantAuthorization = restaurantAuthorization;
         this.jdbc = jdbc;
+        this.qrOrderIdempotencyService = qrOrderIdempotencyService;
     }
 
     @Transactional
     public CreateOrderResponse createCommonQrOrder(
             UUID restaurantId,
-            CreateQrOrderRequest request
+            CreateQrOrderRequest request,
+            String idempotencyKey
     ) {
-        return createQrOrder(restaurantId, request, true);
+        return createQrOrder(restaurantId, request, true, idempotencyKey);
     }
 
     @Transactional
     public CreateOrderResponse createTableQrOrder(
             UUID restaurantId,
-            CreateQrOrderRequest request
+            CreateQrOrderRequest request,
+            String idempotencyKey
     ) {
-        return createQrOrder(restaurantId, request, false);
+        return createQrOrder(restaurantId, request, false, idempotencyKey);
     }
 
     @Transactional(readOnly = true)
@@ -530,8 +535,16 @@ public class OrderService {
     private CreateOrderResponse createQrOrder(
             UUID restaurantId,
             CreateQrOrderRequest request,
-            boolean commonQr
+            boolean commonQr,
+            String idempotencyKey
     ) {
+        String operation = commonQr ? "COMMON_QR" : "TABLE_QR";
+        QrOrderIdempotencyService.Claim idempotencyClaim =
+                qrOrderIdempotencyService.begin(restaurantId, operation, idempotencyKey, request);
+        if (idempotencyClaim.replayResponse() != null) {
+            return idempotencyClaim.replayResponse();
+        }
+
         Restaurant restaurant = restaurantRepository
                 .findByIdAndIsActiveTrue(restaurantId)
                 .orElseThrow(() -> new ApiException(
@@ -777,7 +790,7 @@ public class OrderService {
             );
         }
 
-        return new CreateOrderResponse(
+        CreateOrderResponse response = new CreateOrderResponse(
                 order.getId(),
                 order.getOrderNumber(),
                 order.getOrderType(),
@@ -790,6 +803,8 @@ public class OrderService {
                 subtotal,
                 queueInfo
         );
+        qrOrderIdempotencyService.complete(idempotencyClaim, response);
+        return response;
     }
 
     private boolean secureEquals(String expected, String actual) {
