@@ -2,6 +2,7 @@ package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.member.RestaurantMemberRequest;
+import com.restaurant.platform.dto.member.InviteRestaurantMemberRequest;
 import com.restaurant.platform.dto.member.TransferRestaurantOwnershipRequest;
 import com.restaurant.platform.entity.Profile;
 import com.restaurant.platform.entity.RestaurantMember;
@@ -26,6 +27,7 @@ class RestaurantMemberServiceTest {
     private ProfileRepository profileRepository;
     private RestaurantSettingsRepository settingsRepository;
     private RestaurantAuthorization authorization;
+    private SupabaseAuthAdminClient supabaseAuthAdminClient;
     private RestaurantMemberService service;
     private final UUID restaurantId = UUID.randomUUID();
     private final UUID ownerId = UUID.randomUUID();
@@ -38,8 +40,10 @@ class RestaurantMemberServiceTest {
         profileRepository = mock(ProfileRepository.class);
         settingsRepository = mock(RestaurantSettingsRepository.class);
         authorization = mock(RestaurantAuthorization.class);
+        supabaseAuthAdminClient = mock(SupabaseAuthAdminClient.class);
         service = new RestaurantMemberService(
-                memberRepository, profileRepository, settingsRepository, authorization);
+                memberRepository, profileRepository, settingsRepository,
+                authorization, supabaseAuthAdminClient);
     }
 
     @Test
@@ -188,6 +192,52 @@ class RestaurantMemberServiceTest {
         assertEquals("OWNER_TRANSFER_TARGET_REQUIRED", error.getCode());
         verify(memberRepository, never()).findByRestaurantIdAndUserIdForUpdate(
                 any(UUID.class), any(UUID.class));
+    }
+
+
+    @Test
+    void ownerCanInviteNewEmailAndCreateRestaurantMembership() {
+        String email = "new.staff@example.com";
+        Profile profile = new Profile();
+        profile.setId(targetUserId);
+        profile.setEmail(email);
+        profile.setFullName("New Staff");
+        when(supabaseAuthAdminClient.inviteByEmail(email, "New Staff"))
+                .thenReturn(new SupabaseAuthAdminClient.AuthUser(targetUserId, email));
+        when(profileRepository.findById(targetUserId)).thenReturn(Optional.of(profile));
+        when(memberRepository.findByRestaurantIdAndUserId(restaurantId, targetUserId))
+                .thenReturn(Optional.empty());
+        when(memberRepository.save(any(RestaurantMember.class))).thenAnswer(invocation -> {
+            RestaurantMember member = invocation.getArgument(0);
+            member.setId(memberId);
+            return member;
+        });
+
+        var response = service.invite(restaurantId, ownerId,
+                new InviteRestaurantMemberRequest(email, "New Staff", "STAFF"));
+
+        assertEquals(memberId, response.id());
+        assertEquals(targetUserId, response.userId());
+        assertEquals(email, response.email());
+        assertEquals("New Staff", response.fullName());
+        assertEquals("STAFF", response.role());
+        verify(authorization).requireAuthenticatedUserMatches(ownerId);
+        verify(authorization).requirePermission(restaurantId, RestaurantPermission.MEMBERS_MANAGE);
+        verify(supabaseAuthAdminClient).inviteByEmail(email, "New Staff");
+    }
+
+    @Test
+    void invitationRejectsEmailAlreadyUsedByAnotherSupabaseAccount() {
+        when(supabaseAuthAdminClient.inviteByEmail("existing@example.com", null))
+                .thenThrow(new SupabaseAuthAdminException("already registered", false, true, null));
+
+        ApiException error = assertThrows(ApiException.class, () ->
+                service.invite(restaurantId, ownerId,
+                        new InviteRestaurantMemberRequest("existing@example.com", null, "STAFF")));
+
+        assertEquals("MEMBER_EMAIL_ALREADY_REGISTERED", error.getCode());
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
+        verify(memberRepository, never()).save(any(RestaurantMember.class));
     }
 
     private RestaurantMember member(UUID userId, RestaurantRole role) {
