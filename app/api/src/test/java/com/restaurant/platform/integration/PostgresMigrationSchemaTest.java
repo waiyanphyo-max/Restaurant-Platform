@@ -4,12 +4,12 @@ import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.utility.MountableFile;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.Comparator;
 import java.util.Properties;
@@ -130,38 +131,42 @@ class PostgresMigrationSchemaTest {
     }
 
     private static void createSupabaseAuthPrerequisites() throws Exception {
-        try (Connection connection = POSTGRES.createConnection(""); Statement statement = connection.createStatement()) {
+        try (Connection connection = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE ROLE anon NOLOGIN");
+            statement.execute("CREATE ROLE authenticated NOLOGIN");
+            statement.execute("CREATE ROLE service_role NOLOGIN BYPASSRLS");
+            statement.execute("CREATE SCHEMA auth");
+            statement.execute("CREATE SCHEMA extensions");
             statement.execute("""
-                    CREATE ROLE anon NOLOGIN;
-                    CREATE ROLE authenticated NOLOGIN;
-                    CREATE ROLE service_role NOLOGIN BYPASSRLS;
-                    CREATE SCHEMA auth;
-                    CREATE SCHEMA extensions;
                     CREATE TABLE auth.users (
                         id uuid PRIMARY KEY,
                         raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
-                    );
-                    CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+                    )
                     """);
+            statement.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions");
         }
     }
 
     private static void applyAllRepositoryMigrations() throws Exception {
-        try (Connection connection = POSTGRES.createConnection("");
-             Statement statement = connection.createStatement();
-             Stream<Path> files = Files.list(migrationDirectory)) {
+        try (Stream<Path> files = Files.list(migrationDirectory)) {
             var migrations = files
                     .filter(path -> path.getFileName().toString().endsWith(".sql"))
                     .sorted(Comparator.comparing(path -> path.getFileName().toString()))
                     .toList();
 
             for (Path migration : migrations) {
-                String sql = Files.readString(migration, StandardCharsets.UTF_8);
-                try {
-                    statement.execute(sql);
-                } catch (Exception exception) {
+                String containerPath = "/tmp/" + migration.getFileName();
+                POSTGRES.copyFileToContainer(
+                        MountableFile.forHostPath(migration.toAbsolutePath()), containerPath);
+                var result = POSTGRES.execInContainer(
+                        "psql", "-U", POSTGRES.getUsername(), "-d", POSTGRES.getDatabaseName(),
+                        "-v", "ON_ERROR_STOP=1", "-f", containerPath);
+                if (result.getExitCode() != 0) {
                     throw new IllegalStateException(
-                            "Failed to apply repository migration " + migration.getFileName(), exception);
+                            "Failed to apply repository migration " + migration.getFileName()
+                                    + "\\n" + result.getStdout() + "\\n" + result.getStderr());
                 }
             }
         }
