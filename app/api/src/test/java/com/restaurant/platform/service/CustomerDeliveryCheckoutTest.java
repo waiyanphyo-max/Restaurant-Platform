@@ -209,6 +209,8 @@ class CustomerDeliveryCheckoutTest {
         zone.setName("Nearby");
         zone.setDeliveryFee(250L);
         zone.setMinimumOrder(0L);
+        zone.setCoverageCity("City");
+        zone.setCoverageTownship("Township");
         when(zoneRepository.findByIdAndRestaurantIdAndIsActiveTrue(zoneId, restaurantId))
                 .thenReturn(Optional.of(zone));
 
