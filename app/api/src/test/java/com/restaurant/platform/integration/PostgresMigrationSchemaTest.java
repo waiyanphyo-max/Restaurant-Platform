@@ -271,6 +271,7 @@ class PostgresMigrationSchemaTest {
             statement.execute("""
                     CREATE TABLE auth.users (
                         id uuid PRIMARY KEY,
+                        email text,
                         raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
                     )
                     """);
