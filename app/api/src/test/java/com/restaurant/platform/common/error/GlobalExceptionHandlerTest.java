@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -58,6 +59,23 @@ class GlobalExceptionHandlerTest {
         assertEquals("CONFLICT", response.getBody().code());
         assertEquals("A conflict occurred.", response.getBody().message());
         assertFalse(response.getBody().message().contains("database constraint name"));
+    }
+
+    @Test
+    void methodLevelAccessDeniedReturns403WithoutExposingExceptionDetails() {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/api/v1/manager-probe");
+
+        ResponseEntity<ApiErrorResponse> response = handler.handleAccessDenied(
+                new AccessDeniedException("internal permission expression"),
+                request,
+                Locale.ENGLISH);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("FORBIDDEN", response.getBody().code());
+        assertEquals("Access denied.", response.getBody().message());
+        assertFalse(response.getBody().message().contains("internal permission expression"));
     }
 
     @Test
