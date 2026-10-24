@@ -178,6 +178,7 @@ public class SecurityConfig {
                 "Accept",
                 "Origin",
                 "X-Queue-Token",
+                "Idempotency-Key",
                 "Accept-Language"));
         configuration.setExposedHeaders(List.of("Location"));
         configuration.setAllowCredentials(false);
