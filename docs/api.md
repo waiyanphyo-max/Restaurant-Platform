@@ -378,7 +378,21 @@ These endpoints require a valid bearer token and `SETTINGS_MANAGE` for the resta
 
 Settings updates validate IANA timezone IDs and non-negative amounts. The Common QR token rotation response contains the raw token once; it is intentionally omitted from the normal settings response. Keep it private and use it when creating/regenerating the restaurant's Common QR code. Rotating the token invalidates previously printed Common QR codes and requires printing the new QR.
 
-A delivery zone includes only a name, fee, minimum order, and active flag. The current schema does not describe geographic boundaries, so the backend can validate that a selected zone is active and belongs to the restaurant but cannot infer zone membership from an address.
+A delivery zone includes a name, fee, minimum order, active flag, and optional `coverageCity` + `coverageTownship` restriction. Configure both coverage fields together on create/update to restrict checkout to that city and township; matching is case-insensitive after trimming whitespace. If both are omitted on update, an existing restriction is preserved. Send both as empty strings to clear it. Older zones with both fields null remain unrestricted for backward compatibility. This is a township-level rule, not a GPS polygon or proof of a precise street boundary.
+
+Example zone request:
+```json
+{
+  "name": "Tamwe",
+  "deliveryFee": 500,
+  "minimumOrder": 3000,
+  "active": true,
+  "coverageCity": "Yangon",
+  "coverageTownship": "Tamwe"
+}
+```
+
+When a zone has coverage configured, customer delivery checkout requires the saved address to have both city and township and returns `400 DELIVERY_ADDRESS_OUTSIDE_ZONE` if either value does not match. Address/zone ownership and active-state checks still run before checkout. Apply migration `20261024091000_add_delivery_zone_coverage.sql` before deploying this version.
 
 ## Restaurant catalog and menu management
 
