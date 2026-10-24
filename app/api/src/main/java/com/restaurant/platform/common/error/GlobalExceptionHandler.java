@@ -14,6 +14,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -158,6 +159,25 @@ public class GlobalExceptionHandler {
                 statusCode,
                 code,
                 message(messageKey, locale),
+                request,
+                List.of());
+    }
+
+    /**
+     * Method-level authorization runs inside MVC after the security filter has
+     * dispatched the request. Translate those denials here as well, otherwise
+     * the generic Exception handler can incorrectly turn a permission denial
+     * into HTTP 500.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
+            AccessDeniedException exception,
+            HttpServletRequest request,
+            Locale locale) {
+        return response(
+                HttpStatus.FORBIDDEN,
+                "FORBIDDEN",
+                message("error.forbidden", locale),
                 request,
                 List.of());
     }
