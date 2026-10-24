@@ -33,4 +33,10 @@ public class DeliveryZone {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "coverage_city", length = 100)
+    private String coverageCity;
+
+    @Column(name = "coverage_township", length = 100)
+    private String coverageTownship;
+
 }

@@ -132,7 +132,8 @@ public class OrderService {
                 .stream()
                 .map(zone -> new DeliveryZoneDto(
                         zone.getId(), zone.getName(),
-                        zone.getDeliveryFee(), zone.getMinimumOrder()))
+                        zone.getDeliveryFee(), zone.getMinimumOrder(),
+                        zone.getCoverageCity(), zone.getCoverageTownship()))
                 .toList();
     }
 
@@ -330,6 +331,7 @@ public class OrderService {
                         HttpStatus.BAD_REQUEST,
                         "INVALID_DELIVERY_ZONE",
                         "error.delivery.zone-not-available"));
+        validateDeliveryZoneCoverage(address, zone);
 
         Profile profile = profileRepository.findById(userId).orElse(null);
         String recipientName = firstNonBlank(
@@ -473,6 +475,32 @@ public class OrderService {
                 order.getId(), order.getOrderNumber(), order.getOrderType(),
                 order.getOrderChannel(), order.getStatus(), settings.getCurrency(),
                 subtotal, deliveryFee, 0L, totalAmount, null);
+    }
+
+    private void validateDeliveryZoneCoverage(CustomerAddress address, DeliveryZone zone) {
+        String requiredCity = zone.getCoverageCity();
+        String requiredTownship = zone.getCoverageTownship();
+        if (requiredCity == null && requiredTownship == null) {
+            // Existing zones stay broadly available until coverage is configured.
+            return;
+        }
+
+        if (address.getCity() == null || address.getCity().isBlank()
+                || address.getTownship() == null || address.getTownship().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "DELIVERY_ADDRESS_LOCATION_REQUIRED",
+                    "error.delivery.address-location-required");
+        }
+
+        boolean cityMatches = requiredCity != null
+                && address.getCity().trim().equalsIgnoreCase(requiredCity.trim());
+        boolean townshipMatches = requiredTownship != null
+                && address.getTownship().trim().equalsIgnoreCase(requiredTownship.trim());
+        if (!cityMatches || !townshipMatches) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "DELIVERY_ADDRESS_OUTSIDE_ZONE",
+                    "error.delivery.address-outside-zone");
+        }
     }
 
     private String firstNonBlank(String... values) {

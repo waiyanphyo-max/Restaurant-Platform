@@ -50,6 +50,7 @@ public class DeliveryZoneManagementService {
         zone.setDeliveryFee(request.deliveryFee());
         zone.setMinimumOrder(request.minimumOrder());
         zone.setIsActive(request.active() == null || request.active());
+        applyCoverage(zone, request, true);
         return toResponse(zoneRepository.save(zone));
     }
 
@@ -69,16 +70,51 @@ public class DeliveryZoneManagementService {
         if (request.active() != null) {
             zone.setIsActive(request.active());
         }
+        // Omitted coverage fields preserve existing settings for older clients.
+        // Send both empty strings to explicitly remove a previously configured rule.
+        applyCoverage(zone, request, false);
         return toResponse(zoneRepository.save(zone));
     }
 
     private void validate(DeliveryZoneRequest request) {
         if (request == null || request.name() == null || request.name().isBlank()
                 || request.deliveryFee() == null || request.deliveryFee() < 0
-                || request.minimumOrder() == null || request.minimumOrder() < 0) {
+                || request.minimumOrder() == null || request.minimumOrder() < 0
+                || (request.coverageCity() != null && request.coverageCity().length() > 100)
+                || (request.coverageTownship() != null && request.coverageTownship().length() > 100)
+                || !validCoveragePair(request)) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "INVALID_DELIVERY_ZONE", "error.delivery-zone.invalid");
         }
+    }
+
+    private boolean validCoveragePair(DeliveryZoneRequest request) {
+        boolean cityProvided = request.coverageCity() != null;
+        boolean townshipProvided = request.coverageTownship() != null;
+        if (cityProvided != townshipProvided) {
+            return false;
+        }
+        if (!cityProvided) {
+            return true;
+        }
+        boolean cityBlank = request.coverageCity().isBlank();
+        boolean townshipBlank = request.coverageTownship().isBlank();
+        // Both blank means an explicit request to clear coverage.
+        return cityBlank == townshipBlank;
+    }
+
+    private void applyCoverage(
+            DeliveryZone zone, DeliveryZoneRequest request, boolean creating) {
+        if (!creating && request.coverageCity() == null && request.coverageTownship() == null) {
+            return;
+        }
+        if (request.coverageCity() == null || request.coverageCity().isBlank()) {
+            zone.setCoverageCity(null);
+            zone.setCoverageTownship(null);
+            return;
+        }
+        zone.setCoverageCity(request.coverageCity().trim());
+        zone.setCoverageTownship(request.coverageTownship().trim());
     }
 
     private void requireSettingsPermission(UUID restaurantId, UUID userId) {
@@ -98,6 +134,7 @@ public class DeliveryZoneManagementService {
         return new DeliveryZoneResponse(
                 zone.getId(), zone.getRestaurantId(), zone.getName(),
                 zone.getDeliveryFee(), zone.getMinimumOrder(),
-                Boolean.TRUE.equals(zone.getIsActive()));
+                Boolean.TRUE.equals(zone.getIsActive()),
+                zone.getCoverageCity(), zone.getCoverageTownship());
     }
 }
