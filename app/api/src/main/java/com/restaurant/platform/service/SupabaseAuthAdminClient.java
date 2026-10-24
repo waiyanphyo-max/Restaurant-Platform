@@ -25,11 +25,10 @@ public class SupabaseAuthAdminClient {
     private final String inviteRedirectUrl;
 
     public SupabaseAuthAdminClient(
-            RestClient.Builder builder,
             @Value("${app.supabase-admin.project-url:}") String projectUrl,
             @Value("${app.supabase-admin.service-role-key:}") String serviceRoleKey,
             @Value("${app.supabase-admin.invite-redirect-url:}") String inviteRedirectUrl) {
-        this.restClient = builder.build();
+        this.restClient = RestClient.create();
         this.projectUrl = projectUrl == null ? "" : projectUrl.trim().replaceAll("/+$", "");
         this.serviceRoleKey = serviceRoleKey == null ? "" : serviceRoleKey.trim();
         this.inviteRedirectUrl = inviteRedirectUrl == null ? "" : inviteRedirectUrl.trim();
