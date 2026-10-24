@@ -4,6 +4,7 @@ import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.order.CreateOrderResponse;
 import com.restaurant.platform.dto.order.CreateQrOrderRequest;
 import com.restaurant.platform.service.QrOrderIdempotencyService;
+import com.restaurant.platform.service.PushNotificationOutboxRepository;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -90,6 +91,12 @@ class PostgresMigrationSchemaTest {
                 WHERE oid = 'public.delivery_zones'::regclass
                 """, Boolean.class), "Delivery-zone records should keep RLS enabled");
 
+        assertTrue(jdbc.queryForObject("""
+                SELECT relrowsecurity
+                FROM pg_class
+                WHERE oid = 'public.push_notification_outbox'::regclass
+                """, Boolean.class), "Push outbox records must remain in an RLS-enabled table");
+
         assertEquals(2, jdbc.queryForObject("""
                 SELECT COUNT(*)
                 FROM information_schema.columns
@@ -172,6 +179,68 @@ class PostgresMigrationSchemaTest {
                 idempotency.begin(restaurantId, "COMMON_QR", key,
                         new CreateQrOrderRequest("different-qr-secret", List.of())));
         assertEquals("IDEMPOTENCY_KEY_REUSED", mismatch.getCode());
+    }
+
+    @Test
+    void notificationTriggerQueuesOneOutboxItemForEachActiveDevice() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        UUID userId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO auth.users (id, raw_user_meta_data)
+                VALUES (?, '{}'::jsonb)
+                """, userId);
+
+        UUID activeDeviceOne = UUID.randomUUID();
+        UUID activeDeviceTwo = UUID.randomUUID();
+        UUID inactiveDevice = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO public.user_devices (id, user_id, push_token, platform, is_active)
+                VALUES (?, ?, ?, 'WEB', TRUE),
+                       (?, ?, ?, 'ANDROID', TRUE),
+                       (?, ?, ?, 'IOS', FALSE)
+                """,
+                activeDeviceOne, userId, "test-web-token-" + activeDeviceOne,
+                activeDeviceTwo, userId, "test-android-token-" + activeDeviceTwo,
+                inactiveDevice, userId, "test-inactive-token-" + inactiveDevice);
+
+        UUID notificationId = jdbc.queryForObject("""
+                INSERT INTO public.notifications
+                    (user_id, notification_type, title, body, channel)
+                VALUES (?, 'ORDER_READY', 'Order ready', 'Your order is ready.', 'IN_APP')
+                RETURNING id
+                """, UUID.class, userId);
+
+        assertEquals(2, jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM public.push_notification_outbox
+                WHERE notification_id = ?
+                """, Integer.class, notificationId));
+        assertEquals(0, jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM public.push_notification_outbox
+                WHERE notification_id = ? AND device_id = ?
+                """, Integer.class, notificationId, inactiveDevice));
+
+        PushNotificationOutboxRepository outbox = new PushNotificationOutboxRepository(
+                new NamedParameterJdbcTemplate(dataSource));
+        List<PushNotificationOutboxRepository.OutboxItem> claimed = outbox.claimBatch(10, 8);
+        assertEquals(2, claimed.size());
+        assertTrue(claimed.stream().allMatch(item -> item.attempts() == 1));
+
+        var first = claimed.getFirst();
+        PushNotificationOutboxRepository.PushPayload payload =
+                outbox.findPayload(first.id()).orElseThrow();
+        assertEquals(notificationId, payload.notificationId());
+        assertEquals(userId, payload.userId());
+        assertTrue(payload.active());
+        assertTrue(payload.pushToken().startsWith("test-"));
+
+        outbox.markSent(first.id());
+        assertEquals("SENT", jdbc.queryForObject("""
+                SELECT status
+                FROM public.push_notification_outbox
+                WHERE id = ?
+                """, String.class, first.id()));
     }
 
     @Test

@@ -30,6 +30,8 @@ erDiagram
   QUEUE_TICKETS ||--o| ORDERS : tracks
   DAILY_QUEUE_COUNTERS ||--o{ QUEUE_TICKETS : numbers
   PROFILES ||--o{ NOTIFICATIONS : receives
+  NOTIFICATIONS ||--o{ PUSH_NOTIFICATION_OUTBOX : queues
+  USER_DEVICES ||--o{ PUSH_NOTIFICATION_OUTBOX : targets
 ```
 
 ## Important constraints and invariants
@@ -44,11 +46,12 @@ erDiagram
 - **Queues:** daily queue numbers are scoped through `daily_queue_counters` per restaurant and date. Common QR tracking stores a hash of a high-entropy token, not its raw value.
 - **QR checkout idempotency:** optional client idempotency keys are hashed and scoped by restaurant + operation. The replay response is encrypted with an API-only AES-256-GCM key because it contains the one-time queue tracking token; plaintext responses are never stored.
 - **Status audit:** order and delivery changes create separate history records. Delivery state transitions synchronize the associated order state within a transaction.
+- **Push delivery:** `push_notification_outbox` stores notification/user/device IDs and retry state, not payload text or raw device tokens. A notification insert enqueues one row per currently active device in the same transaction; deleting a notification or device cascades to its outbox rows. RLS is enabled and client roles are denied table privileges.
 - **RLS:** RLS stays enabled on the tables covered by the migrations. The backend performs authorization checks even when connecting through trusted server-side database credentials.
 
 ## Migration workflow
 
-1. Add new schema changes as a new timestamped file; do not edit an already-applied migration. Current follow-up migrations include `20261021110000_add_default_delivery_driver.sql`, `20261022001000_sync_auth_user_profiles.sql`, `20261022002000_allow_cancelled_payment_status.sql`, , `20261024083000_add_qr_order_idempotency.sql`, and `20261024091000_add_delivery_zone_coverage.sql`.
+1. Add new schema changes as a new timestamped file; do not edit an already-applied migration. Current follow-up migrations include `20261021110000_add_default_delivery_driver.sql`, `20261022001000_sync_auth_user_profiles.sql`, `20261022002000_allow_cancelled_payment_status.sql`, `20261024083000_add_qr_order_idempotency.sql`, `20261024091000_add_delivery_zone_coverage.sql`, and `20261024100000_add_push_notification_outbox.sql`.
 2. Inspect `npx supabase migration list` and `npx supabase db push --dry-run` before applying any migration.
 3. Run `npx supabase db push` only after confirming the pending migrations are the intended changes.
 4. Run `mvn --batch-mode -f app/api/pom.xml clean verify` to validate the Java model and tests against the migration-backed schema.

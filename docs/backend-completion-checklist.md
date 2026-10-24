@@ -44,15 +44,18 @@ The current backend supports cash-at-counter and cash-on-delivery workflows. It 
 
 ### P1 — External push delivery
 
-The current API stores device tokens and in-app notification records. It does not send messages through FCM, APNs, or Web Push.
+The optional Firebase Cloud Messaging sender and durable per-device outbox are implemented. Delivery remains disabled until a real Firebase project, server credentials, and matching client device registrations are configured.
 
-- [ ] Choose supported platforms and a delivery provider strategy.
-- [ ] Add a transactional outbox or equivalent durable delivery queue so a committed order/payment transaction cannot silently lose its notification.
-- [ ] Implement provider adapters, authenticated server-side credentials, retries with backoff, bounded retry/dead-letter handling, and provider response logging without exposing tokens.
-- [ ] Invalidate expired/unregistered tokens and keep registration/deactivation scoped to the authenticated user.
-- [ ] Add tests for retry, duplicate notification, provider failure, and token invalidation.
+- [x] Select Firebase Cloud Messaging as the first provider adapter.
+- [x] Add a transactional PostgreSQL outbox trigger for user notifications, with separate records per active device.
+- [x] Implement a configurable, disabled-by-default Firebase Admin sender with application-default or server-side credentials.
+- [x] Add bounded retry/backoff and terminal states; deactivate tokens when FCM reports `UNREGISTERED`.
+- [x] Add worker unit tests and PostgreSQL integration coverage for outbox trigger, claim, payload, and state updates.
+- [ ] Configure a real Firebase project/credentials and verify real device delivery for each supported client platform.
+- [ ] Add tests for FCM `UNREGISTERED` handling, real provider credentials, and provider failures.
+- [ ] Define an operational retention/cleanup policy for old terminal outbox rows and monitor pending/failed counts.
 
-**External dependency:** production delivery requires the provider project, credentials, and platform configuration. In-app polling/local sound is not a substitute for server push delivery.
+**External dependency:** enable `APP_PUSH_FIREBASE_ENABLED=true` only after the Firebase project and server credentials are configured. If the sender is disabled, in-app notifications still work but queued outbox rows are not delivered externally. Public queue-ticket notifications without a user ID remain on the existing queue-token polling/client-side sound flow.
 
 ### P1 — Delivery-zone coverage
 
