@@ -26,9 +26,9 @@ Provide the variables shown in `.env.example` in your shell or IDE run configura
 
 - `SUPABASE_DB_URL`, `SUPABASE_DB_USERNAME`, `SUPABASE_DB_PASSWORD`
 - `SUPABASE_AUTH_ISSUER`, `SUPABASE_JWKS_URL`
-- Optional: `DB_POOL_MAX_SIZE`, `APP_CORS_ALLOWED_ORIGINS`, `APP_SECURITY_JWT_REQUIRED_AUDIENCE`, `APP_SECURITY_JWT_SIGNING_ALGORITHM`, `APP_IDEMPOTENCY_ENCRYPTION_KEY`
+- Optional: `DB_POOL_MAX_SIZE`, `APP_CORS_ALLOWED_ORIGINS`, `APP_SECURITY_JWT_REQUIRED_AUDIENCE`, `APP_SECURITY_JWT_SIGNING_ALGORITHM`, `APP_IDEMPOTENCY_ENCRYPTION_KEY`, `APP_PUSH_FIREBASE_ENABLED`, `APP_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON`, `APP_PUSH_OUTBOX_POLL_INTERVAL_MS`, `APP_PUSH_OUTBOX_BATCH_SIZE`, `APP_PUSH_OUTBOX_MAX_ATTEMPTS`, `APP_PUSH_OUTBOX_MAX_RETRY_DELAY_SECONDS`
 
-The JWT signing algorithm must match the Supabase project's asymmetric signing-key configuration served through its JWKS endpoint. Do not assume a value without checking the project settings. Database passwords and privileged credentials must remain server-side. To enable safe retry protection for public QR checkout, apply the `20261024083000_add_qr_order_idempotency.sql` migration and set `APP_IDEMPOTENCY_ENCRYPTION_KEY` to Base64-encoded 32 random bytes on the API server. The header is optional; clients should reuse a key only when retrying the exact same checkout request. See `docs/api.md` for details.
+The JWT signing algorithm must match the Supabase project's asymmetric signing-key configuration served through its JWKS endpoint. Do not assume a value without checking the project settings. Database passwords and privileged credentials must remain server-side. To enable safe retry protection for public QR checkout, apply the `20261024083000_add_qr_order_idempotency.sql` migration and set `APP_IDEMPOTENCY_ENCRYPTION_KEY` to Base64-encoded 32 random bytes on the API server. The header is optional; clients should reuse a key only when retrying the exact same checkout request. See `docs/api.md` for details. To enable provider-backed push delivery, apply `20261024100000_add_push_notification_outbox.sql`, create/configure your Firebase project and client registration tokens, then set `APP_PUSH_FIREBASE_ENABLED=true`. Supply `APP_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON` as a server-side secret or configure Google Application Default Credentials in the hosting environment. Firebase is deliberately off by default, and the backend will not pretend to send push messages without credentials. See `docs/api.md` for deployment and retry behavior.
 
 ## Build and tests
 
@@ -132,6 +132,12 @@ npm run dev
 ```
 
 The default API URL is `http://localhost:8080`. Update `NEXT_PUBLIC_API_BASE_URL` in `.env.local` when the API runs elsewhere, and configure Spring CORS to allow the web origin.
+
+## External push notification delivery
+
+The API retains in-app notification history. When a user notification is inserted and the user has active device registrations, the migration trigger creates a durable outbox row per device. With Firebase enabled, a scheduled worker sends those rows via Firebase Cloud Messaging, retries transient failures with bounded exponential backoff, and deactivates tokens that FCM reports as unregistered. Public Common QR queue notifications have no signed-in user/device association and continue to use queue-token polling and client-side sound.
+
+Push delivery requires a real Firebase project and server credentials; it is disabled by default. When disabled, the API continues creating in-app notifications but does not send external messages. The outbox should be monitored/configured before enabling device registrations in production.
 
 ## Security model
 
