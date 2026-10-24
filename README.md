@@ -9,7 +9,7 @@ A multi-restaurant ordering and management platform with a Spring Boot backend, 
 - `supabase/migrations`: versioned SQL schema. Apply migrations in timestamp order before running the API.
 - `docs/architecture.md`: architecture, authentication, and authorization flow.
 - `docs/api.md`: currently implemented HTTP routes, DTOs, permissions, and error codes.
-- `docs/database-erd.md`: database ERD documentation remains to be completed against the current migrations.
+- `docs/database-erd.md`: entity relationships, schema ownership, and migration workflow.
 - `.env.example`: sample backend environment variables only; never put real secrets in this file or in the frontend.
 
 The database schema remains the source of truth. Hibernate is configured with `ddl-auto: validate`; it must not create or modify production schema.
@@ -26,9 +26,9 @@ Provide the variables shown in `.env.example` in your shell or IDE run configura
 
 - `SUPABASE_DB_URL`, `SUPABASE_DB_USERNAME`, `SUPABASE_DB_PASSWORD`
 - `SUPABASE_AUTH_ISSUER`, `SUPABASE_JWKS_URL`
-- Optional: `DB_POOL_MAX_SIZE`, `APP_CORS_ALLOWED_ORIGINS`, `APP_SECURITY_JWT_REQUIRED_AUDIENCE`, `APP_SECURITY_JWT_SIGNING_ALGORITHM`
+- Optional: `DB_POOL_MAX_SIZE`, `APP_CORS_ALLOWED_ORIGINS`, `APP_SECURITY_JWT_REQUIRED_AUDIENCE`, `APP_SECURITY_JWT_SIGNING_ALGORITHM`, `APP_IDEMPOTENCY_ENCRYPTION_KEY`
 
-The JWT signing algorithm must match the Supabase project's asymmetric signing-key configuration served through its JWKS endpoint. Do not assume a value without checking the project settings. Database passwords and privileged credentials must remain server-side.
+The JWT signing algorithm must match the Supabase project's asymmetric signing-key configuration served through its JWKS endpoint. Do not assume a value without checking the project settings. Database passwords and privileged credentials must remain server-side. To enable safe retry protection for public QR checkout, apply the `20261024083000_add_qr_order_idempotency.sql` migration and set `APP_IDEMPOTENCY_ENCRYPTION_KEY` to Base64-encoded 32 random bytes on the API server. The header is optional; clients should reuse a key only when retrying the exact same checkout request. See `docs/api.md` for details.
 
 ## Build and tests
 

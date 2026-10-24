@@ -72,3 +72,8 @@ logging:
 #
 # Keep ddl-auto=validate: use Supabase SQL migrations as the schema source of truth.
 # The JWKS configuration requires an asymmetric Supabase JWT signing key (e.g. ES256/RS256).
+
+# Optional. Required only when clients supply Idempotency-Key on public QR checkout.
+app:
+  idempotency:
+    encryption-key: ${APP_IDEMPOTENCY_ENCRYPTION_KEY:}

@@ -24,6 +24,26 @@ Restaurant permissions are resolved from `restaurant_members` for the authentica
 
 These routes do not require a bearer token at the security-filter level; the QR-order service must still validate the restaurant/table QR credential and order rules. The public menu returns available product variants and product-specific active modifier groups/options so guest clients can build a valid cart. The backend revalidates current catalog links, modifier selection limits, stock, and prices when an order is submitted.
 
+#### QR checkout retries and idempotency
+
+Both QR checkout routes optionally accept an `Idempotency-Key` request header. Generate one unique, random key per intended checkout and reuse that same key only when retrying that exact request:
+
+```http
+POST /api/v1/public/restaurants/{restaurantId}/orders/common-qr
+Content-Type: application/json
+Idempotency-Key: 7e3a0a6c-49a4-461e-9f92-02f6d2eaa0ed
+```
+
+A matching retry within 24 hours returns the original response, including the same order ID and queue tracking token, without creating a second order or reserving stock again. Reusing a key with a different payload returns `409 IDEMPOTENCY_KEY_REUSED`. The key is scoped to the restaurant and operation. If the header is omitted, the legacy behavior remains unchanged.
+
+To enable this feature, apply migration `20261024083000_add_qr_order_idempotency.sql` and configure a stable server-only `APP_IDEMPOTENCY_ENCRYPTION_KEY` containing Base64 for 32 random bytes. For PowerShell, generate one with:
+
+```powershell
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+
+Keep it in the API secret store, never in browser variables or Git. The replay response is encrypted with AES-256-GCM because it contains the queue tracking token. Keep the key stable for at least the 24-hour replay retention window; rotating it early can make existing stored responses unreadable.
+
 ### Common QR guest web flow
 
 The operations web client now includes a guest-facing Common QR pickup screen. A QR printed for this web deployment can open a URL in this shape:
@@ -216,7 +236,7 @@ Relevant status codes:
 |---|---|
 | 400 | Invalid status filter or request validation |
 | 401 | Missing/invalid authentication |
-| 403 | Missing restaurant permission or mismatched authenticated user |
+| 403 | Missing restaurant permission or mismatched authenticated user |\n| 409 | Invalid state transition, stock conflict, or idempotency key reused for a different request |
 | 404 | Order not found within the requested restaurant |
 | 409 | Invalid order-state transition or database conflict |
 | 500 | Unexpected server error; implementation details are not included in the response |

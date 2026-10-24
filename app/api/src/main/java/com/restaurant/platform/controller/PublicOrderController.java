@@ -23,22 +23,26 @@ public class PublicOrderController {
     @PostMapping("/common-qr")
     public CreateOrderResponse createCommonQrOrder(
             @PathVariable UUID restaurantId,
-            @Valid @RequestBody CreateQrOrderRequest request
+            @Valid @RequestBody CreateQrOrderRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
         return orderService.createCommonQrOrder(
                 restaurantId,
-                request
+                request,
+                idempotencyKey
         );
     }
 
     @PostMapping("/table-qr")
     public CreateOrderResponse createTableQrOrder(
             @PathVariable UUID restaurantId,
-            @Valid @RequestBody CreateQrOrderRequest request
+            @Valid @RequestBody CreateQrOrderRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
         return orderService.createTableQrOrder(
                 restaurantId,
-                request
+                request,
+                idempotencyKey
         );
     }
 }

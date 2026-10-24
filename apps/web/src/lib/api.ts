@@ -477,12 +477,14 @@ export async function createCommonQrOrder(
       modifiers: Array<{ modifierOptionId: string; quantity: number }>;
     }>;
   },
+  idempotencyKey?: string,
 ): Promise<CreateQrOrderResponse> {
   const location = publicApiBase(apiBaseUrl, restaurantId);
   return publicJson<CreateQrOrderResponse>(
     `${location.base}/api/v1/public/restaurants/${location.restaurantId}/orders/common-qr`,
     "POST",
     request,
+    idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
   );
 }
 

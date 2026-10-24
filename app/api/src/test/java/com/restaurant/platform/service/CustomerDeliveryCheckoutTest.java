@@ -40,6 +40,7 @@ class CustomerDeliveryCheckoutTest {
     private ProfileRepository profileRepository;
     private PaymentRepository paymentRepository;
     private RestaurantAuthorization authorization;
+    private QrOrderIdempotencyService qrOrderIdempotencyService;
     private OrderService service;
 
     private final UUID restaurantId = UUID.randomUUID();
@@ -68,6 +69,7 @@ class CustomerDeliveryCheckoutTest {
         profileRepository = mock(ProfileRepository.class);
         paymentRepository = mock(PaymentRepository.class);
         authorization = mock(RestaurantAuthorization.class);
+        qrOrderIdempotencyService = mock(QrOrderIdempotencyService.class);
         service = new OrderService(
                 restaurantRepository,
                 settingsRepository,
@@ -88,7 +90,8 @@ class CustomerDeliveryCheckoutTest {
                 profileRepository,
                 paymentRepository,
                 authorization,
-                mock(NamedParameterJdbcTemplate.class));
+                mock(NamedParameterJdbcTemplate.class),
+                qrOrderIdempotencyService);
     }
 
     @Test

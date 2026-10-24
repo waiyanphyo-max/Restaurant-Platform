@@ -167,6 +167,7 @@ export default function HomePage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const soundEnabledRef = useRef(false);
   const previousQueueStatusRef = useRef("");
+  const pendingCommonCheckoutRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const hasRestaurantDetails = Boolean(apiUrl.trim() && restaurantId.trim());
   const hasConnectionDetails = Boolean(hasRestaurantDetails && accessToken.trim());
@@ -441,28 +442,40 @@ export default function HomePage() {
       }
     }
 
+    const request = {
+      qrToken: commonQrToken.trim(),
+      items: selectedProducts.map(product => {
+        const line = guestCart[product.id];
+        return {
+          productId: product.id,
+          variantId: line.variantId || null,
+          quantity: line.quantity,
+          specialInstruction: line.specialInstruction.trim() || null,
+          modifiers: product.modifierGroups.flatMap(group =>
+            group.options
+              .filter(option => (line.modifiers[option.id] ?? 0) > 0)
+              .map(option => ({
+                modifierOptionId: option.id,
+                quantity: line.modifiers[option.id],
+              })),
+          ),
+        };
+      }),
+    };
+    // Reuse the same key after a transient failure only if the checkout payload
+    // is unchanged; a modified cart receives a new idempotency key.
+    const fingerprint = JSON.stringify(request);
+    const pending = pendingCommonCheckoutRef.current;
+    const idempotencyKey = pending?.fingerprint === fingerprint
+      ? pending.key
+      : window.crypto.randomUUID();
+    pendingCommonCheckoutRef.current = { fingerprint, key: idempotencyKey };
+
     setGuestLoading(true);
     try {
-      const response = await createCommonQrOrder(apiUrl, restaurantId, {
-        qrToken: commonQrToken.trim(),
-        items: selectedProducts.map(product => {
-          const line = guestCart[product.id];
-          return {
-            productId: product.id,
-            variantId: line.variantId || null,
-            quantity: line.quantity,
-            specialInstruction: line.specialInstruction.trim() || null,
-            modifiers: product.modifierGroups.flatMap(group =>
-              group.options
-                .filter(option => (line.modifiers[option.id] ?? 0) > 0)
-                .map(option => ({
-                  modifierOptionId: option.id,
-                  quantity: line.modifiers[option.id],
-                })),
-            ),
-          };
-        }),
-      });
+      const response = await createCommonQrOrder(
+        apiUrl, restaurantId, request, idempotencyKey,
+      );
       if (!response.queue) {
         throw new ApiError("No queue tracking ticket was returned for this Common QR order.");
       }
@@ -486,6 +499,7 @@ export default function HomePage() {
       setTrackedNotifications([]);
       setTrackingError("");
       setGuestCart({});
+      pendingCommonCheckoutRef.current = null;
     } catch (cause) {
       setGuestError(errorMessage(cause, "Could not place this Common QR order."));
     } finally {

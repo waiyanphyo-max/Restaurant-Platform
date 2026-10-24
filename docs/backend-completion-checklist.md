@@ -10,7 +10,7 @@ This checklist defines the remaining work before the Restaurant Platform backend
 - Table QR and Common QR checkout, queue-number assignment/tracking, queue call/ready notifications, staff-entered orders.
 - Customer profile, saved addresses, delivery checkout using server-calculated prices, order history, pending-order cancellation, and validated reorder.
 - Delivery zones as named/fee/minimum-order records, delivery task assignment, default driver configuration, driver-scoped task APIs, and cash-on-delivery collection.
-- Cash-at-counter collection, payment-state records, daily operations reporting, and push-device token registration.
+- Cash-at-counter collection, payment-state records, daily operations reporting, push-device token registration, and optional encrypted/idempotent Common/Table QR checkout retries.
 - Versioned Supabase migrations, JPA schema validation, backend unit/service tests, and GitHub Actions build verification.
 
 These are present in the current code and documented in `README.md`, `docs/api.md`, and `docs/architecture.md`; they still need production-environment verification.
@@ -19,10 +19,10 @@ These are present in the current code and documented in `README.md`, `docs/api.m
 
 ### P0 — HTTP and database integration confidence
 
-- [ ] Verify the actual Spring Security filter chain via MockMvc: missing/invalid tokens return 401, authenticated users without permission return 403, tenant/resource mismatches do not leak records, and only explicitly whitelisted public routes are anonymous.
+- [x] Verify the actual Spring Security filter chain via MockMvc: missing/invalid tokens return 401, authenticated users without permission return 403, tenant/resource mismatches do not leak records, and only explicitly whitelisted public routes are anonymous.
 - [ ] Add PostgreSQL-backed integration tests that apply migrations to a clean database and start Hibernate with `ddl-auto=validate`.
 - [ ] Exercise checkout, order status transitions, cancellation/stock release, queue counters, payment collection, ownership transfer, default-driver assignment, and delivery completion in database transactions.
-- [ ] Add concurrent tests for queue-number allocation and stock reservation; prove duplicate requests cannot create duplicate charges/orders or oversell stock.
+- [ ] Add PostgreSQL concurrency tests for queue-number allocation, QR idempotency claims, and stock reservation; prove concurrent duplicate requests cannot create duplicate orders or oversell stock.
 - [ ] Verify cross-restaurant and cross-customer isolation for every controller family, including driver A attempting to read/update driver B's delivery.
 
 **Acceptance:** backend CI passes unit tests and PostgreSQL integration tests from a clean database. No production Supabase credentials are used in CI.
