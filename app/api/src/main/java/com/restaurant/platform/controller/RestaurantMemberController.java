@@ -1,6 +1,7 @@
 package com.restaurant.platform.controller;
 
 import com.restaurant.platform.dto.member.RestaurantMemberRequest;
+import com.restaurant.platform.dto.member.InviteRestaurantMemberRequest;
 import com.restaurant.platform.dto.member.RestaurantMemberResponse;
 import com.restaurant.platform.dto.member.TransferRestaurantOwnershipRequest;
 import com.restaurant.platform.dto.member.TransferRestaurantOwnershipResponse;
@@ -25,6 +26,15 @@ public class RestaurantMemberController {
     @GetMapping
     public List<RestaurantMemberResponse> list(@PathVariable UUID restaurantId) {
         return memberService.list(restaurantId, authorization.requireAuthenticatedUserId());
+    }
+
+    @PostMapping("/invitations")
+    @ResponseStatus(HttpStatus.CREATED)
+    public RestaurantMemberResponse invite(
+            @PathVariable UUID restaurantId,
+            @Valid @RequestBody InviteRestaurantMemberRequest request) {
+        return memberService.invite(
+                restaurantId, authorization.requireAuthenticatedUserId(), request);
     }
 
     @PostMapping

@@ -7,6 +7,8 @@ public record RestaurantMemberResponse(
         UUID id,
         UUID restaurantId,
         UUID userId,
+        String email,
+        String fullName,
         String role,
         OffsetDateTime createdAt
 ) {
