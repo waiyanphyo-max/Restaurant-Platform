@@ -20,7 +20,6 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -67,6 +66,25 @@ public class QrOrderIdempotencyService {
         String keyHash = TokenUtils.sha256(normalizedKey);
         String requestHash = fingerprint(restaurantId, operation, request);
 
+        // Keep storage bounded without making every QR checkout scan the table.
+        // Only keyed requests perform cleanup, and each call removes at most 100
+        // expired rows. SKIP LOCKED avoids contending with a request using that key.
+        jdbc.update("""
+                WITH expired AS (
+                    SELECT restaurant_id, operation, idempotency_key_hash
+                    FROM public.qr_order_idempotency
+                    WHERE expires_at <= now()
+                    ORDER BY expires_at
+                    LIMIT 100
+                    FOR UPDATE SKIP LOCKED
+                )
+                DELETE FROM public.qr_order_idempotency AS target
+                USING expired
+                WHERE target.restaurant_id = expired.restaurant_id
+                  AND target.operation = expired.operation
+                  AND target.idempotency_key_hash = expired.idempotency_key_hash
+                """, new MapSqlParameterSource());
+
         // Existing keys can be reused only after the 24-hour retention window.
         // ON CONFLICT waits for an in-flight transaction; it then either claims
         // a rolled-back key or observes the committed response from the first call.
@@ -84,7 +102,7 @@ public class QrOrderIdempotencyService {
                     status = 'IN_PROGRESS',
                     created_at = now(),
                     expires_at = EXCLUDED.expires_at
-                WHERE public.qr_order_idempotency.expires_at <= now()
+                WHERE qr_order_idempotency.expires_at <= now()
                 """;
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("restaurantId", restaurantId)
