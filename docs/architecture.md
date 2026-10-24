@@ -49,6 +49,12 @@ The following manager-order routes require a valid bearer token and an appropria
 
 All other application routes require authentication by default. Actuator health endpoints and Spring's `/error` path are explicitly permitted; health response details are hidden by configuration. Queue tracking, delivery management, customer address, customer delivery-checkout, and owner-transfer controllers are exposed. Online payment/refunds, advanced reporting beyond daily operations, and external push-provider delivery remain pending.
 
+## QR checkout idempotency
+
+Public Common QR and Table QR order creation optionally accepts an `Idempotency-Key` header. A database unique key scoped by restaurant and operation serializes concurrent retries. The body fingerprint must match the original request; otherwise the API returns `409 IDEMPOTENCY_KEY_REUSED`. The claim, stock reservation, order/items, queue ticket, payment row, and encrypted replay response share the same database transaction, so a failed checkout rolls all of them back.
+
+The table stores only a SHA-256 hash of the idempotency key and a hash of the request body. The original response is stored using AES-256-GCM encryption because Common QR responses include a queue tracking token. Set `APP_IDEMPOTENCY_ENCRYPTION_KEY` to Base64 for a random 32-byte key on the server before clients send idempotency headers. Keep that key stable for the 24-hour retention window. Clients that omit the header retain the existing checkout behavior.
+
 ## Queue tracking and notification flow
 
 Common QR order creation returns a high-entropy tracking token once. The server persists only its SHA-256 hash on `queue_tickets.public_token_hash`; the client must retain the raw token and send it in `X-Queue-Token`, not in the URL. Public queue status and ticket-notification requests validate that token before returning ticket data. Invalid tokens and unknown ticket IDs use the same not-found response.
