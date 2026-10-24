@@ -6,6 +6,8 @@ public record DeliveryZoneDto(
         UUID id,
         String name,
         long deliveryFee,
-        long minimumOrder
+        long minimumOrder,
+        String coverageCity,
+        String coverageTownship
 ) {
 }
