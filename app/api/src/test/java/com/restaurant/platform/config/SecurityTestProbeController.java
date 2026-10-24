@@ -3,6 +3,7 @@ package com.restaurant.platform.config;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.UUID;
 
@@ -18,5 +19,11 @@ public class SecurityTestProbeController {
     @GetMapping("/api/v1/public/restaurants/{restaurantId}/menu")
     public String publicMenu(@PathVariable UUID restaurantId) {
         return "public-menu";
+    }
+
+    @GetMapping("/api/v1/manager-probe")
+    @PreAuthorize("hasAuthority('RESTAURANT_MANAGE')")
+    public String managerProbe() {
+        return "manager-only";
     }
 }
