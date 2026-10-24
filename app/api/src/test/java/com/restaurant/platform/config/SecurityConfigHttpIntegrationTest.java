@@ -44,7 +44,7 @@ class SecurityConfigHttpIntegrationTest {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockitoBean
+    @MockitoBean(name = "restaurantAuthorization")
     private RestaurantAuthorization restaurantAuthorization;
 
     @Test
