@@ -30,6 +30,12 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Optional external push delivery; remains disabled until Firebase is configured. -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>9.11.0</version>
+        </dependency>
         <!--  Request validation, e.g. @NotBlank, @Email, @Positive  -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
