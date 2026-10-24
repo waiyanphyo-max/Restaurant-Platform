@@ -52,16 +52,18 @@ The current API stores device tokens and in-app notification records. It does no
 
 **External dependency:** production delivery requires the provider project, credentials, and platform configuration. In-app polling/local sound is not a substitute for server push delivery.
 
-### P1 — Real delivery-zone validation
+### P1 — Delivery-zone coverage
 
-Current delivery zones are names, fees, minimums, and active flags. Checkout verifies that the selected zone belongs to the restaurant, but it cannot establish that an address is physically inside the selected zone.
+Optional city + township restrictions are now supported. New migration `20261024091000_add_delivery_zone_coverage.sql` adds nullable `coverage_city` and `coverage_township` columns. Existing zones remain unrestricted until an owner/manager configures both fields.
 
-- [ ] Decide whether zones are represented by township/postcode rules or geographic polygons.
-- [ ] If using polygons, select and enable an appropriate PostgreSQL spatial strategy (for example, PostGIS) and add a new migration; do not edit already-applied migrations.
-- [ ] Validate customer coordinates/address against the zone on the server, with explicit behavior for missing or inaccurate location data.
-- [ ] Add tests for boundary points, invalid coordinates, inactive zones, zones from another restaurant, and addresses outside all configured zones.
+- [x] Decide on an initial location representation: exact trimmed/case-insensitive city + township matching.
+- [x] Validate configured city/township coverage during customer delivery checkout, reject missing address location, and test matching/mismatching coverage rules.
+- [ ] Decide whether production operations require postcode-level rules or precise geographic polygons.
+- [ ] If polygons are required, select and enable an appropriate PostgreSQL spatial strategy (for example, PostGIS), add a new migration, and test points on/inside/outside polygon boundaries.
+- [ ] Add PostgreSQL-backed tests proving the new migration and Hibernate `ddl-auto=validate` work together on a clean database.
+- [ ] Exercise inactive-zone and cross-restaurant behavior end-to-end against PostgreSQL as well as in unit tests.
 
-**External/design dependency:** the location representation and coverage rules must be chosen before implementing reliable containment logic.
+**Limitation:** city/township matching is a coarse administrative rule, not a guarantee that a particular street is serviceable. Zones whose coverage fields are null remain unrestricted for backward compatibility and must be configured explicitly to enforce a location restriction.
 
 ### P2 — Production operations
 
