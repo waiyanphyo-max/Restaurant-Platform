@@ -5,9 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
@@ -22,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * be rejected before protected controllers/services are invoked.
  */
 @WebMvcTest(
-        controllers = SecurityConfigHttpIntegrationTest.ProbeController.class,
+        controllers = SecurityTestProbeController.class,
         properties = {
                 "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.test/auth/v1",
                 "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.example.test/auth/v1/.well-known/jwks.json",
@@ -59,17 +56,4 @@ class SecurityConfigHttpIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    @RestController
-    static class ProbeController {
-
-        @GetMapping("/api/v1/protected-probe")
-        String protectedProbe() {
-            return "protected";
-        }
-
-        @GetMapping("/api/v1/public/restaurants/{restaurantId}/menu")
-        String publicMenu(@PathVariable UUID restaurantId) {
-            return "public-menu";
-        }
-    }
 }
