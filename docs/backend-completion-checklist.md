@@ -20,8 +20,8 @@ These are present in the current code and documented in `README.md`, `docs/api.m
 ### P0 — HTTP and database integration confidence
 
 - [x] Add MockMvc tests for an anonymous protected route returning 401, the explicitly whitelisted public menu route, and an unknown public-looking route remaining protected.
-- [x] Add HTTP-level tests confirming invalid bearer tokens return 401 and authenticated requests without a required authority return 403.
-- [ ] Add HTTP-level cross-restaurant/cross-customer/other-driver resource-isolation tests and an HTTP-level expired-token case. Existing service and JWT-validator unit tests do not replace resource-isolation checks.
+- [x] Add HTTP-level tests confirming invalid bearer tokens return 401, authenticated requests without a required authority return 403, and a restaurant-scoped permission check denies the request when permission is absent.
+- [ ] Add HTTP-level cross-customer/other-driver resource-isolation tests and an HTTP-level expired-token case; add database-backed tests proving resource lookups cannot cross restaurant/customer/driver boundaries. Existing service and JWT-validator unit tests do not replace resource-isolation checks.
 - [x] Add PostgreSQL-backed integration tests that apply migrations to a clean PostgreSQL 17 container and start Hibernate with `ddl-auto=validate`.
 - [ ] Exercise checkout, order status transitions, cancellation/stock release, queue counters, payment collection, ownership transfer, default-driver assignment, and delivery completion in database transactions.
 - [ ] Add PostgreSQL concurrency tests for queue-number allocation, QR idempotency claims, and stock reservation; prove concurrent duplicate requests cannot create duplicate orders or oversell stock.

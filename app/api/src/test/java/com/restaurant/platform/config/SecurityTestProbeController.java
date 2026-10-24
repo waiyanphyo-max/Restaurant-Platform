@@ -26,4 +26,10 @@ public class SecurityTestProbeController {
     public String managerProbe() {
         return "manager-only";
     }
+
+    @GetMapping("/api/v1/restaurants/{restaurantId}/orders-probe")
+    @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
+    public String restaurantOrdersProbe(@PathVariable UUID restaurantId) {
+        return "restaurant-orders";
+    }
 }
