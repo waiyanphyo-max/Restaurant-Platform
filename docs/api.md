@@ -589,3 +589,46 @@ If Firebase is disabled, in-app notifications continue to work, but no external 
 ## Remaining backend work
 
 Online payment/refunds, advanced reporting beyond the daily report, cross-tenant end-to-end tests, precise geospatial delivery-zone coverage, and client-side sound playback remain future work. Cash-on-delivery and cash-at-counter payment collection are implemented; online payment-provider integration requires selecting/configuring a provider. Firebase delivery requires a real project, server credentials, and matching client token registration.
+
+
+## Restaurant member management and invitations
+
+Restaurant membership endpoints require a valid Supabase Auth access token. Member-management operations additionally require `MEMBERS_MANAGE`, which is granted to the restaurant OWNER role. Every route is scoped to its restaurant ID.
+
+### Invite a new team account
+
+`POST /api/v1/restaurants/{restaurantId}/members/invitations`
+
+Request:
+
+```json
+{
+  "email": "staff@example.com",
+  "fullName": "Example Staff",
+  "role": "STAFF"
+}
+```
+
+Allowed roles are `MANAGER`, `STAFF`, and `DELIVERY_DRIVER`. This endpoint does not allow OWNER creation or promotion. Supabase Auth sends the invitation email; the returned Auth user ID is linked to a membership in the selected restaurant. The profile trigger mirrors Auth email to `public.profiles` so listings can identify members.
+
+An email already registered in Supabase Auth is rejected by this new-account invitation endpoint. Existing accounts can be attached through the existing `POST /api/v1/restaurants/{restaurantId}/members` endpoint using a known `userId`. A client-supplied user ID is never proof of the actor's identity.
+
+### Manage existing members
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/restaurants/{restaurantId}/members` | List members with profile email/name where available |
+| POST | `/api/v1/restaurants/{restaurantId}/members` | Add an existing profile by user ID |
+| PUT | `/api/v1/restaurants/{restaurantId}/members/{memberId}` | Change a non-owner member's role |
+| POST | `/api/v1/restaurants/{restaurantId}/members/transfer-ownership` | Transfer owner role explicitly |
+| DELETE | `/api/v1/restaurants/{restaurantId}/members/{memberId}` | Remove a non-owner membership without deleting the Auth account |
+
+Owner membership cannot be changed or removed using ordinary endpoints. Use the dedicated ownership-transfer endpoint. Removing a restaurant membership never deletes the Supabase Auth account, because that account may belong to other restaurants.
+
+### Required environment variables
+
+- `SUPABASE_PROJECT_URL`: Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY`: server-only Auth Admin credential. Keep it in the API host secret store; never expose it to browser/mobile code or commit it to Git.
+- `SUPABASE_INVITE_REDIRECT_URL`: optional invitation landing URL. Add it to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs.
+
+Apply migration `20261025120000_add_profile_email_for_member_management.sql` before deploying the updated API. Keep `spring.jpa.hibernate.ddl-auto=validate`. Invitations return a configuration error until the server-side Auth Admin variables are configured.
