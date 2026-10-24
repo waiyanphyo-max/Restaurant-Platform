@@ -95,6 +95,90 @@ class CustomerDeliveryCheckoutTest {
     }
 
     @Test
+    void checkoutRejectsAddressOutsideConfiguredCityAndTownship() {
+        when(restaurantRepository.findByIdAndIsActiveTrue(restaurantId))
+                .thenReturn(Optional.of(new Restaurant()));
+        RestaurantSettings settings = new RestaurantSettings();
+        settings.setRestaurantId(restaurantId);
+        settings.setAcceptsOrders(true);
+        settings.setAllowDelivery(true);
+        when(settingsRepository.findById(restaurantId)).thenReturn(Optional.of(settings));
+
+        com.restaurant.platform.entity.CustomerAddress address =
+                new com.restaurant.platform.entity.CustomerAddress();
+        address.setId(addressId);
+        address.setUserId(userId);
+        address.setCity("Yangon");
+        address.setTownship("Tamwe");
+        when(addressRepository.findByIdAndUserId(addressId, userId))
+                .thenReturn(Optional.of(address));
+
+        com.restaurant.platform.entity.DeliveryZone zone =
+                new com.restaurant.platform.entity.DeliveryZone();
+        zone.setId(zoneId);
+        zone.setRestaurantId(restaurantId);
+        zone.setName("Hlaing");
+        zone.setCoverageCity("Yangon");
+        zone.setCoverageTownship("Hlaing");
+        when(zoneRepository.findByIdAndRestaurantIdAndIsActiveTrue(zoneId, restaurantId))
+                .thenReturn(Optional.of(zone));
+
+        CreateDeliveryOrderRequest request = new CreateDeliveryOrderRequest(
+                addressId, zoneId, "Customer", "0912345678",
+                null, "CASH_ON_DELIVERY",
+                List.of(new CreateOrderItemRequest(UUID.randomUUID(), null, 1, null, List.of())));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.createDeliveryOrder(restaurantId, userId, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
+        assertEquals("DELIVERY_ADDRESS_OUTSIDE_ZONE", error.getCode());
+        verifyNoInteractions(productRepository, orderRepository, paymentRepository);
+    }
+
+    @Test
+    void checkoutRequiresCityAndTownshipWhenZoneHasCoverageConfigured() {
+        when(restaurantRepository.findByIdAndIsActiveTrue(restaurantId))
+                .thenReturn(Optional.of(new Restaurant()));
+        RestaurantSettings settings = new RestaurantSettings();
+        settings.setRestaurantId(restaurantId);
+        settings.setAcceptsOrders(true);
+        settings.setAllowDelivery(true);
+        when(settingsRepository.findById(restaurantId)).thenReturn(Optional.of(settings));
+
+        com.restaurant.platform.entity.CustomerAddress address =
+                new com.restaurant.platform.entity.CustomerAddress();
+        address.setId(addressId);
+        address.setUserId(userId);
+        address.setCity("Yangon");
+        address.setTownship(" ");
+        when(addressRepository.findByIdAndUserId(addressId, userId))
+                .thenReturn(Optional.of(address));
+
+        com.restaurant.platform.entity.DeliveryZone zone =
+                new com.restaurant.platform.entity.DeliveryZone();
+        zone.setId(zoneId);
+        zone.setRestaurantId(restaurantId);
+        zone.setName("Tamwe");
+        zone.setCoverageCity("Yangon");
+        zone.setCoverageTownship("Tamwe");
+        when(zoneRepository.findByIdAndRestaurantIdAndIsActiveTrue(zoneId, restaurantId))
+                .thenReturn(Optional.of(zone));
+
+        CreateDeliveryOrderRequest request = new CreateDeliveryOrderRequest(
+                addressId, zoneId, "Customer", "0912345678",
+                null, "CASH_ON_DELIVERY",
+                List.of(new CreateOrderItemRequest(UUID.randomUUID(), null, 1, null, List.of())));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.createDeliveryOrder(restaurantId, userId, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
+        assertEquals("DELIVERY_ADDRESS_LOCATION_REQUIRED", error.getCode());
+        verifyNoInteractions(productRepository, orderRepository, paymentRepository);
+    }
+
+    @Test
     void successfulCheckoutUsesDatabasePricesAndCreatesPendingCodPayment() {
         Restaurant restaurant = new Restaurant();
         when(restaurantRepository.findByIdAndIsActiveTrue(restaurantId))
