@@ -3,6 +3,7 @@
 
 import type { Row, View } from "@/types/workspace";
 import { useWorkspaceContext } from "@/features/workspace/WorkspaceContext";
+import { AvailabilityBadge } from "@/components/menu/AvailabilityBadge";
 
 export function MenuView() {
   const {
