@@ -11,4 +11,8 @@ public record ProductVariantRequest(
         @NotNull Boolean available,
         @Size(max = 2000) String imageUrl
 ) {
+    /** Backward-compatible constructor for clients that have not added image uploads yet. */
+    public ProductVariantRequest(String name, Long price, Boolean available) {
+        this(name, price, available, null);
+    }
 }
