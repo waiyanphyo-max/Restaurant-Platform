@@ -620,7 +620,7 @@ export async function createRestaurant(
   accessToken: string,
   request: CreateRestaurantRequest,
 ): Promise<RestaurantOnboardingResponse> {
-  const base = apiBaseUrl.trim().replace(/\\/+$/, "");
+  const base = apiBaseUrl.trim().replace(/\/+$/, "");
   if (!base) throw new ApiError("Enter the backend API URL.");
   return authenticatedJson<RestaurantOnboardingResponse>(
     `${base}/api/v1/restaurants`,
@@ -635,7 +635,7 @@ export async function getRestaurantProfile(
   restaurantId: string,
   accessToken: string,
 ): Promise<RestaurantProfile> {
-  const base = apiBaseUrl.trim().replace(/\\/+$/, "");
+  const base = apiBaseUrl.trim().replace(/\/+$/, "");
   if (!base) throw new ApiError("Enter the backend API URL.");
   if (!restaurantId.trim()) throw new ApiError("Enter the restaurant ID.");
   return authenticatedJson<RestaurantProfile>(
@@ -650,7 +650,7 @@ export async function updateRestaurantProfile(
   accessToken: string,
   request: UpdateRestaurantProfileRequest,
 ): Promise<RestaurantProfile> {
-  const base = apiBaseUrl.trim().replace(/\\/+$/, "");
+  const base = apiBaseUrl.trim().replace(/\/+$/, "");
   if (!base) throw new ApiError("Enter the backend API URL.");
   if (!restaurantId.trim()) throw new ApiError("Enter the restaurant ID.");
   return authenticatedJson<RestaurantProfile>(
@@ -667,7 +667,7 @@ export async function uploadRestaurantLogo(
   accessToken: string,
   file: File,
 ): Promise<RestaurantLogoUploadResponse> {
-  const base = apiBaseUrl.trim().replace(/\\/+$/, "");
+  const base = apiBaseUrl.trim().replace(/\/+$/, "");
   const id = restaurantId.trim();
   const token = accessToken.trim();
   if (!base) throw new ApiError("Enter the backend API URL.");
