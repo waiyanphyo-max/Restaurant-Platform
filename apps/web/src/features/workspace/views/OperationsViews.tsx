@@ -3,6 +3,7 @@
 
 import type { Row, View } from "@/types/workspace";
 import { useWorkspaceContext } from "@/features/workspace/WorkspaceContext";
+import { rid, record, list, label, asMoney, messageOf, nextStates, nextDeliveryStates } from "@/features/workspace/utils";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { DeliveryStatusBadge } from "@/components/delivery/DeliveryStatusBadge";
 import { QueueStatusBadge } from "@/components/queue/QueueStatusBadge";
@@ -19,9 +20,6 @@ export function OverviewView() {
     report,
     changeView,
     empty,
-    list,
-    label,
-    asMoney,
   } = useWorkspaceContext();
       if (view === "overview") return <>
         <div className="ws-hero"><div><div className="ws-eyebrow">RESTAURANT OPERATIONS</div><h2>Service, in one workspace.</h2><p>Manage orders, pickup queues, menu items, deliveries and customer workflows from desktop or phone.</p></div><div className="ws-hero-mark">R<span /></div></div>
@@ -57,11 +55,6 @@ export function OrdersView() {
     empty,
     title,
     filteredOrders,
-    record,
-    list,
-    label,
-    asMoney,
-    nextStates,
   } = useWorkspaceContext();
       if (view === "orders") return <>
         {intro("Order management","Inspect order details, change supported statuses, and open payment metadata. Illegal state transitions are rejected by the backend.")}
@@ -82,8 +75,6 @@ export function StaffOrderView() {
     restaurantPath,
     intro,
     field,
-    label,
-    asMoney,
   } = useWorkspaceContext();
       if (view === "staff-order") return <>
         {intro("Create a counter order","Enter an order for a walk-in customer. Menu prices and availability are validated by the server; pending payment is cash at counter.")}
@@ -136,10 +127,6 @@ export function DeliveriesView() {
     intro,
     empty,
     title,
-    record,
-    list,
-    asMoney,
-    nextDeliveryStates,
   } = useWorkspaceContext();
       if (view === "deliveries") return <>
         {intro(role === "DELIVERY_DRIVER" ? "My delivery tasks" : "Delivery operations", role === "DELIVERY_DRIVER" ? "Only tasks assigned to your signed-in driver account are returned." : "Assign tasks to drivers in this restaurant and track handoffs. Delivery completion requires confirmation of cash collection when applicable.")}
@@ -165,7 +152,6 @@ export function ReportsView() {
     loadView,
     intro,
     field,
-    asMoney,
   } = useWorkspaceContext();
       if (view === "reports") return <>
         {intro("Daily operations report","Review order state counts and sales totals calculated in the restaurant timezone.")}
