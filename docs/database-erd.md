@@ -51,7 +51,7 @@ erDiagram
 
 ## Migration workflow
 
-1. Add new schema changes as a new timestamped file; do not edit an already-applied migration. Current follow-up migrations include `20261025120000_add_storage_media_fields.sql`, `20261021110000_add_default_delivery_driver.sql`, `20261022001000_sync_auth_user_profiles.sql`, `20261022002000_allow_cancelled_payment_status.sql`, `20261024083000_add_qr_order_idempotency.sql`, `20261024091000_add_delivery_zone_coverage.sql`, and `20261024100000_add_push_notification_outbox.sql`.
+1. Add new schema changes as a new timestamped file; do not edit an already-applied migration. Current follow-up migrations include `20261025130000_add_storage_media_fields.sql`, `20261021110000_add_default_delivery_driver.sql`, `20261022001000_sync_auth_user_profiles.sql`, `20261022002000_allow_cancelled_payment_status.sql`, `20261024083000_add_qr_order_idempotency.sql`, `20261024091000_add_delivery_zone_coverage.sql`, and `20261024100000_add_push_notification_outbox.sql`.
 2. Inspect `npx supabase migration list` and `npx supabase db push --dry-run` before applying any migration.
 3. Run `npx supabase db push` only after confirming the pending migrations are the intended changes.
 4. Run `mvn --batch-mode -f app/api/pom.xml clean verify` to validate the Java model and tests against the migration-backed schema.
