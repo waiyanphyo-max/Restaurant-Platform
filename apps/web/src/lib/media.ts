@@ -21,6 +21,7 @@ async function uploadImage<T>(
   resourcePath: string,
   accessToken: string,
   file: File,
+  maxBytes = 5 * 1024 * 1024,
 ): Promise<T> {
   const base = apiBaseUrl.trim().replace(/\/+$/, "");
   const token = accessToken.trim();
@@ -31,8 +32,9 @@ async function uploadImage<T>(
   if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
     throw new ApiError("Choose a PNG, JPEG, or WebP image.");
   }
-  if (file.size <= 0 || file.size > 5 * 1024 * 1024) {
-    throw new ApiError("The image must be non-empty and 5 MB or smaller.");
+  if (file.size <= 0 || file.size > maxBytes) {
+    const maxMegabytes = maxBytes / (1024 * 1024);
+    throw new ApiError(`The image must be non-empty and ${maxMegabytes} MB or smaller.`);
   }
 
   const form = new FormData();
@@ -124,6 +126,6 @@ export function uploadCustomerAvatar(
   file: File,
 ) {
   return uploadImage<CustomerAvatarResponse>(
-    apiBaseUrl, "/api/v1/customer/profile/avatar", accessToken, file,
+    apiBaseUrl, "/api/v1/customer/profile/avatar", accessToken, file, 2 * 1024 * 1024,
   );
 }
