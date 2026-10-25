@@ -22,6 +22,46 @@ npm run dev
 
 Open http://localhost:3000. The default API origin is `http://localhost:8080`; set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` to override it. Configure Spring CORS to allow the web origin.
 
+## Frontend source layout
+
+```text
+src/
+├── app/
+│   ├── page.tsx                  # Thin root route
+│   ├── layout.tsx                # App shell / metadata
+│   └── workspace/page.tsx        # Thin responsive workspace route
+├── components/
+│   ├── layout/                   # Role-aware workspace navigation
+│   ├── orders/                   # Order status UI
+│   ├── menu/                     # Catalogue availability UI
+│   ├── delivery/                 # Delivery status UI
+│   ├── queue/                    # Queue status UI
+│   ├── customer/                 # Customer avatar UI
+│   └── shared/                   # Shared status, field, empty-state UI
+├── features/
+│   ├── auth/                     # Auth integration notes / future session UI
+│   ├── restaurant/               # Restaurant API surface
+│   ├── catalogue/                # Menu API surface
+│   ├── checkout/                  # Guest QR checkout API surface
+│   ├── payments/                 # Payment integration notes / future provider
+│   ├── notifications/            # Notification API surface
+│   ├── home/                     # Existing Common QR / root page client
+│   └── workspace/
+│       ├── WorkspaceClient.tsx   # Shared workspace shell and data/state orchestration
+│       ├── WorkspaceContext.tsx  # Shared state/actions exposed to view modules
+│       ├── WorkspaceViews.tsx    # View dispatcher
+│       ├── config.ts             # Navigation groups
+│       ├── utils.ts              # Shared display/API helpers
+│       └── views/                # Operations, restaurant, customer, and special views
+├── lib/
+│   ├── api.ts                    # Shared typed API functions
+│   └── media.ts                  # Media/upload helpers
+└── types/
+    └── workspace.ts              # Shared view and payload types
+```
+
+View JSX is separated by domain rather than one file per screen at this stage. Keep route files small, place reusable UI in `components/`, and put domain-specific state/API logic in `features/`. Treat `WorkspaceClient.tsx` as the shared shell; avoid moving server authorization rules into the frontend.
+
 ## Main screens
 
 - **Root page (/):** existing Common QR guest pickup flow, queue tracking, polling, and opt-in browser sound.
