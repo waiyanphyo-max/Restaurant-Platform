@@ -591,6 +591,22 @@ If Firebase is disabled, in-app notifications continue to work, but no external 
 Online payment/refunds, advanced reporting beyond the daily report, cross-tenant end-to-end tests, precise geospatial delivery-zone coverage, and client-side sound playback remain future work. Cash-on-delivery and cash-at-counter payment collection are implemented; online payment-provider integration requires selecting/configuring a provider. Firebase delivery requires a real project, server credentials, and matching client token registration.
 
 
+## Restaurant logo upload
+
+Restaurant owners can upload or replace a logo using:
+
+```http
+POST /api/v1/restaurants/{restaurantId}/logo
+Authorization: Bearer <supabase-access-token>
+Content-Type: multipart/form-data
+```
+
+Use a multipart form field named `file`. Supported image formats are PNG, JPEG, and WebP; files are limited to 5 MB. The API verifies that the authenticated user is the OWNER of the specified restaurant, checks the file media type and signature, uploads the object to Supabase Storage, and updates `public.restaurants.logo_url`. Managers and other roles cannot use this endpoint.
+
+No database migration is required because `logo_url` already exists. Create a Supabase Storage bucket named `restaurant-logos` (or set `SUPABASE_STORAGE_BUCKET` to another bucket name) and enable **public reads** so browsers and customer pages can display the logo. Uploads are proxied through the Spring Boot API using the server-only `SUPABASE_SERVICE_ROLE_KEY`; do not expose that key to the frontend and do not add broad client-side write policies to the bucket. The bucket must exist before using the upload endpoint.
+
+The object is stored under `{restaurantId}/logo`; replacing the logo overwrites that object and the response includes a cache-busted public URL. The dashboard's create flow creates the restaurant first and uploads the optional image immediately afterward. If upload fails, the restaurant remains created and its ID is shown so the owner can retry from the update form.
+
 ## Restaurant member management and invitations
 
 Restaurant membership endpoints require a valid Supabase Auth access token. Member-management operations additionally require `MEMBERS_MANAGE`, which is granted to the restaurant OWNER role. Every route is scoped to its restaurant ID.
