@@ -8,7 +8,6 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
@@ -51,7 +50,7 @@ public class SupabaseStorageClient {
                     .body(imageBytes)
                     .retrieve()
                     .toBodilessEntity();
-        } catch (RestClientResponseException | RestClientException exception) {
+        } catch (RestClientException exception) {
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY,
                     "RESTAURANT_LOGO_STORAGE_UPLOAD_FAILED",
