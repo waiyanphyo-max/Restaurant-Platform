@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   ApiError,
@@ -927,6 +928,7 @@ export default function HomePage() {
           <span className="brand-mark">R</span>
           <span>Restaurant<span className="brand-light">Platform</span></span>
         </a>
+        <Link href="/workspace" className="nav-item"><span className="nav-icon">☷</span> Full workspace / all roles ↗</Link>
         <div className="nav-label">WORKSPACE</div>
         <button
           type="button"
