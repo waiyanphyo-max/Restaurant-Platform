@@ -3,6 +3,7 @@
 
 import type { Row, View } from "@/types/workspace";
 import { useWorkspaceContext } from "@/features/workspace/WorkspaceContext";
+import { rid, record, list, label, asMoney, messageOf, nextStates, nextDeliveryStates } from "@/features/workspace/utils";
 import { AvailabilityBadge } from "@/components/menu/AvailabilityBadge";
 
 export function MenuView() {
@@ -45,10 +46,6 @@ export function MenuView() {
     editorButton,
     title,
     filteredProducts,
-    record,
-    list,
-    label,
-    asMoney,
   } = useWorkspaceContext();
       if (view === "menu") return <>
         {intro("Menu & catalogue","Create categories, products, variants and modifier choices. Upload product/variant images and link modifier groups to products. Backend roles control write access.")}
@@ -81,9 +78,6 @@ export function TablesView() {
     field,
     editorButton,
     title,
-    record,
-    list,
-    label,
   } = useWorkspaceContext();
       if (view === "tables") return <>
         {intro("Tables & QR codes","Create table identifiers, rename or deactivate tables, or rotate the token if a printed table QR code should stop working.")}
@@ -133,10 +127,6 @@ export function DeliveryZonesView() {
     field,
     editorButton,
     title,
-    record,
-    list,
-    label,
-    asMoney,
   } = useWorkspaceContext();
       if (view === "zones") return <>
         {intro("Delivery zones","Set fee, minimum order and optional city/township restrictions. City and township should be set together for coverage checks.")}
@@ -165,9 +155,6 @@ export function TeamMembersView() {
     empty,
     field,
     title,
-    record,
-    list,
-    label,
   } = useWorkspaceContext();
       if (view === "members") return <>
         {intro("Team & roles","Only the OWNER role can manage memberships in the current backend policy. Invite new users, add existing profiles, change a non-owner role, remove a member or transfer ownership.")}
@@ -186,7 +173,6 @@ export function RestaurantProfileView() {
     upload,
     intro,
     editorButton,
-    label,
   } = useWorkspaceContext();
       if (view === "restaurant") return <>
         {intro("Restaurant profile","Review restaurant data, update the profile and upload a restaurant logo. Logo update is OWNER-only; the backend validates type and size.")}
