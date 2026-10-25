@@ -55,6 +55,7 @@ export function OrdersView() {
     empty,
     title,
     filteredOrders,
+    call,
   } = useWorkspaceContext();
       if (view === "orders") return <>
         {intro("Order management","Inspect order details, change supported statuses, and open payment metadata. Illegal state transitions are rejected by the backend.")}
@@ -75,6 +76,7 @@ export function StaffOrderView() {
     restaurantPath,
     intro,
     field,
+    call,
   } = useWorkspaceContext();
       if (view === "staff-order") return <>
         {intro("Create a counter order","Enter an order for a walk-in customer. Menu prices and availability are validated by the server; pending payment is cash at counter.")}
@@ -106,6 +108,7 @@ export function QueueView() {
     changeView,
     intro,
     empty,
+    call,
   } = useWorkspaceContext();
       if (view === "queue") return <>
         {intro("Queue & pickup","Call ready queue numbers. Customers can track status through the ticket UUID and token returned at checkout.")}
@@ -127,6 +130,7 @@ export function DeliveriesView() {
     intro,
     empty,
     title,
+    call,
   } = useWorkspaceContext();
       if (view === "deliveries") return <>
         {intro(role === "DELIVERY_DRIVER" ? "My delivery tasks" : "Delivery operations", role === "DELIVERY_DRIVER" ? "Only tasks assigned to your signed-in driver account are returned." : "Assign tasks to drivers in this restaurant and track handoffs. Delivery completion requires confirmation of cash collection when applicable.")}
