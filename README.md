@@ -175,4 +175,4 @@ npx supabase migration list
 npx supabase db push --dry-run
 ```
 
-Confirm that `20261025120000_add_storage_media_fields.sql` is the intended pending migration, then run `npx supabase db push`. Do not edit an already-applied migration.
+Confirm that `20261025130000_add_storage_media_fields.sql` is the intended pending migration, then run `npx supabase db push`. Do not edit an already-applied migration.
