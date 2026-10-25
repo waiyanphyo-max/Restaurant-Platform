@@ -547,3 +547,178 @@ export async function setDefaultDeliveryDriver(
     { driverUserId },
   );
 }
+
+
+export type RestaurantProfile = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  phone: string | null;
+  address: string | null;
+  houseNo: string | null;
+  street: string | null;
+  ward: string | null;
+  township: string;
+  city: string;
+  logoUrl: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+export type CreateRestaurantRequest = {
+  name: string;
+  slug: string;
+  description: string | null;
+  phone: string | null;
+  address: string | null;
+  houseNo: string | null;
+  street: string | null;
+  ward: string | null;
+  township: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+  logoUrl: string | null;
+  currency: string;
+  timezone: string;
+};
+
+export type RestaurantOnboardingResponse = {
+  restaurant: RestaurantProfile;
+  initialRole: string;
+  currency: string;
+  timezone: string;
+  commonQrToken: string;
+};
+
+export type UpdateRestaurantProfileRequest = {
+  name: string;
+  description: string | null;
+  phone: string | null;
+  address: string | null;
+  houseNo: string | null;
+  street: string | null;
+  ward: string | null;
+  township: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+  logoUrl: string | null;
+};
+
+export type RestaurantLogoUploadResponse = {
+  restaurantId: string;
+  logoUrl: string;
+};
+
+export async function createRestaurant(
+  apiBaseUrl: string,
+  accessToken: string,
+  request: CreateRestaurantRequest,
+): Promise<RestaurantOnboardingResponse> {
+  const base = apiBaseUrl.trim().replace(/\\/+$/, "");
+  if (!base) throw new ApiError("Enter the backend API URL.");
+  return authenticatedJson<RestaurantOnboardingResponse>(
+    `${base}/api/v1/restaurants`,
+    accessToken,
+    "POST",
+    request,
+  );
+}
+
+export async function getRestaurantProfile(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+): Promise<RestaurantProfile> {
+  const base = apiBaseUrl.trim().replace(/\\/+$/, "");
+  if (!base) throw new ApiError("Enter the backend API URL.");
+  if (!restaurantId.trim()) throw new ApiError("Enter the restaurant ID.");
+  return authenticatedJson<RestaurantProfile>(
+    `${base}/api/v1/restaurants/${encodeURIComponent(restaurantId.trim())}`,
+    accessToken,
+  );
+}
+
+export async function updateRestaurantProfile(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  request: UpdateRestaurantProfileRequest,
+): Promise<RestaurantProfile> {
+  const base = apiBaseUrl.trim().replace(/\\/+$/, "");
+  if (!base) throw new ApiError("Enter the backend API URL.");
+  if (!restaurantId.trim()) throw new ApiError("Enter the restaurant ID.");
+  return authenticatedJson<RestaurantProfile>(
+    `${base}/api/v1/restaurants/${encodeURIComponent(restaurantId.trim())}/profile`,
+    accessToken,
+    "PUT",
+    request,
+  );
+}
+
+export async function uploadRestaurantLogo(
+  apiBaseUrl: string,
+  restaurantId: string,
+  accessToken: string,
+  file: File,
+): Promise<RestaurantLogoUploadResponse> {
+  const base = apiBaseUrl.trim().replace(/\\/+$/, "");
+  const id = restaurantId.trim();
+  const token = accessToken.trim();
+  if (!base) throw new ApiError("Enter the backend API URL.");
+  if (!id) throw new ApiError("Enter the restaurant ID.");
+  if (!token) throw new ApiError("Enter a Supabase access token.");
+
+  const formData = new FormData();
+  formData.append("file", file);
+  let response: Response;
+  try {
+    response = await fetch(
+      `${base}/api/v1/restaurants/${encodeURIComponent(id)}/logo`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+        cache: "no-store",
+      },
+    );
+  } catch {
+    throw new ApiError("Cannot reach the backend. Check the API URL and CORS configuration.");
+  }
+
+  if (!response.ok) {
+    let serverMessage = "";
+    try {
+      const payload: unknown = await response.json();
+      if (payload && typeof payload === "object" && "message" in payload
+          && typeof payload.message === "string") {
+        serverMessage = payload.message;
+      }
+    } catch {
+      // Some gateway errors do not return JSON.
+    }
+    if (response.status === 401) {
+      throw new ApiError("Authentication failed. Check that the access token is valid.", 401);
+    }
+    if (response.status === 403) {
+      throw new ApiError(serverMessage || "Only the restaurant owner can update its logo.", 403);
+    }
+    if (response.status === 413) {
+      throw new ApiError(serverMessage || "The logo must be 5 MB or smaller.", 413);
+    }
+    if (response.status === 415) {
+      throw new ApiError(serverMessage || "Choose a PNG, JPEG, or WebP image.", 415);
+    }
+    throw new ApiError(serverMessage || `The backend returned HTTP ${response.status}.`, response.status);
+  }
+
+  return (await response.json()) as RestaurantLogoUploadResponse;
+}
