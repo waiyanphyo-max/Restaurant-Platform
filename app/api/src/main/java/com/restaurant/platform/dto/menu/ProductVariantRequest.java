@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 public record ProductVariantRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull @PositiveOrZero Long price,
-        @NotNull Boolean available
+        @NotNull Boolean available,
+        @Size(max = 2000) String imageUrl
 ) {
 }
