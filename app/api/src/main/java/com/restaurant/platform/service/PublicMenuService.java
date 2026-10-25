@@ -263,7 +263,8 @@ public class PublicMenuService {
                         variant.getId(),
                         variant.getName(),
                         variant.getPrice(),
-                        variant.getIsAvailable()
+                        variant.getImageUrl(),
+                        Boolean.TRUE.equals(variant.getIsAvailable())
                 ))
                 .toList();
 
