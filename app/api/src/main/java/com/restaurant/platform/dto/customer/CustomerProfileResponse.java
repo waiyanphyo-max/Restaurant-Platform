@@ -9,6 +9,7 @@ public record CustomerProfileResponse(
         String phone,
         String preferredLanguage,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        String avatarUrl
 ) {
 }
