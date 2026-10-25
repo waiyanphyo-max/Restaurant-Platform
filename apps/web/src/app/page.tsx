@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   ApiError,
@@ -26,6 +27,13 @@ import {
   QueueTicket,
   updateDeliveryStatus,
   setDefaultDeliveryDriver,
+  createRestaurant,
+  getRestaurantProfile,
+  updateRestaurantProfile,
+  uploadRestaurantLogo,
+  RestaurantProfile,
+  CreateRestaurantRequest,
+  UpdateRestaurantProfileRequest,
 } from "@/lib/api";
 
 const initialApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -47,13 +55,81 @@ const deliveryStatuses = [
   "FAILED",
   "CANCELLED",
 ] as const;
-type WorkspaceView = "orders" | "queue" | "deliveries" | "reports" | "customer-pickup";
+type WorkspaceView = "orders" | "queue" | "deliveries" | "reports" | "restaurant-profile" | "customer-pickup";
 type GuestCartLine = {
   quantity: number;
   variantId: string;
   specialInstruction: string;
   modifiers: Record<string, number>;
 };
+
+type RestaurantFormValues = {
+  name: string;
+  slug: string;
+  description: string;
+  phone: string;
+  address: string;
+  houseNo: string;
+  street: string;
+  ward: string;
+  township: string;
+  city: string;
+  latitude: string;
+  longitude: string;
+  logoUrl: string;
+  currency: string;
+  timezone: string;
+};
+
+function emptyRestaurantForm(): RestaurantFormValues {
+  return {
+    name: "",
+    slug: "",
+    description: "",
+    phone: "",
+    address: "",
+    houseNo: "",
+    street: "",
+    ward: "",
+    township: "",
+    city: "",
+    latitude: "",
+    longitude: "",
+    logoUrl: "",
+    currency: "MMK",
+    timezone: "Asia/Yangon",
+  };
+}
+
+function nullableText(value: string): string | null {
+  return value.trim() ? value.trim() : null;
+}
+
+function coordinateValue(value: string): number | null {
+  if (!value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function restaurantToForm(restaurant: RestaurantProfile): RestaurantFormValues {
+  return {
+    name: restaurant.name ?? "",
+    slug: restaurant.slug ?? "",
+    description: restaurant.description ?? "",
+    phone: restaurant.phone ?? "",
+    address: restaurant.address ?? "",
+    houseNo: restaurant.houseNo ?? "",
+    street: restaurant.street ?? "",
+    ward: restaurant.ward ?? "",
+    township: restaurant.township ?? "",
+    city: restaurant.city ?? "",
+    latitude: restaurant.latitude == null ? "" : String(restaurant.latitude),
+    longitude: restaurant.longitude == null ? "" : String(restaurant.longitude),
+    logoUrl: restaurant.logoUrl ?? "",
+    currency: "MMK",
+    timezone: "Asia/Yangon",
+  };
+}
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
@@ -149,6 +225,15 @@ export default function HomePage() {
   const [driverInputs, setDriverInputs] = useState<Record<string, string>>({});
   const [failureReasons, setFailureReasons] = useState<Record<string, string>>({});
   const [deliveryConfirmations, setDeliveryConfirmations] = useState<Record<string, boolean>>({});
+
+  const [createRestaurantForm, setCreateRestaurantForm] = useState<RestaurantFormValues>(() => emptyRestaurantForm());
+  const [createLogoFile, setCreateLogoFile] = useState<File | null>(null);
+  const [loadedRestaurantProfile, setLoadedRestaurantProfile] = useState<RestaurantProfile | null>(null);
+  const [editRestaurantForm, setEditRestaurantForm] = useState<RestaurantFormValues | null>(null);
+  const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileNotice, setProfileNotice] = useState("");
 
   const [publicMenu, setPublicMenu] = useState<PublicMenu | null>(null);
   const [menuLoaded, setMenuLoaded] = useState(false);
@@ -317,6 +402,151 @@ export default function HomePage() {
       ));
     } finally {
       setDefaultDriverLoading(false);
+    }
+  }
+
+  function buildCreateRestaurantRequest(form: RestaurantFormValues): CreateRestaurantRequest {
+    return {
+      name: form.name.trim(),
+      slug: form.slug.trim(),
+      description: nullableText(form.description),
+      phone: nullableText(form.phone),
+      address: nullableText(form.address),
+      houseNo: nullableText(form.houseNo),
+      street: nullableText(form.street),
+      ward: nullableText(form.ward),
+      township: form.township.trim(),
+      city: form.city.trim(),
+      latitude: coordinateValue(form.latitude),
+      longitude: coordinateValue(form.longitude),
+      logoUrl: null,
+      currency: form.currency.trim() || "MMK",
+      timezone: form.timezone.trim() || "Asia/Yangon",
+    };
+  }
+
+  function buildUpdateRestaurantRequest(form: RestaurantFormValues): UpdateRestaurantProfileRequest {
+    return {
+      name: form.name.trim(),
+      description: nullableText(form.description),
+      phone: nullableText(form.phone),
+      address: nullableText(form.address),
+      houseNo: nullableText(form.houseNo),
+      street: nullableText(form.street),
+      ward: nullableText(form.ward),
+      township: form.township.trim(),
+      city: form.city.trim(),
+      latitude: coordinateValue(form.latitude),
+      longitude: coordinateValue(form.longitude),
+      logoUrl: loadedRestaurantProfile?.logoUrl ?? null,
+    };
+  }
+
+  async function handleCreateRestaurant(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setProfileError("");
+    setProfileNotice("");
+    if (!accessToken.trim()) {
+      setProfileError("Enter the restaurant owner's Supabase access token in the connection panel first.");
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      const created = await createRestaurant(
+        apiUrl, accessToken, buildCreateRestaurantRequest(createRestaurantForm),
+      );
+      setRestaurantId(created.restaurant.id);
+      setLoadedRestaurantProfile(created.restaurant);
+      setEditRestaurantForm(restaurantToForm(created.restaurant));
+      setEditLogoFile(null);
+      setCreateRestaurantForm(emptyRestaurantForm());
+      const logoFile = createLogoFile;
+      setCreateLogoFile(null);
+
+      if (logoFile) {
+        try {
+          const uploaded = await uploadRestaurantLogo(
+            apiUrl, created.restaurant.id, accessToken, logoFile,
+          );
+          const withLogo = { ...created.restaurant, logoUrl: uploaded.logoUrl };
+          setLoadedRestaurantProfile(withLogo);
+          setEditRestaurantForm(restaurantToForm(withLogo));
+          setProfileNotice(`Restaurant created and logo uploaded. Restaurant ID: ${created.restaurant.id}`);
+        } catch (cause) {
+          setProfileNotice(`Restaurant was created. Its ID is ${created.restaurant.id}. The logo upload did not complete.`);
+          setProfileError(errorMessage(cause, "The restaurant was created, but the logo could not be uploaded. Select a logo in the update form and try again."));
+        }
+      } else {
+        setProfileNotice(`Restaurant created successfully. Restaurant ID: ${created.restaurant.id}`);
+      }
+    } catch (cause) {
+      setProfileError(errorMessage(cause, "Could not create the restaurant. Check the owner token and required fields."));
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function loadRestaurantProfile() {
+    setProfileError("");
+    setProfileNotice("");
+    if (!restaurantId.trim() || !accessToken.trim()) {
+      setProfileError("Enter the restaurant ID and the restaurant owner's access token in the connection panel first.");
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      const restaurant = await getRestaurantProfile(apiUrl, restaurantId, accessToken);
+      setLoadedRestaurantProfile(restaurant);
+      setEditRestaurantForm(restaurantToForm(restaurant));
+      setEditLogoFile(null);
+      setProfileNotice("Restaurant profile loaded.");
+    } catch (cause) {
+      setProfileError(errorMessage(cause, "Could not load this restaurant profile."));
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function handleUpdateRestaurantProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setProfileError("");
+    setProfileNotice("");
+    if (!editRestaurantForm || !restaurantId.trim() || !accessToken.trim()) {
+      setProfileError("Load a restaurant profile and enter the owner's access token first.");
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      let updated = await updateRestaurantProfile(
+        apiUrl,
+        restaurantId,
+        accessToken,
+        buildUpdateRestaurantRequest(editRestaurantForm),
+      );
+      setLoadedRestaurantProfile(updated);
+      setEditRestaurantForm(restaurantToForm(updated));
+
+      if (editLogoFile) {
+        try {
+          const uploaded = await uploadRestaurantLogo(
+            apiUrl, restaurantId, accessToken, editLogoFile,
+          );
+          updated = { ...updated, logoUrl: uploaded.logoUrl };
+          setLoadedRestaurantProfile(updated);
+          setEditRestaurantForm(restaurantToForm(updated));
+          setEditLogoFile(null);
+          setProfileNotice("Restaurant profile and logo updated successfully.");
+        } catch (cause) {
+          setProfileNotice("Restaurant details were saved, but the logo upload failed.");
+          setProfileError(errorMessage(cause, "Could not upload the new logo. Check Storage configuration and Owner permissions."));
+        }
+      } else {
+        setProfileNotice("Restaurant profile updated successfully.");
+      }
+    } catch (cause) {
+      setProfileError(errorMessage(cause, "Could not update this restaurant profile."));
+    } finally {
+      setProfileBusy(false);
     }
   }
 
@@ -673,7 +903,8 @@ export default function HomePage() {
     ? "Order overview"
     : activeView === "queue" ? "Queue & pickup"
       : activeView === "deliveries" ? "Deliveries"
-        : activeView === "reports" ? "Daily report" : "Common QR order";
+        : activeView === "reports" ? "Daily report"
+          : activeView === "restaurant-profile" ? "Restaurant profile" : "Common QR order";
 
   const menuProducts = publicMenu?.categories.flatMap(category => category.products) ?? [];
   const selectedMenuProducts = menuProducts.filter(
@@ -720,6 +951,15 @@ export default function HomePage() {
           className={`nav-item ${activeView === "reports" ? "active" : ""}`}
           onClick={() => void loadDailyReport()}
         ><span className="nav-icon">▤</span> Daily report</button>
+        <button
+          type="button"
+          className={`nav-item ${activeView === "restaurant-profile" ? "active" : ""}`}
+          onClick={() => {
+            setActiveView("restaurant-profile");
+            setProfileError("");
+            setProfileNotice("");
+          }}
+        ><span className="nav-icon">◉</span> Restaurant profile</button>
         <div className="sidebar-bottom">
           <span className="online-dot" />
           Backend integration preview
@@ -762,6 +1002,167 @@ export default function HomePage() {
           <p className="privacy-note">Staff access tokens stay in page memory only. The guest Common QR flow uses public endpoints and its queue tracking token; never use a service-role key here.</p>
           {error && <div className="feedback error" role="alert">{error}</div>}
         </section>
+
+        {activeView === "restaurant-profile" && <section className="orders-section restaurant-profile-section" aria-busy={profileBusy}>
+          <div className="orders-heading">
+            <div>
+              <h3>Create or update a restaurant</h3>
+              <p>Create a restaurant with an optional logo, or load an existing restaurant to update its profile and logo.</p>
+            </div>
+          </div>
+          {profileNotice && <div className="feedback success" role="status">{profileNotice}</div>}
+          {profileError && <div className="feedback error" role="alert">{profileError}</div>}
+          <div className="restaurant-profile-grid">
+            <article className="restaurant-profile-card">
+              <div className="restaurant-profile-card-heading">
+                <span className="profile-step">01</span>
+                <div><h4>Create restaurant</h4><p>The signed-in user becomes the initial owner.</p></div>
+              </div>
+              <form className="restaurant-profile-form" onSubmit={handleCreateRestaurant}>
+                <div className="restaurant-form-grid">
+                  <label>Restaurant name
+                    <input value={createRestaurantForm.name} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, name: event.target.value }))} maxLength={150} required />
+                  </label>
+                  <label>Restaurant slug
+                    <input value={createRestaurantForm.slug} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, slug: event.target.value.toLowerCase().replace(/\s+/g, "-") }))} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={100} placeholder="my-restaurant" required />
+                  </label>
+                  <label className="wide">Description
+                    <textarea value={createRestaurantForm.description} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, description: event.target.value }))} maxLength={4000} rows={2} />
+                  </label>
+                  <label>Phone
+                    <input value={createRestaurantForm.phone} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, phone: event.target.value }))} maxLength={30} />
+                  </label>
+                  <label>House number
+                    <input value={createRestaurantForm.houseNo} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, houseNo: event.target.value }))} maxLength={50} />
+                  </label>
+                  <label className="wide">Address
+                    <input value={createRestaurantForm.address} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, address: event.target.value }))} maxLength={2000} />
+                  </label>
+                  <label>Street
+                    <input value={createRestaurantForm.street} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, street: event.target.value }))} maxLength={100} />
+                  </label>
+                  <label>Ward
+                    <input value={createRestaurantForm.ward} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, ward: event.target.value }))} maxLength={100} />
+                  </label>
+                  <label>Township
+                    <input value={createRestaurantForm.township} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, township: event.target.value }))} maxLength={100} required />
+                  </label>
+                  <label>City
+                    <input value={createRestaurantForm.city} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, city: event.target.value }))} maxLength={100} required />
+                  </label>
+                  <label>Latitude (optional)
+                    <input type="number" min={-90} max={90} step="any" value={createRestaurantForm.latitude} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, latitude: event.target.value }))} />
+                  </label>
+                  <label>Longitude (optional)
+                    <input type="number" min={-180} max={180} step="any" value={createRestaurantForm.longitude} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, longitude: event.target.value }))} />
+                  </label>
+                  <label>Currency
+                    <input value={createRestaurantForm.currency} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, currency: event.target.value.toUpperCase() }))} pattern="[A-Za-z]{3}" maxLength={3} required />
+                  </label>
+                  <label>Timezone
+                    <input value={createRestaurantForm.timezone} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, timezone: event.target.value }))} maxLength={60} required />
+                  </label>
+                </div>
+                <label className="logo-upload-field">Restaurant logo (PNG, JPEG, or WebP; max 5 MB)
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => {
+                    const file = event.target.files?.[0] ?? null;
+                    setProfileError("");
+                    if (file && file.size > 5 * 1024 * 1024) {
+                      setCreateLogoFile(null);
+                      event.target.value = "";
+                      setProfileError("Logo images must be 5 MB or smaller.");
+                      return;
+                    }
+                    setCreateLogoFile(file);
+                  }} />
+                  <small>{createLogoFile ? `Selected: ${createLogoFile.name}` : "Optional. The restaurant is created first, then the logo is uploaded securely."}</small>
+                </label>
+                <div className="profile-form-actions">
+                  <button className="primary-action" type="submit" disabled={profileBusy}>
+                    {profileBusy ? "Creating…" : "Create restaurant"}
+                  </button>
+                </div>
+              </form>
+            </article>
+
+            <article className="restaurant-profile-card">
+              <div className="restaurant-profile-card-heading">
+                <span className="profile-step">02</span>
+                <div><h4>Update restaurant profile</h4><p>Use the restaurant ID above and the owner&apos;s access token.</p></div>
+              </div>
+              <div className="profile-load-row">
+                <span className="profile-restaurant-id">{restaurantId.trim() || "No restaurant selected"}</span>
+                <button className="secondary-button" type="button" onClick={() => void loadRestaurantProfile()} disabled={profileBusy || !restaurantId.trim() || !accessToken.trim()}>
+                  {profileBusy ? "Loading…" : "Load profile"}
+                </button>
+              </div>
+              {loadedRestaurantProfile?.logoUrl && <div className="restaurant-logo-current">
+                <Image src={loadedRestaurantProfile.logoUrl} alt={`${loadedRestaurantProfile.name} logo`} width={68} height={68} unoptimized />
+                <div><strong>Current logo</strong><a href={loadedRestaurantProfile.logoUrl} target="_blank" rel="noreferrer">Open image</a></div>
+              </div>}
+              {!editRestaurantForm && <div className="empty-state compact-empty"><div className="empty-icon">◉</div><h4>Load a restaurant first</h4><p>Enter its ID in the connection panel, then load its profile here.</p></div>}
+              {editRestaurantForm && <form className="restaurant-profile-form" onSubmit={handleUpdateRestaurantProfile}>
+                <div className="restaurant-form-grid">
+                  <label>Restaurant name
+                    <input value={editRestaurantForm.name} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, name: event.target.value }) : previous)} maxLength={150} required />
+                  </label>
+                  <label>Slug (cannot be changed here)
+                    <input value={editRestaurantForm.slug} readOnly />
+                  </label>
+                  <label className="wide">Description
+                    <textarea value={editRestaurantForm.description} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, description: event.target.value }) : previous)} maxLength={4000} rows={2} />
+                  </label>
+                  <label>Phone
+                    <input value={editRestaurantForm.phone} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, phone: event.target.value }) : previous)} maxLength={30} />
+                  </label>
+                  <label>House number
+                    <input value={editRestaurantForm.houseNo} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, houseNo: event.target.value }) : previous)} maxLength={50} />
+                  </label>
+                  <label className="wide">Address
+                    <input value={editRestaurantForm.address} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, address: event.target.value }) : previous)} maxLength={2000} />
+                  </label>
+                  <label>Street
+                    <input value={editRestaurantForm.street} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, street: event.target.value }) : previous)} maxLength={100} />
+                  </label>
+                  <label>Ward
+                    <input value={editRestaurantForm.ward} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, ward: event.target.value }) : previous)} maxLength={100} />
+                  </label>
+                  <label>Township
+                    <input value={editRestaurantForm.township} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, township: event.target.value }) : previous)} maxLength={100} required />
+                  </label>
+                  <label>City
+                    <input value={editRestaurantForm.city} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, city: event.target.value }) : previous)} maxLength={100} required />
+                  </label>
+                  <label>Latitude (optional)
+                    <input type="number" min={-90} max={90} step="any" value={editRestaurantForm.latitude} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, latitude: event.target.value }) : previous)} />
+                  </label>
+                  <label>Longitude (optional)
+                    <input type="number" min={-180} max={180} step="any" value={editRestaurantForm.longitude} onChange={event => setEditRestaurantForm(previous => previous ? ({ ...previous, longitude: event.target.value }) : previous)} />
+                  </label>
+                </div>
+                <label className="logo-upload-field">Replace restaurant logo (PNG, JPEG, or WebP; max 5 MB)
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => {
+                    const file = event.target.files?.[0] ?? null;
+                    setProfileError("");
+                    if (file && file.size > 5 * 1024 * 1024) {
+                      setEditLogoFile(null);
+                      event.target.value = "";
+                      setProfileError("Logo images must be 5 MB or smaller.");
+                      return;
+                    }
+                    setEditLogoFile(file);
+                  }} />
+                  <small>{editLogoFile ? `Selected: ${editLogoFile.name}` : "Choose a new image to replace the current logo. Leave empty to keep it."}</small>
+                </label>
+                <div className="profile-form-actions">
+                  <button className="primary-action" type="submit" disabled={profileBusy}>
+                    {profileBusy ? "Saving…" : editLogoFile ? "Save profile and logo" : "Save profile"}
+                  </button>
+                </div>
+              </form>}
+            </article>
+          </div>
+        </section>}
 
         {activeView === "customer-pickup" && <section className="orders-section guest-order-section" aria-busy={guestLoading}>
           <div className="orders-heading">

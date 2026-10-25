@@ -198,7 +198,8 @@ public class RestaurantManagementService {
                 restaurant.getId(), restaurant.getName(), restaurant.getSlug(),
                 restaurant.getDescription(), restaurant.getPhone(), restaurant.getAddress(),
                 restaurant.getHouseNo(), restaurant.getStreet(), restaurant.getWard(),
-                restaurant.getTownship(), restaurant.getCity(), restaurant.getLogoUrl(),
+                restaurant.getTownship(), restaurant.getCity(),
+                restaurant.getLatitude(), restaurant.getLongitude(), restaurant.getLogoUrl(),
                 Boolean.TRUE.equals(restaurant.getIsActive()),
                 restaurant.getCreatedAt(), restaurant.getUpdatedAt());
     }

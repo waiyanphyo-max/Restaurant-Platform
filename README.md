@@ -26,6 +26,8 @@ Provide the variables shown in `.env.example` in your shell or IDE run configura
 
 - `SUPABASE_DB_URL`, `SUPABASE_DB_USERNAME`, `SUPABASE_DB_PASSWORD`
 - `SUPABASE_AUTH_ISSUER`, `SUPABASE_JWKS_URL`
+- `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY` (server only; also used for owner-only logo uploads)
+- `SUPABASE_STORAGE_BUCKET` (optional; defaults to `restaurant-logos`; the bucket should allow public reads)
 - Optional: `DB_POOL_MAX_SIZE`, `APP_CORS_ALLOWED_ORIGINS`, `APP_SECURITY_JWT_REQUIRED_AUDIENCE`, `APP_SECURITY_JWT_SIGNING_ALGORITHM`, `APP_IDEMPOTENCY_ENCRYPTION_KEY`, `APP_PUSH_FIREBASE_ENABLED`, `APP_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON`, `APP_PUSH_OUTBOX_POLL_INTERVAL_MS`, `APP_PUSH_OUTBOX_BATCH_SIZE`, `APP_PUSH_OUTBOX_MAX_ATTEMPTS`, `APP_PUSH_OUTBOX_MAX_RETRY_DELAY_SECONDS`
 
 The JWT signing algorithm must match the Supabase project's asymmetric signing-key configuration served through its JWKS endpoint. Do not assume a value without checking the project settings. Database passwords and privileged credentials must remain server-side. To enable safe retry protection for public QR checkout, apply the `20261024083000_add_qr_order_idempotency.sql` migration and set `APP_IDEMPOTENCY_ENCRYPTION_KEY` to Base64-encoded 32 random bytes on the API server. The header is optional; clients should reuse a key only when retrying the exact same checkout request. See `docs/api.md` for details. To enable provider-backed push delivery, apply `20261024100000_add_push_notification_outbox.sql`, create/configure your Firebase project and client registration tokens, then set `APP_PUSH_FIREBASE_ENABLED=true`. Supply `APP_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON` as a server-side secret or configure Google Application Default Credentials in the hosting environment. Firebase is deliberately off by default, and the backend will not pretend to send push messages without credentials. See `docs/api.md` for deployment and retry behavior.
@@ -78,6 +80,7 @@ mvn -f app/api/pom.xml spring-boot:run
 | PATCH | `/api/v1/restaurants/{restaurantId}/orders/{orderId}/payments/{paymentId}/collect` | Collect a pending cash-at-counter payment |
 | GET | `/api/v1/restaurants/{restaurantId}/reports/daily?date=2026-10-21` | OWNER/MANAGER daily operations report in restaurant timezone |
 | PUT | `/api/v1/restaurants/{restaurantId}/profile` | Update restaurant profile fields |
+| POST | `/api/v1/restaurants/{restaurantId}/logo` | Owner-only PNG/JPEG/WebP logo upload (multipart field `file`, max 5 MB) |
 | GET/PUT | `/api/v1/restaurants/{restaurantId}/settings` | Read or update operational settings |
 | POST | `/api/v1/restaurants/{restaurantId}/settings/common-qr-token/rotate` | Rotate Common QR token (returned once) |
 | GET/POST | `/api/v1/restaurants/{restaurantId}/delivery-zones` | List or create delivery zones |
@@ -120,7 +123,7 @@ Queue polling, in-app notifications, delivery assignment, driver task/status API
 
 ## Web client
 
-The Next.js app in `apps/web` provides an operations dashboard for orders, queue pickup, deliveries, and daily reports, as well as a public Common QR guest ordering/queue tracking screen. Staff features use a Supabase access token supplied in the form; it stays in page memory and is not persisted. Guest checkout uses the public QR APIs without a staff login. This remains an integration preview; production Supabase browser sign-in, payment-provider integration, external push-provider setup, and deployment configuration remain future work.
+The Next.js app in `apps/web` provides an operations dashboard for orders, queue pickup, deliveries, daily reports, and restaurant create/profile editing with secure logo upload, as well as a public Common QR guest ordering/queue tracking screen. Staff features use a Supabase access token supplied in the form; it stays in page memory and is not persisted. Guest checkout uses the public QR APIs without a staff login. This remains an integration preview; production Supabase browser sign-in, payment-provider integration, external push-provider setup, and deployment configuration remain future work.
 
 Run it locally with:
 
