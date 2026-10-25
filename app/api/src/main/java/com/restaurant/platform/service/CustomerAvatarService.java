@@ -1,11 +1,9 @@
 package com.restaurant.platform.service;
 
-import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.customer.CustomerProfileResponse;
 import com.restaurant.platform.entity.Profile;
 import com.restaurant.platform.repository.ProfileRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -55,8 +53,4 @@ public class CustomerAvatarService {
         return customerProfileService.getMyProfile(userId);
     }
 
-    private ApiException storageNotConfigured() {
-        return new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
-                "MEDIA_STORAGE_NOT_CONFIGURED", "error.media.storage-not-configured");
-    }
 }
