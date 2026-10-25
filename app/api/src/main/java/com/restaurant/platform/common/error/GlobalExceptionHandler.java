@@ -20,6 +20,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * Returns localized API error messages according to the request's Accept-Language.
@@ -194,6 +195,19 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT,
                 "DATA_CONFLICT",
                 message("error.conflict", locale),
+                request,
+                List.of());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException exception,
+            HttpServletRequest request,
+            Locale locale) {
+        return response(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "UPLOAD_TOO_LARGE",
+                message("error.logo.file-too-large", locale),
                 request,
                 List.of());
     }
