@@ -7,11 +7,8 @@ import type { View, Row, Membership } from "@/types/workspace";
 import { rid, record, list, label, asMoney, messageOf, nextStates, nextDeliveryStates } from "@/features/workspace/utils";
 import WorkspaceNavigation from "@/components/layout/WorkspaceNavigation";
 import { SectionIntro, EmptyState, FormField } from "@/components/shared/WorkspacePrimitives";
-import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
-import { DeliveryStatusBadge } from "@/components/delivery/DeliveryStatusBadge";
-import { QueueStatusBadge } from "@/components/queue/QueueStatusBadge";
-import { AvailabilityBadge } from "@/components/menu/AvailabilityBadge";
-import { CustomerAvatar } from "@/components/customer/CustomerAvatar";
+import { WorkspaceProvider, type WorkspaceViewContext } from "@/features/workspace/WorkspaceContext";
+import WorkspaceViews from "@/features/workspace/WorkspaceViews";
 
 export default function WorkspaceClient() {
   const [apiUrl, setApiUrl] = useState(process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080");
@@ -521,179 +518,208 @@ export default function WorkspaceClient() {
     return <button className="ws-btn ws-btn-muted" onClick={() => editRecord(titleText, path, row, method)}>Edit fields</button>;
   }
 
-  function workspaceContent(): React.ReactNode {
-    if (view === "overview") return <>
-      <div className="ws-hero"><div><div className="ws-eyebrow">RESTAURANT OPERATIONS</div><h2>Service, in one workspace.</h2><p>Manage orders, pickup queues, menu items, deliveries and customer workflows from desktop or phone.</p></div><div className="ws-hero-mark">R<span /></div></div>
-      <div className="ws-stat-grid">{[
-        ["Orders today", report.totalOrders ?? orders.length], ["Pending", report.pendingOrders ?? orders.filter((x) => x.status === "PENDING").length],
-        ["Completed", report.completedOrders ?? orders.filter((x) => x.status === "COMPLETED").length], ["Sales", asMoney(report.orderAmountExcludingCancelled ?? report.paidAmount ?? 0, String(data.currency || "MMK"))],
-      ].map(([name, value]) => <div className="ws-stat" key={String(name)}><span>{name}</span><strong>{value}</strong><small>Latest information from backend</small></div>)}</div>
-      <div className="ws-grid-two"><section className="ws-card"><div className="ws-card-heading"><div><h3>Recent orders</h3><p>Latest service activity</p></div><button className="ws-link-btn" onClick={() => changeView("orders")}>View all ↗</button></div>{orders.slice(0, 5).map((o) => <div className="ws-list-row" key={String(o.id)}><div><b>{label(o)}</b><small>{String(o.orderType || "")} · {String(o.orderChannel || "")}</small></div><div className="ws-row-end"><OrderStatusBadge status={String(o.status || "UNKNOWN")} /><b>{asMoney(o.totalAmount, String(data.currency || "MMK"))}</b></div></div>)}{!orders.length && empty("Orders appear here when the backend returns records.")}</section><section className="ws-card"><div className="ws-card-heading"><div><h3>Quick actions</h3><p>Open the workflows your role needs</p></div></div><div className="ws-quick-grid">{[["Staff order","staff-order"],["Queue & pickup","queue"],["Delivery tasks","deliveries"],["Edit catalogue","menu"],["Manage team","members"],["Daily report","reports"]].map(([name,key]) => <button className="ws-quick" key={key} onClick={() => changeView(key as View)}><b>{name}</b><i>↗</i></button>)}</div></section></div>
-    </>;
+  const workspaceContextValue: WorkspaceViewContext = {
+    call,
+    apiUrl,
+    setApiUrl,
+    token,
+    setToken,
+    showToken,
+    setShowToken,
+    connected,
+    setConnected,
+    memberships,
+    setMemberships,
+    restaurantId,
+    setRestaurantId,
+    restaurantName,
+    setRestaurantName,
+    role,
+    setRole,
+    view,
+    setView,
+    busy,
+    setBusy,
+    loading,
+    setLoading,
+    error,
+    setError,
+    notice,
+    setNotice,
+    data,
+    setData,
+    orders,
+    setOrders,
+    queue,
+    setQueue,
+    deliveries,
+    setDeliveries,
+    categories,
+    setCategories,
+    products,
+    setProducts,
+    variantsByProduct,
+    setVariantsByProduct,
+    linkedGroupsByProduct,
+    setLinkedGroupsByProduct,
+    groupsList,
+    setGroupsList,
+    linkForm,
+    setLinkForm,
+    defaultDriver,
+    setDefaultDriver,
+    payments,
+    setPayments,
+    paymentOrderId,
+    setPaymentOrderId,
+    tables,
+    setTables,
+    zones,
+    setZones,
+    members,
+    setMembers,
+    addresses,
+    setAddresses,
+    customerOrders,
+    setCustomerOrders,
+    customerZones,
+    setCustomerZones,
+    notifications,
+    setNotifications,
+    devices,
+    setDevices,
+    deviceForm,
+    setDeviceForm,
+    publicMenu,
+    setPublicMenu,
+    tableQrToken,
+    setTableQrToken,
+    tableQrResult,
+    setTableQrResult,
+    tableIdempotencyKey,
+    setTableIdempotencyKey,
+    report,
+    setReport,
+    search,
+    setSearch,
+    reportDate,
+    setReportDate,
+    draft,
+    setDraft,
+    apiTool,
+    setApiTool,
+    responseData,
+    setResponseData,
+    oneTimeSecret,
+    setOneTimeSecret,
+    oneTimeQrLink,
+    setOneTimeQrLink,
+    categoryName,
+    setCategoryName,
+    categoryOrder,
+    setCategoryOrder,
+    productForm,
+    setProductForm,
+    variantForm,
+    setVariantForm,
+    groupForm,
+    setGroupForm,
+    optionForm,
+    setOptionForm,
+    tableNumber,
+    setTableNumber,
+    zoneForm,
+    setZoneForm,
+    inviteForm,
+    setInviteForm,
+    existingMemberForm,
+    setExistingMemberForm,
+    profileForm,
+    setProfileForm,
+    addressForm,
+    setAddressForm,
+    driverInput,
+    setDriverInput,
+    restaurantCreate,
+    setRestaurantCreate,
+    cart,
+    setCart,
+    checkout,
+    setCheckout,
+    ticket,
+    setTicket,
+    tracking,
+    setTracking,
+    trackingNotifications,
+    setTrackingNotifications,
+    selectedOrder,
+    setSelectedOrder,
+    fail,
+    ok,
+    act,
+    restaurantPath,
+    loadView,
+    changeView,
+    connect,
+    saveDraft,
+    editRecord,
+    upload,
+    createCategory,
+    createProduct,
+    createVariant,
+    createGroup,
+    createOption,
+    createTable,
+    createZone,
+    inviteMember,
+    addExistingMember,
+    registerDevice,
+    saveProfile,
+    createAddress,
+    menuProduct,
+    placeDeliveryOrder,
+    showPayments,
+    collectPayment,
+    updateDelivery,
+    assignDriver,
+    rotateSecret,
+    loadTableMenu,
+    placeTableQrOrder,
+    reorderOrder,
+    trackQueue,
+    submitApi,
+    createRestaurant,
+    nav,
+    intro,
+    empty,
+    field,
+    editorButton,
+    title,
+    filteredOrders,
+    filteredProducts,
+    activeCartItems,
+    cartTotal,
+    rid,
+    record,
+    list,
+    label,
+    asMoney,
+    messageOf,
+    nextStates,
+    nextDeliveryStates,
+  };
 
-    if (view === "orders") return <>
-      {intro("Order management","Inspect order details, change supported statuses, and open payment metadata. Illegal state transitions are rejected by the backend.")}
-      <div className="ws-toolbar"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order number, type, status…" /><button className="ws-btn ws-btn-muted" onClick={() => loadView("orders")}>Refresh</button><button className="ws-btn ws-btn-primary" onClick={() => changeView("staff-order")}>＋ Counter order</button></div>
-      <div className="ws-record-list">{filteredOrders.map((o) => <article className="ws-record" key={String(o.id)}><div className="ws-record-main"><div className="ws-record-title"><b>{label(o)}</b><OrderStatusBadge status={String(o.status || "")} /></div><p>{String(o.orderType || "")} · {String(o.orderChannel || "")} · {o.createdAt ? new Date(o.createdAt).toLocaleString() : ""}</p><strong>{asMoney(o.totalAmount, String(data.currency || "MMK"))}</strong><small>Order UUID: {String(o.id || "")}</small></div><div className="ws-record-actions"><button className="ws-btn ws-btn-muted" onClick={() => void (async()=>{try{setSelectedOrder(record(await call(restaurantPath("orders/"+encodeURIComponent(String(o.id))))));}catch(cause){fail(cause);}})()}>Details</button>{nextStates(String(o.status), String(o.orderType)).map((s) => <button className="ws-btn ws-btn-primary" key={s} onClick={() => act(() => call(restaurantPath("orders/" + encodeURIComponent(String(o.id)) + "/status"), "PATCH", { status: s, note: "Updated from workspace." }), "Order updated to " + s + ".")}>{s}</button>)}<button className="ws-btn ws-btn-soft" onClick={() => void showPayments(o)}>Payments</button></div></article>)}</div>{paymentOrderId && <section className="ws-card ws-payments-panel"><div className="ws-card-heading"><div><h3>Payments for order {paymentOrderId.slice(0,8)}…</h3><p>Only safe payment metadata is returned; private transaction references are omitted by the API.</p></div><button className="ws-btn ws-btn-muted" onClick={()=>{setPaymentOrderId("");setPayments([]);}}>Close</button></div>{payments.map((payment)=><div className="ws-list-row" key={String(payment.id)}><div><b>{String(payment.paymentMethod||payment.method||"Payment")}</b><small>{String(payment.status||"")} · {String(payment.paymentType||"")}</small></div><div className="ws-row-end"><b>{asMoney(payment.amount??payment.amountPaid??payment.totalAmount,data.currency||"MMK")}</b>{payment.status==="PENDING"&&<button className="ws-btn ws-btn-primary" onClick={()=>void collectPayment(paymentOrderId,String(payment.id))}>Collect cash</button>}</div></div>)}{!payments.length&&empty("No payment records returned for this order.")}</section>}{!filteredOrders.length && empty("No orders matched this search.")}
-    </>;
-
-    if (view === "staff-order") return <>
-      {intro("Create a counter order","Enter an order for a walk-in customer. Menu prices and availability are validated by the server; pending payment is cash at counter.")}
-      <section className="ws-card"><form className="ws-form-grid" onSubmit={(e) => {
-        e.preventDefault();
-        const form = e.currentTarget;
-        const fd = new FormData(form);
-        const type = String(fd.get("orderType") || "TAKEAWAY");
-        const body: Row = { orderType: type, items: [{ productId: String(fd.get("productId") || ""), quantity: Number(fd.get("quantity") || 1), modifiers: [] }], note: String(fd.get("note") || "") };
-        if (type === "DINE_IN") body.tableId = String(fd.get("tableId") || "");
-        void act(() => call(restaurantPath("orders/staff"), "POST", body), "Counter order created.");
-      }}><label className="ws-field"><span>Order type</span><select name="orderType"><option value="TAKEAWAY">Takeaway</option><option value="DINE_IN">Dine-in</option></select></label>{field("Product", <select name="productId" required><option value="">Choose menu item</option>{products.map((p) => <option key={String(p.id)} value={String(p.id)}>{label(p)} · {asMoney(p.price, String(data.currency || "MMK"))}</option>)}</select>)}{field("Quantity", <input name="quantity" type="number" min="1" defaultValue="1" required />)}{field("Table UUID (dine-in only)", <select name="tableId"><option value="">Choose table</option>{tables.filter((t) => t.active !== false).map((t) => <option key={String(t.id)} value={String(t.id)}>{label(t)}</option>)}</select>)}{field("Order note", <input name="note" placeholder="Kitchen note or special instruction" />, true)}<button type="submit" className="ws-btn ws-btn-primary">Create order</button><p className="ws-muted">For full modifiers or variant selection, use the API workbench or add them in the customer menu.</p></form></section>
-    </>;
-
-    if (view === "queue") return <>
-      {intro("Queue & pickup","Call ready queue numbers. Customers can track status through the ticket UUID and token returned at checkout.")}
-      <div className="ws-toolbar"><button className="ws-btn ws-btn-muted" onClick={() => loadView("queue")}>Refresh queue</button><button className="ws-btn ws-btn-soft" onClick={() => changeView("queue-track")}>Open customer tracker</button></div>
-      <div className="ws-ticket-grid">{queue.map((t) => <article className="ws-ticket" key={String(t.ticketId || t.id)}><div className="ws-ticket-top"><span>QUEUE NUMBER</span><QueueStatusBadge status={String(t.status || "")} /></div><strong>{String(t.displayCode || t.queueNumber || "—")}</strong><small>{t.createdAt ? new Date(t.createdAt).toLocaleString() : ""}</small>{t.status === "READY" && <button className="ws-btn ws-btn-primary" onClick={() => act(() => call(restaurantPath("queue-tickets/" + encodeURIComponent(String(t.ticketId || t.id)) + "/call"), "PATCH"), "Queue number called.")}>Call this number</button>}<button className="ws-btn ws-btn-muted" onClick={() => { setTicket({ ...ticket, id: String(t.ticketId || t.id || "") }); setView("queue-track"); }}>Track this ticket</button></article>)}{!queue.length && empty("No queue tickets returned.")}</div>
-    </>;
-
-    if (view === "deliveries") return <>
-      {intro(role === "DELIVERY_DRIVER" ? "My delivery tasks" : "Delivery operations", role === "DELIVERY_DRIVER" ? "Only tasks assigned to your signed-in driver account are returned." : "Assign tasks to drivers in this restaurant and track handoffs. Delivery completion requires confirmation of cash collection when applicable.")}
-      <div className="ws-toolbar"><button className="ws-btn ws-btn-muted" onClick={() => loadView("deliveries")}>Refresh tasks</button><span className="ws-muted">{deliveries.length} tasks</span></div>
-      <div className="ws-record-list">{deliveries.map((t) => <article className="ws-record" key={String(t.id)}><div className="ws-record-main"><div className="ws-record-title"><b>Order {String(t.orderNumber || t.orderId || "").slice(0,24)}</b><DeliveryStatusBadge status={String(t.status || "")} /></div><p>{String(t.customerName || "Customer")}{t.customerPhone ? " · " + t.customerPhone : ""}</p><div className="ws-address">{String(t.deliveryAddress || "No address available")}</div><strong>{asMoney(t.totalAmount, String(data.currency || "MMK"))}</strong>{t.deliveryNote && <small>Note: {String(t.deliveryNote)}</small>}{t.driverUserId && <small>Driver ID: {String(t.driverUserId)}</small>}{t.failureReason && <small className="ws-danger-text">Failure: {String(t.failureReason)}</small>}</div><div className="ws-record-actions">{role !== "DELIVERY_DRIVER" && <button className="ws-btn ws-btn-muted" onClick={() => { const id = window.prompt("Enter DELIVERY_DRIVER user UUID:", String(t.driverUserId || "")); if (id) void act(() => call(restaurantPath("deliveries/" + encodeURIComponent(String(t.id)) + "/assign"), "PATCH", { driverUserId: id, note: "Assigned from workspace." }), "Delivery assigned."); }}>Assign / reassign</button>}{nextDeliveryStates(String(t.status)).map((s) => <button className="ws-btn ws-btn-primary" key={s} onClick={() => {
-        const body: Row = { status:s, note:"Updated from workspace." };
-        if (s === "FAILED") { const reason = window.prompt("Failure reason:"); if (!reason) return; body.failureReason = reason; }
-        if (s === "DELIVERED") { body.cashCollected = window.confirm("Confirm the delivery and any cash collection?"); if (!body.cashCollected) return; }
-        void act(() => call(restaurantPath("deliveries/" + encodeURIComponent(String(t.id)) + "/status"), "PATCH", body), "Delivery updated to " + s + ".");
-      }}>{s}</button>)}</div></article>)}{!deliveries.length && empty("No tasks assigned or waiting.")}</div>
-    </>;
-
-    if (view === "reports") return <>
-      {intro("Daily operations report","Review order state counts and sales totals calculated in the restaurant timezone.")}
-      <section className="ws-card"><div className="ws-inline-form">{field("Report date", <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} />)}<button className="ws-btn ws-btn-primary" onClick={() => loadView("reports")}>Load report</button></div><div className="ws-stat-grid">{[
-        ["Total orders",report.totalOrders],["Pending",report.pendingOrders],["Accepted",report.acceptedOrders],["Preparing",report.preparingOrders],["Ready",report.readyOrders],["Out for delivery",report.outForDeliveryOrders],["Completed",report.completedOrders],["Cancelled",report.cancelledOrders],["Paid amount",asMoney(report.paidAmount,String(data.currency||"MMK"))],["Sales excluding cancelled",asMoney(report.orderAmountExcludingCancelled,String(data.currency||"MMK"))],
-      ].map(([k,v]) => <div className="ws-stat" key={String(k)}><span>{k}</span><strong>{v ?? "—"}</strong></div>)}</div><p className="ws-muted">Timezone: {String(report.timezone || "returned by backend")}</p></section>
-    </>;
-
-    if (view === "menu") return <>
-      {intro("Menu & catalogue","Create categories, products, variants and modifier choices. Upload product/variant images and link modifier groups to products. Backend roles control write access.")}
-      <div className="ws-toolbar"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products" /><button className="ws-btn ws-btn-muted" onClick={() => loadView("menu")}>Refresh</button></div>
-      <div className="ws-grid-two">
-        <section className="ws-card"><h3>New category</h3><form className="ws-form-grid" onSubmit={createCategory}>{field("Name",<input value={categoryName} onChange={(e)=>setCategoryName(e.target.value)} required />)}{field("Display order",<input type="number" value={categoryOrder} onChange={(e)=>setCategoryOrder(e.target.value)} />)}<button className="ws-btn ws-btn-primary">Create category</button></form><div className="ws-chip-list">{categories.map((c)=><button className="ws-chip" key={String(c.id)} onClick={()=>editRecord("Edit category",restaurantPath("categories/"+encodeURIComponent(String(c.id))),c)}>{label(c)} · Edit</button>)}</div></section>
-        <section className="ws-card"><h3>New product</h3><form className="ws-form-grid" onSubmit={createProduct}>{field("Product name",<input value={productForm.name} onChange={(e)=>setProductForm({...productForm,name:e.target.value})} required />)}{field("Category",<select value={productForm.categoryId} onChange={(e)=>setProductForm({...productForm,categoryId:e.target.value})} required><option value="">Select category</option>{categories.map((c)=><option key={String(c.id)} value={String(c.id)}>{label(c)}</option>)}</select>)}{field("Price",<input type="number" min="0" value={productForm.price} onChange={(e)=>setProductForm({...productForm,price:e.target.value})} required />)}{field("Description",<input value={productForm.description} onChange={(e)=>setProductForm({...productForm,description:e.target.value})} />,true)}{field("Availability",<select value={String(productForm.available)} onChange={(e)=>setProductForm({...productForm,available:e.target.value==="true"})}><option value="true">Available</option><option value="false">Unavailable</option></select>)}{field("Track stock",<select value={String(productForm.trackStock)} onChange={(e)=>setProductForm({...productForm,trackStock:e.target.value==="true"})}><option value="false">No</option><option value="true">Yes</option></select>)}{productForm.trackStock&&field("Stock quantity",<input type="number" min="0" value={productForm.stockQuantity} onChange={(e)=>setProductForm({...productForm,stockQuantity:e.target.value})}/>)}<button className="ws-btn ws-btn-primary">Create product</button></form></section>
-      </div>
-      <section className="ws-card"><div className="ws-card-heading"><div><h3>Products</h3><p>{filteredProducts.length} results · choose a file to upload product or variant image</p></div></div><div className="ws-product-grid">{filteredProducts.map((p)=><article className="ws-product" key={String(p.id)}>{p.imageUrl?<img src={String(p.imageUrl)} alt={String(p.name)}/>:<div className="ws-product-placeholder">MENU</div>}<div className="ws-product-body"><div className="ws-record-title"><b>{label(p)}</b><AvailabilityBadge available={p.available !== false} /></div><p>{String(p.description||"")}</p><strong>{asMoney(p.price,String(data.currency||"MMK"))}</strong><div className="ws-inline-actions">{editorButton("Edit product",restaurantPath("products/"+encodeURIComponent(String(p.id))),p)}<label className="ws-upload-btn">Upload image<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>void upload(restaurantPath("products/"+encodeURIComponent(String(p.id))+"/image"),e.target.files?.[0])}/></label></div>{(variantsByProduct[String(p.id)]||[]).map((v)=><div className="ws-subitem" key={String(v.id)}><span>{label(v)} · {asMoney(v.price,String(data.currency||"MMK"))}</span>{editorButton("Edit variant",restaurantPath("products/"+encodeURIComponent(String(p.id))+"/variants/"+encodeURIComponent(String(v.id))),v)}<label className="ws-upload-btn">Image<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>void upload(restaurantPath("products/"+encodeURIComponent(String(p.id))+"/variants/"+encodeURIComponent(String(v.id))+"/image"),e.target.files?.[0])}/></label></div>)}{(linkedGroupsByProduct[String(p.id)]||[]).map((g)=><div className="ws-subitem" key={"group-"+String(g.id)}><span>Modifier: {label(g)}</span><button className="ws-btn ws-btn-danger" onClick={()=>void act(()=>call(restaurantPath("products/"+encodeURIComponent(String(p.id))+"/modifier-groups/"+encodeURIComponent(String(g.id))),"DELETE"),"Modifier group detached.","menu")}>Detach</button></div>)}</div></article>)}</div>{!filteredProducts.length&&empty("No products yet.")}</section>
-      <div className="ws-grid-two">
-        <section className="ws-card"><h3>New variant</h3><form className="ws-form-grid" onSubmit={createVariant}>{field("Product",<select value={variantForm.productId} onChange={(e)=>setVariantForm({...variantForm,productId:e.target.value})} required><option value="">Select product</option>{products.map((p)=><option key={String(p.id)} value={String(p.id)}>{label(p)}</option>)}</select>)}{field("Variant name",<input value={variantForm.name} onChange={(e)=>setVariantForm({...variantForm,name:e.target.value})} required />)}{field("Price",<input type="number" min="0" value={variantForm.price} onChange={(e)=>setVariantForm({...variantForm,price:e.target.value})} required />)}<button className="ws-btn ws-btn-primary">Create variant</button></form></section>
-        <section className="ws-card"><h3>Modifier groups & options</h3><form className="ws-form-grid" onSubmit={createGroup}>{field("New group",<input value={groupForm.name} onChange={(e)=>setGroupForm({...groupForm,name:e.target.value})} required />)}{field("Required",<select value={String(groupForm.required)} onChange={(e)=>setGroupForm({...groupForm,required:e.target.value==="true"})}><option value="false">Optional</option><option value="true">Required</option></select>)}{field("Min selections",<input type="number" min="0" value={groupForm.minSelections} onChange={(e)=>setGroupForm({...groupForm,minSelections:e.target.value})}/>)}{field("Max selections",<input type="number" min="1" value={groupForm.maxSelections} onChange={(e)=>setGroupForm({...groupForm,maxSelections:e.target.value})}/>)}<button className="ws-btn ws-btn-primary">Create modifier group</button></form><form className="ws-form-grid ws-form-top" onSubmit={(e)=>{e.preventDefault();void act(()=>call(restaurantPath("modifier-groups/"+encodeURIComponent(optionForm.groupId)+"/options"),"POST",{name:optionForm.name,additionalPrice:Number(optionForm.additionalPrice),available:true}),"Modifier option created.","menu");}}>{field("Group",<select value={optionForm.groupId} onChange={(e)=>setOptionForm({...optionForm,groupId:e.target.value})} required><option value="">Select group</option>{groupsList.map((g)=><option key={String(g.id)} value={String(g.id)}>{label(g)}</option>)}</select>)}{field("Option name",<input value={optionForm.name} onChange={(e)=>setOptionForm({...optionForm,name:e.target.value})} required />)}{field("Extra price",<input type="number" min="0" value={optionForm.additionalPrice} onChange={(e)=>setOptionForm({...optionForm,additionalPrice:e.target.value})}/>)}<button className="ws-btn ws-btn-muted">Add option</button></form><form className="ws-form-grid ws-form-top" onSubmit={(e)=>{e.preventDefault();void act(()=>call(restaurantPath("products/"+encodeURIComponent(linkForm.productId)+"/modifier-groups/"+encodeURIComponent(linkForm.groupId)),"PUT"),"Modifier group attached to product.","menu");}}><h4 className="ws-field-wide">Attach modifier group to product</h4>{field("Product",<select value={linkForm.productId} onChange={(e)=>setLinkForm({...linkForm,productId:e.target.value})} required><option value="">Select product</option>{products.map((p)=><option key={String(p.id)} value={String(p.id)}>{label(p)}</option>)}</select>)}{field("Modifier group",<select value={linkForm.groupId} onChange={(e)=>setLinkForm({...linkForm,groupId:e.target.value})} required><option value="">Select group</option>{groupsList.map((g)=><option key={String(g.id)} value={String(g.id)}>{label(g)}</option>)}</select>)}<button className="ws-btn ws-btn-muted">Attach group</button></form><div className="ws-chip-list">{groupsList.map((g)=><button className="ws-chip" key={String(g.id)} onClick={()=>editRecord("Edit modifier group",restaurantPath("modifier-groups/"+encodeURIComponent(String(g.id))),g)}>{label(g)} · {list(g.options).length} options</button>)}</div><div className="ws-sublist">{groupsList.flatMap((g)=>list(g.options).map((option)=><div className="ws-subitem" key={String(option.id)}><span>{label(g)} / {label(option)} · +{asMoney(option.additionalPrice,String(data.currency||"MMK"))} · {option.available===false?"Unavailable":"Available"}</span><button className="ws-btn ws-btn-muted" onClick={()=>editRecord("Edit modifier option",restaurantPath("modifier-groups/"+encodeURIComponent(String(g.id))+"/options/"+encodeURIComponent(String(option.id))),option)}>Edit option</button></div>))}</div></section>
-      </div>
-    </>;
-
-    if (view === "tables") return <>
-      {intro("Tables & QR codes","Create table identifiers, rename or deactivate tables, or rotate the token if a printed table QR code should stop working.")}
-      <section className="ws-card"><form className="ws-inline-form" onSubmit={createTable}>{field("Table number",<input value={tableNumber} onChange={(e)=>setTableNumber(e.target.value)} placeholder="T1" required />)}<button className="ws-btn ws-btn-primary">＋ Add table</button></form></section>
-      <div className="ws-record-list">{tables.map((t)=><article className="ws-record" key={String(t.id)}><div className="ws-record-main"><div className="ws-record-title"><b>{label(t)}</b><span className="ws-status">{t.active===false?"Inactive":"Active"}</span></div><small>{String(t.id||"")}</small></div><div className="ws-record-actions">{editorButton("Edit table",restaurantPath("tables/"+encodeURIComponent(String(t.id))),t)}<button className="ws-btn ws-btn-primary" onClick={()=>void rotateSecret("tables/"+encodeURIComponent(String(t.id))+"/qr-token/rotate","Table QR token rotated; replace the printed QR.")}>Rotate QR</button></div></article>)}</div>{!tables.length&&empty("No tables set up yet.")}
-    </>;
-
-    if (view === "settings") return <>
-      {intro("Restaurant settings","Read and update currency, timezone, checkout flags, minimum order, default delivery fee and the default driver setting. The Common QR token is only shown once when rotated.")}
-      <div className="ws-grid-two"><section className="ws-card"><div className="ws-card-heading"><div><h3>Operational settings</h3><p>Current server response</p></div>{editorButton("Edit restaurant settings",restaurantPath("settings"),data)}</div><pre className="ws-json-preview">{JSON.stringify(data,null,2)}</pre><button className="ws-btn ws-btn-primary" onClick={()=>void rotateSecret("settings/common-qr-token/rotate","Common QR secret rotated. Replace previously printed codes.")}>Rotate Common QR secret</button></section><section className="ws-card"><h3>Default delivery driver</h3><p>Use the UUID of a DELIVERY_DRIVER in this restaurant. The API validates the role and restaurant membership.</p><form className="ws-form-grid" onSubmit={(e)=>{e.preventDefault();void act(()=>call(restaurantPath("delivery-settings/default-driver"),"PATCH",{driverUserId:driverInput.trim()}),"Default delivery driver saved.","settings");}}>{field("Driver user UUID",<input value={driverInput} onChange={(e)=>setDriverInput(e.target.value)} placeholder="Paste driver UUID" required />)}<button className="ws-btn ws-btn-primary">Save default driver</button></form><p className="ws-muted">Current default: {defaultDriver||"Not configured"}</p><button className="ws-btn ws-btn-muted" onClick={()=>changeView("members")}>Open team members</button></section></div>
-    </>;
-
-    if (view === "zones") return <>
-      {intro("Delivery zones","Set fee, minimum order and optional city/township restrictions. City and township should be set together for coverage checks.")}
-      <section className="ws-card"><form className="ws-form-grid" onSubmit={(e)=>{e.preventDefault();void act(()=>call(restaurantPath("delivery-zones"),"POST",{name:zoneForm.name,deliveryFee:Number(zoneForm.deliveryFee),minimumOrder:Number(zoneForm.minimumOrder),active:zoneForm.active,coverageCity:zoneForm.coverageCity||null,coverageTownship:zoneForm.coverageTownship||null}),"Delivery zone created.","zones");}}>{field("Name",<input value={zoneForm.name} onChange={(e)=>setZoneForm({...zoneForm,name:e.target.value})} required />)}{field("Delivery fee",<input type="number" min="0" value={zoneForm.deliveryFee} onChange={(e)=>setZoneForm({...zoneForm,deliveryFee:e.target.value})}/>)}{field("Minimum order",<input type="number" min="0" value={zoneForm.minimumOrder} onChange={(e)=>setZoneForm({...zoneForm,minimumOrder:e.target.value})}/>)}{field("Active",<select value={String(zoneForm.active)} onChange={(e)=>setZoneForm({...zoneForm,active:e.target.value==="true"})}><option value="true">Yes</option><option value="false">No</option></select>)}{field("Coverage city",<input value={zoneForm.coverageCity} onChange={(e)=>setZoneForm({...zoneForm,coverageCity:e.target.value})}/>)}{field("Coverage township",<input value={zoneForm.coverageTownship} onChange={(e)=>setZoneForm({...zoneForm,coverageTownship:e.target.value})}/>)}<button className="ws-btn ws-btn-primary">Create zone</button></form></section>
-      <div className="ws-record-list">{zones.map((z)=><article className="ws-record" key={String(z.id)}><div className="ws-record-main"><div className="ws-record-title"><b>{label(z)}</b><span className="ws-status">{z.active===false?"Inactive":"Active"}</span></div><p>Fee {asMoney(z.deliveryFee,String(data.currency||"MMK"))} · Minimum {asMoney(z.minimumOrder,String(data.currency||"MMK"))}</p><small>{String(z.coverageCity||"Any city")} · {String(z.coverageTownship||"Any township")}</small></div>{editorButton("Edit delivery zone",restaurantPath("delivery-zones/"+encodeURIComponent(String(z.id))),z)}</article>)}</div>{!zones.length&&empty("No delivery zones configured.")}
-    </>;
-
-    if (view === "members") return <>
-      {intro("Team & roles","Only the OWNER role can manage memberships in the current backend policy. Invite new users, add existing profiles, change a non-owner role, remove a member or transfer ownership.")}
-      <section className="ws-card"><h3>Invite a team member</h3><form className="ws-form-grid" onSubmit={(e)=>{e.preventDefault();void act(()=>call(restaurantPath("members/invitations"),"POST",inviteForm),"Invitation requested.","members");}}>{field("Email",<input type="email" value={inviteForm.email} onChange={(e)=>setInviteForm({...inviteForm,email:e.target.value})} required/>)}{field("Full name",<input value={inviteForm.fullName} onChange={(e)=>setInviteForm({...inviteForm,fullName:e.target.value})} required/>)}{field("Role",<select value={inviteForm.role} onChange={(e)=>setInviteForm({...inviteForm,role:e.target.value})}><option value="MANAGER">Manager</option><option value="STAFF">Staff</option><option value="DELIVERY_DRIVER">Delivery driver</option></select>)}<button className="ws-btn ws-btn-primary">Send invitation</button></form></section>
-      <section className="ws-card"><div className="ws-card-heading"><div><h3>Members</h3><p>UUIDs and roles returned by the API</p></div><button className="ws-btn ws-btn-muted" onClick={()=>loadView("members")}>Refresh</button></div><h4>Add an existing profile</h4><form className="ws-form-grid" onSubmit={addExistingMember}>{field("Existing user UUID",<input value={existingMemberForm.userId} onChange={(e)=>setExistingMemberForm({...existingMemberForm,userId:e.target.value})} required/>)}{field("Role",<select value={existingMemberForm.role} onChange={(e)=>setExistingMemberForm({...existingMemberForm,role:e.target.value})}><option value="MANAGER">Manager</option><option value="STAFF">Staff</option><option value="DELIVERY_DRIVER">Delivery driver</option></select>)}<button className="ws-btn ws-btn-primary">Add existing profile</button></form><div className="ws-record-list">{members.map((m)=><article className="ws-record" key={String(m.id||m.userId)}><div className="ws-record-main"><div className="ws-record-title"><b>{label(m)}</b><span className="ws-status">{String(m.role||"")}</span></div><p>{String(m.email||"")}</p><small>{String(m.userId||m.id||"")}</small></div><div className="ws-record-actions">{m.role!=="OWNER"&&<><button className="ws-btn ws-btn-muted" onClick={()=>{const next=window.prompt("Enter the new role: MANAGER, STAFF, or DELIVERY_DRIVER",String(m.role||"STAFF"));if(next&&["MANAGER","STAFF","DELIVERY_DRIVER"].includes(next.toUpperCase()))void act(()=>call(restaurantPath("members/"+encodeURIComponent(String(m.id)),""),"PUT",{userId:m.userId,role:next.toUpperCase()}),"Member role updated.","members");else if(next)setError("Role must be MANAGER, STAFF, or DELIVERY_DRIVER.");}}>Change role</button><button className="ws-btn ws-btn-danger" onClick={()=>window.confirm("Remove this member from the restaurant?")&&void act(()=>call(restaurantPath("members/"+encodeURIComponent(String(m.id))),"DELETE"),"Member removed.")}>Remove</button><button className="ws-btn ws-btn-soft" onClick={()=>window.confirm("Transfer ownership to this member? Your role becomes MANAGER.")&&void act(()=>call(restaurantPath("members/transfer-ownership"),"POST",{newOwnerUserId:m.userId}),"Ownership transferred.")}>Transfer owner</button></>}</div></article>)}</div>{!members.length&&empty("No members loaded, or the account lacks permission.")}</section>
-    </>;
-
-    if (view === "restaurant") return <>
-      {intro("Restaurant profile","Review restaurant data, update the profile and upload a restaurant logo. Logo update is OWNER-only; the backend validates type and size.")}
-      <section className="ws-card"><pre className="ws-json-preview">{JSON.stringify(data,null,2)}</pre><div className="ws-inline-actions">{editorButton("Edit profile", "/api/v1/restaurants/"+encodeURIComponent(restaurantId)+"/profile",data)}<label className="ws-upload-btn">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>void upload("/api/v1/restaurants/"+encodeURIComponent(restaurantId)+"/logo",e.target.files?.[0])}/></label><button className="ws-btn ws-btn-muted" onClick={()=>changeView("storefront")}>Preview customer storefront</button></div></section>
-    </>;
-
-
-    if (view === "table-order") {
-      const menuCategories = list(publicMenu.categories);
-      return <>
-        {intro("Dine-in · Table QR","Guest checkout for the table QR token. No customer account is required; token, availability, modifiers, stock and prices are checked by the backend.")}
-        <section className="ws-card"><form className="ws-form-grid" onSubmit={loadTableMenu}>{field("Restaurant UUID",<input value={restaurantId} onChange={(e)=>setRestaurantId(e.target.value)} required placeholder="Restaurant UUID from the printed QR link"/>)}{field("Table QR token",<input value={tableQrToken} onChange={(e)=>setTableQrToken(e.target.value)} required placeholder="Paste or scan the table token"/>,true)}<button className="ws-btn ws-btn-primary">Load menu</button></form></section>
-        {tableQrResult.id && <section className="ws-card ws-tracking-status"><span className="ws-eyebrow">ORDER SUBMITTED</span><strong>{String(tableQrResult.orderNumber||"Order received")}</strong><span className="ws-status">{String(tableQrResult.status||"PENDING")}</span><p>Table order submitted. Ask staff for an update if needed.</p><button className="ws-btn ws-btn-muted" onClick={()=>setTableQrResult({})}>Start another order</button></section>}
-        {menuCategories.map((category)=><section className="ws-store-category" key={String(category.id)}><h3>{label(category)}</h3><div className="ws-product-grid">{list(category.products).filter((p)=>p.available!==false).map((p)=>{const key=String(p.id);const item=cart[key]||{quantity:0,variantId:"",specialInstruction:"",modifiers:{}};return <article className="ws-product" key={key}>{p.imageUrl?<img src={String(p.imageUrl)} alt={String(p.name)}/>:<div className="ws-product-placeholder">MENU</div>}<div className="ws-product-body"><b>{label(p)}</b><p>{String(p.description||"")}</p><strong>{asMoney(p.price,String(publicMenu.currency||"MMK"))}</strong>{list(p.variants).length>0&&field("Variant",<select value={item.variantId} onChange={(e)=>setCart({...cart,[key]:{...item,variantId:e.target.value}})}><option value="">Default</option>{list(p.variants).filter((v)=>v.available!==false).map((v)=><option key={String(v.id)} value={String(v.id)}>{label(v)} · {asMoney(v.price,String(publicMenu.currency||"MMK"))}</option>)}</select>)}{list(p.modifierGroups).map((g)=><div className="ws-modifier-box" key={String(g.id)}><small>{label(g)}{g.required?" · Required":""}</small>{list(g.options).filter((o)=>o.available!==false).map((o)=><label className="ws-check-row" key={String(o.id)}><input type="checkbox" checked={Number(item.modifiers[String(o.id)]||0)>0} onChange={(e)=>setCart({...cart,[key]:{...item,modifiers:{...item.modifiers,[String(o.id)]:e.target.checked?1:0}}})}/><span>{label(o)} {Number(o.additionalPrice||0)? "(+"+asMoney(o.additionalPrice,String(publicMenu.currency||"MMK"))+")":""}</span></label>)}</div>)}{field("Special instruction",<input value={item.specialInstruction} onChange={(e)=>setCart({...cart,[key]:{...item,specialInstruction:e.target.value}})} placeholder="Optional"/>) }<div className="ws-store-add"><div className="ws-quantity"><button type="button" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.max(0,item.quantity-1)}})}>−</button><b>{item.quantity}</b><button type="button" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.min(99,item.quantity+1)}})}>＋</button></div><button className="ws-btn ws-btn-primary" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.max(1,item.quantity)}})}>Add</button></div></div></article>})}</div></section>)}
-        {menuCategories.length>0&&<section className="ws-card ws-cart"><div className="ws-cart-total"><span>Estimated subtotal</span><strong>{asMoney(cartTotal,String(publicMenu.currency||"MMK"))}</strong></div><p className="ws-muted">The server calculates the final total. This is a guest table order, not a delivery checkout.</p><button className="ws-btn ws-btn-primary ws-btn-block" disabled={busy||!tableQrToken.trim()||!activeCartItems.length} onClick={()=>void placeTableQrOrder()}>Place table order</button></section>}
-        {!menuCategories.length&&empty("Load a menu with a valid restaurant UUID first.")}
-      </>;
-    }
-
-    if (view === "storefront") {
-      const categories = list(publicMenu.categories);
-      return <>
-        <div className="ws-storefront-banner"><div>{publicMenu.logoUrl?<img src={String(publicMenu.logoUrl)} alt=""/>:<span className="ws-storefront-logo">R</span>}<div><div className="ws-eyebrow">CUSTOMER STORE</div><h2>{String(publicMenu.restaurantName||restaurantName)}</h2><p>{String(publicMenu.description||"Browse menu and order delivery.")}</p></div></div><span className="ws-status">Delivery</span></div>
-        <div className="ws-store-layout"><div className="ws-store-products"><div className="ws-toolbar"><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search menu…"/><button className="ws-btn ws-btn-muted" onClick={()=>loadView("storefront")}>Refresh</button></div>{categories.map((c)=><section className="ws-store-category" key={String(c.id)}><h3>{label(c)}</h3><div className="ws-product-grid">{list(c.products).filter((p)=>p.available!==false&&JSON.stringify(p).toLowerCase().includes(search.toLowerCase())).map((p)=>{const key=String(p.id);const item=cart[key]||{quantity:0,variantId:"",specialInstruction:"",modifiers:{}};return <article className="ws-product" key={key}>{p.imageUrl?<img src={String(p.imageUrl)} alt={String(p.name)}/>:<div className="ws-product-placeholder">MENU</div>}<div className="ws-product-body"><b>{label(p)}</b><p>{String(p.description||"")}</p><strong>{asMoney(p.price,String(publicMenu.currency||"MMK"))}</strong>{list(p.variants).length>0&&field("Variant",<select value={item.variantId} onChange={(e)=>setCart({...cart,[key]:{...item,variantId:e.target.value}})}><option value="">Default</option>{list(p.variants).filter((v)=>v.available!==false).map((v)=><option key={String(v.id)} value={String(v.id)}>{label(v)} · {asMoney(v.price,String(publicMenu.currency||"MMK"))}</option>)}</select>)}{list(p.modifierGroups).map((g)=><div className="ws-modifier-box" key={String(g.id)}><small>{label(g)}{g.required?" · Required":""}</small>{list(g.options).filter((o)=>o.available!==false).map((o)=><label className="ws-check-row" key={String(o.id)}><input type="checkbox" checked={Number(item.modifiers[String(o.id)]||0)>0} onChange={(e)=>setCart({...cart,[key]:{...item,modifiers:{...item.modifiers,[String(o.id)]:e.target.checked?1:0}}})}/><span>{label(o)}{Number(o.additionalPrice||0)? " (+"+asMoney(o.additionalPrice,String(publicMenu.currency||"MMK"))+")":""}</span></label>)}</div>)}{field("Special instruction",<input value={item.specialInstruction} onChange={(e)=>setCart({...cart,[key]:{...item,specialInstruction:e.target.value}})} placeholder="Optional"/>) }<div className="ws-store-add"><div className="ws-quantity"><button type="button" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.max(0,item.quantity-1)}})}>−</button><b>{item.quantity}</b><button type="button" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.min(99,item.quantity+1)}})}>＋</button></div><button className="ws-btn ws-btn-primary" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.max(1,item.quantity)}})}>Add</button></div></div></article>})}</div></section>)}{!categories.length&&empty("No public menu returned.")}</div>
-          <aside className="ws-card ws-cart"><h3>Delivery cart</h3><p>{activeCartItems.reduce((n,[,item])=>n+item.quantity,0)} items · estimated subtotal</p>{activeCartItems.map(([id,item])=><div className="ws-cart-row" key={id}><div><b>{label(list(publicMenu.categories).flatMap((c)=>list(c.products)).find((p)=>String(p.id)===id)||{})}</b><small>Qty {item.quantity}</small></div></div>)}<div className="ws-cart-total"><span>Total estimate</span><strong>{asMoney(cartTotal,String(publicMenu.currency||"MMK"))}</strong></div>{field("Saved address",<select value={checkout.addressId} onChange={(e)=>setCheckout({...checkout,addressId:e.target.value})}><option value="">Choose address</option>{addresses.map((a)=><option key={String(a.id)} value={String(a.id)}>{label(a)} · {String(a.city||"")}</option>)}</select>)}{field("Delivery zone",<select value={checkout.zoneId} onChange={(e)=>setCheckout({...checkout,zoneId:e.target.value})}><option value="">Choose zone</option>{customerZones.map((z)=><option key={String(z.id)} value={String(z.id)}>{label(z)} · {asMoney(z.deliveryFee,String(publicMenu.currency||"MMK"))}</option>)}</select>)}{field("Recipient name",<input value={checkout.recipientName} onChange={(e)=>setCheckout({...checkout,recipientName:e.target.value})}/>)}{field("Recipient phone",<input value={checkout.recipientPhone} onChange={(e)=>setCheckout({...checkout,recipientPhone:e.target.value})}/>)}<button className="ws-btn ws-btn-primary ws-btn-block" disabled={!activeCartItems.length||busy} onClick={()=>void placeDeliveryOrder()}>Place cash-on-delivery order</button><button className="ws-link-btn" onClick={()=>changeView("addresses")}>Manage addresses ↗</button></aside></div>
-      </>;
-    }
-
-    if (view === "profile") return <>
-      {intro("My customer profile","Profile ownership is determined by the authenticated JWT subject. The avatar is stored privately and its signed URL expires.")}
-      <section className="ws-card"><div className="ws-profile-header"><CustomerAvatar src={data.avatarUrl ? String(data.avatarUrl) : null} name={profileForm.fullName} /><div><h3>{String(data.fullName||"Customer")}</h3><p>{String(data.email||"")}</p><label className="ws-upload-btn">Upload avatar<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>{const f=e.target.files?.[0];if(f){const form=new FormData();form.append("file",f);void act(()=>call("/api/v1/customer/profile/avatar","POST",form),"Avatar updated.","profile");}}}/></label></div></div><form className="ws-form-grid" onSubmit={saveProfile}>{field("Full name",<input value={profileForm.fullName} onChange={(e)=>setProfileForm({...profileForm,fullName:e.target.value})} required/>)}{field("Phone",<input value={profileForm.phone} onChange={(e)=>setProfileForm({...profileForm,phone:e.target.value})}/>)}{field("Preferred language",<select value={profileForm.preferredLanguage} onChange={(e)=>setProfileForm({...profileForm,preferredLanguage:e.target.value})}><option value="en">English</option><option value="my-MM">မြန်မာ</option></select>)}<button className="ws-btn ws-btn-primary">Save profile</button></form></section>
-    </>;
-
-    if (view === "addresses") return <>
-      {intro("Saved delivery addresses","Use city and township consistently with delivery-zone coverage settings.")}
-      <section className="ws-card"><h3>Add address</h3><form className="ws-form-grid" onSubmit={createAddress}>{[["label","Label"],["recipientName","Recipient"],["houseNo","House / building"],["street","Street"],["ward","Ward"],["township","Township"],["city","City"],["deliveryNote","Delivery note"]].map(([key,name])=>field(name,<input value={addressForm[key as keyof typeof addressForm] as string} onChange={(e)=>setAddressForm({...addressForm,[key]:e.target.value})} required={["label","recipientName","houseNo","street","township","city"].includes(key)}/>))}<label className="ws-check-row"><input type="checkbox" checked={addressForm.makeDefault} onChange={(e)=>setAddressForm({...addressForm,makeDefault:e.target.checked})}/> Make default</label><button className="ws-btn ws-btn-primary">Save address</button></form></section>
-      <div className="ws-record-list">{addresses.map((a)=><article className="ws-record" key={String(a.id)}><div className="ws-record-main"><b>{label(a)} {a.isDefault?" · Default":""}</b><p>{[a.houseNo,a.street,a.ward,a.township,a.city].filter(Boolean).join(", ")}</p><small>{String(a.deliveryNote||"")}</small></div><div className="ws-record-actions">{editorButton("Edit address","/api/v1/customer/addresses/"+encodeURIComponent(String(a.id)),a)}{!a.isDefault&&<button className="ws-btn ws-btn-soft" onClick={()=>act(()=>call("/api/v1/customer/addresses/"+encodeURIComponent(String(a.id))+"/default","PATCH"),"Default address changed.")}>Make default</button>}<button className="ws-btn ws-btn-danger" onClick={()=>window.confirm("Delete this address?")&&void act(()=>call("/api/v1/customer/addresses/"+encodeURIComponent(String(a.id)),"DELETE"),"Address deleted.")}>Delete</button></div></article>)}</div>{!addresses.length&&empty("Save an address before placing a delivery order.")}
-    </>;
-
-    if (view === "my-orders") return <>
-      {intro("My orders","View your order history. You can cancel only pending orders and reorder eligible delivery orders using current addresses and zones.")}
-      <div className="ws-toolbar"><button className="ws-btn ws-btn-muted" onClick={()=>loadView("my-orders")}>Refresh history</button><button className="ws-btn ws-btn-primary" onClick={()=>changeView("storefront")}>Browse delivery menu</button></div><div className="ws-record-list">{customerOrders.map((o)=><article className="ws-record" key={String(o.id)}><div className="ws-record-main"><div className="ws-record-title"><b>{label(o)}</b><span className="ws-status">{String(o.status||"")}</span></div><p>{String(o.orderType||"")} · {o.createdAt?new Date(o.createdAt).toLocaleString():""}</p><strong>{asMoney(o.totalAmount,String(o.currency||"MMK"))}</strong></div><div className="ws-record-actions"><button className="ws-btn ws-btn-muted" onClick={()=>void (async()=>{try{setSelectedOrder(record(await call("/api/v1/customer/orders/"+encodeURIComponent(String(o.id)))));}catch(cause){fail(cause);}})()}>Details</button>{o.status==="PENDING"&&<button className="ws-btn ws-btn-danger" onClick={()=>window.confirm("Cancel this pending order?")&&void act(()=>call("/api/v1/customer/orders/"+encodeURIComponent(String(o.id))+"/cancel","POST",{}),"Order cancelled.")}>Cancel</button>}{o.orderType==="DELIVERY"&&["COMPLETED","CANCELLED"].includes(String(o.status))&&<button className="ws-btn ws-btn-soft" onClick={()=>void reorderOrder(o)}>Reorder</button>}</div></article>)}</div>{!customerOrders.length&&empty("Your orders appear here after checkout.")}
-    </>;
-
-    if (view === "notifications") return <>
-      {intro("Notifications","The backend stores in-app notifications. Browser push delivery and sound playback need a configured push provider on the client.")}
-      <button className="ws-btn ws-btn-muted" onClick={()=>loadView("notifications")}>Refresh inbox</button><div className="ws-record-list">{notifications.map((n)=><article className="ws-record" key={String(n.id)}><div className="ws-record-main"><div className="ws-record-title"><b>{String(n.title||n.notificationType||"Notification")}</b><span className="ws-status">{String(n.status||"")}</span></div><p>{String(n.body||"")}</p><small>{String(n.createdAt||"")}</small></div>{n.status!=="READ"&&<button className="ws-btn ws-btn-primary" onClick={()=>void act(()=>call("/api/v1/notifications/"+encodeURIComponent(String(n.id))+"/read","PATCH"),"Notification marked read.")}>Mark read</button>}</article>)}</div>{!notifications.length&&empty("No notifications found.")}
-    </>;
-
-    if (view === "devices") return <>
-      {intro("Push devices","Register a token generated by your configured Firebase / push SDK, then review or deactivate registered devices. The backend never returns raw push tokens in list responses.")}
-      <section className="ws-card"><h3>Register a device token</h3><form className="ws-form-grid" onSubmit={registerDevice}>{field("Push token from your SDK",<input value={deviceForm.pushToken} onChange={(e)=>setDeviceForm({...deviceForm,pushToken:e.target.value})} required placeholder="Paste provider-generated token"/>,true)}{field("Platform",<select value={deviceForm.platform} onChange={(e)=>setDeviceForm({...deviceForm,platform:e.target.value})}><option value="WEB">Web</option><option value="ANDROID">Android</option><option value="IOS">iOS</option></select>)}<button className="ws-btn ws-btn-primary" disabled={busy}>Register device</button></form><p className="ws-muted">The workspace does not generate provider tokens on its own. Configure an SDK first, then register its token here.</p></section>
-      <section className="ws-card"><div className="ws-card-heading"><h3>Registered devices</h3><button className="ws-btn ws-btn-muted" onClick={()=>loadView("devices")}>Refresh</button></div><div className="ws-record-list">{devices.map((d)=><article className="ws-record" key={String(d.id)}><div className="ws-record-main"><b>{String(d.platform||"Device")}</b><small>{String(d.deviceName||d.createdAt||"")}</small><span className="ws-status">{d.active===false?"Inactive":"Active"}</span></div>{d.active!==false&&<button className="ws-btn ws-btn-danger" onClick={()=>void act(()=>call("/api/v1/devices/"+encodeURIComponent(String(d.id)),"DELETE"),"Device deactivated.")}>Deactivate</button>}</article>)}</div>{!devices.length&&empty("No registered devices.")}</section>
-    </>;
-
-    if (view === "queue-track") return <>
-      {intro("Customer queue tracker","Enter the ticket ID and tracking token provided at Common QR checkout. Requests use the X-Queue-Token header.")}
-      <section className="ws-card"><form className="ws-form-grid" onSubmit={trackQueue}>{field("Queue ticket ID",<input value={ticket.id} onChange={(e)=>setTicket({...ticket,id:e.target.value})} required/>)}{field("Tracking token",<input value={ticket.token} onChange={(e)=>setTicket({...ticket,token:e.target.value})} required/>)}<button className="ws-btn ws-btn-primary" disabled={busy}>Track ticket</button></form></section>{Object.keys(tracking).length>0&&<section className="ws-card ws-tracking-status"><span className="ws-eyebrow">CURRENT QUEUE STATUS</span><strong>{String(tracking.displayCode||tracking.queueNumber||"—")}</strong><span className="ws-status">{String(tracking.queueStatus||"")}</span><p>Order {String(tracking.orderNumber||"")} · {String(tracking.orderStatus||"")}</p><div className="ws-record-list">{trackingNotifications.map((n)=><div className="ws-list-row" key={String(n.id)}><div><b>{String(n.title||"")}</b><small>{String(n.body||"")}</small></div></div>)}</div></section>}
-    </>;
-
-    if (view === "api") return <>
-      {intro("API workbench","Execute other documented backend routes from a structured request editor. Bearer authentication is included automatically for private routes; public routes do not require it.")}
-      <section className="ws-card"><form className="ws-form-grid" onSubmit={submitApi}>{field("HTTP method",<select value={apiTool.method} onChange={(e)=>setApiTool({...apiTool,method:e.target.value})}>{["GET","POST","PUT","PATCH","DELETE"].map((m)=><option key={m}>{m}</option>)}</select>)}{field("Path",<input value={apiTool.path} onChange={(e)=>setApiTool({...apiTool,path:e.target.value})} required/>,true)}{["POST","PUT","PATCH"].includes(apiTool.method)&&field("JSON body",<textarea rows={8} value={apiTool.body} onChange={(e)=>setApiTool({...apiTool,body:e.target.value})} spellCheck={false}/>,true)}<button className="ws-btn ws-btn-primary" disabled={busy}>Send request</button></form></section>
-      {responseData!==null&&<section className="ws-card"><div className="ws-card-heading"><h3>Last response</h3><button className="ws-btn ws-btn-muted" onClick={()=>setResponseData(null)}>Clear</button></div><pre className="ws-json-preview">{JSON.stringify(responseData,null,2)}</pre></section>}
-      <section className="ws-card"><h3>Common API shortcuts</h3><div className="ws-endpoint-grid">{[["My restaurants","GET","/api/v1/my/restaurants"],["Public menu","GET","/api/v1/public/restaurants/"+restaurantId+"/menu"],["Order payments","GET",restaurantPath("orders/{orderId}/payments")],["Default driver","GET",restaurantPath("delivery-settings/default-driver")],["Customer addresses","GET","/api/v1/customer/addresses"],["Device registration","POST","/api/v1/devices"],["Settings","GET",restaurantPath("settings")],["Modifier groups","GET",restaurantPath("modifier-groups")],["Order history","GET","/api/v1/customer/orders?page=0&size=20"]].map(([name,method,path])=><button className="ws-endpoint" key={name} onClick={()=>setApiTool({method,path,body:"{}"})}><small>{method}</small><b>{name}</b><code>{path}</code></button>)}</div></section>
-    </>;
-
-    return <>
-      {intro("Create your restaurant","Create the first restaurant using the current authenticated user as OWNER. This action creates the initial settings and membership in one transaction.")}
-      <section className="ws-card"><form className="ws-form-grid" onSubmit={createRestaurant}>{field("Restaurant name",<input value={restaurantCreate.name} onChange={(e)=>setRestaurantCreate({...restaurantCreate,name:e.target.value})} required/>)}{field("Public slug",<input value={restaurantCreate.slug} onChange={(e)=>setRestaurantCreate({...restaurantCreate,slug:e.target.value})} placeholder="Auto-generated if blank"/>)}{field("Phone",<input value={restaurantCreate.phone} onChange={(e)=>setRestaurantCreate({...restaurantCreate,phone:e.target.value})}/>)}{field("Description",<input value={restaurantCreate.description} onChange={(e)=>setRestaurantCreate({...restaurantCreate,description:e.target.value})}/>)}{field("Address",<input value={restaurantCreate.address} onChange={(e)=>setRestaurantCreate({...restaurantCreate,address:e.target.value})} />,true)}{field("House / building",<input value={restaurantCreate.houseNo} onChange={(e)=>setRestaurantCreate({...restaurantCreate,houseNo:e.target.value})}/>)}{field("Street",<input value={restaurantCreate.street} onChange={(e)=>setRestaurantCreate({...restaurantCreate,street:e.target.value})}/>)}{field("Ward",<input value={restaurantCreate.ward} onChange={(e)=>setRestaurantCreate({...restaurantCreate,ward:e.target.value})}/>)}{field("Township",<input value={restaurantCreate.township} onChange={(e)=>setRestaurantCreate({...restaurantCreate,township:e.target.value})} required/>)}{field("City",<input value={restaurantCreate.city} onChange={(e)=>setRestaurantCreate({...restaurantCreate,city:e.target.value})} required/>)}{field("Currency",<select value={restaurantCreate.currency} onChange={(e)=>setRestaurantCreate({...restaurantCreate,currency:e.target.value})}><option value="MMK">MMK</option><option value="THB">THB</option><option value="USD">USD</option></select>)}{field("Timezone",<input value={restaurantCreate.timezone} onChange={(e)=>setRestaurantCreate({...restaurantCreate,timezone:e.target.value})} required/>)}<p className="ws-muted">The signed-in user becomes OWNER. The default currency is MMK and timezone is Asia/Yangon.</p><button className="ws-btn ws-btn-primary">Create restaurant</button></form></section>
-    </>;
-  }
-
-  return <main className="ws-shell">
+  return <WorkspaceProvider value={workspaceContextValue}><main className="ws-shell">
     <aside className="ws-sidebar"><Link className="ws-brand" href="/"><span className="ws-brand-mark">R</span><span>Restaurant<span>Platform</span></span></Link><div className="ws-restaurant-switch"><small>WORKING RESTAURANT</small><select value={restaurantId} onChange={(e)=>{const m=memberships.find((item)=>item.id===e.target.value);setRestaurantId(e.target.value);if(m){setRestaurantName(m.name);setRole(m.role);void loadView(view,e.target.value);}}}><option value="">Choose restaurant</option>{memberships.map((m)=><option key={m.id} value={m.id}>{m.name} · {m.role}</option>)}</select></div><nav className="ws-nav">{nav()}{connected&&memberships.length===0&&<button className={"ws-nav-item "+(view==="create"?"is-active":"")} onClick={()=>changeView("create")}><span className="ws-nav-icon">＋</span><span>Create restaurant</span></button>}</nav><div className="ws-sidebar-bottom"><span className="ws-online-dot"/>{connected?"API session connected":"Connect to begin"}<p>Token stays in memory only. Access controls remain on the backend.</p><Link href="/">← Existing QR / operations page</Link></div></aside>
     <section className="ws-main"><header className="ws-topbar"><div><div className="ws-eyebrow">RESPONSIVE WORKSPACE / {role||"ACCOUNT"}</div><h1>{title}</h1><p>{restaurantName}</p></div><div className="ws-header-actions"><span className="ws-role-pill">{role||"No role"}</span><button className="ws-btn ws-btn-muted" disabled={loading||!connected} onClick={()=>void loadView(view)}>↻ Refresh</button></div></header>
       {view !== "table-order" && <section className="ws-connection"><div className="ws-connection-title"><div><b>{connected?"Backend connection":"Connect your account"}</b><p>Paste a Supabase Auth access token. No password is collected and the token is not saved to local storage.</p></div><span className={"ws-status "+(connected?"ws-completed":"ws-neutral")}>{connected?"Connected":"Disconnected"}</span></div><form className="ws-connection-form" onSubmit={connect}>{field("Backend API URL",<input value={apiUrl} onChange={(e)=>setApiUrl(e.target.value)} placeholder="http://localhost:8080" required/>)}{field("Restaurant UUID (customer store)",<input value={restaurantId} onChange={(e)=>setRestaurantId(e.target.value)} placeholder="Required for menu / delivery checkout" />)}{field("Supabase access token",<span className="ws-token-input"><input type={showToken?"text":"password"} value={token} onChange={(e)=>setToken(e.target.value)} placeholder="Paste access_token" autoComplete="off" required/><button type="button" onClick={()=>setShowToken(!showToken)}>{showToken?"Hide":"Show"}</button></span>)}<button className="ws-btn ws-btn-primary" disabled={busy}>{busy?"Connecting…":connected?"Reconnect / refresh":"Connect account"}</button></form>{memberships.length>0&&<div className="ws-membership-list">Restaurants: {memberships.map((m)=><button className="ws-chip" key={m.id} onClick={()=>{setRestaurantId(m.id);setRestaurantName(m.name);setRole(m.role);void loadView(view,m.id);}}>{m.name} · {m.role}</button>)}</div>}</section>}
       {error&&<div className="ws-alert ws-alert-error" role="alert"><b>Request failed</b><span>{error}</span><button onClick={()=>setError("")}>×</button></div>}{notice&&<div className="ws-alert ws-alert-success" role="status"><span>{notice}</span><button onClick={()=>setNotice("")}>×</button></div>}
       {oneTimeSecret&&<div className="ws-secret-panel"><div><b>One-time QR credential</b><p>Keep the raw token private. Scan or print the QR below to open the correct guest checkout.</p><code>{oneTimeSecret}</code>{oneTimeQrLink&&<div className="ws-qr-preview"><QRCodeSVG value={oneTimeQrLink} size={190} marginSize={2} level="M"/><div><b>Guest checkout link</b><code>{oneTimeQrLink}</code><div className="ws-inline-actions"><button className="ws-btn ws-btn-muted" onClick={()=>{void navigator.clipboard?.writeText(oneTimeQrLink);ok("Guest link copied if clipboard access was allowed.");}}>Copy link</button><button className="ws-btn ws-btn-muted" onClick={()=>window.print()}>Print</button></div></div></div>}</div><button className="ws-btn ws-btn-muted" onClick={()=>{void navigator.clipboard?.writeText(oneTimeSecret);ok("Token copied if clipboard access was allowed.");}}>Copy token</button><button className="ws-btn ws-btn-muted" onClick={()=>{setOneTimeSecret("");setOneTimeQrLink("");}}>Dismiss</button></div>}
-      {view === "table-order" ? <div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}{workspaceContent()}</div> : !connected?<div className="ws-empty-connect"><div className="ws-empty-icon">↔</div><h2>Connect to begin</h2><p>Enter your API URL and Supabase access token above. Your memberships and roles are loaded from the backend.</p><button className="ws-btn ws-btn-primary" onClick={()=>setView("create")}>Create a restaurant</button></div>:<div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}{workspaceContent()}</div>}
+      {view === "table-order" ? <div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}<WorkspaceViews /></div> : !connected?<div className="ws-empty-connect"><div className="ws-empty-icon">↔</div><h2>Connect to begin</h2><p>Enter your API URL and Supabase access token above. Your memberships and roles are loaded from the backend.</p><button className="ws-btn ws-btn-primary" onClick={()=>setView("create")}>Create a restaurant</button></div>:<div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}<WorkspaceViews /></div>}
       <footer className="ws-footer"><span>Restaurant Platform</span><span>Desktop · tablet · mobile</span><span>Backend-authorized actions</span></footer>
     </section>
     {draft&&<div className="ws-modal-backdrop" onClick={()=>setDraft(null)}><section className="ws-modal" role="dialog" aria-modal="true" aria-label={draft.title} onClick={(e)=>e.stopPropagation()}><div className="ws-modal-heading"><div><span className="ws-eyebrow">EDIT RECORD</span><h2>{draft.title}</h2><p>Review the fields before saving. The backend validates the final request.</p></div><button className="ws-modal-close" onClick={()=>setDraft(null)}>×</button></div><form onSubmit={saveDraft}><textarea className="ws-code-editor" rows={18} value={draft.body} onChange={(e)=>setDraft({...draft,body:e.target.value})} spellCheck={false}/><div className="ws-modal-actions"><button type="button" className="ws-btn ws-btn-muted" onClick={()=>setDraft(null)}>Cancel</button><button className="ws-btn ws-btn-primary" disabled={busy}>Save changes</button></div></form></section></div>}
     {selectedOrder&&<div className="ws-modal-backdrop" onClick={()=>setSelectedOrder(null)}><section className="ws-modal" role="dialog" aria-modal="true" aria-label="Order details" onClick={(e)=>e.stopPropagation()}><div className="ws-modal-heading"><div><span className="ws-eyebrow">ORDER DETAILS</span><h2>{label(selectedOrder)}</h2></div><button className="ws-modal-close" onClick={()=>setSelectedOrder(null)}>×</button></div><pre className="ws-json-preview">{JSON.stringify(selectedOrder,null,2)}</pre><button className="ws-btn ws-btn-primary" onClick={()=>setSelectedOrder(null)}>Close</button></section></div>}
-  </main>;
+  </main></WorkspaceProvider>;
 }
 
