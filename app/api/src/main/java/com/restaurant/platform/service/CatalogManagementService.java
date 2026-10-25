@@ -162,6 +162,9 @@ public class CatalogManagementService {
                         "error.catalog.variant-not-found"));
         variant.setName(request.name().trim());
         variant.setPrice(request.price());
+        if (request.imageUrl() != null) {
+            variant.setImageUrl(clean(request.imageUrl()));
+        }
         variant.setIsAvailable(request.available());
         return toVariant(variantRepository.save(variant));
     }
