@@ -519,6 +519,7 @@ export default function WorkspaceClient() {
   }
 
   const workspaceContextValue: WorkspaceViewContext = {
+    call,
     apiUrl,
     setApiUrl,
     token,
