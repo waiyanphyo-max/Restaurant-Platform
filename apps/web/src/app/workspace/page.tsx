@@ -45,6 +45,10 @@ export default function WorkspacePage() {
   const [categories, setCategories] = useState<Row[]>([]);
   const [products, setProducts] = useState<Row[]>([]);
   const [groupsList, setGroupsList] = useState<Row[]>([]);
+  const [linkForm, setLinkForm] = useState({ productId: "", groupId: "" });
+  const [defaultDriver, setDefaultDriver] = useState("");
+  const [payments, setPayments] = useState<Row[]>([]);
+  const [paymentOrderId, setPaymentOrderId] = useState("");
   const [tables, setTables] = useState<Row[]>([]);
   const [zones, setZones] = useState<Row[]>([]);
   const [members, setMembers] = useState<Row[]>([]);
@@ -72,6 +76,8 @@ export default function WorkspacePage() {
   const [inviteForm, setInviteForm] = useState({ email: "", fullName: "", role: "STAFF" });
   const [profileForm, setProfileForm] = useState({ fullName: "", phone: "", preferredLanguage: "en" });
   const [addressForm, setAddressForm] = useState({ label: "Home", recipientName: "", houseNo: "", street: "", ward: "", township: "", city: "", deliveryNote: "", makeDefault: true });
+  const [driverInput, setDriverInput] = useState("");
+  const [restaurantCreate, setRestaurantCreate] = useState({ name: "", slug: "", description: "", phone: "", address: "", houseNo: "", street: "", ward: "", township: "", city: "", currency: "MMK", timezone: "Asia/Yangon" });
   const [cart, setCart] = useState<Record<string, { quantity: number; variantId: string; specialInstruction: string; modifiers: Record<string, number> }>>({});
   const [checkout, setCheckout] = useState({ addressId: "", zoneId: "", recipientName: "", recipientPhone: "" });
   const [ticket, setTicket] = useState({ id: "", token: "" });
@@ -158,18 +164,32 @@ export default function WorkspacePage() {
         }
         case "tables": setTables(list(await call(restaurantPath("tables")))); break;
         case "settings": {
-          const res = await call(restaurantPath("settings")); setData(record(res)); break;
+          const results = await Promise.allSettled([call(restaurantPath("settings")), call(restaurantPath("delivery-settings/default-driver"))]);
+          if (results[0].status === "fulfilled") setData(record(results[0].value));
+          if (results[1].status === "fulfilled") { const driver = String(record(results[1].value).defaultDriverUserId || ""); setDefaultDriver(driver); setDriverInput(driver); }
+          if (results[0].status === "rejected") throw results[0].reason;
+          break;
         }
         case "zones": setZones(list(await call(restaurantPath("delivery-zones")))); break;
         case "members": setMembers(list(await call(restaurantPath("members")))); break;
         case "restaurant": setData(record(await call("/api/v1/restaurants/" + encodeURIComponent(id)))); break;
         case "reports": setReport(record(await call(restaurantPath("reports/daily") + "?date=" + reportDate))); break;
+        case "staff-order": {
+          const res = await Promise.all([call(restaurantPath("products")), call(restaurantPath("tables"))]);
+          setProducts(list(res[0])); setTables(list(res[1])); break;
+        }
         case "storefront": {
-          const res = await Promise.all([
+          const res = await Promise.allSettled([
             call("/api/v1/public/restaurants/" + encodeURIComponent(id) + "/menu"),
             call("/api/v1/customer/restaurants/" + encodeURIComponent(id) + "/delivery-zones"),
+            call("/api/v1/customer/addresses"),
+            call("/api/v1/customer/profile"),
           ]);
-          setPublicMenu(record(res[0])); setCustomerZones(list(res[1])); break;
+          if (res[0].status === "fulfilled") setPublicMenu(record(res[0].value)); else throw res[0].reason;
+          if (res[1].status === "fulfilled") setCustomerZones(list(res[1].value));
+          if (res[2].status === "fulfilled") setAddresses(list(res[2].value));
+          if (res[3].status === "fulfilled") { const profile = record(res[3].value); setData(profile); setCheckout((old) => ({ ...old, recipientName: old.recipientName || String(profile.fullName || ""), recipientPhone: old.recipientPhone || String(profile.phone || "") })); }
+          break;
         }
         case "profile": {
           const p = record(await call("/api/v1/customer/profile")); setData(p);
@@ -199,7 +219,7 @@ export default function WorkspacePage() {
         return { id: String(row.restaurantId || r.id || row.id || ""), name: String(row.restaurantName || r.name || row.name || "Restaurant"), role: String(row.role || row.membershipRole || "UNKNOWN") };
       }).filter((item) => item.id);
       setMemberships(loaded); setConnected(true);
-      if (!loaded.length) { setView("create"); ok("No restaurant membership was found. Create a restaurant to start."); return; }
+      if (!loaded.length) { setRole("CUSTOMER"); setView("profile"); ok("No restaurant membership was found. Customer account screens are available. Enter a Restaurant UUID in the connection panel to open its storefront; use Create restaurant only if you are setting up a business."); return; }
       const selected = loaded.find((item) => item.id === restaurantId) || loaded[0];
       setRestaurantId(selected.id); setRestaurantName(selected.name); setRole(selected.role);
       ok("Connected as " + selected.role + ". The backend enforces actual permissions.");
@@ -341,7 +361,9 @@ export default function WorkspacePage() {
   }
   async function createRestaurant(event: FormEvent) {
     event.preventDefault();
-    await act(() => call("/api/v1/restaurants", "POST", { name: restaurantName, slug: restaurantName.toLowerCase().replace(/[^a-z0-9]+/g, "-"), description: "", phone: "", address: "", houseNo: "", street: "", ward: "", township: "", city: "", currency: "MMK", timezone: "Asia/Yangon", latitude: null, longitude: null, logoUrl: null }), "Restaurant created; reconnect to load the new OWNER membership.", "create");
+    const name = restaurantCreate.name.trim();
+    const slug = (restaurantCreate.slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
+    await act(() => call("/api/v1/restaurants", "POST", { ...restaurantCreate, name, slug, latitude: null, longitude: null, logoUrl: null }), "Restaurant created; reconnect to load the new OWNER membership.", "create");
     await connect();
   }
 
