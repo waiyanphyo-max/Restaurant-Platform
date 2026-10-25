@@ -128,7 +128,9 @@ Queue polling, in-app notifications, delivery assignment, driver task/status API
 
 ## Web client
 
-The Next.js app in `apps/web` provides an operations dashboard for orders, queue pickup, deliveries, daily reports, and restaurant create/profile editing with secure logo upload, as well as a public Common QR guest ordering/queue tracking screen. Staff features use a Supabase access token supplied in the form; it stays in page memory and is not persisted. Guest checkout uses the public QR APIs without a staff login. This remains an integration preview; production Supabase browser sign-in, payment-provider integration, external push-provider setup, and deployment configuration remain future work.
+The Next.js app in `apps/web` uses thin App Router entry files, reusable shared/domain components, feature modules, and a small shared API/media layer. The home route retains Common QR guest pickup. The `/workspace` route renders role-oriented operations, restaurant/catalogue management, driver, guest table QR, and customer workflows. See `apps/web/README.md` for the source tree, setup, authentication boundaries, and current integration limits.
+
+The workspace shell currently keeps shared state and API orchestration in `features/workspace/WorkspaceClient.tsx`; individual views are grouped by domain in `features/workspace/views/`. UI navigation is a usability feature only: the Spring Boot API remains responsible for enforcing authorization. Production Supabase browser sign-in/refresh, online payment/refund integration, external push-provider setup, and deployment configuration remain future work.
 
 Run it locally with:
 
