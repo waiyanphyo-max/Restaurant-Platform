@@ -5,7 +5,7 @@ A multi-restaurant ordering and management platform with a Spring Boot backend, 
 ## Current backend structure
 
 - `app/api`: Spring Boot API, DTOs, entities, repositories, security, and service layer.
-- `apps/web`: Next.js operations dashboard (orders, queue, deliveries, daily report) and Common QR guest pickup checkout/tracking; see `apps/web/README.md` for local setup.
+- `apps/web`: responsive Next.js frontend. `/workspace` includes role-aware restaurant operations, catalogue/media, table QR ordering, team/settings, customer delivery checkout, customer profile/addresses/order history, notifications and device management. The root page retains the Common QR guest pickup flow; see `apps/web/README.md` for setup and current limitations.
 - `supabase/migrations`: versioned SQL schema. Apply migrations in timestamp order before running the API.
 - `docs/architecture.md`: architecture, authentication, and authorization flow.
 - `docs/api.md`: currently implemented HTTP routes, DTOs, permissions, and error codes.
@@ -124,7 +124,7 @@ mvn -f app/api/pom.xml spring-boot:run
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, customer order history/reorder, owner transfer, and the daily operations report are exposed. A migration keeps `profiles` rows synchronized with Supabase Auth and another configures each restaurant's default delivery driver. Checkout computes prices and fees on the server and supports cash on delivery for customer delivery orders. The web client includes order status filtering/progression, queue calling, delivery operations, daily reports, and guest Common QR pickup checkout with queue tracking. Online payment/refund provider integration and external push-provider delivery remain future work; browser sound for guest pickup uses opt-in client-side polling.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, customer order history/reorder, owner transfer, and the daily operations report are exposed. A migration keeps `profiles` rows synchronized with Supabase Auth and another configures each restaurant's default delivery driver. Checkout computes prices and fees on the server and supports cash on delivery for customer delivery orders. The web frontend now exposes responsive workflows for owners, managers, staff, delivery drivers, and customers, as well as public Common QR pickup and table QR ordering. Online payment/refund provider integration is not implemented; external push delivery requires server-side Firebase configuration and a client/provider-generated token. Guest Common QR queue updates use opt-in polling and browser sound.
 
 ## Web client
 
