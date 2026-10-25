@@ -5,7 +5,9 @@ import Link from "next/link";
 import "../workspace.css";
 
 type View = "overview" | "orders" | "staff-order" | "queue" | "deliveries" | "reports" | "menu" | "tables" | "settings" | "zones" | "members" | "restaurant" | "storefront" | "profile" | "addresses" | "my-orders" | "notifications" | "devices" | "queue-track" | "api" | "create";
-// API payloads are schema-driven by backend DTOs; fields are inspected defensively at runtime.\n// eslint-disable-next-line @typescript-eslint/no-explicit-any\ntype Row = Record<string, any>;
+// API payloads are schema-driven by backend DTOs; fields are inspected defensively at runtime.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = Record<string, any>;
 type Membership = { id: string; name: string; role: string };
 
 const groups = [
