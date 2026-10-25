@@ -46,6 +46,7 @@ export function MenuView() {
     editorButton,
     title,
     filteredProducts,
+    call,
   } = useWorkspaceContext();
       if (view === "menu") return <>
         {intro("Menu & catalogue","Create categories, products, variants and modifier choices. Upload product/variant images and link modifier groups to products. Backend roles control write access.")}
@@ -105,6 +106,7 @@ export function SettingsView() {
     intro,
     field,
     editorButton,
+    call,
   } = useWorkspaceContext();
       if (view === "settings") return <>
         {intro("Restaurant settings","Read and update currency, timezone, checkout flags, minimum order, default delivery fee and the default driver setting. The Common QR token is only shown once when rotated.")}
@@ -127,6 +129,7 @@ export function DeliveryZonesView() {
     field,
     editorButton,
     title,
+    call,
   } = useWorkspaceContext();
       if (view === "zones") return <>
         {intro("Delivery zones","Set fee, minimum order and optional city/township restrictions. City and township should be set together for coverage checks.")}
@@ -155,6 +158,7 @@ export function TeamMembersView() {
     empty,
     field,
     title,
+    call,
   } = useWorkspaceContext();
       if (view === "members") return <>
         {intro("Team & roles","Only the OWNER role can manage memberships in the current backend policy. Invite new users, add existing profiles, change a non-owner role, remove a member or transfer ownership.")}
