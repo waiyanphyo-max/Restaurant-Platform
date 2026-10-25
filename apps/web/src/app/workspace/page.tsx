@@ -1,7 +1,8 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
 import "../workspace.css";
 
 type View = "overview" | "orders" | "staff-order" | "queue" | "deliveries" | "reports" | "menu" | "tables" | "settings" | "zones" | "members" | "restaurant" | "storefront" | "table-order" | "profile" | "addresses" | "my-orders" | "notifications" | "devices" | "queue-track" | "api" | "create";
@@ -70,6 +71,7 @@ export default function WorkspacePage() {
   const [apiTool, setApiTool] = useState({ method: "GET", path: "/api/v1/my/restaurants", body: "{}" });
   const [responseData, setResponseData] = useState<unknown>(null);
   const [oneTimeSecret, setOneTimeSecret] = useState("");
+  const [oneTimeQrLink, setOneTimeQrLink] = useState("");
   const [categoryName, setCategoryName] = useState("");
   const [categoryOrder, setCategoryOrder] = useState("0");
   const [productForm, setProductForm] = useState({ name: "", description: "", categoryId: "", price: "0", available: true, trackStock: false, stockQuantity: "0" });
@@ -225,7 +227,7 @@ export default function WorkspacePage() {
   }
 
   function changeView(next: View) {
-    setView(next); setSearch(""); setOneTimeSecret("");
+    setView(next); setSearch(""); setOneTimeSecret(""); setOneTimeQrLink("");
     if (next !== "api" && next !== "queue-track" && next !== "create") void loadView(next);
   }
 
@@ -294,8 +296,12 @@ export default function WorkspacePage() {
   }
   async function createTable(event: FormEvent) {
     event.preventDefault();
-    const result = await act(() => call(restaurantPath("tables"), "POST", { tableNumber: tableNumber.trim(), active: true }), "Table created. Copy the one-time QR token if the backend returns it.", "tables");
-    const obj = record(result); setOneTimeSecret(String(obj.qrToken || obj.token || obj.rawToken || "")); setTableNumber("");
+    const result = await act(() => call(restaurantPath("tables"), "POST", { tableNumber: tableNumber.trim(), active: true }), "Table created. Scan or print the generated QR code.", "tables");
+    const obj = record(result);
+    const secret = String(obj.qrToken || obj.token || obj.rawToken || "");
+    setOneTimeSecret(secret);
+    setOneTimeQrLink(secret ? window.location.origin + "/workspace?view=table-order&restaurantId=" + encodeURIComponent(restaurantId) + "#qrToken=" + encodeURIComponent(secret) : "");
+    setTableNumber("");
   }
   async function createZone(event: FormEvent) {
     event.preventDefault();
@@ -371,7 +377,13 @@ export default function WorkspacePage() {
   }
   async function rotateSecret(path: string, message: string) {
     const result = await act(() => call(restaurantPath(path), "POST"), message);
-    const obj = record(result); setOneTimeSecret(String(obj.qrToken || obj.token || obj.commonQrToken || obj.rawToken || ""));
+    const obj = record(result);
+    const secret = String(obj.qrToken || obj.token || obj.commonQrToken || obj.rawToken || "");
+    setOneTimeSecret(secret);
+    const tableQr = path.startsWith("tables/") && path.endsWith("/qr-token/rotate");
+    setOneTimeQrLink(!secret ? "" : tableQr
+      ? window.location.origin + "/workspace?view=table-order&restaurantId=" + encodeURIComponent(restaurantId) + "#qrToken=" + encodeURIComponent(secret)
+      : window.location.origin + "/?view=customer-pickup&restaurantId=" + encodeURIComponent(restaurantId) + "#qrToken=" + encodeURIComponent(secret));
   }
   async function loadTableMenu(event: FormEvent) {
     event.preventDefault();
@@ -435,9 +447,31 @@ export default function WorkspacePage() {
     const slug = (restaurantCreate.slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
     const result = await act(() => call("/api/v1/restaurants", "POST", { ...restaurantCreate, name, slug, latitude: null, longitude: null, logoUrl: null }), "Restaurant created; reconnect to load the new OWNER membership.", "create");
     const payload = record(result);
-    setOneTimeSecret(String(payload.commonQrToken || ""));
+    const secret = String(payload.commonQrToken || "");
+    const newId = String(payload.restaurantId || payload.id || restaurantId);
+    if (newId) setRestaurantId(newId);
+    setOneTimeSecret(secret);
+    setOneTimeQrLink(secret ? window.location.origin + "/?view=customer-pickup&restaurantId=" + encodeURIComponent(newId) + "#qrToken=" + encodeURIComponent(secret) : "");
     await connect();
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("view") !== "table-order") return;
+    const id = params.get("restaurantId") || "";
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const qrToken = fragment.get("qrToken") || "";
+    setView("table-order");
+    if (id) {
+      setRestaurantId(id);
+      void call("/api/v1/public/restaurants/" + encodeURIComponent(id) + "/menu")
+        .then((result) => setPublicMenu(record(result)))
+        .catch((cause) => fail(cause, "Could not load the table menu."));
+    }
+    if (qrToken) setTableQrToken(qrToken);
+    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const titles: Record<View, string> = { overview: "Overview", orders: "Orders", "staff-order": "Staff order", queue: "Queue & pickup", deliveries: "Deliveries / driver", reports: "Daily report", menu: "Menu & catalogue", tables: "Tables & QR", settings: "Settings", zones: "Delivery zones", members: "Team & roles", restaurant: "Restaurant profile", storefront: "Delivery storefront", "table-order": "Table QR order", profile: "My profile", addresses: "Saved addresses", "my-orders": "My orders", notifications: "Notifications", devices: "Push devices", "queue-track": "Track queue ticket", api: "API workbench", create: "Create restaurant" };
   const title = titles[view];
@@ -623,9 +657,9 @@ export default function WorkspacePage() {
   return <main className="ws-shell">
     <aside className="ws-sidebar"><Link className="ws-brand" href="/"><span className="ws-brand-mark">R</span><span>Restaurant<span>Platform</span></span></Link><div className="ws-restaurant-switch"><small>WORKING RESTAURANT</small><select value={restaurantId} onChange={(e)=>{const m=memberships.find((item)=>item.id===e.target.value);setRestaurantId(e.target.value);if(m){setRestaurantName(m.name);setRole(m.role);void loadView(view,e.target.value);}}}><option value="">Choose restaurant</option>{memberships.map((m)=><option key={m.id} value={m.id}>{m.name} · {m.role}</option>)}</select></div><nav className="ws-nav">{nav()}</nav><div className="ws-sidebar-bottom"><span className="ws-online-dot"/>{connected?"API session connected":"Connect to begin"}<p>Token stays in memory only. Access controls remain on the backend.</p><Link href="/">← Existing QR / operations page</Link></div></aside>
     <section className="ws-main"><header className="ws-topbar"><div><div className="ws-eyebrow">RESPONSIVE WORKSPACE / {role||"ACCOUNT"}</div><h1>{title}</h1><p>{restaurantName}</p></div><div className="ws-header-actions"><span className="ws-role-pill">{role||"No role"}</span><button className="ws-btn ws-btn-muted" disabled={loading||!connected} onClick={()=>void loadView(view)}>↻ Refresh</button></div></header>
-      <section className="ws-connection"><div className="ws-connection-title"><div><b>{connected?"Backend connection":"Connect your account"}</b><p>Paste a Supabase Auth access token. No password is collected and the token is not saved to local storage.</p></div><span className={"ws-status "+(connected?"ws-completed":"ws-neutral")}>{connected?"Connected":"Disconnected"}</span></div><form className="ws-connection-form" onSubmit={connect}>{field("Backend API URL",<input value={apiUrl} onChange={(e)=>setApiUrl(e.target.value)} placeholder="http://localhost:8080" required/>)}{field("Restaurant UUID (customer store)",<input value={restaurantId} onChange={(e)=>setRestaurantId(e.target.value)} placeholder="Required for menu / delivery checkout" />)}{field("Supabase access token",<span className="ws-token-input"><input type={showToken?"text":"password"} value={token} onChange={(e)=>setToken(e.target.value)} placeholder="Paste access_token" autoComplete="off" required/><button type="button" onClick={()=>setShowToken(!showToken)}>{showToken?"Hide":"Show"}</button></span>)}<button className="ws-btn ws-btn-primary" disabled={busy}>{busy?"Connecting…":connected?"Reconnect / refresh":"Connect account"}</button></form>{memberships.length>0&&<div className="ws-membership-list">Restaurants: {memberships.map((m)=><button className="ws-chip" key={m.id} onClick={()=>{setRestaurantId(m.id);setRestaurantName(m.name);setRole(m.role);void loadView(view,m.id);}}>{m.name} · {m.role}</button>)}</div>}</section>
+      {view !== "table-order" && <section className="ws-connection"><div className="ws-connection-title"><div><b>{connected?"Backend connection":"Connect your account"}</b><p>Paste a Supabase Auth access token. No password is collected and the token is not saved to local storage.</p></div><span className={"ws-status "+(connected?"ws-completed":"ws-neutral")}>{connected?"Connected":"Disconnected"}</span></div><form className="ws-connection-form" onSubmit={connect}>{field("Backend API URL",<input value={apiUrl} onChange={(e)=>setApiUrl(e.target.value)} placeholder="http://localhost:8080" required/>)}{field("Restaurant UUID (customer store)",<input value={restaurantId} onChange={(e)=>setRestaurantId(e.target.value)} placeholder="Required for menu / delivery checkout" />)}{field("Supabase access token",<span className="ws-token-input"><input type={showToken?"text":"password"} value={token} onChange={(e)=>setToken(e.target.value)} placeholder="Paste access_token" autoComplete="off" required/><button type="button" onClick={()=>setShowToken(!showToken)}>{showToken?"Hide":"Show"}</button></span>)}<button className="ws-btn ws-btn-primary" disabled={busy}>{busy?"Connecting…":connected?"Reconnect / refresh":"Connect account"}</button></form>{memberships.length>0&&<div className="ws-membership-list">Restaurants: {memberships.map((m)=><button className="ws-chip" key={m.id} onClick={()=>{setRestaurantId(m.id);setRestaurantName(m.name);setRole(m.role);void loadView(view,m.id);}}>{m.name} · {m.role}</button>)}</div>}</section>}
       {error&&<div className="ws-alert ws-alert-error" role="alert"><b>Request failed</b><span>{error}</span><button onClick={()=>setError("")}>×</button></div>}{notice&&<div className="ws-alert ws-alert-success" role="status"><span>{notice}</span><button onClick={()=>setNotice("")}>×</button></div>}
-      {oneTimeSecret&&<div className="ws-secret-panel"><div><b>One-time token</b><p>Copy and store this safely now. The backend will not return it again.</p><code>{oneTimeSecret}</code></div><button className="ws-btn ws-btn-muted" onClick={()=>{void navigator.clipboard?.writeText(oneTimeSecret);ok("Copied if clipboard permissions allow it.");}}>Copy</button><button className="ws-btn ws-btn-muted" onClick={()=>setOneTimeSecret("")}>Dismiss</button></div>}
+      {oneTimeSecret&&<div className="ws-secret-panel"><div><b>One-time QR credential</b><p>Keep the raw token private. Scan or print the QR below to open the correct guest checkout.</p><code>{oneTimeSecret}</code>{oneTimeQrLink&&<div className="ws-qr-preview"><QRCodeSVG value={oneTimeQrLink} size={190} marginSize={2} level="M"/><div><b>Guest checkout link</b><code>{oneTimeQrLink}</code><div className="ws-inline-actions"><button className="ws-btn ws-btn-muted" onClick={()=>{void navigator.clipboard?.writeText(oneTimeQrLink);ok("Guest link copied if clipboard access was allowed.");}}>Copy link</button><button className="ws-btn ws-btn-muted" onClick={()=>window.print()}>Print</button></div></div></div>}</div><button className="ws-btn ws-btn-muted" onClick={()=>{void navigator.clipboard?.writeText(oneTimeSecret);ok("Token copied if clipboard access was allowed.");}}>Copy token</button><button className="ws-btn ws-btn-muted" onClick={()=>{setOneTimeSecret("");setOneTimeQrLink("");}}>Dismiss</button></div>}
       {view === "table-order" ? <div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}{workspaceContent()}</div> : !connected?<div className="ws-empty-connect"><div className="ws-empty-icon">↔</div><h2>Connect to begin</h2><p>Enter your API URL and Supabase access token above. Your memberships and roles are loaded from the backend.</p><button className="ws-btn ws-btn-primary" onClick={()=>setView("create")}>Create a restaurant</button></div>:<div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}{workspaceContent()}</div>}
       <footer className="ws-footer"><span>Restaurant Platform</span><span>Desktop · tablet · mobile</span><span>Backend-authorized actions</span></footer>
     </section>
