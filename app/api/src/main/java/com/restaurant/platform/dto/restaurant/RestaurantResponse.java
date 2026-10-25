@@ -1,6 +1,7 @@
 package com.restaurant.platform.dto.restaurant;
 
 import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public record RestaurantResponse(
@@ -15,6 +16,8 @@ public record RestaurantResponse(
         String ward,
         String township,
         String city,
+        BigDecimal latitude,
+        BigDecimal longitude,
         String logoUrl,
         boolean active,
         OffsetDateTime createdAt,
