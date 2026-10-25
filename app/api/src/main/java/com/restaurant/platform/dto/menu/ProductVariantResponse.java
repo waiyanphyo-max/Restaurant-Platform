@@ -8,6 +8,7 @@ public record ProductVariantResponse(
         UUID productId,
         String name,
         long price,
+        String imageUrl,
         boolean available,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
