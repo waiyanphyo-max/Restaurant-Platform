@@ -1,12 +1,13 @@
 # Restaurant Platform Web
 
-Next.js integration preview for restaurant operations and guest Common QR pickup ordering. This is not the finished customer app or a production-authenticated dashboard.
+Responsive Next.js frontend for restaurant operations, guest QR ordering, and authenticated customer flows. It is a mobile-responsive website/PWA-style layout, not a native Android/iOS app.
 
 ## Requirements
 
 - Node.js 20.9 or newer
 - The Spring Boot API running locally or at a reachable HTTPS origin
-- A Supabase access token for a user with `ORDER_READ` permission in the selected restaurant
+- A Supabase user access token for private API workflows
+- The public Supabase project is not required in the browser just to call the backend; the backend validates bearer tokens and enforces permissions
 
 ## Run locally
 
@@ -19,20 +20,34 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The default API origin is `http://localhost:8080`; set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` to override it. For manager operations, enter the restaurant UUID and a user access token. The dashboard provides orders, queue, delivery, and daily-report views. For guest Common QR pickup, choose Common QR order and enter the restaurant UUID/API origin without a staff access token.
+Open http://localhost:3000. The default API origin is `http://localhost:8080`; set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` to override it. Configure Spring CORS to allow the web origin.
 
-The access token is held only in component memory and is not persisted in local storage or cookies. Do not paste a Supabase service-role key. Configure backend CORS to allow the web app origin.
+## Main screens
 
-## Current scope
+- **Root page (/):** existing Common QR guest pickup flow, queue tracking, polling, and opt-in browser sound.
+- **Full workspace (/workspace):** responsive navigation and forms for owners, managers, staff, delivery drivers, and customers.
+- **Restaurant operations:** orders/status transitions, counter orders, queue calls, delivery assignment/status, daily reports, payments/cash collection, menu categories/products/variants/modifier groups/options, images, tables/QR tokens, restaurant settings, default driver, delivery zones, team invitations/members/roles, and restaurant profile/logo.
+- **Customer POV:** delivery storefront/cart/checkout (cash on delivery), profile/avatar, saved addresses, order history/details/cancellation/reorder, notifications, push-device metadata/registration, and queue ticket tracking.
+- **Guest dine-in POV:** table QR guest checkout at `/workspace?view=table-order&restaurantId=<restaurant-uuid>#qrToken=<encoded-table-token>`. The QR token belongs in the URL fragment. The page removes the fragment after reading it so the token is not left in the visible address bar.
 
-- Manager order-list integration with clear authentication, permission, query, and network errors
-- Server-side order-status filtering, refresh, and pagination
-- Safe forward-only order status updates following the backend lifecycle rules (permission-checked by the API)
-- Current-day queue view with a call action for READY pickup tickets (requires QUEUE_MANAGE)
-- Delivery task view with filtering, pagination, default-driver setting (requires SETTINGS_MANAGE), driver assignment, pickup, failure-reason, and delivery-completion actions (requires the matching restaurant permissions)
-- Daily operations report with date selection, order-status counts, non-cancelled order totals, and payments collected (requires REPORT_READ)
-- Guest Common QR menu/cart/checkout with variants and modifier selections
-- Pickup status and queue notification polling every five seconds; browser sound is opt-in and requires a user click
-- Common QR web links can prefill `restaurantId` and the QR token in a URL fragment: `?view=customer-pickup&restaurantId=<restaurant-uuid>#qrToken=<encoded-token>`
-- Responsive dashboard and guest checkout shell for desktop and mobile widths
-- No Supabase browser sign-in integration or external push-provider delivery; the queue token is held in component memory only and is not saved in local storage
+## Authentication and permissions
+
+The workspace's connection panel currently accepts a Supabase Auth access token; it keeps the token in component memory and does not persist it to local storage or cookies. Do not paste a Supabase service-role key. A signed-in customer can use profile and address screens without restaurant membership; a restaurant UUID is needed for the storefront. Role-appropriate navigation is shown in the UI, but the backend remains the security boundary and must reject any unauthorized action.
+
+This is currently an integration preview rather than a fully production-authenticated app: a native Supabase sign-in/sign-out/refresh UI is not yet integrated. Obtain an access token through the configured Supabase Auth flow for private API testing. Public QR menu/order endpoints do not require a bearer token; the QR credential must still be valid.
+
+## QR links
+
+The workspace can render a QR code and printable guest link after creating or rotating a table QR token. It generates links from the current web origin, so deploy the web app to its final HTTPS URL before printing permanent QR codes.
+
+- Common QR uses the existing root-page route: `/?view=customer-pickup&restaurantId=<restaurant-uuid>#qrToken=<encoded-common-token>`
+- Table QR uses: `/workspace?view=table-order&restaurantId=<restaurant-uuid>#qrToken=<encoded-table-token>`
+
+Treat raw QR credentials as secrets. Rotate a token if a printed QR is lost or exposed; then replace the printed code.
+
+## Current integration limits
+
+- The workspace is responsive on desktop, tablet, and phone widths; it does not ship a native mobile app.
+- Online payment provider/refund integration is not implemented; customer delivery checkout supports cash on delivery.
+- Push-device registration accepts a token generated by a configured provider SDK, but the UI does not generate that token itself. External notifications require real server-side Firebase configuration; public queue updates use polling and optional browser sound.
+- Images upload through Spring Boot; never add service-role credentials or Storage write permissions to the browser.
