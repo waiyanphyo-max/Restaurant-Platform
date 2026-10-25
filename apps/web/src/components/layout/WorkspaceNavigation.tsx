@@ -1,4 +1,4 @@
-use client";
+"use client";
 
 import type { View } from "@/types/workspace";
 import { groups } from "@/features/workspace/config";
