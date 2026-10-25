@@ -259,8 +259,46 @@ export default function WorkspacePage() {
     setDraft(null);
   }
   function editRecord(title: string, path: string, row: Row, method = "PUT") {
-    const ignored = ["id","restaurantId","createdAt","updatedAt","variants","modifierGroups","options","avatarUrl","signedAvatarUrl"];
-    const body = Object.fromEntries(Object.entries(row).filter(([key]) => !ignored.includes(key)));
+    // Build request DTOs from response DTOs explicitly. Sending response-only fields
+    // (for example options, isDefault, slug, or createdAt) can fail strict API validation.
+    let body: Row;
+    switch (title) {
+      case "Edit category":
+        body = { name: row.name, displayOrder: row.displayOrder, active: row.active };
+        break;
+      case "Edit product":
+        body = { categoryId: row.categoryId, name: row.name, description: row.description, price: row.price, imageUrl: row.imageUrl ?? null, trackStock: row.trackStock, stockQuantity: row.stockQuantity ?? null, available: row.available };
+        break;
+      case "Edit variant":
+        body = { name: row.name, price: row.price, imageUrl: row.imageUrl ?? null, available: row.available };
+        break;
+      case "Edit modifier group":
+        body = { name: row.name, required: row.required, minSelections: row.minSelections, maxSelections: row.maxSelections, active: row.active };
+        break;
+      case "Edit modifier option":
+        body = { name: row.name, additionalPrice: row.additionalPrice, available: row.available };
+        break;
+      case "Edit delivery zone":
+        body = { name: row.name, deliveryFee: row.deliveryFee, minimumOrder: row.minimumOrder, active: row.active, coverageCity: row.coverageCity ?? null, coverageTownship: row.coverageTownship ?? null };
+        break;
+      case "Edit table":
+        body = { tableNumber: row.tableNumber, active: row.active };
+        break;
+      case "Edit address":
+      case "Edit saved address":
+        body = { label: row.label, recipientName: row.recipientName ?? null, houseNo: row.houseNo ?? null, street: row.street ?? null, ward: row.ward ?? null, township: row.township, city: row.city, latitude: row.latitude ?? null, longitude: row.longitude ?? null, deliveryNote: row.deliveryNote ?? null, makeDefault: Boolean(row.isDefault) };
+        break;
+      case "Edit restaurant settings":
+        body = { currency: row.currency, timezone: row.timezone, minimumOrder: row.minimumOrder, defaultDeliveryFee: row.defaultDeliveryFee, acceptsOrders: row.acceptsOrders, allowQrOrder: row.allowQrOrder, allowDelivery: row.allowDelivery, allowTakeaway: row.allowTakeaway };
+        break;
+      case "Edit profile":
+        body = { name: row.name, description: row.description ?? null, phone: row.phone ?? null, address: row.address ?? null, houseNo: row.houseNo ?? null, street: row.street ?? null, ward: row.ward ?? null, township: row.township, city: row.city, latitude: row.latitude ?? null, longitude: row.longitude ?? null, logoUrl: row.logoUrl ?? null };
+        break;
+      default: {
+        const ignored = ["id","restaurantId","userId","createdAt","updatedAt","variants","modifierGroups","options","avatarUrl","signedAvatarUrl","slug","active","defaultDeliveryDriverUserId","isDefault"];
+        body = Object.fromEntries(Object.entries(row).filter(([key]) => !ignored.includes(key)));
+      }
+    }
     setDraft({ title, path, method, body: JSON.stringify(body, null, 2) });
   }
   async function upload(path: string, file?: File) {
@@ -588,7 +626,7 @@ export default function WorkspacePage() {
 
     if (view === "settings") return <>
       {intro("Restaurant settings","Read and update currency, timezone, checkout flags, minimum order, default delivery fee and the default driver setting. The Common QR token is only shown once when rotated.")}
-      <div className="ws-grid-two"><section className="ws-card"><div className="ws-card-heading"><div><h3>Operational settings</h3><p>Current server response</p></div>{editorButton("Edit restaurant settings",restaurantPath("settings"),data)}</div><pre className="ws-json-preview">{JSON.stringify(data,null,2)}</pre><button className="ws-btn ws-btn-primary" onClick={()=>void rotateSecret("settings/common-qr-token/rotate","Common QR secret rotated. Replace previously printed codes.")}>Rotate Common QR secret</button></section><section className="ws-card"><h3>Default delivery driver</h3><p>Use the UUID of a DELIVERY_DRIVER in this restaurant. The API validates the role and restaurant membership.</p><form className="ws-form-grid" onSubmit={(e)=>{e.preventDefault();void act(()=>call(restaurantPath("delivery-settings/default-driver"),"PATCH",{driverUserId:driverInput.trim()||null}),"Default delivery driver saved.","settings");}}>{field("Driver user UUID",<input value={driverInput} onChange={(e)=>setDriverInput(e.target.value)} placeholder="Paste driver UUID" />)}<button className="ws-btn ws-btn-primary">Save default driver</button></form><p className="ws-muted">Current default: {defaultDriver||"Not configured"}</p><button className="ws-btn ws-btn-muted" onClick={()=>changeView("members")}>Open team members</button></section></div>
+      <div className="ws-grid-two"><section className="ws-card"><div className="ws-card-heading"><div><h3>Operational settings</h3><p>Current server response</p></div>{editorButton("Edit restaurant settings",restaurantPath("settings"),data)}</div><pre className="ws-json-preview">{JSON.stringify(data,null,2)}</pre><button className="ws-btn ws-btn-primary" onClick={()=>void rotateSecret("settings/common-qr-token/rotate","Common QR secret rotated. Replace previously printed codes.")}>Rotate Common QR secret</button></section><section className="ws-card"><h3>Default delivery driver</h3><p>Use the UUID of a DELIVERY_DRIVER in this restaurant. The API validates the role and restaurant membership.</p><form className="ws-form-grid" onSubmit={(e)=>{e.preventDefault();void act(()=>call(restaurantPath("delivery-settings/default-driver"),"PATCH",{driverUserId:driverInput.trim()}),"Default delivery driver saved.","settings");}}>{field("Driver user UUID",<input value={driverInput} onChange={(e)=>setDriverInput(e.target.value)} placeholder="Paste driver UUID" required />)}<button className="ws-btn ws-btn-primary">Save default driver</button></form><p className="ws-muted">Current default: {defaultDriver||"Not configured"}</p><button className="ws-btn ws-btn-muted" onClick={()=>changeView("members")}>Open team members</button></section></div>
     </>;
 
     if (view === "zones") return <>
@@ -671,7 +709,7 @@ export default function WorkspacePage() {
 
     return <>
       {intro("Create your restaurant","Create the first restaurant using the current authenticated user as OWNER. This action creates the initial settings and membership in one transaction.")}
-      <section className="ws-card"><form className="ws-form-grid" onSubmit={createRestaurant}>{field("Restaurant name",<input value={restaurantCreate.name} onChange={(e)=>setRestaurantCreate({...restaurantCreate,name:e.target.value})} required/>)}{field("Public slug",<input value={restaurantCreate.slug} onChange={(e)=>setRestaurantCreate({...restaurantCreate,slug:e.target.value})} placeholder="Auto-generated if blank"/>)}{field("Phone",<input value={restaurantCreate.phone} onChange={(e)=>setRestaurantCreate({...restaurantCreate,phone:e.target.value})}/>)}{field("Description",<input value={restaurantCreate.description} onChange={(e)=>setRestaurantCreate({...restaurantCreate,description:e.target.value})}/>)}{field("Address",<input value={restaurantCreate.address} onChange={(e)=>setRestaurantCreate({...restaurantCreate,address:e.target.value})} />,true)}{field("House / building",<input value={restaurantCreate.houseNo} onChange={(e)=>setRestaurantCreate({...restaurantCreate,houseNo:e.target.value})}/>)}{field("Street",<input value={restaurantCreate.street} onChange={(e)=>setRestaurantCreate({...restaurantCreate,street:e.target.value})}/>)}{field("Ward",<input value={restaurantCreate.ward} onChange={(e)=>setRestaurantCreate({...restaurantCreate,ward:e.target.value})}/>)}{field("Township",<input value={restaurantCreate.township} onChange={(e)=>setRestaurantCreate({...restaurantCreate,township:e.target.value})}/>)}{field("City",<input value={restaurantCreate.city} onChange={(e)=>setRestaurantCreate({...restaurantCreate,city:e.target.value})} required/>)}{field("Currency",<select value={restaurantCreate.currency} onChange={(e)=>setRestaurantCreate({...restaurantCreate,currency:e.target.value})}><option value="MMK">MMK</option><option value="THB">THB</option><option value="USD">USD</option></select>)}{field("Timezone",<input value={restaurantCreate.timezone} onChange={(e)=>setRestaurantCreate({...restaurantCreate,timezone:e.target.value})} required/>)}<p className="ws-muted">The signed-in user becomes OWNER. The default currency is MMK and timezone is Asia/Yangon.</p><button className="ws-btn ws-btn-primary">Create restaurant</button></form></section>
+      <section className="ws-card"><form className="ws-form-grid" onSubmit={createRestaurant}>{field("Restaurant name",<input value={restaurantCreate.name} onChange={(e)=>setRestaurantCreate({...restaurantCreate,name:e.target.value})} required/>)}{field("Public slug",<input value={restaurantCreate.slug} onChange={(e)=>setRestaurantCreate({...restaurantCreate,slug:e.target.value})} placeholder="Auto-generated if blank"/>)}{field("Phone",<input value={restaurantCreate.phone} onChange={(e)=>setRestaurantCreate({...restaurantCreate,phone:e.target.value})}/>)}{field("Description",<input value={restaurantCreate.description} onChange={(e)=>setRestaurantCreate({...restaurantCreate,description:e.target.value})}/>)}{field("Address",<input value={restaurantCreate.address} onChange={(e)=>setRestaurantCreate({...restaurantCreate,address:e.target.value})} />,true)}{field("House / building",<input value={restaurantCreate.houseNo} onChange={(e)=>setRestaurantCreate({...restaurantCreate,houseNo:e.target.value})}/>)}{field("Street",<input value={restaurantCreate.street} onChange={(e)=>setRestaurantCreate({...restaurantCreate,street:e.target.value})}/>)}{field("Ward",<input value={restaurantCreate.ward} onChange={(e)=>setRestaurantCreate({...restaurantCreate,ward:e.target.value})}/>)}{field("Township",<input value={restaurantCreate.township} onChange={(e)=>setRestaurantCreate({...restaurantCreate,township:e.target.value})} required/>)}{field("City",<input value={restaurantCreate.city} onChange={(e)=>setRestaurantCreate({...restaurantCreate,city:e.target.value})} required/>)}{field("Currency",<select value={restaurantCreate.currency} onChange={(e)=>setRestaurantCreate({...restaurantCreate,currency:e.target.value})}><option value="MMK">MMK</option><option value="THB">THB</option><option value="USD">USD</option></select>)}{field("Timezone",<input value={restaurantCreate.timezone} onChange={(e)=>setRestaurantCreate({...restaurantCreate,timezone:e.target.value})} required/>)}<p className="ws-muted">The signed-in user becomes OWNER. The default currency is MMK and timezone is Asia/Yangon.</p><button className="ws-btn ws-btn-primary">Create restaurant</button></form></section>
     </>;
   }
 
