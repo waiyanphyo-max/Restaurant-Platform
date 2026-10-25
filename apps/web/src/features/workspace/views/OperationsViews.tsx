@@ -3,6 +3,9 @@
 
 import type { Row, View } from "@/types/workspace";
 import { useWorkspaceContext } from "@/features/workspace/WorkspaceContext";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
+import { DeliveryStatusBadge } from "@/components/delivery/DeliveryStatusBadge";
+import { QueueStatusBadge } from "@/components/queue/QueueStatusBadge";
 
 export function OverviewView() {
   const {
