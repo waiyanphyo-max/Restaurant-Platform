@@ -145,6 +145,7 @@ public class CatalogManagementService {
         variant.setProductId(productId);
         variant.setName(request.name().trim());
         variant.setPrice(request.price());
+        variant.setImageUrl(clean(request.imageUrl()));
         variant.setIsAvailable(request.available());
         return toVariant(variantRepository.save(variant));
     }
