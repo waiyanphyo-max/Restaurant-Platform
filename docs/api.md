@@ -648,3 +648,21 @@ Owner membership cannot be changed or removed using ordinary endpoints. Use the 
 - `SUPABASE_INVITE_REDIRECT_URL`: optional invitation landing URL. Add it to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs.
 
 Apply migration `20261025120000_add_profile_email_for_member_management.sql` before deploying the updated API. Keep `spring.jpa.hibernate.ddl-auto=validate`. Invitations return a configuration error until the server-side Auth Admin variables are configured.
+
+
+## Supabase Storage media routes
+
+All image uploads use `multipart/form-data` with a file part named `file`. Send the current Supabase Auth access token in `Authorization: Bearer <token>`; never send the service-role key to a client.
+
+| Method | Route | Authorization | Result |
+|---|---|---|---|
+| POST | `/api/v1/restaurants/{restaurantId}/logo` | Restaurant OWNER | Uploads PNG/JPEG/WebP up to 5 MB to the restaurant-logo bucket and updates `restaurants.logo_url` |
+| POST | `/api/v1/restaurants/{restaurantId}/products/{productId}/image` | `MENU_MANAGE` for that restaurant | Uploads a product image up to 5 MB, saves the public URL to `products.image_url`, and returns the updated product |
+| POST | `/api/v1/restaurants/{restaurantId}/products/{productId}/variants/{variantId}/image` | `MENU_MANAGE` plus restaurant/product/variant scope checks | Uploads a separate variant image up to 5 MB, saves `product_variants.image_url`, and returns the updated variant |
+| POST | `/api/v1/customer/profile/avatar` | Authenticated customer; JWT subject determines the target profile | Uploads PNG/JPEG/WebP up to 2 MB to the private avatar bucket and returns the customer profile with an expiring `avatarUrl` |
+
+Storage checks both the declared MIME type and the PNG/JPEG/WebP file signature. Restaurant/product/variant IDs in the route are checked against each other before an upload is stored. A user cannot upload a product image for a different restaurant by guessing an ID.
+
+Public menu images are stored in `menu-images` and may be viewed by anyone who has their URL. Customer avatars use the private `customer-avatars` bucket; `profiles.avatar_path` is the durable object path and the API signs it on profile reads. Signed avatar URLs expire after one hour and must not be persisted as the profile's canonical value. Keep `SUPABASE_SERVICE_ROLE_KEY` server-side.
+
+Configure these buckets and exact names in Supabase Dashboard > Storage: `restaurant-logos` (public, 5 MB), `menu-images` (public, 5 MB), and `customer-avatars` (private, 2 MB). Restrict allowed MIME types to `image/png`, `image/jpeg`, and `image/webp`. Upload write permission is enforced by Spring Boot; do not create client upload policies that expose privileged writes.

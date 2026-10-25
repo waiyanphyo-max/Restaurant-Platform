@@ -145,6 +145,10 @@ button.nav-item:focus-visible{outline:2px solid #6e9c81;outline-offset:2px}
 .guest-product{min-width:0;border:1px solid var(--line);border-radius:12px;padding:15px;background:#fff}
 .guest-product.unavailable{background:#fafbf9;opacity:.78}
 .guest-product-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.guest-product-title{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.guest-product-image{width:58px;height:58px;flex:0 0 58px;object-fit:cover;border-radius:8px;background:#f0f3ef}
+.guest-variant-image-wrap{display:flex;align-items:center;gap:9px;margin-top:8px;color:var(--muted);font-size:10px}
+.guest-variant-image{width:42px;height:42px;object-fit:cover;border-radius:7px;background:#f0f3ef}
 .guest-product-heading h5{font:800 13px Manrope,sans-serif;margin:0 0 5px}
 .guest-product-heading p{font-size:10px;line-height:1.5;color:var(--muted);margin:0}
 .guest-product-heading>strong{font-size:12px;color:var(--green);white-space:nowrap}

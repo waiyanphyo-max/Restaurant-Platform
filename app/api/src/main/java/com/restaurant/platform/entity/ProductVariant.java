@@ -30,6 +30,9 @@ public class ProductVariant {
     @Column(name = "price", nullable = false)
     private Long price;
 
+    @Column(name = "image_url", columnDefinition = "text")
+    private String imageUrl;
+
     @Column(name = "is_available", nullable = false)
     private Boolean isAvailable = true;
 

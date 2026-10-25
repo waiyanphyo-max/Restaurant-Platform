@@ -145,6 +145,7 @@ public class CatalogManagementService {
         variant.setProductId(productId);
         variant.setName(request.name().trim());
         variant.setPrice(request.price());
+        variant.setImageUrl(clean(request.imageUrl()));
         variant.setIsAvailable(request.available());
         return toVariant(variantRepository.save(variant));
     }
@@ -161,6 +162,9 @@ public class CatalogManagementService {
                         "error.catalog.variant-not-found"));
         variant.setName(request.name().trim());
         variant.setPrice(request.price());
+        if (request.imageUrl() != null) {
+            variant.setImageUrl(clean(request.imageUrl()));
+        }
         variant.setIsAvailable(request.available());
         return toVariant(variantRepository.save(variant));
     }
@@ -360,7 +364,8 @@ public class CatalogManagementService {
     private ProductVariantResponse toVariant(ProductVariant variant) {
         return new ProductVariantResponse(
                 variant.getId(), variant.getProductId(), variant.getName(),
-                variant.getPrice(), Boolean.TRUE.equals(variant.getIsAvailable()),
+                variant.getPrice(), variant.getImageUrl(),
+                Boolean.TRUE.equals(variant.getIsAvailable()),
                 variant.getCreatedAt(), variant.getUpdatedAt());
     }
 

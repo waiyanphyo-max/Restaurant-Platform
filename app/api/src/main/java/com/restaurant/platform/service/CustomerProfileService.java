@@ -8,6 +8,7 @@ import com.restaurant.platform.repository.ProfileRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
@@ -20,12 +21,23 @@ public class CustomerProfileService {
 
     private final ProfileRepository profileRepository;
     private final RestaurantAuthorization authorization;
+    private final SupabaseMediaStorageClient storageClient;
 
+    /** Kept for focused service tests that do not exercise avatar signing. */
     public CustomerProfileService(
             ProfileRepository profileRepository,
             RestaurantAuthorization authorization) {
+        this(profileRepository, authorization, null);
+    }
+
+    @Autowired
+    public CustomerProfileService(
+            ProfileRepository profileRepository,
+            RestaurantAuthorization authorization,
+            SupabaseMediaStorageClient storageClient) {
         this.profileRepository = profileRepository;
         this.authorization = authorization;
+        this.storageClient = storageClient;
     }
 
     @Transactional(readOnly = true)
@@ -65,9 +77,14 @@ public class CustomerProfileService {
     }
 
     private CustomerProfileResponse toResponse(Profile profile) {
+        String avatarUrl = profile.getAvatarUrl();
+        if (profile.getAvatarPath() != null && !profile.getAvatarPath().isBlank()
+                && storageClient != null) {
+            avatarUrl = storageClient.createSignedAvatarUrl(profile.getAvatarPath());
+        }
         return new CustomerProfileResponse(
                 profile.getId(), profile.getFullName(), profile.getPhone(),
                 profile.getPreferredLanguage(), profile.getCreatedAt(),
-                profile.getUpdatedAt());
+                profile.getUpdatedAt(), avatarUrl);
     }
 }

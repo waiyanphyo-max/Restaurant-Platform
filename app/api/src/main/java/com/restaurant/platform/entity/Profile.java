@@ -32,6 +32,10 @@ public class Profile {
     @Column(name = "avatar_url", columnDefinition = "text")
     private String avatarUrl;
 
+    /** Private Storage object path; signed URLs are generated on demand because they expire. */
+    @Column(name = "avatar_path", columnDefinition = "text")
+    private String avatarPath;
+
     @Column(name = "preferred_language", nullable = false, length = 10)
     private String preferredLanguage = "my-MM";
 
