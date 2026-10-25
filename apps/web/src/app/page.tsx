@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   ApiError,
@@ -1087,7 +1088,7 @@ export default function HomePage() {
             <article className="restaurant-profile-card">
               <div className="restaurant-profile-card-heading">
                 <span className="profile-step">02</span>
-                <div><h4>Update restaurant profile</h4><p>Use the restaurant ID above and the owner's access token.</p></div>
+                <div><h4>Update restaurant profile</h4><p>Use the restaurant ID above and the owner&apos;s access token.</p></div>
               </div>
               <div className="profile-load-row">
                 <span className="profile-restaurant-id">{restaurantId.trim() || "No restaurant selected"}</span>
@@ -1096,7 +1097,7 @@ export default function HomePage() {
                 </button>
               </div>
               {loadedRestaurantProfile?.logoUrl && <div className="restaurant-logo-current">
-                <img src={loadedRestaurantProfile.logoUrl} alt={`${loadedRestaurantProfile.name} logo`} />
+                <Image src={loadedRestaurantProfile.logoUrl} alt={`${loadedRestaurantProfile.name} logo`} width={68} height={68} unoptimized />
                 <div><strong>Current logo</strong><a href={loadedRestaurantProfile.logoUrl} target="_blank" rel="noreferrer">Open image</a></div>
               </div>}
               {!editRestaurantForm && <div className="empty-state compact-empty"><div className="empty-icon">◉</div><h4>Load a restaurant first</h4><p>Enter its ID in the connection panel, then load its profile here.</p></div>}
