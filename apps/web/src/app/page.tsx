@@ -1023,7 +1023,7 @@ export default function HomePage() {
                     <input value={createRestaurantForm.name} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, name: event.target.value }))} maxLength={150} required />
                   </label>
                   <label>Restaurant slug
-                    <input value={createRestaurantForm.slug} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, slug: event.target.value.toLowerCase().replace(/\\s+/g, "-") }))} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={100} placeholder="my-restaurant" required />
+                    <input value={createRestaurantForm.slug} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, slug: event.target.value.toLowerCase().replace(/\s+/g, "-") }))} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={100} placeholder="my-restaurant" required />
                   </label>
                   <label className="wide">Description
                     <textarea value={createRestaurantForm.description} onChange={event => setCreateRestaurantForm(previous => ({ ...previous, description: event.target.value }))} maxLength={4000} rows={2} />
