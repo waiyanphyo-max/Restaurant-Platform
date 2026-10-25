@@ -1203,9 +1203,10 @@ export default function HomePage() {
                     const group = product.modifierGroups.find(item => item.id === groupId);
                     return group?.options.filter(option => (line.modifiers[option.id] ?? 0) > 0).length ?? 0;
                   };
-                  const selectedVariantPrice = product.variants.find(
+                  const selectedVariant = product.variants.find(
                     variant => variant.id === line.variantId,
-                  )?.price ?? product.price;
+                  );
+                  const selectedVariantPrice = selectedVariant?.price ?? product.price;
                   const selectedModifierPrice = product.modifierGroups.reduce((groupTotal, group) =>
                     groupTotal + group.options
                       .filter(option => (line.modifiers[option.id] ?? 0) > 0)
@@ -1214,7 +1215,10 @@ export default function HomePage() {
 
                   return <article className={`guest-product ${product.available ? "" : "unavailable"}`} key={product.id}>
                     <div className="guest-product-heading">
-                      <div><h5>{product.name}</h5>{product.description && <p>{product.description}</p>}</div>
+                      <div className="guest-product-title">
+                        {product.imageUrl && <img className="guest-product-image" src={product.imageUrl} alt={product.name} loading="lazy" />}
+                        <div><h5>{product.name}</h5>{product.description && <p>{product.description}</p>}</div>
+                      </div>
                       <strong>{formatMoney(product.price)} {publicMenu.currency}</strong>
                     </div>
                     {!product.available && <p className="unavailable-label">Currently unavailable</p>}
@@ -1229,6 +1233,10 @@ export default function HomePage() {
                         )}
                       </select>
                     </label>}
+                    {selectedVariant?.imageUrl && <div className="guest-variant-image-wrap">
+                      <img className="guest-variant-image" src={selectedVariant.imageUrl} alt={selectedVariant.name} loading="lazy" />
+                      <span>{selectedVariant.name}</span>
+                    </div>}
                     {product.modifierGroups.map(group => {
                       const count = selectedCount(group.id);
                       return <fieldset className="guest-modifier-group" key={group.id} disabled={!product.available || guestLoading}>
