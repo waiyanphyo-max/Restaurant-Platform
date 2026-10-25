@@ -4,5 +4,6 @@ type StatusBadgeProps = { status?: string | null; fallback?: string; label?: str
 
 export default function StatusBadge({ status, fallback = "—", label, children }: StatusBadgeProps) {
   const text = children ?? (status || fallback).replaceAll("_", " ");
-  return <span className="ws-status" aria-label={label ? `${label}: ${text}` : undefined}>{text}</span>;
+  const accessibleLabel = label && typeof text === "string" ? `${label}: ${text}` : undefined;
+  return <span className="ws-status" aria-label={accessibleLabel}>{text}</span>;
 }
