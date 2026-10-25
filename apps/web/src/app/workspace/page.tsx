@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import "./workspace.css";
 
 type View = "overview" | "orders" | "staff-order" | "queue" | "deliveries" | "reports" | "menu" | "tables" | "settings" | "zones" | "members" | "restaurant" | "storefront" | "profile" | "addresses" | "my-orders" | "notifications" | "devices" | "queue-track" | "api" | "create";
@@ -80,7 +80,7 @@ export default function WorkspacePage() {
     const base = apiUrl.trim().replace(/\/+$/, "");
     if (!base) throw new Error("Enter the backend API URL.");
     const isPublic = path.startsWith("/api/v1/public/");
-    const headers: HeadersInit = { Accept: "application/json" };
+    const headers: Record<string, string> = { Accept: "application/json" };
     if (!isPublic) {
       if (!token.trim()) throw new Error("Paste a valid Supabase access token first.");
       headers.Authorization = "Bearer " + token.trim();
@@ -146,19 +146,19 @@ export default function WorkspacePage() {
         }
         case "orders": setOrders(list(await call(restaurantPath("orders?page=0&size=100")))); break;
         case "queue": setQueue(list(await call(restaurantPath("queue-tickets")))); break;
-        case "deliveries": setDeliveries(list(await call(role === "DELIVERY_DRIVER" ? restaurantPath("deliveries/mine") : " /".trim() + restaurantPath("deliveries?page=0&size=100")))); break;
+        case "deliveries": setDeliveries(list(await call(role === "DELIVERY_DRIVER" ? restaurantPath("deliveries/mine") : restaurantPath("deliveries?page=0&size=100")))); break;
         case "menu": {
           const res = await Promise.all([
             call(restaurantPath("categories")), call(restaurantPath("products")), call(restaurantPath("modifier-groups")),
           ]);
           setCategories(list(res[0])); setProducts(list(res[1])); setGroupsList(list(res[2])); break;
         }
-        case "tables": setTables(list(await call(restaurantPath("tables"))); break;
+        case "tables": setTables(list(await call(restaurantPath("tables")))); break;
         case "settings": {
           const res = await call(restaurantPath("settings")); setData(record(res)); break;
         }
-        case "zones": setZones(list(await call(restaurantPath("delivery-zones"))); break;
-        case "members": setMembers(list(await call(restaurantPath("members"))); break;
+        case "zones": setZones(list(await call(restaurantPath("delivery-zones")))); break;
+        case "members": setMembers(list(await call(restaurantPath("members")))); break;
         case "restaurant": setData(record(await call("/api/v1/restaurants/" + encodeURIComponent(id)))); break;
         case "reports": setReport(record(await call(restaurantPath("reports/daily") + "?date=" + reportDate))); break;
         case "storefront": {
