@@ -345,7 +345,7 @@ export default function WorkspacePage() {
     await connect();
   }
 
-  const title = groups.flatMap((g) => g.items).find((item) => item[0] === view)?.[1] || "Create restaurant";
+  const titles: Record<View, string> = { overview: "Overview", orders: "Orders", "staff-order": "Staff order", queue: "Queue & pickup", deliveries: "Deliveries / driver", reports: "Daily report", menu: "Menu & catalogue", tables: "Tables & QR", settings: "Settings", zones: "Delivery zones", members: "Team & roles", restaurant: "Restaurant profile", storefront: "Delivery storefront", profile: "My profile", addresses: "Saved addresses", "my-orders": "My orders", notifications: "Notifications", devices: "Push devices", "queue-track": "Track queue ticket", api: "API workbench", create: "Create restaurant" };\n  const title = titles[view];
   const filteredOrders = orders.filter((o) => JSON.stringify(o).toLowerCase().includes(search.toLowerCase()));
   const filteredProducts = products.filter((p) => JSON.stringify(p).toLowerCase().includes(search.toLowerCase()));
   const activeCartItems = Object.entries(cart).filter(([, item]) => item.quantity > 0);
