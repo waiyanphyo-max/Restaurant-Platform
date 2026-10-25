@@ -7,11 +7,6 @@ import type { View, Row, Membership } from "@/types/workspace";
 import { rid, record, list, label, asMoney, messageOf, nextStates, nextDeliveryStates } from "@/features/workspace/utils";
 import WorkspaceNavigation from "@/components/layout/WorkspaceNavigation";
 import { SectionIntro, EmptyState, FormField } from "@/components/shared/WorkspacePrimitives";
-import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
-import { DeliveryStatusBadge } from "@/components/delivery/DeliveryStatusBadge";
-import { QueueStatusBadge } from "@/components/queue/QueueStatusBadge";
-import { AvailabilityBadge } from "@/components/menu/AvailabilityBadge";
-import { CustomerAvatar } from "@/components/customer/CustomerAvatar";
 import { WorkspaceProvider, type WorkspaceViewContext } from "@/features/workspace/WorkspaceContext";
 import WorkspaceViews from "@/features/workspace/WorkspaceViews";
 
