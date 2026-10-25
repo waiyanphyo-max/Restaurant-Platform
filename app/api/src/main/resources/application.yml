@@ -7,6 +7,11 @@ server:
       force: true
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
   application:
     name: restaurant-platform
 
@@ -80,6 +85,7 @@ app:
     project-url: ${SUPABASE_PROJECT_URL:}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
     invite-redirect-url: ${SUPABASE_INVITE_REDIRECT_URL:}
+    storage-bucket: ${SUPABASE_STORAGE_BUCKET:restaurant-logos}
   idempotency:
     encryption-key: ${APP_IDEMPOTENCY_ENCRYPTION_KEY:}
   push:
