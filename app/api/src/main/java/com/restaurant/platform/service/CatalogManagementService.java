@@ -364,7 +364,8 @@ public class CatalogManagementService {
     private ProductVariantResponse toVariant(ProductVariant variant) {
         return new ProductVariantResponse(
                 variant.getId(), variant.getProductId(), variant.getName(),
-                variant.getPrice(), Boolean.TRUE.equals(variant.getIsAvailable()),
+                variant.getPrice(), variant.getImageUrl(),
+                Boolean.TRUE.equals(variant.getIsAvailable()),
                 variant.getCreatedAt(), variant.getUpdatedAt());
     }
 
