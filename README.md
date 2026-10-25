@@ -26,8 +26,10 @@ Provide the variables shown in `.env.example` in your shell or IDE run configura
 
 - `SUPABASE_DB_URL`, `SUPABASE_DB_USERNAME`, `SUPABASE_DB_PASSWORD`
 - `SUPABASE_AUTH_ISSUER`, `SUPABASE_JWKS_URL`
-- `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY` (server only; also used for owner-only logo uploads)
-- `SUPABASE_STORAGE_BUCKET` (optional; defaults to `restaurant-logos`; the bucket should allow public reads)
+- `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY` (server-only; never expose as `NEXT_PUBLIC_*`)
+- `SUPABASE_STORAGE_BUCKET_RESTAURANT_LOGOS` (public-read logo bucket; legacy `SUPABASE_STORAGE_BUCKET` remains a fallback)
+- `SUPABASE_STORAGE_BUCKET_MENU_IMAGES` (public-read product and variant image bucket)
+- `SUPABASE_STORAGE_BUCKET_CUSTOMER_AVATARS` (private customer avatar bucket; API produces signed URLs)
 - Optional: `DB_POOL_MAX_SIZE`, `APP_CORS_ALLOWED_ORIGINS`, `APP_SECURITY_JWT_REQUIRED_AUDIENCE`, `APP_SECURITY_JWT_SIGNING_ALGORITHM`, `APP_IDEMPOTENCY_ENCRYPTION_KEY`, `APP_PUSH_FIREBASE_ENABLED`, `APP_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON`, `APP_PUSH_OUTBOX_POLL_INTERVAL_MS`, `APP_PUSH_OUTBOX_BATCH_SIZE`, `APP_PUSH_OUTBOX_MAX_ATTEMPTS`, `APP_PUSH_OUTBOX_MAX_RETRY_DELAY_SECONDS`
 
 The JWT signing algorithm must match the Supabase project's asymmetric signing-key configuration served through its JWKS endpoint. Do not assume a value without checking the project settings. Database passwords and privileged credentials must remain server-side. To enable safe retry protection for public QR checkout, apply the `20261024083000_add_qr_order_idempotency.sql` migration and set `APP_IDEMPOTENCY_ENCRYPTION_KEY` to Base64-encoded 32 random bytes on the API server. The header is optional; clients should reuse a key only when retrying the exact same checkout request. See `docs/api.md` for details. To enable provider-backed push delivery, apply `20261024100000_add_push_notification_outbox.sql`, create/configure your Firebase project and client registration tokens, then set `APP_PUSH_FIREBASE_ENABLED=true`. Supply `APP_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON` as a server-side secret or configure Google Application Default Credentials in the hosting environment. Firebase is deliberately off by default, and the backend will not pretend to send push messages without credentials. See `docs/api.md` for deployment and retry behavior.
@@ -81,6 +83,9 @@ mvn -f app/api/pom.xml spring-boot:run
 | GET | `/api/v1/restaurants/{restaurantId}/reports/daily?date=2026-10-21` | OWNER/MANAGER daily operations report in restaurant timezone |
 | PUT | `/api/v1/restaurants/{restaurantId}/profile` | Update restaurant profile fields |
 | POST | `/api/v1/restaurants/{restaurantId}/logo` | Owner-only PNG/JPEG/WebP logo upload (multipart field `file`, max 5 MB) |
+| POST | `/api/v1/restaurants/{restaurantId}/products/{productId}/image` | MENU_MANAGE product image upload to Supabase Storage (multipart `file`, max 5 MB) |
+| POST | `/api/v1/restaurants/{restaurantId}/products/{productId}/variants/{variantId}/image` | MENU_MANAGE product variant image upload (multipart `file`, max 5 MB) |
+| POST | `/api/v1/customer/profile/avatar` | Upload the authenticated customer's avatar to private Storage (multipart `file`, max 2 MB); returns a short-lived signed URL in `avatarUrl` |
 | GET/PUT | `/api/v1/restaurants/{restaurantId}/settings` | Read or update operational settings |
 | POST | `/api/v1/restaurants/{restaurantId}/settings/common-qr-token/rotate` | Rotate Common QR token (returned once) |
 | GET/POST | `/api/v1/restaurants/{restaurantId}/delivery-zones` | List or create delivery zones |
@@ -147,3 +152,27 @@ Push delivery requires a real Firebase project and server credentials; it is dis
 Supabase Auth authenticates users. Spring Security validates bearer JWTs, while the backend must enforce restaurant membership, permissions, customer ownership, and assigned-driver scoping for each operation. RLS remains enabled where defined by the database migrations; privileged server-side database access does not replace application authorization.
 
 Before production deployment, use a least-privilege database role where practical, confirm tenant-isolation behavior, review the pending management API work, and run the full Maven verification against the current branch.
+
+
+## Supabase Storage media setup
+
+Create three buckets in Supabase Dashboard > Storage with these exact names:
+
+| Bucket | Public access | File limit | Allowed MIME types | Purpose |
+|---|---|---:|---|---|
+| `restaurant-logos` | Public read | 5 MB | PNG, JPEG, WebP | Restaurant branding |
+| `menu-images` | Public read | 5 MB | PNG, JPEG, WebP | Product and product-variant images |
+| `customer-avatars` | Private | 2 MB | PNG, JPEG, WebP | Customer profile photos |
+
+Uploads are made through Spring Boot using the server-only service-role key after application authorization; do not add browser Storage write policies or expose the key to Next.js/mobile code. Public-read buckets allow anyone with an object URL to view the images, but upload still goes through the authenticated API. Customer avatars are stored in a private bucket and the API returns a signed URL that expires after one hour; the database stores `profiles.avatar_path`, not the temporary URL.
+
+Menu object paths are unique per upload (restaurant/product/variant scopes plus a random filename) so an image replacement does not reuse a cached URL. Product images use `products.image_url`, variant images use the new `product_variants.image_url`, restaurant logos use `restaurants.logo_url`, and private avatars use `profiles.avatar_path`. The existing `profiles.avatar_url` column is retained for compatibility with any legacy public avatar URLs.
+
+Before applying the database migration, inspect the current state:
+
+```powershell
+npx supabase migration list
+npx supabase db push --dry-run
+```
+
+Confirm that `20261025120000_add_storage_media_fields.sql` is the intended pending migration, then run `npx supabase db push`. Do not edit an already-applied migration.
