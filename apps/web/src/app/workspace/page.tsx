@@ -4,7 +4,7 @@ import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import Link from "next/link";
 import "../workspace.css";
 
-type View = "overview" | "orders" | "staff-order" | "queue" | "deliveries" | "reports" | "menu" | "tables" | "settings" | "zones" | "members" | "restaurant" | "storefront" | "profile" | "addresses" | "my-orders" | "notifications" | "devices" | "queue-track" | "api" | "create";
+type View = "overview" | "orders" | "staff-order" | "queue" | "deliveries" | "reports" | "menu" | "tables" | "settings" | "zones" | "members" | "restaurant" | "storefront" | "table-order" | "profile" | "addresses" | "my-orders" | "notifications" | "devices" | "queue-track" | "api" | "create";
 // API payloads are schema-driven by backend DTOs; fields are inspected defensively at runtime.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
@@ -13,7 +13,7 @@ type Membership = { id: string; name: string; role: string };
 const groups = [
   { title: "OPERATIONS", items: [["overview","Overview","⌂"],["orders","Orders","▤"],["staff-order","Staff order","＋"],["queue","Queue & pickup","◷"],["deliveries","Deliveries / driver","➤"],["reports","Daily report","▥"]] },
   { title: "RESTAURANT", items: [["menu","Menu & catalogue","☷"],["tables","Tables & QR","▦"],["settings","Settings","⚙"],["zones","Delivery zones","⌖"],["members","Team & roles","♙"],["restaurant","Restaurant profile","◉"]] },
-  { title: "CUSTOMER POV", items: [["storefront","Delivery storefront","🛍"],["profile","My profile","○"],["addresses","Saved addresses","⌖"],["my-orders","My orders","▣"],["notifications","Notifications","♧"],["devices","Push devices","▯"],["queue-track","Track queue ticket","◴"]] },
+  { title: "CUSTOMER POV", items: [["storefront","Delivery storefront","🛍"],["table-order","Table QR order","▦"],["profile","My profile","○"],["addresses","Saved addresses","⌖"],["my-orders","My orders","▣"],["notifications","Notifications","♧"],["devices","Push devices","▯"],["queue-track","Track queue ticket","◴"]] },
   { title: "TOOLS", items: [["api","API workbench","⌘"]] },
 ] as const;
 
@@ -60,6 +60,9 @@ export default function WorkspacePage() {
   const [notifications, setNotifications] = useState<Row[]>([]);
   const [devices, setDevices] = useState<Row[]>([]);
   const [publicMenu, setPublicMenu] = useState<Row>({});
+  const [tableQrToken, setTableQrToken] = useState("");
+  const [tableQrResult, setTableQrResult] = useState<Row>({});
+  const [tableIdempotencyKey, setTableIdempotencyKey] = useState("");
   const [report, setReport] = useState<Row>({});
   const [search, setSearch] = useState("");
   const [reportDate, setReportDate] = useState(new Date().toISOString().slice(0, 10));
@@ -88,7 +91,7 @@ export default function WorkspacePage() {
   const [trackingNotifications, setTrackingNotifications] = useState<Row[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Row | null>(null);
 
-  async function call<T = unknown>(path: string, method = "GET", body?: unknown): Promise<T> {
+  async function call<T = unknown>(path: string, method = "GET", body?: unknown, extraHeaders: Record<string, string> = {}): Promise<T> {
     const base = apiUrl.trim().replace(/\/+$/, "");
     if (!base) throw new Error("Enter the backend API URL.");
     const isPublic = path.startsWith("/api/v1/public/");
@@ -97,6 +100,7 @@ export default function WorkspacePage() {
       if (!token.trim()) throw new Error("Paste a valid Supabase access token first.");
       headers.Authorization = "Bearer " + token.trim();
     }
+    Object.entries(extraHeaders).forEach(([name, value]) => { headers[name] = value; });
     let requestBody: BodyInit | undefined;
     if (body instanceof FormData) requestBody = body;
     else if (body !== undefined) {
@@ -192,6 +196,7 @@ export default function WorkspacePage() {
           const res = await Promise.all([call(restaurantPath("products")), call(restaurantPath("tables"))]);
           setProducts(list(res[0])); setTables(list(res[1])); break;
         }
+        case "table-order": setPublicMenu(record(await call("/api/v1/public/restaurants/" + encodeURIComponent(id) + "/menu"))); break;
         case "storefront": {
           const res = await Promise.allSettled([
             call("/api/v1/public/restaurants/" + encodeURIComponent(id) + "/menu"),
@@ -368,6 +373,21 @@ export default function WorkspacePage() {
     const result = await act(() => call(restaurantPath(path), "POST"), message);
     const obj = record(result); setOneTimeSecret(String(obj.qrToken || obj.token || obj.commonQrToken || obj.rawToken || ""));
   }
+  async function loadTableMenu(event: FormEvent) {
+    event.preventDefault();
+    if (!restaurantId.trim()) { setError("Enter the restaurant UUID shown in the Table QR link."); return; }
+    try { setPublicMenu(record(await call("/api/v1/public/restaurants/" + encodeURIComponent(restaurantId) + "/menu"))); setError(""); ok("Public menu loaded. Enter the table QR token and add your items."); }
+    catch (cause) { fail(cause); }
+  }
+  async function placeTableQrOrder() {
+    const items = Object.entries(cart).filter(([,item])=>item.quantity>0).map(([productId,item])=>({productId,variantId:item.variantId||null,quantity:item.quantity,specialInstruction:item.specialInstruction.trim()||null,modifiers:Object.entries(item.modifiers).filter(([,quantity])=>quantity>0).map(([modifierOptionId,quantity])=>({modifierOptionId,quantity}))}));
+    if (!restaurantId.trim() || !tableQrToken.trim()) { setError("Enter both the restaurant UUID and table QR token."); return; }
+    if (!items.length) { setError("Add at least one item to the cart."); return; }
+    const idempotencyKey = tableIdempotencyKey || crypto.randomUUID();
+    setTableIdempotencyKey(idempotencyKey);
+    const result = await act(() => call("/api/v1/public/restaurants/" + encodeURIComponent(restaurantId) + "/orders/table-qr", "POST", { qrToken: tableQrToken.trim(), items }, { "Idempotency-Key": idempotencyKey }), "Your table order was submitted.", "table-order");
+    if (result) { setTableQrResult(record(result)); setCart({}); setTableIdempotencyKey(""); }
+  }
   async function reorderOrder(order: Row) {
     try {
       const addrRows = addresses.length ? addresses : list(await call("/api/v1/customer/addresses"));
@@ -419,7 +439,7 @@ export default function WorkspacePage() {
     await connect();
   }
 
-  const titles: Record<View, string> = { overview: "Overview", orders: "Orders", "staff-order": "Staff order", queue: "Queue & pickup", deliveries: "Deliveries / driver", reports: "Daily report", menu: "Menu & catalogue", tables: "Tables & QR", settings: "Settings", zones: "Delivery zones", members: "Team & roles", restaurant: "Restaurant profile", storefront: "Delivery storefront", profile: "My profile", addresses: "Saved addresses", "my-orders": "My orders", notifications: "Notifications", devices: "Push devices", "queue-track": "Track queue ticket", api: "API workbench", create: "Create restaurant" };
+  const titles: Record<View, string> = { overview: "Overview", orders: "Orders", "staff-order": "Staff order", queue: "Queue & pickup", deliveries: "Deliveries / driver", reports: "Daily report", menu: "Menu & catalogue", tables: "Tables & QR", settings: "Settings", zones: "Delivery zones", members: "Team & roles", restaurant: "Restaurant profile", storefront: "Delivery storefront", "table-order": "Table QR order", profile: "My profile", addresses: "Saved addresses", "my-orders": "My orders", notifications: "Notifications", devices: "Push devices", "queue-track": "Track queue ticket", api: "API workbench", create: "Create restaurant" };
   const title = titles[view];
   const filteredOrders = orders.filter((o) => JSON.stringify(o).toLowerCase().includes(search.toLowerCase()));
   const filteredProducts = products.filter((p) => JSON.stringify(p).toLowerCase().includes(search.toLowerCase()));
@@ -534,6 +554,19 @@ export default function WorkspacePage() {
       <section className="ws-card"><pre className="ws-json-preview">{JSON.stringify(data,null,2)}</pre><div className="ws-inline-actions">{editorButton("Edit profile", "/api/v1/restaurants/"+encodeURIComponent(restaurantId)+"/profile",data)}<label className="ws-upload-btn">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>void upload("/api/v1/restaurants/"+encodeURIComponent(restaurantId)+"/logo",e.target.files?.[0])}/></label><button className="ws-btn ws-btn-muted" onClick={()=>changeView("storefront")}>Preview customer storefront</button></div></section>
     </>;
 
+
+    if (view === "table-order") {
+      const menuCategories = list(publicMenu.categories);
+      return <>
+        {intro("Dine-in · Table QR","Guest checkout for the table QR token. No customer account is required; token, availability, modifiers, stock and prices are checked by the backend.")}
+        <section className="ws-card"><form className="ws-form-grid" onSubmit={loadTableMenu}>{field("Restaurant UUID",<input value={restaurantId} onChange={(e)=>setRestaurantId(e.target.value)} required placeholder="Restaurant UUID from the printed QR link"/>)}{field("Table QR token",<input value={tableQrToken} onChange={(e)=>setTableQrToken(e.target.value)} required placeholder="Paste or scan the table token"/>,true)}<button className="ws-btn ws-btn-primary">Load menu</button></form></section>
+        {tableQrResult.id && <section className="ws-card ws-tracking-status"><span className="ws-eyebrow">ORDER SUBMITTED</span><strong>{String(tableQrResult.orderNumber||"Order received")}</strong><span className="ws-status">{String(tableQrResult.status||"PENDING")}</span><p>Table order submitted. Ask staff for an update if needed.</p><button className="ws-btn ws-btn-muted" onClick={()=>setTableQrResult({})}>Start another order</button></section>}
+        {menuCategories.map((category)=><section className="ws-store-category" key={String(category.id)}><h3>{label(category)}</h3><div className="ws-product-grid">{list(category.products).filter((p)=>p.available!==false).map((p)=>{const key=String(p.id);const item=cart[key]||{quantity:0,variantId:"",specialInstruction:"",modifiers:{}};return <article className="ws-product" key={key}>{p.imageUrl?<img src={String(p.imageUrl)} alt={String(p.name)}/>:<div className="ws-product-placeholder">MENU</div>}<div className="ws-product-body"><b>{label(p)}</b><p>{String(p.description||"")}</p><strong>{asMoney(p.price,String(publicMenu.currency||"MMK"))}</strong>{list(p.variants).length>0&&field("Variant",<select value={item.variantId} onChange={(e)=>setCart({...cart,[key]:{...item,variantId:e.target.value}})}><option value="">Default</option>{list(p.variants).filter((v)=>v.available!==false).map((v)=><option key={String(v.id)} value={String(v.id)}>{label(v)} · {asMoney(v.price,String(publicMenu.currency||"MMK"))}</option>)}</select>)}{list(p.modifierGroups).map((g)=><div className="ws-modifier-box" key={String(g.id)}><small>{label(g)}{g.required?" · Required":""}</small>{list(g.options).filter((o)=>o.available!==false).map((o)=><label className="ws-check-row" key={String(o.id)}><input type="checkbox" checked={Number(item.modifiers[String(o.id)]||0)>0} onChange={(e)=>setCart({...cart,[key]:{...item,modifiers:{...item.modifiers,[String(o.id)]:e.target.checked?1:0}}})}/><span>{label(o)} {Number(o.additionalPrice||0)? "(+"+asMoney(o.additionalPrice,String(publicMenu.currency||"MMK"))+")":""}</span></label>)}</div>)}{field("Special instruction",<input value={item.specialInstruction} onChange={(e)=>setCart({...cart,[key]:{...item,specialInstruction:e.target.value}})} placeholder="Optional"/>) }<div className="ws-store-add"><div className="ws-quantity"><button type="button" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.max(0,item.quantity-1)}})}>−</button><b>{item.quantity}</b><button type="button" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.min(99,item.quantity+1}})}>＋</button></div><button className="ws-btn ws-btn-primary" onClick={()=>setCart({...cart,[key]:{...item,quantity:Math.max(1,item.quantity)}})}>Add</button></div></div></article>})}</div></section>)}
+        {menuCategories.length>0&&<section className="ws-card ws-cart"><div className="ws-cart-total"><span>Estimated subtotal</span><strong>{asMoney(cartTotal,String(publicMenu.currency||"MMK"))}</strong></div><p className="ws-muted">The server calculates the final total. This is a guest table order, not a delivery checkout.</p><button className="ws-btn ws-btn-primary ws-btn-block" disabled={busy||!tableQrToken.trim()||!activeCartItems.length} onClick={()=>void placeTableQrOrder()}>Place table order</button></section>}
+        {!menuCategories.length&&empty("Load a menu with a valid restaurant UUID first.")}
+      </>;
+    }
+
     if (view === "storefront") {
       const categories = list(publicMenu.categories);
       return <>
@@ -593,7 +626,7 @@ export default function WorkspacePage() {
       <section className="ws-connection"><div className="ws-connection-title"><div><b>{connected?"Backend connection":"Connect your account"}</b><p>Paste a Supabase Auth access token. No password is collected and the token is not saved to local storage.</p></div><span className={"ws-status "+(connected?"ws-completed":"ws-neutral")}>{connected?"Connected":"Disconnected"}</span></div><form className="ws-connection-form" onSubmit={connect}>{field("Backend API URL",<input value={apiUrl} onChange={(e)=>setApiUrl(e.target.value)} placeholder="http://localhost:8080" required/>)}{field("Restaurant UUID (customer store)",<input value={restaurantId} onChange={(e)=>setRestaurantId(e.target.value)} placeholder="Required for menu / delivery checkout" />)}{field("Supabase access token",<span className="ws-token-input"><input type={showToken?"text":"password"} value={token} onChange={(e)=>setToken(e.target.value)} placeholder="Paste access_token" autoComplete="off" required/><button type="button" onClick={()=>setShowToken(!showToken)}>{showToken?"Hide":"Show"}</button></span>)}<button className="ws-btn ws-btn-primary" disabled={busy}>{busy?"Connecting…":connected?"Reconnect / refresh":"Connect account"}</button></form>{memberships.length>0&&<div className="ws-membership-list">Restaurants: {memberships.map((m)=><button className="ws-chip" key={m.id} onClick={()=>{setRestaurantId(m.id);setRestaurantName(m.name);setRole(m.role);void loadView(view,m.id);}}>{m.name} · {m.role}</button>)}</div>}</section>
       {error&&<div className="ws-alert ws-alert-error" role="alert"><b>Request failed</b><span>{error}</span><button onClick={()=>setError("")}>×</button></div>}{notice&&<div className="ws-alert ws-alert-success" role="status"><span>{notice}</span><button onClick={()=>setNotice("")}>×</button></div>}
       {oneTimeSecret&&<div className="ws-secret-panel"><div><b>One-time token</b><p>Copy and store this safely now. The backend will not return it again.</p><code>{oneTimeSecret}</code></div><button className="ws-btn ws-btn-muted" onClick={()=>{void navigator.clipboard?.writeText(oneTimeSecret);ok("Copied if clipboard permissions allow it.");}}>Copy</button><button className="ws-btn ws-btn-muted" onClick={()=>setOneTimeSecret("")}>Dismiss</button></div>}
-      {!connected?<div className="ws-empty-connect"><div className="ws-empty-icon">↔</div><h2>Connect to begin</h2><p>Enter your API URL and Supabase access token above. Your memberships and roles are loaded from the backend.</p><button className="ws-btn ws-btn-primary" onClick={()=>setView("create")}>Create a restaurant</button></div>:<div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}{workspaceContent()}</div>}
+      {view === "table-order" ? <div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}{workspaceContent()}</div> : !connected?<div className="ws-empty-connect"><div className="ws-empty-icon">↔</div><h2>Connect to begin</h2><p>Enter your API URL and Supabase access token above. Your memberships and roles are loaded from the backend.</p><button className="ws-btn ws-btn-primary" onClick={()=>setView("create")}>Create a restaurant</button></div>:<div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}{workspaceContent()}</div>}
       <footer className="ws-footer"><span>Restaurant Platform</span><span>Desktop · tablet · mobile</span><span>Backend-authorized actions</span></footer>
     </section>
     {draft&&<div className="ws-modal-backdrop" onClick={()=>setDraft(null)}><section className="ws-modal" role="dialog" aria-modal="true" aria-label={draft.title} onClick={(e)=>e.stopPropagation()}><div className="ws-modal-heading"><div><span className="ws-eyebrow">EDIT RECORD</span><h2>{draft.title}</h2><p>Review the fields before saving. The backend validates the final request.</p></div><button className="ws-modal-close" onClick={()=>setDraft(null)}>×</button></div><form onSubmit={saveDraft}><textarea className="ws-code-editor" rows={18} value={draft.body} onChange={(e)=>setDraft({...draft,body:e.target.value})} spellCheck={false}/><div className="ws-modal-actions"><button type="button" className="ws-btn ws-btn-muted" onClick={()=>setDraft(null)}>Cancel</button><button className="ws-btn ws-btn-primary" disabled={busy}>Save changes</button></div></form></section></div>}
