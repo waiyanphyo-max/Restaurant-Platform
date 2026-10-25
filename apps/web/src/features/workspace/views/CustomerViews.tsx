@@ -3,6 +3,7 @@
 
 import type { Row, View } from "@/types/workspace";
 import { useWorkspaceContext } from "@/features/workspace/WorkspaceContext";
+import { CustomerAvatar } from "@/components/customer/CustomerAvatar";
 
 export function TableOrderView() {
   const {
