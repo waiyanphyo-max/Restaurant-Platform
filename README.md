@@ -178,3 +178,7 @@ npx supabase db push --dry-run
 ```
 
 Confirm that `20261025130000_add_storage_media_fields.sql` is the intended pending migration, then run `npx supabase db push`. Do not edit an already-applied migration.
+
+## SaaS onboarding roadmap
+
+The intended platform-operator → restaurant-owner → team/QR → customer-app flow is tracked in [`docs/saas-onboarding-roadmap.md`](docs/saas-onboarding-roadmap.md). The backend already supports restaurant owner creation for authenticated users, team invitations, table QR token creation/rotation, Common QR configuration, and customer delivery orders. Platform-admin owner provisioning is being added separately from restaurant permissions. Native Android / Google Play distribution and production browser authentication remain separate future work.
