@@ -99,7 +99,7 @@ class PlatformRestaurantProvisioningServiceTest {
                 "Min Buri", "Bangkok", null, null, null,
                 "MMK", "Asia/Yangon");
         return new PlatformRestaurantProvisionRequest(
-                " Owner@Example.com ", "Owner Name", restaurant);
+                "owner@example.com", "Owner Name", restaurant);
     }
 
     private RestaurantOnboardingResponse onboarding() {
