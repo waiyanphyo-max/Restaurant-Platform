@@ -1,6 +1,6 @@
 # Restaurant Platform Web
 
-Responsive Next.js frontend for restaurant operations, guest QR ordering, and authenticated customer flows. It is a mobile-responsive website/PWA-style layout, not a native Android/iOS app.
+Responsive Next.js frontend for platform administration, restaurant operations, guest QR ordering, and authenticated customer flows. It is a mobile-responsive website/PWA-style layout, not a native Android/iOS app.
 
 ## Requirements
 
@@ -29,6 +29,7 @@ src/
 ├── app/
 │   ├── page.tsx                  # Thin root route
 │   ├── layout.tsx                # App shell / metadata
+│   ├── admin/page.tsx            # Platform operator dashboard
 │   └── workspace/page.tsx        # Thin responsive workspace route
 ├── components/
 │   ├── layout/                   # Role-aware workspace navigation
@@ -39,6 +40,7 @@ src/
 │   ├── customer/                 # Customer avatar UI
 │   └── shared/                   # Shared status, field, empty-state UI
 ├── features/
+│   ├── platform-admin/           # Platform restaurant and owner provisioning
 │   ├── auth/                     # Auth integration notes / future session UI
 │   ├── restaurant/               # Restaurant API surface
 │   ├── catalogue/                # Menu API surface
@@ -65,7 +67,9 @@ View JSX is separated by domain rather than one file per screen at this stage. K
 ## Main screens
 
 - **Root page (/):** existing Common QR guest pickup flow, queue tracking, polling, and opt-in browser sound.
-- **Full workspace (/workspace):** responsive navigation and forms for owners, managers, staff, delivery drivers, and customers.
+- **Platform admin (/admin):** provision a restaurant and owner through the restricted platform API, then hand off the owner workspace and one-time Common QR links.
+- **Owner workspace (/workspace):** responsive owner dashboard for laptop, tablet, and mobile, with operations and restaurant management navigation.
+- **Full workspace (/workspace):** role-aware navigation and forms for owners, managers, staff, delivery drivers, and customers.
 - **Restaurant operations:** orders/status transitions, counter orders, queue calls, delivery assignment/status, daily reports, payments/cash collection, menu categories/products/variants/modifier groups/options, images, tables/QR tokens, restaurant settings, default driver, delivery zones, team invitations/members/roles, and restaurant profile/logo.
 - **Customer POV:** delivery storefront/cart/checkout (cash on delivery), profile/avatar, saved addresses, order history/details/cancellation/reorder, notifications, push-device metadata/registration, and queue ticket tracking.
 - **Guest dine-in POV:** table QR guest checkout at `/workspace?view=table-order&restaurantId=<restaurant-uuid>#qrToken=<encoded-table-token>`. The QR token belongs in the URL fragment. The page removes the fragment after reading it so the token is not left in the visible address bar.

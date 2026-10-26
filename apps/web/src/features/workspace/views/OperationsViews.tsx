@@ -13,6 +13,7 @@ export function OverviewView() {
     role,
     view,
     data,
+    restaurantName,
     orders,
     queue,
     deliveries,
@@ -22,12 +23,12 @@ export function OverviewView() {
     empty,
   } = useWorkspaceContext();
       if (view === "overview") return <>
-        <div className="ws-hero"><div><div className="ws-eyebrow">RESTAURANT OPERATIONS</div><h2>Service, in one workspace.</h2><p>Manage orders, pickup queues, menu items, deliveries and customer workflows from desktop or phone.</p></div><div className="ws-hero-mark">R<span /></div></div>
+        <div className="ws-hero"><div><div className="ws-eyebrow">{role === "OWNER" ? "OWNER DASHBOARD" : "RESTAURANT OPERATIONS"}</div><h2>{role === "OWNER" ? `${restaurantName} at a glance` : "Service, in one workspace."}</h2><p>{role === "OWNER" ? "Check today’s activity, manage your team and keep restaurant operations moving on laptop, tablet or mobile." : "Manage orders, pickup queues, menu items, deliveries and customer workflows from desktop or phone."}</p></div><div className="ws-hero-mark">R<span /></div></div>
         <div className="ws-stat-grid">{[
           ["Orders today", report.totalOrders ?? orders.length], ["Pending", report.pendingOrders ?? orders.filter((x) => x.status === "PENDING").length],
           ["Completed", report.completedOrders ?? orders.filter((x) => x.status === "COMPLETED").length], ["Sales", asMoney(report.orderAmountExcludingCancelled ?? report.paidAmount ?? 0, String(data.currency || "MMK"))],
         ].map(([name, value]) => <div className="ws-stat" key={String(name)}><span>{name}</span><strong>{value}</strong><small>Latest information from backend</small></div>)}</div>
-        <div className="ws-grid-two"><section className="ws-card"><div className="ws-card-heading"><div><h3>Recent orders</h3><p>Latest service activity</p></div><button className="ws-link-btn" onClick={() => changeView("orders")}>View all ↗</button></div>{orders.slice(0, 5).map((o) => <div className="ws-list-row" key={String(o.id)}><div><b>{label(o)}</b><small>{String(o.orderType || "")} · {String(o.orderChannel || "")}</small></div><div className="ws-row-end"><OrderStatusBadge status={String(o.status || "UNKNOWN")} /><b>{asMoney(o.totalAmount, String(data.currency || "MMK"))}</b></div></div>)}{!orders.length && empty("Orders appear here when the backend returns records.")}</section><section className="ws-card"><div className="ws-card-heading"><div><h3>Quick actions</h3><p>Open the workflows your role needs</p></div></div><div className="ws-quick-grid">{[["Staff order","staff-order"],["Queue & pickup","queue"],["Delivery tasks","deliveries"],["Edit catalogue","menu"],["Manage team","members"],["Daily report","reports"]].map(([name,key]) => <button className="ws-quick" key={key} onClick={() => changeView(key as View)}><b>{name}</b><i>↗</i></button>)}</div></section></div>
+        <div className="ws-grid-two"><section className="ws-card"><div className="ws-card-heading"><div><h3>Recent orders</h3><p>Latest service activity</p></div><button className="ws-link-btn" onClick={() => changeView("orders")}>View all ↗</button></div>{orders.slice(0, 5).map((o) => <div className="ws-list-row" key={String(o.id)}><div><b>{label(o)}</b><small>{String(o.orderType || "")} · {String(o.orderChannel || "")}</small></div><div className="ws-row-end"><OrderStatusBadge status={String(o.status || "UNKNOWN")} /><b>{asMoney(o.totalAmount, String(data.currency || "MMK"))}</b></div></div>)}{!orders.length && empty("Orders appear here when the backend returns records.")}</section><section className="ws-card"><div className="ws-card-heading"><div><h3>Quick actions</h3><p>{role === "OWNER" ? "Common restaurant management tasks" : "Open the workflows your role needs"}</p></div></div><div className="ws-quick-grid">{[["Staff order","staff-order"],["Queue & pickup","queue"],["Delivery tasks","deliveries"],["Edit catalogue","menu"],...(role === "OWNER" ? [["Manage team","members"]] : []),["Daily report","reports"]].map(([name,key]) => <button className="ws-quick" key={String(key)} onClick={() => changeView(key as View)}><b>{name}</b><i>↗</i></button>)}</div></section></div>
       </>;
   return null;
 }

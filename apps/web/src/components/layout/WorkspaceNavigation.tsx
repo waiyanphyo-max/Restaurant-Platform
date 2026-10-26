@@ -20,6 +20,12 @@ export default function WorkspaceNavigation({ connected, role, view, onNavigate 
     allowedItems = new Set(["overview", "orders", "staff-order", "queue", "deliveries", "menu", "storefront", "table-order", "profile", "addresses", "my-orders", "notifications", "devices", "queue-track"]);
   } else if (connected && role === "MANAGER") {
     allowedItems = new Set(groups.flatMap((group) => group.items.map((item) => item[0])).filter((key) => key !== "members"));
+  } else if (connected && role === "OWNER") {
+    // Keep the owner dashboard focused on managing this restaurant. Guest ordering
+    // and personal customer tools remain in their own flows.
+    allowedItems = new Set(groups
+      .filter((group) => group.title !== "CUSTOMER POV" && group.title !== "TOOLS")
+      .flatMap((group) => group.items.map((item) => item[0])));
   }
 
   return <>

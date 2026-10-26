@@ -5,7 +5,7 @@ A multi-restaurant ordering and management platform with a Spring Boot backend, 
 ## Current backend structure
 
 - `app/api`: Spring Boot API, DTOs, entities, repositories, security, and service layer.
-- `apps/web`: responsive Next.js frontend. `/workspace` includes role-aware restaurant operations, catalogue/media, table QR ordering, team/settings, customer delivery checkout, customer profile/addresses/order history, notifications and device management. The root page retains the Common QR guest pickup flow; see `apps/web/README.md` for setup and current limitations.
+- `apps/web`: responsive Next.js frontend. `/admin` provisions restaurants and owners through the restricted platform API; `/workspace` provides the responsive owner and role-aware operations dashboard. The root page retains the Common QR guest pickup flow; see `apps/web/README.md` for setup and current limitations.
 - `supabase/migrations`: versioned SQL schema. Apply migrations in timestamp order before running the API.
 - `docs/architecture.md`: architecture, authentication, and authorization flow.
 - `docs/api.md`: currently implemented HTTP routes, DTOs, permissions, and error codes.
