@@ -81,6 +81,11 @@ logging:
 # Optional QR replay protection and provider-backed push delivery.
 # Firebase delivery is disabled by default; enable only after the Firebase project/server credentials are configured.
 app:
+  public-web-base-url: ${APP_PUBLIC_WEB_BASE_URL:http://localhost:3000}
+  security:
+    # Comma-separated Supabase Auth user UUIDs allowed to provision restaurants.
+    # Empty by default, which disables platform provisioning (fail closed).
+    platform-admin-user-ids: ${PLATFORM_ADMIN_USER_IDS:}
   supabase-admin:
     project-url: ${SUPABASE_PROJECT_URL:}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
