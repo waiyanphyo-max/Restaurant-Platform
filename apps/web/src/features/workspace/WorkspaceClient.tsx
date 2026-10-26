@@ -486,8 +486,9 @@ export default function WorkspaceClient() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("view") !== "table-order") return;
     const id = params.get("restaurantId") || "";
+    if (id) setRestaurantId(id);
+    if (params.get("view") !== "table-order") return;
     const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const qrToken = fragment.get("qrToken") || "";
     setView("table-order");

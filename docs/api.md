@@ -666,3 +666,40 @@ Storage checks both the declared MIME type and the PNG/JPEG/WebP file signature.
 Public menu images are stored in `menu-images` and may be viewed by anyone who has their URL. Customer avatars use the private `customer-avatars` bucket; `profiles.avatar_path` is the durable object path and the API signs it on profile reads. Signed avatar URLs expire after one hour and must not be persisted as the profile's canonical value. Keep `SUPABASE_SERVICE_ROLE_KEY` server-side.
 
 Configure these buckets and exact names in Supabase Dashboard > Storage: `restaurant-logos` (public, 5 MB), `menu-images` (public, 5 MB), and `customer-avatars` (private, 2 MB). Restrict allowed MIME types to `image/png`, `image/jpeg`, and `image/webp`. Upload write permission is enforced by Spring Boot; do not create client upload policies that expose privileged writes.
+
+## Platform operator: provision a restaurant and owner
+
+`POST /api/v1/platform/restaurants`
+
+This endpoint is for the platform operator, not ordinary restaurant members. It requires a valid Supabase Auth bearer token and the caller's UUID must be present in the API server's `PLATFORM_ADMIN_USER_IDS` allowlist. The allowlist must remain empty unless platform administration has been intentionally enabled. Restaurant OWNER membership alone does not grant platform-level access.
+
+Request example:
+
+```json
+{
+  "ownerEmail": "owner@example.com",
+  "ownerFullName": "Restaurant Owner",
+  "restaurant": {
+    "name": "Example Kitchen",
+    "slug": "example-kitchen",
+    "township": "Min Buri",
+    "city": "Bangkok",
+    "currency": "MMK",
+    "timezone": "Asia/Yangon"
+  }
+}
+```
+
+The endpoint validates the restaurant input before sending an invite, invites a new owner by email through Supabase Auth Admin when no matching profile exists, creates the restaurant and its default settings, and grants that Auth user the `OWNER` role. If the email already belongs to an existing profile, the existing account can be assigned as owner without sending another invite. The owner invitation is sent by Supabase Auth; the API never creates or returns a password.
+
+Response includes the owner user ID, `OWNER` role, restaurant profile, owner workspace URL, Common QR URL, and the raw Common QR token. The raw token is a one-time provisioning secret: use it to produce/print the Common QR and do not log or persist the API response. The owner workspace URL preselects the restaurant but is not an access credential; the owner must still authenticate and the backend continues enforcing restaurant permissions.
+
+The Auth invitation and PostgreSQL transaction cannot form one distributed atomic transaction. The implementation checks the restaurant payload first and reuses an existing profile on retry if the invitation was created but restaurant creation later failed. Operators should still verify the final response before handing credentials/QR artwork to a restaurant.
+
+### Server configuration
+
+- `PLATFORM_ADMIN_USER_IDS`: comma-separated UUIDs of trusted platform operator Supabase Auth users. Empty configuration disables this endpoint (fail closed).
+- `APP_PUBLIC_WEB_BASE_URL`: public origin used to construct owner and QR URLs; use the final HTTPS origin in production.
+- `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_INVITE_REDIRECT_URL`: existing server-only Supabase Auth Admin invitation configuration.
+
+Do not expose the Supabase service-role/secret key to the browser or mobile app. A sign-in/session UI and invitation acceptance route are separate frontend milestones and are not included in this API endpoint.

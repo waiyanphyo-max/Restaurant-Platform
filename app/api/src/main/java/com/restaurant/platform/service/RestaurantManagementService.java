@@ -55,6 +55,33 @@ public class RestaurantManagementService {
     public RestaurantOnboardingResponse createRestaurant(
             UUID ownerUserId, CreateRestaurantRequest request) {
         authorization.requireAuthenticatedUserMatches(ownerUserId);
+        return createRestaurantForOwner(ownerUserId, request);
+    }
+
+    /**
+     * Called only after PlatformAdminAuthorization has approved the platform operator.
+     * The owner ID comes from the trusted Supabase Auth Admin response/profile, not from the request.
+     */
+    @Transactional
+    public RestaurantOnboardingResponse createRestaurantForPlatformAdmin(
+            UUID ownerUserId, CreateRestaurantRequest request) {
+        return createRestaurantForOwner(ownerUserId, request);
+    }
+
+    @Transactional(readOnly = true)
+    public void validatePlatformProvisioningRequest(CreateRestaurantRequest request) {
+        validateCreateRequest(request);
+        String slug = request.slug().trim().toLowerCase(Locale.ROOT);
+        if (restaurantRepository.existsBySlug(slug)) {
+            throw slugConflict();
+        }
+        String timezone = request.timezone() == null || request.timezone().isBlank()
+                ? "Asia/Yangon" : request.timezone().trim();
+        validateTimezone(timezone);
+    }
+
+    private RestaurantOnboardingResponse createRestaurantForOwner(
+            UUID ownerUserId, CreateRestaurantRequest request) {
         validateCreateRequest(request);
         String slug = request.slug().trim().toLowerCase(Locale.ROOT);
         if (restaurantRepository.existsBySlug(slug)) {
