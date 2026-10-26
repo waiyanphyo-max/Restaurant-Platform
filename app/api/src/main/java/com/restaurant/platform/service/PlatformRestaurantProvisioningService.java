@@ -57,7 +57,7 @@ public class PlatformRestaurantProvisioningService {
         boolean invitationSent = false;
 
         if (profile == null) {
-            final SupabaseAuthAdminClient.AuthUser invitedUser;
+            SupabaseAuthAdminClient.AuthUser invitedUser = null;
             try {
                 invitedUser = supabaseAuthAdminClient.inviteByEmail(email, request.ownerFullName());
                 invitationSent = true;
