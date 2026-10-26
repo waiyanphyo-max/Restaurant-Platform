@@ -16,7 +16,7 @@ Last reviewed: 2026-10-26
 | Milestone | Scope | Status on 2026-10-26 | Acceptance criteria |
 |---|---|---|---|
 | M0 — Audit and architecture | Confirm current endpoints, roles, QR behavior, customer flows, and missing pieces | **Done** | This roadmap and API docs match the code currently on `main` |
-| M1 — Platform operator provisions owner + restaurant | Platform-admin allowlist; invite or reuse an owner account; create restaurant/settings/OWNER membership; return owner workspace link and Common QR details | **In progress — implementation branch/PR pending CI** | A non-admin is denied; an approved platform operator can provision a restaurant; service tests and CI pass; secrets are not sent to the browser |
+| M1 — Platform operator provisions owner + restaurant | Platform-admin allowlist; invite or reuse an owner account; create restaurant/settings/OWNER membership; return owner workspace link and Common QR details | **Code merged; backend + web CI passed. Live Supabase provisioning smoke test pending configuration** | An approved operator provisions a restaurant in the configured Supabase project, and the owner account/membership/links are verified end-to-end |
 | M2 — Production authentication and invitation acceptance | Browser sign-in, sign-out, refresh/session restoration, Supabase invite callback, safe post-invite password setup, expired/invalid-link states | **Not done** | Owner can open invite mail and sign in without manually pasting a bearer token; refresh and sign-out work; protected pages/API remain enforced |
 | M3 — Owner workspace and team management | Open a direct restaurant URL; use membership roles; invite existing/new staff; change roles/remove member; clear user-friendly onboarding states | **Partially done** | Workspace and role-aware APIs exist; after M2, invite/accept/first-login and all owner/admin operations pass end-to-end tests |
 | M4 — Restaurant QR onboarding pack | Generate a Common QR, create tables and individual QR codes, print/download clearly labelled codes, provide a safe replacement/rotation workflow | **Partially done** | Individual QR APIs and web views exist; a verified printable/downloadable onboarding pack and token-rotation checklist are still required |
@@ -37,4 +37,4 @@ Last reviewed: 2026-10-26
 
 ## Next recommended milestone
 
-Finish and verify M1 first. Then implement M2 with a proper authentication and invitation-acceptance experience; this is necessary before giving a non-technical restaurant owner a polished direct link. Do not publish a raw Common QR token or service-role credential in logs or analytics.
+Configure and smoke-test M1 against the actual Supabase project first. Then implement M2 with a proper authentication and invitation-acceptance experience; this is necessary before giving a non-technical restaurant owner a polished direct link. Do not publish a raw Common QR token or service-role credential in logs or analytics.
