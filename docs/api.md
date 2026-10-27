@@ -4,7 +4,7 @@ This document describes routes that currently exist in the backend source. It is
 
 ## Authentication
 
-Protected routes require a Supabase Auth access token:
+Protected routes require a Supabase Auth access token. The web app obtains the current token from the official Supabase session client and attaches it automatically; users should not paste tokens into the dashboard:
 
 ```http
 Authorization: Bearer <supabase-access-token>
@@ -645,7 +645,7 @@ Owner membership cannot be changed or removed using ordinary endpoints. Use the 
 
 - `SUPABASE_PROJECT_URL`: Supabase project URL.
 - `SUPABASE_SERVICE_ROLE_KEY`: server-only Auth Admin credential. Keep it in the API host secret store; never expose it to browser/mobile code or commit it to Git.
-- `SUPABASE_INVITE_REDIRECT_URL`: optional invitation landing URL. Add it to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs.
+- `SUPABASE_INVITE_REDIRECT_URL`: invitation landing URL; add the exact URL to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs. Local default: `http://localhost:3000/auth/accept-invite`.
 
 Apply migration `20261025120000_add_profile_email_for_member_management.sql` before deploying the updated API. Keep `spring.jpa.hibernate.ddl-auto=validate`. Invitations return a configuration error until the server-side Auth Admin variables are configured.
 
@@ -702,4 +702,4 @@ The Auth invitation and PostgreSQL transaction cannot form one distributed atomi
 - `APP_PUBLIC_WEB_BASE_URL`: public origin used to construct owner and QR URLs; use the final HTTPS origin in production.
 - `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_INVITE_REDIRECT_URL`: existing server-only Supabase Auth Admin invitation configuration.
 
-Do not expose the Supabase service-role/secret key to the browser or mobile app. A sign-in/session UI and invitation acceptance route are separate frontend milestones and are not included in this API endpoint.
+Do not expose the Supabase service-role/secret key to the browser or mobile app. The Next.js app provides `/login` and `/auth/accept-invite`; set the invitation redirect to that route. Dashboard and API authorization continue to depend on validated backend identity and allowlists/memberships, not frontend metadata. See `docs/auth-session-setup.md` for Supabase URL and email-template settings.

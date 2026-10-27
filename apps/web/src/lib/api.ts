@@ -1,3 +1,7 @@
+import { apiRequest, ApiError } from "@/lib/api-request";
+
+export { ApiError } from "@/lib/api-request";
+
 export type OrderSummary = {
   id: string;
   orderNumber: string;
@@ -18,28 +22,17 @@ export type Page<T> = {
   size: number;
 };
 
-export class ApiError extends Error {
-  constructor(message: string, public readonly status?: number) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
 export async function listOrders(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   pageIndex = 0,
   status = "",
   pageSize = 20,
 ): Promise<Page<OrderSummary>> {
   const base = apiBaseUrl.trim().replace(/\/+$/, "");
   const normalizedRestaurantId = restaurantId.trim();
-  const token = accessToken.trim();
-
   if (!base) throw new ApiError("Enter the backend API URL.");
   if (!normalizedRestaurantId) throw new ApiError("Enter the restaurant ID.");
-  if (!token) throw new ApiError("Enter a Supabase access token.");
 
   const safePage = Number.isFinite(pageIndex) ? Math.max(0, Math.floor(pageIndex)) : 0;
   const safeSize = Number.isFinite(pageSize)
@@ -52,39 +45,9 @@ export async function listOrders(
   const normalizedStatus = status.trim();
   if (normalizedStatus) query.set("status", normalizedStatus);
 
-  let response: Response;
-  try {
-    response = await fetch(
-      `${base}/api/v1/restaurants/${encodeURIComponent(normalizedRestaurantId)}/orders?${query.toString()}`,
-      {
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      },
-    );
-  } catch {
-    throw new ApiError("Cannot reach the backend. Check the API URL and CORS configuration.");
-  }
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new ApiError("Authentication failed. Check that the access token is valid.", 401);
-    }
-    if (response.status === 403) {
-      throw new ApiError("This account does not have permission to view orders for this restaurant.", 403);
-    }
-    if (response.status === 404) {
-      throw new ApiError("Restaurant or endpoint not found.", 404);
-    }
-    if (response.status === 400) {
-      throw new ApiError("The order filter or query parameters are invalid.", 400);
-    }
-    throw new ApiError(`The backend returned HTTP ${response.status}.`, response.status);
-  }
-
-  return (await response.json()) as Page<OrderSummary>;
+  return apiRequest<Page<OrderSummary>>(
+    `${base}/api/v1/restaurants/${encodeURIComponent(normalizedRestaurantId)}/orders?${query.toString()}`,
+  );
 }
 
 export type QueueTicket = {
@@ -120,53 +83,14 @@ export type DeliveryTask = {
 
 async function authenticatedJson<T>(
   url: string,
-  accessToken: string,
   method = "GET",
   body?: unknown,
 ): Promise<T> {
-  const token = accessToken.trim();
-  if (!token) throw new ApiError("Enter a Supabase access token.");
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      cache: "no-store",
-    });
-  } catch {
-    throw new ApiError("Cannot reach the backend. Check the API URL and CORS configuration.");
-  }
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new ApiError("Authentication failed. Check that the access token is valid.", 401);
-    }
-    if (response.status === 403) {
-      throw new ApiError("This account does not have permission to perform this operation.", 403);
-    }
-    if (response.status === 404) {
-      throw new ApiError("The requested record was not found.", 404);
-    }
-    let serverMessage = "";
-    try {
-      const payload: unknown = await response.json();
-      if (payload && typeof payload === "object" && "message" in payload
-          && typeof payload.message === "string") {
-        serverMessage = payload.message;
-      }
-    } catch {
-      // Some gateway errors do not return JSON.
-    }
-    throw new ApiError(serverMessage || `The backend returned HTTP ${response.status}.`, response.status);
-  }
-
-  return (await response.json()) as T;
+  return apiRequest<T>(url, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 }
 
 function restaurantApiUrl(apiBaseUrl: string, restaurantId: string, resource: string) {
@@ -180,23 +104,19 @@ function restaurantApiUrl(apiBaseUrl: string, restaurantId: string, resource: st
 export async function listQueueTickets(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
 ): Promise<QueueTicket[]> {
   return authenticatedJson<QueueTicket[]>(
     restaurantApiUrl(apiBaseUrl, restaurantId, "queue-tickets"),
-    accessToken,
   );
 }
 
 export async function callQueueTicket(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   ticketId: string,
 ): Promise<QueueTicket> {
   return authenticatedJson<QueueTicket>(
     `${restaurantApiUrl(apiBaseUrl, restaurantId, "queue-tickets")}/${encodeURIComponent(ticketId)}/call`,
-    accessToken,
     "PATCH",
   );
 }
@@ -204,7 +124,6 @@ export async function callQueueTicket(
 export async function listDeliveries(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   pageIndex = 0,
   status = "",
 ): Promise<Page<DeliveryTask>> {
@@ -215,14 +134,12 @@ export async function listDeliveries(
   if (status.trim()) query.set("status", status.trim());
   return authenticatedJson<Page<DeliveryTask>>(
     `${restaurantApiUrl(apiBaseUrl, restaurantId, "deliveries")}?${query.toString()}`,
-    accessToken,
   );
 }
 
 export async function updateDeliveryStatus(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   deliveryId: string,
   request: {
     status: string;
@@ -233,7 +150,6 @@ export async function updateDeliveryStatus(
 ): Promise<DeliveryTask> {
   return authenticatedJson<DeliveryTask>(
     `${restaurantApiUrl(apiBaseUrl, restaurantId, "deliveries")}/${encodeURIComponent(deliveryId)}/status`,
-    accessToken,
     "PATCH",
     request,
   );
@@ -242,13 +158,11 @@ export async function updateDeliveryStatus(
 export async function assignDeliveryDriver(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   deliveryId: string,
   driverUserId: string,
 ): Promise<DeliveryTask> {
   return authenticatedJson<DeliveryTask>(
     `${restaurantApiUrl(apiBaseUrl, restaurantId, "deliveries")}/${encodeURIComponent(deliveryId)}/assign`,
-    accessToken,
     "PATCH",
     { driverUserId, note: "Assigned from the web operations dashboard." },
   );
@@ -273,7 +187,6 @@ export type DailyOperationsReport = {
 export async function getDailyOperationsReport(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   reportDate = "",
 ): Promise<DailyOperationsReport> {
   const query = new URLSearchParams();
@@ -281,20 +194,17 @@ export async function getDailyOperationsReport(
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   return authenticatedJson<DailyOperationsReport>(
     `${restaurantApiUrl(apiBaseUrl, restaurantId, "reports/daily")}${suffix}`,
-    accessToken,
   );
 }
 
 export async function updateOrderStatus(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   orderId: string,
   status: string,
 ): Promise<OrderSummary> {
   return authenticatedJson<OrderSummary>(
     `${restaurantApiUrl(apiBaseUrl, restaurantId, "orders")}/${encodeURIComponent(orderId)}/status`,
-    accessToken,
     "PATCH",
     { status, note: "Updated from the web operations dashboard." },
   );
@@ -408,43 +318,14 @@ async function publicJson<T>(
   body?: unknown,
   extraHeaders: Record<string, string> = {},
 ): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method,
-      headers: {
-        Accept: "application/json",
-        ...extraHeaders,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      cache: "no-store",
-    });
-  } catch {
-    throw new ApiError("Cannot reach the backend. Check the API URL and CORS configuration.");
-  }
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new ApiError("Restaurant, order, or queue ticket was not found.", 404);
-    }
-    if (response.status === 400 || response.status === 409 || response.status === 422) {
-      let message = "";
-      try {
-        const payload: unknown = await response.json();
-        if (payload && typeof payload === "object" && "message" in payload
-            && typeof payload.message === "string") {
-          message = payload.message;
-        }
-      } catch {
-        // Some proxy errors may not have a JSON body.
-      }
-      throw new ApiError(message || `The request could not be completed (HTTP ${response.status}).`, response.status);
-    }
-    throw new ApiError(`The backend returned HTTP ${response.status}.`, response.status);
-  }
-
-  return (await response.json()) as T;
+  return apiRequest<T>(url, {
+    method,
+    headers: {
+      ...extraHeaders,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }, { auth: "public" });
 }
 
 function publicApiBase(apiBaseUrl: string, restaurantId: string) {
@@ -527,23 +408,19 @@ export type DefaultDeliveryDriverResponse = {
 export async function getDefaultDeliveryDriver(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
 ): Promise<DefaultDeliveryDriverResponse> {
   return authenticatedJson<DefaultDeliveryDriverResponse>(
     `${restaurantApiUrl(apiBaseUrl, restaurantId, "delivery-settings/default-driver")}`,
-    accessToken,
   );
 }
 
 export async function setDefaultDeliveryDriver(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   driverUserId: string,
 ): Promise<DefaultDeliveryDriverResponse> {
   return authenticatedJson<DefaultDeliveryDriverResponse>(
     `${restaurantApiUrl(apiBaseUrl, restaurantId, "delivery-settings/default-driver")}`,
-    accessToken,
     "PATCH",
     { driverUserId },
   );
@@ -618,14 +495,12 @@ export type RestaurantLogoUploadResponse = {
 
 export async function createRestaurant(
   apiBaseUrl: string,
-  accessToken: string,
   request: CreateRestaurantRequest,
 ): Promise<RestaurantOnboardingResponse> {
   const base = apiBaseUrl.trim().replace(/\/+$/, "");
   if (!base) throw new ApiError("Enter the backend API URL.");
   return authenticatedJson<RestaurantOnboardingResponse>(
     `${base}/api/v1/restaurants`,
-    accessToken,
     "POST",
     request,
   );
@@ -634,21 +509,18 @@ export async function createRestaurant(
 export async function getRestaurantProfile(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
 ): Promise<RestaurantProfile> {
   const base = apiBaseUrl.trim().replace(/\/+$/, "");
   if (!base) throw new ApiError("Enter the backend API URL.");
   if (!restaurantId.trim()) throw new ApiError("Enter the restaurant ID.");
   return authenticatedJson<RestaurantProfile>(
     `${base}/api/v1/restaurants/${encodeURIComponent(restaurantId.trim())}`,
-    accessToken,
   );
 }
 
 export async function updateRestaurantProfile(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   request: UpdateRestaurantProfileRequest,
 ): Promise<RestaurantProfile> {
   const base = apiBaseUrl.trim().replace(/\/+$/, "");
@@ -656,7 +528,6 @@ export async function updateRestaurantProfile(
   if (!restaurantId.trim()) throw new ApiError("Enter the restaurant ID.");
   return authenticatedJson<RestaurantProfile>(
     `${base}/api/v1/restaurants/${encodeURIComponent(restaurantId.trim())}/profile`,
-    accessToken,
     "PUT",
     request,
   );
@@ -665,61 +536,17 @@ export async function updateRestaurantProfile(
 export async function uploadRestaurantLogo(
   apiBaseUrl: string,
   restaurantId: string,
-  accessToken: string,
   file: File,
 ): Promise<RestaurantLogoUploadResponse> {
   const base = apiBaseUrl.trim().replace(/\/+$/, "");
   const id = restaurantId.trim();
-  const token = accessToken.trim();
   if (!base) throw new ApiError("Enter the backend API URL.");
   if (!id) throw new ApiError("Enter the restaurant ID.");
-  if (!token) throw new ApiError("Enter a Supabase access token.");
 
   const formData = new FormData();
   formData.append("file", file);
-  let response: Response;
-  try {
-    response = await fetch(
-      `${base}/api/v1/restaurants/${encodeURIComponent(id)}/logo`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-        cache: "no-store",
-      },
-    );
-  } catch {
-    throw new ApiError("Cannot reach the backend. Check the API URL and CORS configuration.");
-  }
-
-  if (!response.ok) {
-    let serverMessage = "";
-    try {
-      const payload: unknown = await response.json();
-      if (payload && typeof payload === "object" && "message" in payload
-          && typeof payload.message === "string") {
-        serverMessage = payload.message;
-      }
-    } catch {
-      // Some gateway errors do not return JSON.
-    }
-    if (response.status === 401) {
-      throw new ApiError("Authentication failed. Check that the access token is valid.", 401);
-    }
-    if (response.status === 403) {
-      throw new ApiError(serverMessage || "Only the restaurant owner can update its logo.", 403);
-    }
-    if (response.status === 413) {
-      throw new ApiError(serverMessage || "The logo must be 5 MB or smaller.", 413);
-    }
-    if (response.status === 415) {
-      throw new ApiError(serverMessage || "Choose a PNG, JPEG, or WebP image.", 415);
-    }
-    throw new ApiError(serverMessage || `The backend returned HTTP ${response.status}.`, response.status);
-  }
-
-  return (await response.json()) as RestaurantLogoUploadResponse;
+  return apiRequest<RestaurantLogoUploadResponse>(
+    `${base}/api/v1/restaurants/${encodeURIComponent(id)}/logo`,
+    { method: "POST", body: formData },
+  );
 }

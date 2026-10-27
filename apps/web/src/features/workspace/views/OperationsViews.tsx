@@ -95,7 +95,6 @@ export function StaffOrderView() {
 
 export function QueueView() {
   const {
-    token,
     view,
     setView,
     queue,

@@ -54,9 +54,6 @@
   width:100%; min-width:0; border:1px solid #dce4e1; color:#253b47; border-radius:8px; padding:10px 11px; background:#fff; outline:none; font:inherit; font-size:12px; font-weight:500;
 }
 .ws-field input:focus, .ws-field select:focus, .ws-field textarea:focus, .ws-toolbar input:focus, .ws-toolbar select:focus { border-color:#39866f; box-shadow:0 0 0 3px #2b957018; }
-.ws-token-input { display:flex; min-width:0; border:1px solid #dce4e1; border-radius:8px; overflow:hidden; }
-.ws-token-input input { min-width:0; width:100%; border:0; padding:10px; outline:none; font-size:12px; }
-.ws-token-input button { border:0; border-left:1px solid var(--ws-line); background:#f5f8f6; padding:0 12px; cursor:pointer; color:#53675f; font-size:11px; }
 .ws-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:37px; padding:9px 12px; border-radius:8px; border:1px solid transparent; font-size:11px; font-weight:800; text-decoration:none; cursor:pointer; transition:filter .15s ease, transform .15s ease; white-space:normal; }
 .ws-btn:hover { filter:brightness(.97); transform:translateY(-1px); }
 .ws-btn:disabled { opacity:.55; cursor:not-allowed; transform:none; }

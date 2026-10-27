@@ -6,8 +6,8 @@ Responsive Next.js frontend for restaurant operations, guest QR ordering, and au
 
 - Node.js 20.9 or newer
 - The Spring Boot API running locally or at a reachable HTTPS origin
-- A Supabase user access token for private API workflows
-- The public Supabase project is not required in the browser just to call the backend; the backend validates bearer tokens and enforces permissions
+- A Supabase project URL and publishable key for browser sign-in and cookie-backed sessions
+- A Supabase Auth user for private API workflows; the web app obtains and refreshes sessions through the official SDK
 
 ## Run locally
 
@@ -27,9 +27,11 @@ Open http://localhost:3000. The default API origin is `http://localhost:8080`; s
 ```text
 src/
 ├── app/
-│   ├── page.tsx                  # Thin root route
-│   ├── layout.tsx                # App shell / metadata
-│   └── workspace/page.tsx        # Thin responsive workspace route
+│   ├── page.tsx                  # Common QR and operations root route
+│   ├── layout.tsx                # App shell and shared auth provider
+│   ├── login/page.tsx            # Email/password sign-in
+│   ├── auth/                     # Supabase callback and invite acceptance
+│   └── workspace/page.tsx        # Responsive workspace route
 ├── components/
 │   ├── layout/                   # Role-aware workspace navigation
 │   ├── orders/                   # Order status UI
@@ -39,7 +41,7 @@ src/
 │   ├── customer/                 # Customer avatar UI
 │   └── shared/                   # Shared status, field, empty-state UI
 ├── features/
-│   ├── auth/                     # Auth integration notes / future session UI
+│   ├── auth/                     # Auth/session provider, account menu, callback flows
 │   ├── restaurant/               # Restaurant API surface
 │   ├── catalogue/                # Menu API surface
 │   ├── checkout/                  # Guest QR checkout API surface
@@ -54,7 +56,9 @@ src/
 │       ├── utils.ts              # Shared display/API helpers
 │       └── views/                # Operations, restaurant, customer, and special views
 ├── lib/
-│   ├── api.ts                    # Shared typed API functions
+│   ├── api.ts                    # Typed API functions over the shared request helper
+│   ├── api-request.ts            # Session-aware private and public API requests
+│   └── supabase/                 # Official SSR browser/server clients and middleware support
 │   └── media.ts                  # Media/upload helpers
 └── types/
     └── workspace.ts              # Shared view and payload types
@@ -72,9 +76,9 @@ View JSX is separated by domain rather than one file per screen at this stage. K
 
 ## Authentication and permissions
 
-The workspace's connection panel currently accepts a Supabase Auth access token; it keeps the token in component memory and does not persist it to local storage or cookies. Do not paste a Supabase service-role key. A signed-in customer can use profile and address screens without restaurant membership; a restaurant UUID is needed for the storefront. Role-appropriate navigation is shown in the UI, but the backend remains the security boundary and must reject any unauthorized action.
+Use `/login` for email/password sign-in. The official Supabase SDK restores the cookie-backed session after reload and refreshes access tokens; the app does not ask users to paste bearer tokens. The visible account menu signs out and returns to `/login`. A signed-in customer can use profile and address screens without restaurant membership; restaurant selection comes from `/api/v1/my/restaurants`. Public QR menu/order endpoints remain available without login, and requests to `/api/v1/public/**` omit the Supabase bearer token. Spring Boot remains responsible for validating JWTs, restaurant membership, permissions, and the platform-admin allowlist.
 
-This is currently an integration preview rather than a fully production-authenticated app: a native Supabase sign-in/sign-out/refresh UI is not yet integrated. Obtain an access token through the configured Supabase Auth flow for private API testing. Public QR menu/order endpoints do not require a bearer token; the QR credential must still be valid.
+For Supabase browser configuration, invitation redirects, and local test steps, follow [Auth and invitation setup](../../docs/auth-session-setup.md). Set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` to the trusted Spring API origin; private requests are restricted to that configured origin so session tokens cannot be forwarded to another host. The publishable key and project URL are browser configuration. Never expose `SUPABASE_SERVICE_ROLE_KEY` or database credentials to the browser.
 
 ## QR links
 
@@ -94,4 +98,4 @@ Treat raw QR credentials as secrets. Rotate a token if a printed QR is lost or e
 
 ### Owner workspace links
 
-Platform provisioning returns a link in the form `/workspace?restaurantId=<restaurant-uuid>`. The workspace uses this value to preselect the intended restaurant after the operator opens the link. The URL is not a credential: the owner still needs a valid Supabase Auth session/access token, and API permissions are checked by Spring Boot. Until the production sign-in and invite-acceptance screens land, the integration preview still asks for an access token in the connection panel.
+Platform provisioning returns a link in the form `/workspace?restaurantId=<restaurant-uuid>`. The workspace may use that value as a selection hint, but it is not proof of membership; it checks `/api/v1/my/restaurants`, and Spring Boot enforces access. A valid Supabase Auth session is required for private workflows.

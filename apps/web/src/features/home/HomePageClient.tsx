@@ -2,7 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { useAuth } from "@/features/auth/AuthProvider";
+import AccountMenu from "@/features/auth/AccountMenu";
 import { ApiError } from "@/lib/api";
 import { CreateQrOrderResponse, createCommonQrOrder } from "@/features/checkout/api";
 import { DailyOperationsReport, getDailyOperationsReport, listOrders, updateOrderStatus, OrderSummary, Page } from "@/features/orders/api";
@@ -168,9 +171,10 @@ function playQueueAlert(context: AudioContext | null) {
 }
 
 export default function HomePage() {
-  const [apiUrl, setApiUrl] = useState(initialApiUrl);
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const apiUrl = initialApiUrl;
   const [restaurantId, setRestaurantId] = useState("");
-  const [accessToken, setAccessToken] = useState("");
 
   const [activeView, setActiveView] = useState<WorkspaceView>("orders");
   const [orders, setOrders] = useState<OrderSummary[]>([]);
@@ -229,14 +233,14 @@ export default function HomePage() {
   const previousQueueStatusRef = useRef("");
   const pendingCommonCheckoutRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
-  const hasRestaurantDetails = Boolean(apiUrl.trim() && restaurantId.trim());
-  const hasConnectionDetails = Boolean(hasRestaurantDetails && accessToken.trim());
+  const hasRestaurantDetails = Boolean(restaurantId.trim());
+  const hasConnectionDetails = Boolean(hasRestaurantDetails && user);
 
   async function loadOrders(pageIndex = 0, status = statusFilter) {
     setLoading(true);
     setError("");
     try {
-      const page = await listOrders(apiUrl, restaurantId, accessToken, pageIndex, status, pageSize);
+      const page = await listOrders(apiUrl, restaurantId, pageIndex, status, pageSize);
       setOrders(page.content ?? []);
       setTotalOrders(page.totalElements ?? 0);
       setTotalPages(page.totalPages ?? 0);
@@ -260,6 +264,10 @@ export default function HomePage() {
       await loadPublicMenu();
       return;
     }
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent("/")}`);
+      return;
+    }
     setActiveView("orders");
     setLoaded(false);
     await loadOrders(0, statusFilter);
@@ -276,7 +284,7 @@ export default function HomePage() {
     setOrderActionId(order.id);
     setError("");
     try {
-      await updateOrderStatus(apiUrl, restaurantId, accessToken, order.id, nextStatus);
+      await updateOrderStatus(apiUrl, restaurantId, order.id, nextStatus);
       await loadOrders(currentPage, statusFilter);
     } catch (cause) {
       setError(errorMessage(cause, "Could not update this order."));
@@ -289,12 +297,12 @@ export default function HomePage() {
     setActiveView("queue");
     setActivityError("");
     if (!hasConnectionDetails) {
-      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      setActivityError("Sign in and enter a restaurant ID first.");
       return;
     }
     setActivityLoading(true);
     try {
-      const tickets = await listQueueTickets(apiUrl, restaurantId, accessToken);
+      const tickets = await listQueueTickets(apiUrl, restaurantId);
       setQueueTickets(tickets);
       setQueueLoaded(true);
     } catch (cause) {
@@ -313,12 +321,12 @@ export default function HomePage() {
     setActiveView("deliveries");
     setActivityError("");
     if (!hasConnectionDetails) {
-      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      setActivityError("Sign in and enter a restaurant ID first.");
       return;
     }
     setActivityLoading(true);
     try {
-      const page = await listDeliveries(apiUrl, restaurantId, accessToken, pageIndex, status);
+      const page = await listDeliveries(apiUrl, restaurantId, pageIndex, status);
       setDeliveriesPage(page);
       setDeliveryPageIndex(page.number ?? pageIndex);
     } catch (cause) {
@@ -336,12 +344,12 @@ export default function HomePage() {
   async function loadDefaultDriver() {
     setActivityError("");
     if (!hasConnectionDetails) {
-      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      setActivityError("Sign in and enter a restaurant ID first.");
       return;
     }
     setDefaultDriverLoading(true);
     try {
-      const settings = await getDefaultDeliveryDriver(apiUrl, restaurantId, accessToken);
+      const settings = await getDefaultDeliveryDriver(apiUrl, restaurantId);
       setDefaultDriverUserId(settings.defaultDriverUserId ?? "");
       setDefaultDriverLoaded(true);
     } catch (cause) {
@@ -364,9 +372,7 @@ export default function HomePage() {
     }
     setDefaultDriverLoading(true);
     try {
-      const settings = await setDefaultDeliveryDriver(
-        apiUrl, restaurantId, accessToken, driverUserId,
-      );
+      const settings = await setDefaultDeliveryDriver(apiUrl, restaurantId, driverUserId);
       setDefaultDriverUserId(settings.defaultDriverUserId ?? "");
       setDefaultDriverLoaded(true);
       setActivityError("");
@@ -421,15 +427,14 @@ export default function HomePage() {
     event.preventDefault();
     setProfileError("");
     setProfileNotice("");
-    if (!accessToken.trim()) {
-      setProfileError("Enter the restaurant owner's Supabase access token in the connection panel first.");
+    if (!user) {
+      setProfileError("Sign in before creating a restaurant.");
+      router.push(`/login?next=${encodeURIComponent("/")}`);
       return;
     }
     setProfileBusy(true);
     try {
-      const created = await createRestaurant(
-        apiUrl, accessToken, buildCreateRestaurantRequest(createRestaurantForm),
-      );
+      const created = await createRestaurant(apiUrl, buildCreateRestaurantRequest(createRestaurantForm));
       setRestaurantId(created.restaurant.id);
       setLoadedRestaurantProfile(created.restaurant);
       setEditRestaurantForm(restaurantToForm(created.restaurant));
@@ -440,9 +445,7 @@ export default function HomePage() {
 
       if (logoFile) {
         try {
-          const uploaded = await uploadRestaurantLogo(
-            apiUrl, created.restaurant.id, accessToken, logoFile,
-          );
+          const uploaded = await uploadRestaurantLogo(apiUrl, created.restaurant.id, logoFile);
           const withLogo = { ...created.restaurant, logoUrl: uploaded.logoUrl };
           setLoadedRestaurantProfile(withLogo);
           setEditRestaurantForm(restaurantToForm(withLogo));
@@ -455,7 +458,7 @@ export default function HomePage() {
         setProfileNotice(`Restaurant created successfully. Restaurant ID: ${created.restaurant.id}`);
       }
     } catch (cause) {
-      setProfileError(errorMessage(cause, "Could not create the restaurant. Check the owner token and required fields."));
+      setProfileError(errorMessage(cause, "Could not create the restaurant. Check your platform permissions and required fields."));
     } finally {
       setProfileBusy(false);
     }
@@ -464,13 +467,14 @@ export default function HomePage() {
   async function loadRestaurantProfile() {
     setProfileError("");
     setProfileNotice("");
-    if (!restaurantId.trim() || !accessToken.trim()) {
-      setProfileError("Enter the restaurant ID and the restaurant owner's access token in the connection panel first.");
+    if (!restaurantId.trim() || !user) {
+      setProfileError("Enter a restaurant ID and sign in first.");
+      if (!user) router.push(`/login?next=${encodeURIComponent("/")}`);
       return;
     }
     setProfileBusy(true);
     try {
-      const restaurant = await getRestaurantProfile(apiUrl, restaurantId, accessToken);
+      const restaurant = await getRestaurantProfile(apiUrl, restaurantId);
       setLoadedRestaurantProfile(restaurant);
       setEditRestaurantForm(restaurantToForm(restaurant));
       setEditLogoFile(null);
@@ -486,8 +490,9 @@ export default function HomePage() {
     event.preventDefault();
     setProfileError("");
     setProfileNotice("");
-    if (!editRestaurantForm || !restaurantId.trim() || !accessToken.trim()) {
-      setProfileError("Load a restaurant profile and enter the owner's access token first.");
+    if (!editRestaurantForm || !restaurantId.trim() || !user) {
+      setProfileError("Load a restaurant profile and sign in first.");
+      if (!user) router.push(`/login?next=${encodeURIComponent("/")}`);
       return;
     }
     setProfileBusy(true);
@@ -495,7 +500,6 @@ export default function HomePage() {
       let updated = await updateRestaurantProfile(
         apiUrl,
         restaurantId,
-        accessToken,
         buildUpdateRestaurantRequest(editRestaurantForm),
       );
       setLoadedRestaurantProfile(updated);
@@ -503,9 +507,7 @@ export default function HomePage() {
 
       if (editLogoFile) {
         try {
-          const uploaded = await uploadRestaurantLogo(
-            apiUrl, restaurantId, accessToken, editLogoFile,
-          );
+          const uploaded = await uploadRestaurantLogo(apiUrl, restaurantId, editLogoFile);
           updated = { ...updated, logoUrl: uploaded.logoUrl };
           setLoadedRestaurantProfile(updated);
           setEditRestaurantForm(restaurantToForm(updated));
@@ -529,15 +531,13 @@ export default function HomePage() {
     setActiveView("reports");
     setActivityError("");
     if (!hasConnectionDetails) {
-      setActivityError("Enter your API URL, restaurant ID, and access token first.");
+      setActivityError("Sign in and enter a restaurant ID first.");
       return;
     }
     setActivityLoading(true);
     setDailyReport(null);
     try {
-      const report = await getDailyOperationsReport(
-        apiUrl, restaurantId, accessToken, date,
-      );
+      const report = await getDailyOperationsReport(apiUrl, restaurantId, date);
       setDailyReport(report);
     } catch (cause) {
       setActivityError(errorMessage(
@@ -554,7 +554,7 @@ export default function HomePage() {
     setGuestError("");
     setError("");
     if (!hasRestaurantDetails) {
-      setGuestError("Enter the backend API URL and restaurant ID first.");
+      setGuestError("Enter a restaurant ID first.");
       return;
     }
     setGuestLoading(true);
@@ -817,7 +817,7 @@ export default function HomePage() {
     setActivityError("");
     setActiveActionId(ticket.ticketId);
     try {
-      await callQueueTicket(apiUrl, restaurantId, accessToken, ticket.ticketId);
+      await callQueueTicket(apiUrl, restaurantId, ticket.ticketId);
       await loadQueue();
     } catch (cause) {
       setActivityError(errorMessage(cause, "Could not call this queue number."));
@@ -835,7 +835,7 @@ export default function HomePage() {
     setActiveActionId(task.id);
     setActivityError("");
     try {
-      await assignDeliveryDriver(apiUrl, restaurantId, accessToken, task.id, driverUserId);
+      await assignDeliveryDriver(apiUrl, restaurantId, task.id, driverUserId);
       await loadDeliveries(deliveryPageIndex, deliveryStatusFilter);
     } catch (cause) {
       setActivityError(errorMessage(cause, "Could not assign this delivery."));
@@ -858,7 +858,7 @@ export default function HomePage() {
     setActiveActionId(task.id);
     setActivityError("");
     try {
-      await updateDeliveryStatus(apiUrl, restaurantId, accessToken, task.id, {
+      await updateDeliveryStatus(apiUrl, restaurantId, task.id, {
         status: nextStatus,
         ...(nextStatus === "FAILED" ? { failureReason } : {}),
         ...(nextStatus === "DELIVERED" ? { cashCollected: true } : {}),
@@ -939,7 +939,7 @@ export default function HomePage() {
         <div className="sidebar-bottom">
           <span className="online-dot" />
           Backend integration preview
-          <p>Access tokens are held in page memory only and are not saved to local storage.</p>
+          <p>Sign in through Supabase to use private dashboard features.</p>
         </div>
       </aside>
 
@@ -947,6 +947,7 @@ export default function HomePage() {
         <header className="topbar">
           <div><div className="eyebrow">RESTAURANT OPERATIONS</div><h1>{viewTitle}</h1></div>
           <div className="topbar-pill"><span className="online-dot" /> API preview</div>
+          <AccountMenu returnTo="/" />
         </header>
 
         <section className="intro">
@@ -960,22 +961,16 @@ export default function HomePage() {
 
         <section className="connection-card">
           <div className="section-heading">
-            <div><h3>Connect to your backend</h3><p>Staff operations need a Supabase access token; public Common QR checkout does not.</p></div>
-            <span className="secure-label">Private request</span>
+            <div><h3>{activeView === "customer-pickup" ? "Load the guest menu" : "Restaurant workspace"}</h3><p>{activeView === "customer-pickup" ? "Common QR menu and checkout stay public and do not send your account session." : user ? `Signed in as ${user.email || "your account"}. Private requests use your current session automatically.` : "Sign in to manage private restaurant operations. Common QR ordering does not require an account."}</p></div>
+            <span className="secure-label">{activeView === "customer-pickup" ? "Guest checkout" : user ? "Session connected" : "Sign in required"}</span>
           </div>
           <form onSubmit={handleSubmit} className="connection-form">
-            <label>Backend API URL
-              <input value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder="http://localhost:8080" autoComplete="url" required />
-            </label>
             <label>Restaurant ID
               <input value={restaurantId} onChange={e => setRestaurantId(e.target.value)} placeholder="Restaurant UUID" autoComplete="off" required />
             </label>
-            <label className="token-field">Supabase access token (staff only)
-              <input type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="Optional for Common QR checkout" autoComplete="off" />
-            </label>
-            <button type="submit" disabled={loading || guestLoading}>{loading || guestLoading ? "Connecting…" : activeView === "customer-pickup" ? "Load menu" : "Load orders"} <span aria-hidden="true">→</span></button>
+            {activeView === "customer-pickup" ? <button type="submit" disabled={loading || guestLoading}>{loading || guestLoading ? "Loading menu…" : "Load menu"} <span aria-hidden="true">→</span></button> : user ? <button type="submit" disabled={loading || guestLoading || authLoading}>{loading ? "Connecting…" : "Load orders"} <span aria-hidden="true">→</span></button> : <Link className="connection-sign-in" href={`/login?next=${encodeURIComponent("/")}`}>Sign in to continue <span aria-hidden="true">→</span></Link>}
           </form>
-          <p className="privacy-note">Staff access tokens stay in page memory only. The guest Common QR flow uses public endpoints and its queue tracking token; never use a service-role key here.</p>
+          <p className="privacy-note">Your Supabase session is managed by the official client. Guest Common QR requests use public endpoints and their separate queue tracking token.</p>
           {error && <div className="feedback error" role="alert">{error}</div>}
         </section>
 
@@ -1064,11 +1059,11 @@ export default function HomePage() {
             <article className="restaurant-profile-card">
               <div className="restaurant-profile-card-heading">
                 <span className="profile-step">02</span>
-                <div><h4>Update restaurant profile</h4><p>Use the restaurant ID above and the owner&apos;s access token.</p></div>
+                <div><h4>Update restaurant profile</h4><p>Use a restaurant you can manage with your signed-in account.</p></div>
               </div>
               <div className="profile-load-row">
                 <span className="profile-restaurant-id">{restaurantId.trim() || "No restaurant selected"}</span>
-                <button className="secondary-button" type="button" onClick={() => void loadRestaurantProfile()} disabled={profileBusy || !restaurantId.trim() || !accessToken.trim()}>
+                <button className="secondary-button" type="button" onClick={() => void loadRestaurantProfile()} disabled={profileBusy || !restaurantId.trim() || !user}>
                   {profileBusy ? "Loading…" : "Load profile"}
                 </button>
               </div>
@@ -1325,7 +1320,7 @@ export default function HomePage() {
             </button>
           </div>}
 
-          {!loaded && !loading && !error && <div className="empty-state"><div className="empty-icon">▤</div><h4>Your orders will appear here</h4><p>Enter the backend URL, restaurant ID, and a valid user access token above.</p></div>}
+          {!loaded && !loading && !error && <div className="empty-state"><div className="empty-icon">▤</div><h4>Your orders will appear here</h4><p>Sign in, then enter the backend URL and a restaurant you can manage.</p></div>}
           {loading && !loaded && <div className="empty-state"><div className="loader" /><h4>Loading orders</h4><p>Requesting the first page from your backend.</p></div>}
           {loaded && !loading && orders.length === 0 && <div className="empty-state"><div className="empty-icon">✓</div><h4>No orders found</h4><p>The connection worked, but this restaurant has no orders matching the current filter.</p></div>}
 

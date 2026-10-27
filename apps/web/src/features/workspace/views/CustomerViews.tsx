@@ -8,7 +8,6 @@ import { CustomerAvatar } from "@/components/customer/CustomerAvatar";
 
 export function TableOrderView() {
   const {
-    token,
     restaurantId,
     setRestaurantId,
     view,
@@ -169,7 +168,6 @@ export function NotificationsView() {
 
 export function DevicesView() {
   const {
-    token,
     view,
     busy,
     devices,
@@ -193,7 +191,6 @@ export function DevicesView() {
 
 export function QueueTrackerView() {
   const {
-    token,
     view,
     busy,
     queue,

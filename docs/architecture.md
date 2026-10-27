@@ -10,11 +10,12 @@
 
 ## Authentication flow
 
-1. The client obtains an access token from Supabase Auth and sends it as `Authorization: Bearer <access-token>`.
-2. Spring Security's stateless OAuth2 Resource Server validates the token signature using the configured JWKS endpoint and configured signing algorithm.
-3. The default issuer/timestamp validators check the issuer and token time validity. An additional validator requires the `authenticated` audience by default and another requires a UUID subject.
-4. Application identity is taken from the validated JWT `sub` claim via `JwtAuthenticationToken`. Request-supplied user IDs are not accepted as proof of identity.
-5. Restaurant permissions are loaded from `restaurant_members`; client JWT role claims do not grant restaurant permissions.
+1. The Next.js App Router signs in through Supabase Auth using the official `@supabase/ssr` browser client. The SDK manages its cookie-backed session and refresh; Next 15 middleware refreshes cookies and applies private no-store headers when they change.
+2. The shared web API helper reads the current SDK session and sends its access token as `Authorization: Bearer <access-token>` only to the configured Spring API origin. Public QR/menu/checkout/queue calls omit the bearer token.
+3. Spring Security's stateless OAuth2 Resource Server validates the token signature using the configured JWKS endpoint and configured signing algorithm.
+4. The default issuer/timestamp validators check the issuer and token time validity. An additional validator requires the `authenticated` audience by default and another requires a UUID subject.
+5. Application identity is taken from the validated JWT `sub` claim via `JwtAuthenticationToken`. Request-supplied user IDs are not accepted as proof of identity.
+6. Restaurant permissions are loaded from `restaurant_members`; client JWT role claims do not grant restaurant permissions. Platform administration additionally requires the backend `PLATFORM_ADMIN_USER_IDS` allowlist.
 
 The signing algorithm must match the Supabase project's actual JWT signing-key configuration. The example configuration assumes an asymmetric signing algorithm and is not evidence of the algorithm used by any particular project. Verify the project settings before deployment.
 

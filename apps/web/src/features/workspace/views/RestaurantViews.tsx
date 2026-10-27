@@ -66,7 +66,6 @@ export function MenuView() {
 
 export function TablesView() {
   const {
-    token,
     view,
     tables,
     tableNumber,
@@ -90,7 +89,6 @@ export function TablesView() {
 
 export function SettingsView() {
   const {
-    token,
     role,
     view,
     data,

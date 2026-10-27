@@ -89,7 +89,7 @@ app:
   supabase-admin:
     project-url: ${SUPABASE_PROJECT_URL:}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
-    invite-redirect-url: ${SUPABASE_INVITE_REDIRECT_URL:}
+    invite-redirect-url: ${SUPABASE_INVITE_REDIRECT_URL:http://localhost:3000/auth/accept-invite}
     storage-bucket: ${SUPABASE_STORAGE_BUCKET_RESTAURANT_LOGOS:${SUPABASE_STORAGE_BUCKET:restaurant-logos}}
     menu-images-bucket: ${SUPABASE_STORAGE_BUCKET_MENU_IMAGES:menu-images}
     customer-avatars-bucket: ${SUPABASE_STORAGE_BUCKET_CUSTOMER_AVATARS:customer-avatars}

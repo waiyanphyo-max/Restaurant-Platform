@@ -2,7 +2,11 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import { useAuth } from "@/features/auth/AuthProvider";
+import AccountMenu from "@/features/auth/AccountMenu";
+import { apiRequest } from "@/lib/api-request";
 import type { View, Row, Membership } from "@/types/workspace";
 import { rid, record, list, label, asMoney, messageOf, nextStates, nextDeliveryStates } from "@/features/workspace/utils";
 import WorkspaceNavigation from "@/components/layout/WorkspaceNavigation";
@@ -11,9 +15,9 @@ import { WorkspaceProvider, type WorkspaceViewContext } from "@/features/workspa
 import WorkspaceViews from "@/features/workspace/WorkspaceViews";
 
 export default function WorkspaceClient() {
-  const [apiUrl, setApiUrl] = useState(process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080");
-  const [token, setToken] = useState("");
-  const [showToken, setShowToken] = useState(false);
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "http://localhost:8080";
   const [connected, setConnected] = useState(false);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [restaurantId, setRestaurantId] = useState("");
@@ -84,10 +88,6 @@ export default function WorkspaceClient() {
     if (!base) throw new Error("Enter the backend API URL.");
     const isPublic = path.startsWith("/api/v1/public/");
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (!isPublic) {
-      if (!token.trim()) throw new Error("Paste a valid Supabase access token first.");
-      headers.Authorization = "Bearer " + token.trim();
-    }
     Object.entries(extraHeaders).forEach(([name, value]) => { headers[name] = value; });
     let requestBody: BodyInit | undefined;
     if (body instanceof FormData) requestBody = body;
@@ -95,19 +95,11 @@ export default function WorkspaceClient() {
       headers["Content-Type"] = "application/json";
       requestBody = JSON.stringify(body);
     }
-    let response: Response;
-    try { response = await fetch(base + (path.startsWith("/") ? path : "/" + path), { method, headers, body: requestBody, cache: "no-store" }); }
-    catch { throw new Error("Cannot reach the backend. Check the API URL, server state, and CORS configuration."); }
-    const raw = await response.text();
-    let payload: unknown = null;
-    if (raw) { try { payload = JSON.parse(raw); } catch { payload = raw; } }
-    if (!response.ok) {
-      const msg = typeof payload === "string" ? payload : messageOf(payload, "Backend returned HTTP " + response.status + ".");
-      if (response.status === 401) throw new Error("Authentication failed. Refresh your Supabase access token.");
-      if (response.status === 403) throw new Error("This role cannot perform that action. " + msg);
-      throw new Error(msg);
-    }
-    return payload as T;
+    return apiRequest<T>(base + (path.startsWith("/") ? path : "/" + path), {
+      method,
+      headers,
+      body: requestBody,
+    }, { auth: isPublic ? "public" : "required" });
   }
 
   function fail(cause: unknown, fallback = "The request could not be completed.") {
@@ -219,6 +211,11 @@ export default function WorkspaceClient() {
 
   async function connect(event?: FormEvent) {
     event?.preventDefault(); setBusy(true); setError(""); setNotice("");
+    if (!user) {
+      setBusy(false);
+      router.push(`/login?next=${encodeURIComponent("/workspace")}`);
+      return;
+    }
     try {
       const result = list(await call("/api/v1/my/restaurants"));
       const loaded = result.map((row) => {
@@ -452,14 +449,12 @@ export default function WorkspaceClient() {
   async function trackQueue(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
     try {
-      const base = apiUrl.trim().replace(/\/+$/, "");
-      const headers = { Accept: "application/json", "X-Queue-Token": ticket.token.trim() };
-      const statusRes = await fetch(base + "/api/v1/public/queue-tickets/" + encodeURIComponent(ticket.id) + "/status", { headers, cache: "no-store" });
-      const notifRes = await fetch(base + "/api/v1/public/queue-tickets/" + encodeURIComponent(ticket.id) + "/notifications", { headers, cache: "no-store" });
-      const statusBody = await statusRes.json();
-      const notifBody = await notifRes.json().catch(() => []);
-      if (!statusRes.ok) throw new Error(messageOf(statusBody, "Queue tracking failed."));
-      setTracking(record(statusBody)); setTrackingNotifications(list(notifBody)); ok("Queue status refreshed.");
+      const headers = { "X-Queue-Token": ticket.token.trim() };
+      const [status, notifications] = await Promise.all([
+        call("/api/v1/public/queue-tickets/" + encodeURIComponent(ticket.id) + "/status", "GET", undefined, headers),
+        call("/api/v1/public/queue-tickets/" + encodeURIComponent(ticket.id) + "/notifications", "GET", undefined, headers),
+      ]);
+      setTracking(record(status)); setTrackingNotifications(list(notifications)); ok("Queue status refreshed.");
     } catch (cause) { fail(cause); }
     finally { setBusy(false); }
   }
@@ -521,12 +516,6 @@ export default function WorkspaceClient() {
 
   const workspaceContextValue: WorkspaceViewContext = {
     call,
-    apiUrl,
-    setApiUrl,
-    token,
-    setToken,
-    showToken,
-    setShowToken,
     connected,
     setConnected,
     memberships,
@@ -711,12 +700,12 @@ export default function WorkspaceClient() {
   };
 
   return <WorkspaceProvider value={workspaceContextValue}><main className="ws-shell">
-    <aside className="ws-sidebar"><Link className="ws-brand" href="/"><span className="ws-brand-mark">R</span><span>Restaurant<span>Platform</span></span></Link><div className="ws-restaurant-switch"><small>WORKING RESTAURANT</small><select value={restaurantId} onChange={(e)=>{const m=memberships.find((item)=>item.id===e.target.value);setRestaurantId(e.target.value);if(m){setRestaurantName(m.name);setRole(m.role);void loadView(view,e.target.value);}}}><option value="">Choose restaurant</option>{memberships.map((m)=><option key={m.id} value={m.id}>{m.name} · {m.role}</option>)}</select></div><nav className="ws-nav">{nav()}{connected&&memberships.length===0&&<button className={"ws-nav-item "+(view==="create"?"is-active":"")} onClick={()=>changeView("create")}><span className="ws-nav-icon">＋</span><span>Create restaurant</span></button>}</nav><div className="ws-sidebar-bottom"><span className="ws-online-dot"/>{connected?"API session connected":"Connect to begin"}<p>Token stays in memory only. Access controls remain on the backend.</p><Link href="/">← Existing QR / operations page</Link></div></aside>
-    <section className="ws-main"><header className="ws-topbar"><div><div className="ws-eyebrow">RESPONSIVE WORKSPACE / {role||"ACCOUNT"}</div><h1>{title}</h1><p>{restaurantName}</p></div><div className="ws-header-actions"><span className="ws-role-pill">{role||"No role"}</span><button className="ws-btn ws-btn-muted" disabled={loading||!connected} onClick={()=>void loadView(view)}>↻ Refresh</button></div></header>
-      {view !== "table-order" && <section className="ws-connection"><div className="ws-connection-title"><div><b>{connected?"Backend connection":"Connect your account"}</b><p>Paste a Supabase Auth access token. No password is collected and the token is not saved to local storage.</p></div><span className={"ws-status "+(connected?"ws-completed":"ws-neutral")}>{connected?"Connected":"Disconnected"}</span></div><form className="ws-connection-form" onSubmit={connect}>{field("Backend API URL",<input value={apiUrl} onChange={(e)=>setApiUrl(e.target.value)} placeholder="http://localhost:8080" required/>)}{field("Restaurant UUID (customer store)",<input value={restaurantId} onChange={(e)=>setRestaurantId(e.target.value)} placeholder="Required for menu / delivery checkout" />)}{field("Supabase access token",<span className="ws-token-input"><input type={showToken?"text":"password"} value={token} onChange={(e)=>setToken(e.target.value)} placeholder="Paste access_token" autoComplete="off" required/><button type="button" onClick={()=>setShowToken(!showToken)}>{showToken?"Hide":"Show"}</button></span>)}<button className="ws-btn ws-btn-primary" disabled={busy}>{busy?"Connecting…":connected?"Reconnect / refresh":"Connect account"}</button></form>{memberships.length>0&&<div className="ws-membership-list">Restaurants: {memberships.map((m)=><button className="ws-chip" key={m.id} onClick={()=>{setRestaurantId(m.id);setRestaurantName(m.name);setRole(m.role);void loadView(view,m.id);}}>{m.name} · {m.role}</button>)}</div>}</section>}
+    <aside className="ws-sidebar"><Link className="ws-brand" href="/"><span className="ws-brand-mark">R</span><span>Restaurant<span>Platform</span></span></Link><div className="ws-restaurant-switch"><small>WORKING RESTAURANT</small><select value={restaurantId} onChange={(e)=>{const m=memberships.find((item)=>item.id===e.target.value);setRestaurantId(e.target.value);if(m){setRestaurantName(m.name);setRole(m.role);void loadView(view,e.target.value);}}}><option value="">Choose restaurant</option>{memberships.map((m)=><option key={m.id} value={m.id}>{m.name} · {m.role}</option>)}</select></div><nav className="ws-nav">{nav()}{connected&&memberships.length===0&&<button className={"ws-nav-item "+(view==="create"?"is-active":"")} onClick={()=>changeView("create")}><span className="ws-nav-icon">＋</span><span>Create restaurant</span></button>}</nav><div className="ws-sidebar-bottom"><span className="ws-online-dot"/>{connected?"API session connected":user?"Account signed in":"Sign in to begin"}<p>Restaurant actions are authorized by the backend.</p><Link href="/">← Existing QR / operations page</Link></div></aside>
+    <section className="ws-main"><header className="ws-topbar"><div><div className="ws-eyebrow">RESPONSIVE WORKSPACE / {role||"ACCOUNT"}</div><h1>{title}</h1><p>{restaurantName}</p></div><div className="ws-header-actions"><span className="ws-role-pill">{role||"No role"}</span><button className="ws-btn ws-btn-muted" disabled={loading||!connected} onClick={()=>void loadView(view)}>↻ Refresh</button><AccountMenu returnTo="/workspace" /></div></header>
+      {view !== "table-order" && <section className="ws-connection"><div className="ws-connection-title"><div><b>{connected?"Backend connection":"Connect your account"}</b><p>{user ? "Your Supabase session is restored automatically. Restaurant memberships and roles come from the backend." : "Sign in with your restaurant account to open private workspace screens."}</p></div><span className={"ws-status "+(connected?"ws-completed":"ws-neutral")}>{connected?"Connected":user?"Signed in":"Signed out"}</span></div><form className="ws-connection-form" onSubmit={connect}>{user&&<>{memberships.length>0?field("Restaurant",<select value={restaurantId} onChange={(e)=>{const selected=memberships.find((item)=>item.id===e.target.value);if(selected){setRestaurantId(selected.id);setRestaurantName(selected.name);setRole(selected.role);void loadView(view,selected.id);}}}><option value="">Choose a restaurant</option>{memberships.map((m)=><option key={m.id} value={m.id}>{m.name} · {m.role}</option>)}</select>):field("Restaurant UUID (customer store)",<input value={restaurantId} onChange={(e)=>setRestaurantId(e.target.value)} placeholder="Required for menu / delivery checkout" />)}</>}{user?<button className="ws-btn ws-btn-primary" disabled={busy||authLoading}>{busy?"Loading workspace…":connected?"Refresh workspace":"Load workspace"}</button>:<Link className="ws-btn ws-btn-primary" href={`/login?next=${encodeURIComponent("/workspace")}`}>Sign in</Link>}</form>{memberships.length>0&&<div className="ws-membership-list">Restaurants: {memberships.map((m)=><button className="ws-chip" key={m.id} onClick={()=>{setRestaurantId(m.id);setRestaurantName(m.name);setRole(m.role);void loadView(view,m.id);}}>{m.name} · {m.role}</button>)}</div>}</section>}
       {error&&<div className="ws-alert ws-alert-error" role="alert"><b>Request failed</b><span>{error}</span><button onClick={()=>setError("")}>×</button></div>}{notice&&<div className="ws-alert ws-alert-success" role="status"><span>{notice}</span><button onClick={()=>setNotice("")}>×</button></div>}
       {oneTimeSecret&&<div className="ws-secret-panel"><div><b>One-time QR credential</b><p>Keep the raw token private. Scan or print the QR below to open the correct guest checkout.</p><code>{oneTimeSecret}</code>{oneTimeQrLink&&<div className="ws-qr-preview"><QRCodeSVG value={oneTimeQrLink} size={190} marginSize={2} level="M"/><div><b>Guest checkout link</b><code>{oneTimeQrLink}</code><div className="ws-inline-actions"><button className="ws-btn ws-btn-muted" onClick={()=>{void navigator.clipboard?.writeText(oneTimeQrLink);ok("Guest link copied if clipboard access was allowed.");}}>Copy link</button><button className="ws-btn ws-btn-muted" onClick={()=>window.print()}>Print</button></div></div></div>}</div><button className="ws-btn ws-btn-muted" onClick={()=>{void navigator.clipboard?.writeText(oneTimeSecret);ok("Token copied if clipboard access was allowed.");}}>Copy token</button><button className="ws-btn ws-btn-muted" onClick={()=>{setOneTimeSecret("");setOneTimeQrLink("");}}>Dismiss</button></div>}
-      {view === "table-order" ? <div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}<WorkspaceViews /></div> : !connected?<div className="ws-empty-connect"><div className="ws-empty-icon">↔</div><h2>Connect to begin</h2><p>Enter your API URL and Supabase access token above. Your memberships and roles are loaded from the backend.</p><button className="ws-btn ws-btn-primary" onClick={()=>setView("create")}>Create a restaurant</button></div>:<div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}<WorkspaceViews /></div>}
+      {view === "table-order" ? <div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}<WorkspaceViews /></div> : !connected?<div className="ws-empty-connect"><div className="ws-empty-icon">↔</div><h2>{user?"Load your workspace":"Sign in to continue"}</h2><p>{user?"Your role and available restaurants are read from the backend after you connect.":"Sign in to access restaurant operations or your customer account. Table QR ordering remains available without an account."}</p>{user?<button className="ws-btn ws-btn-primary" onClick={()=>void connect()}>Load workspace</button>:<Link className="ws-btn ws-btn-primary" href={`/login?next=${encodeURIComponent("/workspace")}`}>Sign in</Link>}</div>:<div className={"ws-content "+(loading?"ws-is-loading":"")}>{loading&&<div className="ws-loading-line">Loading latest data…</div>}<WorkspaceViews /></div>}
       <footer className="ws-footer"><span>Restaurant Platform</span><span>Desktop · tablet · mobile</span><span>Backend-authorized actions</span></footer>
     </section>
     {draft&&<div className="ws-modal-backdrop" onClick={()=>setDraft(null)}><section className="ws-modal" role="dialog" aria-modal="true" aria-label={draft.title} onClick={(e)=>e.stopPropagation()}><div className="ws-modal-heading"><div><span className="ws-eyebrow">EDIT RECORD</span><h2>{draft.title}</h2><p>Review the fields before saving. The backend validates the final request.</p></div><button className="ws-modal-close" onClick={()=>setDraft(null)}>×</button></div><form onSubmit={saveDraft}><textarea className="ws-code-editor" rows={18} value={draft.body} onChange={(e)=>setDraft({...draft,body:e.target.value})} spellCheck={false}/><div className="ws-modal-actions"><button type="button" className="ws-btn ws-btn-muted" onClick={()=>setDraft(null)}>Cancel</button><button className="ws-btn ws-btn-primary" disabled={busy}>Save changes</button></div></form></section></div>}
