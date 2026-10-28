@@ -6,9 +6,11 @@ import com.restaurant.platform.service.PlatformRestaurantProvisioningService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@PreAuthorize("@platformAdminAuthorization.requirePlatformAdmin() != null")
 @RequestMapping("/api/v1/platform/restaurants")
 @RequiredArgsConstructor
 public class PlatformRestaurantProvisioningController {

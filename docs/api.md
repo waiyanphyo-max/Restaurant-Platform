@@ -667,7 +667,35 @@ Public menu images are stored in `menu-images` and may be viewed by anyone who h
 
 Configure these buckets and exact names in Supabase Dashboard > Storage: `restaurant-logos` (public, 5 MB), `menu-images` (public, 5 MB), and `customer-avatars` (private, 2 MB). Restrict allowed MIME types to `image/png`, `image/jpeg`, and `image/webp`. Upload write permission is enforced by Spring Boot; do not create client upload policies that expose privileged writes.
 
-## Platform operator: provision a restaurant and owner
+## Platform administrator dashboard
+
+All routes in this section require a validated Supabase Auth bearer token whose `sub` UUID is present in the API server's `PLATFORM_ADMIN_USER_IDS`. `PlatformAdminAuthorization` checks the allowlist for each request. Restaurant membership roles do not grant platform access; an empty or invalid allowlist fails closed. The dashboard obtains its bearer token from the M1 Supabase session helper and never accepts a pasted token.
+
+### `GET /api/v1/platform/overview`
+
+Returns database counts for the dashboard cards:
+
+```json
+{
+  "totalRestaurants": 12,
+  "activeRestaurants": 10,
+  "inactiveRestaurants": 2,
+  "totalOrders": 845,
+  "totalRestaurantMembers": 37
+}
+```
+
+Response DTO: `PlatformOverviewResponse`.
+
+### `GET /api/v1/platform/restaurants`
+
+Returns a database-backed, newest-first page. `search` matches restaurant name, slug, city, township, owner full name, or owner email. `page` is zero-based; `size` defaults to 20 and is limited to 100.
+
+Example: `/api/v1/platform/restaurants?search=yangon&page=0&size=10`
+
+The response is Spring's `Page<PlatformRestaurantSummaryResponse>` with the standard `content`, `number`, `size`, `totalElements`, `totalPages`, `first`, `last`, and `empty` fields. Each row contains the restaurant ID/name/slug/location/status/creation time, owner name/email, member count, and order count. It does not return auth tokens or restaurant QR credentials.
+
+### `POST /api/v1/platform/restaurants`
 
 `POST /api/v1/platform/restaurants`
 
