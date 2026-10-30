@@ -1,72 +1,56 @@
-# Product Architecture Decision
+# Product architecture decision
 
-**Decision:** PAD-001 — Three product experiences on one platform
-**Status:** Proposed next milestones
-**Reviewed:** 2026-10-28
+**Decision:** PAD-001 — Four client products on one restaurant platform
+**Status:** Accepted for the M1 foundation; production cutover is pending
+**Reviewed:** 2026-10-30
+**Supersedes:** The 2026-10-28 plan for one multi-tenant mobile application
+
+## Context
+
+The M0 reset removed the legacy Next.js UI while preserving the Spring Boot API, Supabase schema/migrations, API contracts, and QR credentials. The [M0 audit](frontend-reset-audit.md) records the exact removed files and distributed URL formats. The previous decision combined restaurant operations and customer ordering in one Android app and treated all restaurants as choices inside that app. The product now requires separate restaurant-branded applications and websites.
 
 ## Decision
 
-Maintain three distinct experiences:
+| Product | Source project | Tenant scope | Audience |
+| --- | --- | --- | --- |
+| Platform Admin website | `apps/admin-web` | Global platform scope, gated by backend platform-admin authorization | Platform operators |
+| Guest website | `apps/guest-web` | One shared Next.js codebase; each configured restaurant has its own branded domain/site | Signed-out Common QR and Table QR guests |
+| Operations Android app | `apps/operations-mobile` | One React Native codebase, built as a distinct restaurant-branded Android application per restaurant | Owner, Manager, Staff, Driver |
+| Customer Android app | `apps/customer-mobile` | Separate React Native codebase, built as a distinct restaurant-branded Android application per restaurant | Signed-in home-delivery customers |
 
-1. **Platform Admin website** for private platform operations. Spring authorization against the Supabase Auth UUID allowlist is authoritative.
-2. **Public Common QR and Table QR guest-ordering website** with mobile-first, no-account flows. QR credentials and order data are validated by public backend routes.
-3. **One multi-tenant Expo/React Native Android app** for Owner, Manager, Staff, Delivery Driver and signed-in Customer. Restaurant selection comes only from API memberships. Platform Admin remains web-only.
+This is **not a marketplace mobile app**. A mobile build has one immutable restaurant identity from a validated build-time configuration. Neither mobile app offers cross-restaurant switching. Operations and Customer are separate application projects with separate Android application IDs, signing/release pipelines, and Play listings for each restaurant. They may share platform-neutral types, API transport, and design tokens; they do not share an application shell or role navigation.
 
-Keep the existing monorepo and Spring Boot + Supabase PostgreSQL/Auth + Next.js stack. Initially keep Admin, guest ordering and the responsive workspace in Next.js under separate routes/layouts. Do not create a separate mobile app or Play listing per restaurant. The Expo app does not exist yet; this is a target plan, not a statement of implemented features.
+The existing `app/api` Spring Boot service and `supabase` PostgreSQL/Auth project remain shared by all clients. The backend continues to validate JWTs, platform administrator allowlists, restaurant memberships and roles, customer ownership, QR credentials, prices, and order transitions. Hostname selection or an Android build-time restaurant ID is a client routing constraint, never proof of authorization.
 
-## Repository and branch audit
+## Repository boundaries
 
-At review, checkout is codex/m2-platform-admin at 6550d4a; local main and origin/main point to the same commit. The tree already has uncommitted M2 dashboard/read-endpoint work and other untracked files. These are not in main and must be reviewed separately.
+The target workspaces are `apps/admin-web`, `apps/guest-web`, `apps/operations-mobile`, `apps/customer-mobile`, `packages/api-client`, `packages/shared-types`, `packages/ui-tokens`, and `configs/restaurants`. Existing `app/api` and `supabase` are protected. `docs/api.md` is the authoritative HTTP contract; client DTOs must follow it and must not define a competing schema.
 
-codex/admin-owner-dashboards diverged before M1 Supabase session integration. Its old Admin UI uses manual bearer-token entry and old auth behavior. Its responsive shell and provisioning-form presentation are reusable ideas; its auth/API changes and docs are stale. Do not merge that branch wholesale.
+- `@restaurant-platform/shared-types` holds transport DTO shapes and narrow shared identifiers, without UI or server authorization logic.
+- `@restaurant-platform/api-client` holds platform-neutral HTTP request/response behavior. Browser and native apps supply their own authentication/session adapters and trusted API origin.
+- `@restaurant-platform/ui-tokens` holds reusable colors, spacing, typography values, and similar primitives. React components, navigation, storage, and auth callbacks stay in the owning app.
+- Each app owns its runtime entry points, routing, native/web rendering, local state, and platform-specific accessibility. Sharing stops when the user interaction or security context differs.
 
-The committed architecture is Next.js App Router plus Spring Boot domain APIs, Supabase Auth and PostgreSQL migrations as schema source of truth. No Expo app, Android package or EAS configuration exists.
+See [frontend monorepo architecture](frontend-monorepo-architecture.md) for configuration and dependency rules.
 
-## Surface boundaries
+## Restaurant identity and branding
 
-### Platform Admin web
+Guest websites map a configured, canonical host to exactly one restaurant ID and branding record. Unknown, ambiguous, or mismatched hosts fail closed; a query parameter must not silently switch the tenant selected by the host. Each restaurant may use its own domain, name, logo, colors, and localized content. No restaurant identity or business data is fabricated as a production integration. Real configuration requires verified domains and restaurant IDs.
 
-- Operator route: /admin. Require a Supabase session, then enforce PLATFORM_ADMIN_USER_IDS against validated JWT sub on every API request. A restaurant role or frontend metadata grants no platform access.
-- POST /api/v1/platform/restaurants exists on main. GET /api/v1/platform/overview and GET /api/v1/platform/restaurants exist only in the uncommitted checkout.
-- Keep Supabase Auth Admin provisioning server-side; never expose service-role credentials. Test every platform route with a non-admin denial case.
+Android branding is selected at build time from `configs/restaurants/<slug>.json` plus an environment. The configuration supplies public brand metadata, the restaurant ID, and distinct application IDs for Operations and Customer. It must be validated before build/export. Signing keys, Supabase service-role keys, database credentials, and server-side Firebase credentials stay outside the repository and outside client bundles. Every API request uses the configured restaurant scope, and the backend still enforces it.
 
-### Public guest website
+## Legacy URL and backend configuration constraint
 
-Create guest-first Common and Table QR pages, proposed as /order/common and /order/table. Keep current QR URLs as compatibility aliases while reprinting/migrating links.
+M1 must preserve the distributed Common QR, Table QR, owner workspace, `/auth/callback`, and `/auth/accept-invite` URL shapes recorded in the [M0 audit](frontend-reset-audit.md). QR tokens remain in URL fragments and must be removed from browser history after client-side capture. No M1 change rotates existing tokens.
 
-Current Common QR: /?view=customer-pickup&restaurantId=...#qrToken=... with menu, cart, checkout and queue status/notification polling. Current Table QR: /workspace?view=table-order&restaurantId=...#qrToken=... with menu/cart/checkout, embedded in the workspace shell. Both currently call public APIs without login. Table QR is not yet a standalone guest experience.
+The backend currently has **one** `APP_PUBLIC_WEB_BASE_URL` for both generated Common QR links and owner links. It is not a per-restaurant domain registry. Do not assume it has already been changed or that it can generate separate branded domains without future backend work. Keep the existing production origin working as a compatibility origin while per-restaurant websites are introduced. The guest app or a dedicated compatibility entry at that origin must handle the old `/` and `/workspace` paths, including the owner handoff. Any future browser redirect to a tenant domain must use a trusted host mapping and preserve the fragment until the destination reads it. `SUPABASE_INVITE_REDIRECT_URL`, Supabase Auth allowlists, and `APP_CORS_ALLOWED_ORIGINS` also require environment-specific coordination; see the [production URL migration plan](production-url-migration.md).
 
-Use GET /api/v1/public/restaurants/{restaurantId}/menu and POST routes ending in /orders/common-qr or /orders/table-qr. The backend verifies QR/table scope, active menu, modifiers, stock and price. Keep checkout account-free. Handle empty menu/cart, invalid QR, changed stock/price, loading, retry/network failure and submitted state. Read existing QR secrets from the URL fragment, remove it from browser history promptly, and never log or analyze it. Queue polling uses X-Queue-Token header. A signed-in option must not block guest checkout.
+## M1 scope and release boundary
 
-### Expo Android app
+M1 delivers workspaces, starter apps, validated tenant/brand configuration boundaries, shared packages, consistent TypeScript/lint/test tooling, and CI. It does not claim completed guest checkout, platform administration, native operations, customer delivery, invitation acceptance, or signed Android APK release. No placeholder is deployable as a replacement for an existing production flow. Keep the current production URLs and backend settings until the migration acceptance gates pass.
 
-One multi-tenant app serves multiple restaurants. After sign-in, load /api/v1/my/restaurants; show only returned memberships. A user with no memberships can still use permitted customer profile/address/order flows.
+Phone/SMS account linking, UUID-safe provisioning, and assigned-only delivery authorization remain separate backend policy work. They cannot be inferred from a frontend role switch or implemented by changing UI checks. Platform Admin remains web-only; public QR guests remain web-first without account/app requirements.
 
-Use the official Supabase JS SDK supported by Expo and secure native session persistence such as Expo SecureStore, verified against the chosen Expo SDK. Let the SDK restore/refresh sessions; do not port the browser cookie adapter or hand-roll JWT parsing/refresh storage. Obtain current session token for protected Spring requests. Use Spring for domain data/writes. Do not call Supabase Data API for application writes or bundle database/service-role credentials. Guests keep ordering on web without an app.
+## Consequences
 
-## Authentication and identity
-
-Support email/password and phone/SMS OTP. Current M1 web implements email/password, session restoration/refresh and email invitation acceptance; phone OTP/linking is not implemented.
-
-- Validated Supabase Auth UUID sub is the identity key; profiles.id and memberships reference that UUID.
-- Email/phone strings are contact attributes, not proof that two accounts belong to one person. Never merge/link using an unverified string.
-- Phone linking begins inside the signed-in account. Verify Supabase phone-change OTP, then confirm the Auth UUID is unchanged and phone is confirmed before saving verified app state. Never reparent profiles or memberships.
-- Phone onboarding is an explicit role-scoped, expiring, one-time pending invite created by an authorized Platform Admin or restaurant owner. No membership exists yet. After SMS OTP, API validates JWT sub and trusted Auth Admin data confirms that exact UUID has the verified E.164 phone. Then atomically consume invite and create membership for that UUID. Store claim secret hashed; rate-limit and audit.
-- Unverified, expired, used, mismatched or unverifiable claims fail closed. Conflicts require explicit verified support handling.
-- Current email provisioning looks up profiles by email text. Harden to use trusted Auth Admin UUID/verification; a matching email string alone must not attach memberships or ownership.
-
-See Supabase [phone login](https://supabase.com/docs/guides/auth/phone-login), [Auth users](https://supabase.com/docs/guides/auth/users), and its [phone-change troubleshooting note](https://supabase.com/kb/troubleshooting/unexpected-behavior-with-authupdateuser-phone-phone-linked-to-incorrect-user-id). Test stale phone-change behavior with the chosen provider, serialize changes and verify the returned UUID. Stop rather than reconcile by string if identity differs.
-
-## Delivery decision and current gap
-
-Owner/Manager may assign/reassign to any eligible active member of the same restaurant (OWNER, MANAGER, STAFF, DELIVERY_DRIVER), including themselves. Staff and dedicated drivers can read/execute only tasks assigned to their validated JWT UUID. Staff does not change role to deliver. Keep automatic default-driver selection dedicated to DELIVERY_DRIVER unless separately decided. Add narrow assignment-options access for Owner/Manager; do not grant Manager member administration for a picker.
-
-Current manual/default assignment requires DELIVERY_DRIVER. Delivery listing filters only dedicated drivers; Staff and other members with DELIVERY_READ can see wider lists. Staff has DELIVERY_STATUS_UPDATE, and current checks do not uniformly restrict Staff to assigned tasks. Review Manager Order status updates as a possible delivery-state bypass. restaurant_members has no active/suspended flag; initially define eligible as current membership plus enabled Auth account. Preserve COD, atomic payment/order status, delivery history and tenant checks.
-
-## Test evidence, dependencies and order
-
-Existing tests cover role grants, restaurant authorization, delivery services, QR idempotency and customer delivery. They do not establish any-member assignment, manager/owner self-delivery, assigned-only Staff enforcement across all status routes or HTTP/database cross-driver/customer isolation. The previous M2 checkout records frontend and Maven checks, but this documentation audit did not rerun them. No live Supabase SMS/email flow is certified.
-
-Next: (1) review pending M2 Admin separately; (2) harden UUID-based provisioning and decide SMS provider/link/invite contracts; (3) implement/test delivery policy and decide if membership suspension requires a new timestamped migration; (4) make standalone guest QR pages while preserving URLs; (5) start Expo after API/auth/delivery policies are stable; (6) configure and test Supabase, provider, CORS, deep links, FCM and release in staging. This audit changes no code, migration or remote setting.
-
-Consequences: guest checkout stays low-friction; one app serves restaurant teams and customers; backend remains the authorization boundary. SMS, delivery changes, standalone Table QR and mobile still require implementation. No SMS vendor, payment provider or branded-app model is selected.
+The platform gains isolated product surfaces and restaurant-specific branding at the cost of more domain, Android application ID, signing, store-listing, and release management. One shared codebase per product limits duplicate implementation while allowing each restaurant a separate guest site and two separate Android apps. The single backend-generated web-origin setting is a deliberate compatibility constraint until a later backend contract change is designed and tested.

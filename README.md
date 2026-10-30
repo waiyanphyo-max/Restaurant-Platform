@@ -1,15 +1,23 @@
 # Restaurant Platform
 
-A multi-restaurant ordering and management platform with a Spring Boot backend and Supabase PostgreSQL/Auth. The frontend workspace is being rebuilt after the M0 reset.
+A multi-restaurant ordering and management platform with a shared Spring Boot API and Supabase PostgreSQL/Auth. M1 provides separate platform-admin, guest-web, operations Android, and customer Android application foundations.
 
-## Current backend structure
+## Repository structure
 
 - `app/api`: Spring Boot API, DTOs, entities, repositories, security, and service layer.
-- `apps/web`: documented placeholder for the new frontend architecture. There is no runnable web client in M0; see `apps/web/README.md` and `docs/frontend-reset-audit.md`.
+- `apps/admin-web`: platform-admin Next.js starter.
+- `apps/guest-web`: host-resolved, restaurant-branded Next.js guest starter with legacy URL aliases.
+- `apps/operations-mobile`: separate React Native/Expo Android application project for Owner, Manager, Staff, and Driver.
+- `apps/customer-mobile`: separate React Native/Expo Android application project for one restaurant's delivery customers.
+- `packages/api-client`, `packages/shared-types`, `packages/ui-tokens`: shared transport, wire types, and design primitives.
+- `configs/restaurants`: validated per-restaurant domain and Android build metadata. The template is not a production restaurant.
+- `apps/web`: historical M0 placeholder; it is not an npm workspace or runnable application.
 - `supabase/migrations`: versioned SQL schema. Apply migrations in timestamp order before running the API.
 - `docs/architecture.md`: architecture, authentication, and authorization flow.
 - `docs/api.md`: currently implemented HTTP routes, DTOs, permissions, and error codes.
 - `docs/database-erd.md`: entity relationships, schema ownership, and migration workflow.
+- `docs/frontend-monorepo-architecture.md`: M1 package boundaries, tenant branding, and environment rules.
+- `docs/production-url-migration.md`: compatibility and cutover requirements for already distributed URLs.
 - `.env.example`: sample backend environment variables only; never put real secrets in this file or in the frontend.
 
 The database schema remains the source of truth. Hibernate is configured with `ddl-auto: validate`; it must not create or modify production schema.
@@ -18,6 +26,7 @@ The database schema remains the source of truth. Hibernate is configured with `d
 
 - JDK 21
 - Maven 3.9+ (or a compatible Maven version)
+- Node.js 22.13+ and npm 10+
 - A Supabase project with its PostgreSQL database and Supabase Auth configured
 
 ## Configure environment
@@ -124,13 +133,13 @@ mvn -f app/api/pom.xml spring-boot:run
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, customer order history/reorder, owner transfer, and the daily operations report are exposed. A migration keeps `profiles` rows synchronized with Supabase Auth and another configures each restaurant's default delivery driver. Checkout computes prices and fees on the server and supports cash on delivery for customer delivery orders. Online payment/refund provider integration is not implemented; external push delivery requires server-side Firebase configuration and a client/provider-generated token. The frontend workflows will be rebuilt in later milestones.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, customer order history/reorder, owner transfer, and the daily operations report are exposed. A migration keeps `profiles` rows synchronized with Supabase Auth and another configures each restaurant's default delivery driver. Checkout computes prices and fees on the server and supports cash on delivery for customer delivery orders. Online payment/refund provider integration is not implemented; external push delivery requires server-side Firebase configuration and a client/provider-generated token. Full client workflows remain later milestones.
 
 ## Frontend workspace
 
-M0 removed the previous Next.js implementation from `apps/web`. The directory now contains a documented placeholder and the preserved environment example; it has no package manifest, build command, or running frontend. See [`apps/web/README.md`](apps/web/README.md) for M1 requirements and [`docs/frontend-reset-audit.md`](docs/frontend-reset-audit.md) for the exact removal record.
+M0 removed the previous Next.js implementation from `apps/web`; [`docs/frontend-reset-audit.md`](docs/frontend-reset-audit.md) records that reset. M1's applications are distinct npm workspaces. From the repository root, install with `npm ci` and run `npm run verify:frontend`; use `npm run dev:admin` or `npm run dev:guest` for local web development. Mobile starter exports validate JavaScript bundles, not signed Android APKs. See [`docs/m1-acceptance.md`](docs/m1-acceptance.md) for the verification scope.
 
-The new frontend must use the existing API contracts in [`docs/api.md`](docs/api.md) and preserve previously distributed Common QR, Table QR, owner workspace, and Supabase authentication URLs. Spring Boot continues to enforce authorization. Configure its CORS origins and generated web-link base URL for the new deployment before switching traffic.
+The new frontend must use the existing API contracts in [`docs/api.md`](docs/api.md) and preserve previously distributed Common QR, Table QR, owner workspace, and Supabase authentication URLs. Spring Boot continues to enforce authorization. Backend web-link and CORS defaults have not been migrated; follow [`docs/production-url-migration.md`](docs/production-url-migration.md) before switching traffic. M1 starters are not production ordering or admin deployments.
 
 ## External push notification delivery
 

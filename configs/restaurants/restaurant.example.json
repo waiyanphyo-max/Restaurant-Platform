@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "slug": "replace-with-restaurant-slug",
+  "restaurantId": "REPLACE_WITH_EXISTING_RESTAURANT_UUID",
+  "branding": {
+    "displayName": "REPLACE_WITH_RESTAURANT_NAME",
+    "primaryColor": "#000000",
+    "logoUrl": "https://REPLACE_WITH_PUBLIC_LOGO_URL"
+  },
+  "guestDomains": {
+    "staging": ["REPLACE_WITH_STAGING_HOST"],
+    "production": ["REPLACE_WITH_PRODUCTION_HOST"]
+  },
+  "android": {
+    "operations": {
+      "displayName": "REPLACE_WITH_OPERATIONS_APP_NAME",
+      "stagingApplicationId": "com.replace.restaurant.operations.staging",
+      "productionApplicationId": "com.replace.restaurant.operations",
+      "iconPath": "assets/REPLACE_WITH_OPERATIONS_ICON.png"
+    },
+    "customer": {
+      "displayName": "REPLACE_WITH_CUSTOMER_APP_NAME",
+      "stagingApplicationId": "com.replace.restaurant.customer.staging",
+      "productionApplicationId": "com.replace.restaurant.customer",
+      "iconPath": "assets/REPLACE_WITH_CUSTOMER_ICON.png"
+    }
+  }
+}

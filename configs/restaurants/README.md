@@ -1,0 +1,13 @@
+# Restaurant build configurations
+
+This workspace package provides the public, build-time restaurant registry for the guest website and the two Android app projects. There is deliberately no real restaurant config in M1. Copy `restaurant.example.json` to `<restaurant-slug>.json` only after the restaurant ID, domains, Android IDs, names, and branding are approved. The example is never loaded by the runtime registry.
+
+Each real config has a `schemaVersion`, exact backend `restaurantId`, stable `slug`, `branding`, `guestDomains` for staging and production, and separate `android.operations` and `android.customer` names and application IDs. Real configs require a public HTTPS logo URL and checked-in PNG icon paths for both Android applications. The validator rejects malformed values, duplicate IDs/domains, unknown fields such as credentials, and missing icon assets. Public logo URLs cannot contain a query or fragment. Treat every config value as public; do not put API secrets, Supabase service-role keys, tokens, or private data here.
+
+The guest app selects a restaurant only from an explicitly configured Host header. It fails closed for unmapped hosts. A deployed Next.js standalone build must include this directory's real `<slug>.json` files; changing a restaurant domain or branding requires rebuilding/releasing the guest app. No template or test fixture is selected at runtime.
+
+For an Android build, set `RESTAURANT_SLUG`, `MOBILE_ENV=staging|production`, and `PUBLIC_API_BASE_URL` to the shared HTTPS Spring Boot origin. The app config reads the matching real file, embeds its immutable restaurant ID and public branding, and chooses the application ID for its own app project and environment. Staging and production IDs differ, and Operations and Customer IDs differ. Set `iconPath` to a checked-in PNG under this directory's `assets/` tree for a branded launcher icon. Until a real config and icon are supplied, no production Android build is ready.
+
+`fixtures/starter.json` is test-only. It can be used by `npm run build:starter` with `MOBILE_ENV=development` to validate an Android JavaScript export; staging and production resolution never read it. The fixture represents no real restaurant and must not be deployed.
+
+The config design follows [Expo's dynamic app config](https://docs.expo.dev/workflow/configuration/), [Android app variant IDs](https://docs.expo.dev/build-reference/variants/), and [monorepo support](https://docs.expo.dev/guides/monorepos/). Expo exposes app config and `extra` to clients; only public tenant identifiers and branding belong there.

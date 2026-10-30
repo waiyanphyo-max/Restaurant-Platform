@@ -1,72 +1,49 @@
 # Auth and invitation setup
 
-The web client uses Supabase Auth email/password sign-in and the official `@supabase/ssr` session client. These steps configure local development and the invitation callback used by the existing Spring Boot Auth Admin client. `NEXT_PUBLIC_API_BASE_URL` is the trusted Spring API origin; configure it in the web environment instead of entering an API host in the dashboard.
+**Status:** M1 foundation. The previous `apps/web` browser session and invitation UI was removed in M0. The new Admin and Guest starter routes are not complete Supabase auth flows and must not receive production callbacks or invitations. Preserve the existing working production origin and settings until the replacement passes the [URL migration plan](production-url-migration.md).
 
-## 1. Configure the browser client
+## Current backend contract
 
-Copy `apps/web/.env.example` to `apps/web/.env.local` and set:
+Supabase Auth remains the identity provider. Spring Boot validates the bearer JWT signature, issuer, audience, expiry, and UUID subject. Spring is the enforcement boundary for platform administrator allowlists, restaurant membership/roles, customer ownership, and delivery assignment policy; any remaining backend authorization gaps must be resolved there. A frontend role label or restaurant hint never grants access. `docs/api.md` remains the HTTP contract.
 
-```dotenv
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_KEY
-```
+The backend invitation flow uses the server-side values `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_INVITE_REDIRECT_URL`. The Auth Admin client sends the redirect value as `redirect_to`. The default in `app/api/src/main/resources/application.yml` is `http://localhost:3000/auth/accept-invite`; this is a local source default, not evidence that production has been migrated. Service-role and database credentials must never enter a browser/mobile bundle or `NEXT_PUBLIC_*` variable.
 
-Find the project URL and publishable key under Supabase **Project Settings → API** (or the project Connect dialog). The URL and publishable key may be sent to the browser. Never put `SUPABASE_SERVICE_ROLE_KEY`, a secret key, a database password, or Firebase service credentials in `NEXT_PUBLIC_*` variables.
+## M1 browser configuration
 
-## 2. Configure Supabase Auth URLs
+The new web starters expose local API-origin examples, but they do not yet include a Supabase browser session SDK or functional auth callbacks:
 
-In Supabase Dashboard open **Authentication → URL Configuration**.
+| Starter | Local nonsecret settings | Current auth state |
+| --- | --- | --- |
+| `apps/admin-web` | `APP_STAGE=local`, `ADMIN_WEB_ORIGIN=http://localhost:3001`, `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` | Platform Admin shell only; callback/invite entry is not a working sign-in. |
+| `apps/guest-web` | `GUEST_CONFIG_ENV=staging`, `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080` | Guest tenant/legacy route foundation only; callback/invite entry is not a working sign-in. |
 
-For local development set:
+No real restaurant configuration is bundled. The M1 `.env.example` files are examples, not deployment credentials. When auth is implemented, a web browser may receive the Supabase project URL and publishable key; the service-role key remains API-only. Reuse an official supported Supabase SDK/session adapter and keep private requests bound to a trusted Spring API origin.
 
-- **Site URL:** `http://localhost:3000`
-- **Redirect URLs:**
-  - `http://localhost:3000/auth/callback`
-  - `http://localhost:3000/auth/accept-invite`
+## Supabase Auth URL configuration
 
-For production, use the deployed HTTPS origin:
+In Supabase Dashboard, inspect **Authentication → URL Configuration** for the actual project/environment. Keep exact redirect entries for the current working origin, including:
 
-- **Site URL:** `https://YOUR_WEB_HOST`
-- **Redirect URLs:**
-  - `https://YOUR_WEB_HOST/auth/callback`
-  - `https://YOUR_WEB_HOST/auth/accept-invite`
+- `https://CURRENT_WEB_HOST/auth/callback`
+- `https://CURRENT_WEB_HOST/auth/accept-invite`
 
-Add a separate exact entry for every real web origin or local port used (for example, port `3001` if Next.js starts there). Keep production entries exact; do not allow arbitrary hosts.
+The prior local-development examples were `http://localhost:3000/auth/callback` and `http://localhost:3000/auth/accept-invite`. Add exact staging/production Admin or Guest callback URLs only after those routes perform real code/token exchange and session handling. If one central auth origin handles many restaurant domains, allowlist that origin instead of broadly wildcarding tenant hosts. Native Operations and Customer apps need separate exact deep-link/app-link callbacks and application IDs when native auth is implemented. Supabase Site URL is a fallback and not a restaurant router.
 
-The backend sends invitations to `SUPABASE_INVITE_REDIRECT_URL`. For local development set this server-side API variable to:
+Do not remove old allowlist entries or point `SUPABASE_INVITE_REDIRECT_URL` at an M1 stub. The backend must keep sending invitations to a working `/auth/accept-invite` URL. Once a replacement passes staging acceptance, set the server variable to its exact HTTPS route, add that route to the allowlist first, then restart/redeploy the API in a controlled cutover. Previously emailed invitations still need their original landing route.
 
-```text
-http://localhost:3000/auth/accept-invite
-```
+Keep Supabase's **Invite user** email template using `{{ .ConfirmationURL }}` so Supabase verifies the one-time invitation before redirecting to the configured app route. If a custom `/auth/v1/verify` URL is constructed, use `{{ .RedirectTo }}` as its target instead of `{{ .SiteURL }}`. Do not hand-build an application URL with raw access tokens.
 
-For production set it to `https://YOUR_WEB_HOST/auth/accept-invite`, matching the URL allowlist exactly. Restart the API after changing it. `app/api/src/main/resources/application.yml` defaults to the local invite route; deployments must override it.
+## Replacement callback and invitation acceptance
 
-Keep Supabase's **Invite user** email template using `{{ .ConfirmationURL }}` so Supabase verifies the one-time invitation before redirecting to the configured app route. If you construct a custom `/auth/v1/verify` URL, use `{{ .RedirectTo }}` as its redirect target instead of `{{ .SiteURL }}`. Do not send raw access tokens in a hand-built application URL.
+A production implementation must support the callback forms used by existing Supabase email flows: PKCE code, supported email token hash, and the invitation session fragment. Pass credentials to the official SDK, remove callback credentials from browser history immediately, and never log or forward them to the Spring API. The invitation flow must handle expired/used links safely, let the invited user establish a password according to the configured Supabase policy, and return to an authorized destination after backend membership checks.
 
-## 3. Enable password sign-in and invitations
+Email/password and future phone/SMS onboarding are separate features. Matching email or phone text alone must not attach a restaurant membership to a different Auth UUID. Phone linking requires verified same-UUID handling and an authorized invitation contract before rollout.
 
-In **Authentication → Sign In / Providers → Email**, enable email/password sign-in and choose the project's password policy. The `/login` page validates the email and requires a password. The invitation page requires at least eight characters before calling the SDK's `updateUser` method; if the project policy is stricter, Supabase returns a safe setup error.
+## Staging acceptance before changing production URLs
 
-The Auth Admin invitation flow still requires server-side API configuration:
+1. Configure a staging Supabase project, exact callback/accept-invite allowlist, staging API origin, and test mailbox.
+2. Implement real Admin/Guest/native auth adapters; the M1 stubs do not satisfy this gate.
+3. Test sign-in, session restore/refresh, sign-out, expired invitation, resend, password setup, safe return URL, and non-admin/other-tenant denial.
+4. Test a signed-out Common QR and Table QR link separately; public guest ordering must not require a Supabase session.
+5. Verify the old working origin and outstanding invitation links continue to function before and after any cutover.
 
-- `SUPABASE_PROJECT_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_INVITE_REDIRECT_URL`
-
-The first two are API-only secrets/configuration. The web app never receives the service-role key. Email delivery requires Supabase's configured SMTP/email provider and a reachable mailbox. Resend an expired or already-used invitation through the existing admin/member workflow.
-
-## 4. Test the flow
-
-1. Start the API and web app with the variables above.
-2. Open `http://localhost:3000/login` and sign in with a confirmed development Auth user.
-3. Confirm `/workspace` loads memberships from `GET /api/v1/my/restaurants`. A user with no restaurant membership still receives the customer profile/address screens after authentication.
-4. To test invitation acceptance, trigger an invitation using a reachable test inbox, open the email link, set the new password, and confirm the user reaches `/workspace`. The backend sends the invitation name as Auth metadata, and the existing profile trigger initializes the application profile.
-5. Sign out from the visible account menu. Confirm user-specific pages leave the screen and `/login` shows the signed-out state.
-6. Open Common QR or Table QR links in a signed-out browser. Public menu and guest checkout must remain available without a Supabase session.
-
-The frontend does not decide OWNER/MANAGER/STAFF/DELIVERY_DRIVER or Platform Admin authorization. Spring validates JWT signature, issuer, audience, and UUID subject; restaurant access is read from server-side memberships, and platform access remains controlled by `PLATFORM_ADMIN_USER_IDS`.
-
-The callback supports Supabase PKCE codes, email token hashes, and the session fragment format used by the existing invite redirect. Callback values are passed to the Supabase SDK and removed from browser history immediately; they are never logged or sent to the Spring API.
-
-See the official [Supabase Next.js server-side auth guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client), [redirect URL guide](https://supabase.com/docs/guides/auth/redirect-urls), and [user invitations guide](https://supabase.com/docs/guides/auth/users#inviting-users) for project-side behavior.
+The [production URL migration plan](production-url-migration.md) covers `APP_PUBLIC_WEB_BASE_URL`, `SUPABASE_INVITE_REDIRECT_URL`, Supabase Auth allowlists, and `APP_CORS_ALLOWED_ORIGINS` together. No M1 starter should be deployed in place of the working production frontend.

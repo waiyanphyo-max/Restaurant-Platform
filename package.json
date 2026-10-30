@@ -1,30 +1,49 @@
 {
-  "devDependencies": {
-    "supabase": "^2.120.0"
-  },
   "name": "restaurant-platform",
   "version": "1.0.0",
-  "description": "Full-stack restaurant ordering and management platform built with Spring Boot, Next.js, React Native, and Supabase.",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+  "private": true,
+  "description": "Tenant-branded restaurant web and Android applications with a shared Spring Boot API and Supabase",
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=22.13.0",
+    "npm": ">=10.0.0"
+  },
+  "workspaces": [
+    "packages/shared-types",
+    "packages/ui-tokens",
+    "packages/api-client",
+    "configs/restaurants",
+    "apps/admin-web",
+    "apps/guest-web",
+    "apps/operations-mobile",
+    "apps/customer-mobile"
+  ],
+  "scripts": {
+    "dev:admin": "npm run dev -w @restaurant-platform/admin-web",
+    "dev:guest": "npm run dev -w @restaurant-platform/guest-web",
+    "start:operations": "npm run start -w @restaurant-platform/operations-mobile",
+    "start:customer": "npm run start -w @restaurant-platform/customer-mobile",
+    "build:packages": "npm run build -w @restaurant-platform/shared-types && npm run build -w @restaurant-platform/ui-tokens && npm run build -w @restaurant-platform/api-client && npm run build -w @restaurant-platform/restaurant-config --if-present",
+    "build:web": "npm run build:packages && npm run build -w @restaurant-platform/admin-web && npm run build -w @restaurant-platform/guest-web",
+    "build:mobile:starter": "npm run build:packages && npm run build:starter -w @restaurant-platform/operations-mobile && npm run build:starter -w @restaurant-platform/customer-mobile",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
+    "lint": "eslint scripts eslint.config.mjs && npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "verify:frontend": "npm run typecheck && npm run lint && npm run test && npm run build:web && npm run build:mobile:starter"
   },
   "dependencies": {
     "eciesjs": "^0.5.0",
     "jose": "^6.2.12"
   },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "devDependencies": {
+    "@eslint/js": "^9.30.1",
+    "@types/node": "^22.15.30",
+    "eslint": "^9.30.1",
+    "supabase": "^2.120.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.0",
+    "vitest": "^5.0.5"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/waiyanphyo-max/Restaurant-Platform.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/waiyanphyo-max/Restaurant-Platform/issues"
-  },
-  "homepage": "https://github.com/waiyanphyo-max/Restaurant-Platform#readme"
+  "repository": "https://github.com/waiyanphyo-max/Restaurant-Platform.git",
+  "license": "ISC"
 }

@@ -1,0 +1,49 @@
+name: Frontend Foundation CI
+
+on:
+  push:
+    branches:
+      - main
+      - "rebuild/**"
+    paths:
+      - "apps/admin-web/**"
+      - "apps/guest-web/**"
+      - "apps/operations-mobile/**"
+      - "apps/customer-mobile/**"
+      - "packages/**"
+      - "configs/restaurants/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
+      - "eslint.config.mjs"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    paths:
+      - "apps/admin-web/**"
+      - "apps/guest-web/**"
+      - "apps/operations-mobile/**"
+      - "apps/customer-mobile/**"
+      - "packages/**"
+      - "configs/restaurants/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
+      - "eslint.config.mjs"
+      - ".github/workflows/frontend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run verify:frontend
