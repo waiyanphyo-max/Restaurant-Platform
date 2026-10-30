@@ -1,0 +1,29 @@
+{
+  "name": "@restaurant-platform/admin-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "prebuild": "node ../../scripts/clear-generated-next.cjs admin-web",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@restaurant-platform/api-client": "0.1.0",
+    "@restaurant-platform/shared-types": "0.1.0",
+    "@restaurant-platform/ui-tokens": "0.1.0",
+    "next": "15.5.28",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.1.7",
+    "eslint-config-next": "15.5.28"
+  }
+}

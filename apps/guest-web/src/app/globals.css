@@ -1,0 +1,63 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f5f5f3;
+  color: #202624;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.site,
+.auth-shell {
+  max-width: 54rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.brand-mark {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--brand-primary);
+}
+
+.card {
+  margin-top: 4rem;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border-top: 0.4rem solid var(--brand-primary);
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 1rem 3rem rgba(10, 30, 20, 0.08);
+}
+
+.eyebrow {
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-primary);
+}
+
+h1 {
+  font-size: clamp(2.25rem, 6vw, 4rem);
+  margin: 1rem 0;
+}
+
+p {
+  line-height: 1.6;
+}

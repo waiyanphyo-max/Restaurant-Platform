@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "fixture": true,
+  "slug": "starter-fixture",
+  "restaurantId": "00000000-0000-4000-8000-000000000001",
+  "branding": {
+    "displayName": "Development Fixture",
+    "primaryColor": "#2457A7"
+  },
+  "guestDomains": {
+    "staging": ["starter-staging.test"],
+    "production": ["starter-production.test"]
+  },
+  "android": {
+    "operations": {
+      "displayName": "Operations Starter",
+      "stagingApplicationId": "dev.restaurantplatform.starter.operations.staging",
+      "productionApplicationId": "dev.restaurantplatform.starter.operations"
+    },
+    "customer": {
+      "displayName": "Customer Starter",
+      "stagingApplicationId": "dev.restaurantplatform.starter.customer.staging",
+      "productionApplicationId": "dev.restaurantplatform.starter.customer"
+    }
+  }
+}
