@@ -1,11 +1,11 @@
 # Restaurant Platform
 
-A multi-restaurant ordering and management platform with a Spring Boot backend, Supabase PostgreSQL/Auth, and a Next.js operations dashboard with a Common QR guest pickup flow.
+A multi-restaurant ordering and management platform with a Spring Boot backend and Supabase PostgreSQL/Auth. The frontend workspace is being rebuilt after the M0 reset.
 
 ## Current backend structure
 
 - `app/api`: Spring Boot API, DTOs, entities, repositories, security, and service layer.
-- `apps/web`: responsive Next.js frontend. `/workspace` includes role-aware restaurant operations, catalogue/media, table QR ordering, team/settings, customer delivery checkout, customer profile/addresses/order history, notifications and device management. The root page retains the Common QR guest pickup flow; see `apps/web/README.md` for setup and current limitations.
+- `apps/web`: documented placeholder for the new frontend architecture. There is no runnable web client in M0; see `apps/web/README.md` and `docs/frontend-reset-audit.md`.
 - `supabase/migrations`: versioned SQL schema. Apply migrations in timestamp order before running the API.
 - `docs/architecture.md`: architecture, authentication, and authorization flow.
 - `docs/api.md`: currently implemented HTTP routes, DTOs, permissions, and error codes.
@@ -124,28 +124,17 @@ mvn -f app/api/pom.xml spring-boot:run
 
 Order list page size is capped at 100; unsupported sort property names are ignored. Order detail and update lookups use both order ID and restaurant ID so an ID from another restaurant does not grant access. Status updates lock the restaurant-scoped order row and write the status history in the same transaction.
 
-Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, customer order history/reorder, owner transfer, and the daily operations report are exposed. A migration keeps `profiles` rows synchronized with Supabase Auth and another configures each restaurant's default delivery driver. Checkout computes prices and fees on the server and supports cash on delivery for customer delivery orders. The web frontend now exposes responsive workflows for owners, managers, staff, delivery drivers, and customers, as well as public Common QR pickup and table QR ordering. Online payment/refund provider integration is not implemented; external push delivery requires server-side Firebase configuration and a client/provider-generated token. Guest Common QR queue updates use opt-in polling and browser sound.
+Queue polling, in-app notifications, delivery assignment, driver task/status APIs, default-driver configuration, customer profile/address management, authenticated delivery checkout, customer order history/reorder, owner transfer, and the daily operations report are exposed. A migration keeps `profiles` rows synchronized with Supabase Auth and another configures each restaurant's default delivery driver. Checkout computes prices and fees on the server and supports cash on delivery for customer delivery orders. Online payment/refund provider integration is not implemented; external push delivery requires server-side Firebase configuration and a client/provider-generated token. The frontend workflows will be rebuilt in later milestones.
 
-## Web client
+## Frontend workspace
 
-The Next.js app in `apps/web` uses thin App Router entry files, reusable shared/domain components, feature modules, and a small shared API/media layer. The home route retains Common QR guest pickup. The `/workspace` route renders role-oriented operations, restaurant/catalogue management, driver, guest table QR, and customer workflows. See `apps/web/README.md` for the source tree, setup, authentication boundaries, and current integration limits.
+M0 removed the previous Next.js implementation from `apps/web`. The directory now contains a documented placeholder and the preserved environment example; it has no package manifest, build command, or running frontend. See [`apps/web/README.md`](apps/web/README.md) for M1 requirements and [`docs/frontend-reset-audit.md`](docs/frontend-reset-audit.md) for the exact removal record.
 
-The workspace shell currently keeps shared state and API orchestration in `features/workspace/WorkspaceClient.tsx`; individual views are grouped by domain in `features/workspace/views/`. UI navigation is a usability feature only: the Spring Boot API remains responsible for enforcing authorization. Production Supabase browser sign-in/refresh, online payment/refund integration, external push-provider setup, and deployment configuration remain future work.
-
-Run it locally with:
-
-```powershell
-cd apps/web
-Copy-Item .env.example .env.local
-npm install
-npm run dev
-```
-
-The default API URL is `http://localhost:8080`. Update `NEXT_PUBLIC_API_BASE_URL` in `.env.local` when the API runs elsewhere, and configure Spring CORS to allow the web origin.
+The new frontend must use the existing API contracts in [`docs/api.md`](docs/api.md) and preserve previously distributed Common QR, Table QR, owner workspace, and Supabase authentication URLs. Spring Boot continues to enforce authorization. Configure its CORS origins and generated web-link base URL for the new deployment before switching traffic.
 
 ## External push notification delivery
 
-The API retains in-app notification history. When a user notification is inserted and the user has active device registrations, the migration trigger creates a durable outbox row per device. With Firebase enabled, a scheduled worker sends those rows via Firebase Cloud Messaging, retries transient failures with bounded exponential backoff, and deactivates tokens that FCM reports as unregistered. Public Common QR queue notifications have no signed-in user/device association and continue to use queue-token polling and client-side sound.
+The API retains in-app notification history. When a user notification is inserted and the user has active device registrations, the migration trigger creates a durable outbox row per device. With Firebase enabled, a scheduled worker sends those rows via Firebase Cloud Messaging, retries transient failures with bounded exponential backoff, and deactivates tokens that FCM reports as unregistered. Public Common QR queue notifications have no signed-in user/device association and require queue-token polling; optional sound can be added by the future frontend.
 
 Push delivery requires a real Firebase project and server credentials; it is disabled by default. When disabled, the API continues creating in-app notifications but does not send external messages. The outbox should be monitored/configured before enabling device registrations in production.
 
@@ -166,7 +155,7 @@ Create three buckets in Supabase Dashboard > Storage with these exact names:
 | `menu-images` | Public read | 5 MB | PNG, JPEG, WebP | Product and product-variant images |
 | `customer-avatars` | Private | 2 MB | PNG, JPEG, WebP | Customer profile photos |
 
-Uploads are made through Spring Boot using the server-only service-role key after application authorization; do not add browser Storage write policies or expose the key to Next.js/mobile code. Public-read buckets allow anyone with an object URL to view the images, but upload still goes through the authenticated API. Customer avatars are stored in a private bucket and the API returns a signed URL that expires after one hour; the database stores `profiles.avatar_path`, not the temporary URL.
+Uploads are made through Spring Boot using the server-only service-role key after application authorization; do not add browser Storage write policies or expose the key to browser/mobile code. Public-read buckets allow anyone with an object URL to view the images, but upload still goes through the authenticated API. Customer avatars are stored in a private bucket and the API returns a signed URL that expires after one hour; the database stores `profiles.avatar_path`, not the temporary URL.
 
 Menu object paths are unique per upload (restaurant/product/variant scopes plus a random filename) so an image replacement does not reuse a cached URL. Product images use `products.image_url`, variant images use the new `product_variants.image_url`, restaurant logos use `restaurants.logo_url`, and private avatars use `profiles.avatar_path`. The existing `profiles.avatar_url` column is retained for compatibility with any legacy public avatar URLs.
 
