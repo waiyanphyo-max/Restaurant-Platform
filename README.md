@@ -141,6 +141,8 @@ M0 removed the previous Next.js implementation from `apps/web`; [`docs/frontend-
 
 The new frontend must use the existing API contracts in [`docs/api.md`](docs/api.md) and preserve previously distributed Common QR, Table QR, owner workspace, and Supabase authentication URLs. Spring Boot continues to enforce authorization. Backend web-link and CORS defaults have not been migrated; follow [`docs/production-url-migration.md`](docs/production-url-migration.md) before switching traffic. M1 starters are not production ordering or admin deployments.
 
+M2 adds separate public and authenticated [typed API clients](packages/api-client/README.md), Next.js cookie-based and Android SecureStore-backed Supabase Auth adapters, and an Admin access check against Spring. See [M2 acceptance](docs/m2-acceptance.md), the [API coverage and gap report](docs/api-coverage-gap-report.md), the [actual role-permission matrix](docs/role-permission-matrix.md), and the [disabled phone-auth design](docs/phone-auth-design.md). Live Auth, device storage, and production URL migration still require staging verification.
+
 ## External push notification delivery
 
 The API retains in-app notification history. When a user notification is inserted and the user has active device registrations, the migration trigger creates a durable outbox row per device. With Firebase enabled, a scheduled worker sends those rows via Firebase Cloud Messaging, retries transient failures with bounded exponential backoff, and deactivates tokens that FCM reports as unregistered. Public Common QR queue notifications have no signed-in user/device association and require queue-token polling; optional sound can be added by the future frontend.
