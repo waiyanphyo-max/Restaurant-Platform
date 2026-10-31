@@ -3,8 +3,10 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { browserAuthSession } from "@/lib/auth/browser";
+import { safeReturnTo } from "@/lib/auth/route-policy";
+import { Button, Field, Notice } from "./ui";
 
-export function LoginForm() {
+export function LoginForm({ returnTo = "/", available = true }: { returnTo?: string; available?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,7 +15,7 @@ export function LoginForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || !available) return;
     const session = browserAuthSession();
     if (!session) {
       setError(true);
@@ -24,7 +26,7 @@ export function LoginForm() {
     try {
       await session.signInWithEmail(email, password);
       setPassword("");
-      router.replace("/");
+      router.replace(safeReturnTo(returnTo));
       router.refresh();
     } catch {
       setError(true);
@@ -34,27 +36,30 @@ export function LoginForm() {
   }
 
   return (
-    <form className="auth-form" onSubmit={submit}>
-      <label htmlFor="admin-email">Email</label>
-      <input
+    <form className="auth-form" onSubmit={submit} aria-busy={busy}>
+      <Field id="admin-email" label="Email address" required><input
         id="admin-email"
         type="email"
         autoComplete="username"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         required
-      />
-      <label htmlFor="admin-password">Password</label>
-      <input
+        placeholder="you@company.com"
+        disabled={busy || !available}
+        maxLength={254}
+      /></Field>
+      <Field id="admin-password" label="Password" required><input
         id="admin-password"
         type="password"
         autoComplete="current-password"
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         required
-      />
-      <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-      {error && <p role="alert">Sign-in failed or authentication is unavailable.</p>}
+        disabled={busy || !available}
+      /></Field>
+      {error && <Notice tone="error" title="Unable to sign in">Check your email and password, then try again. If the problem continues, contact your platform operator.</Notice>}
+      <Button type="submit" disabled={busy || !available}>{busy ? "Signing in…" : "Sign in to workspace"}<span aria-hidden="true">→</span></Button>
+      <p className="auth-footnote">Access is limited to authorized platform administrators.</p>
     </form>
   );
 }
