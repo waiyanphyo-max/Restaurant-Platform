@@ -2,11 +2,11 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from "rea
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiHttpError, ApiNetworkError } from "@restaurant-platform/api-client";
-import type { PlatformRestaurantSummaryResponse, SpringPage } from "@restaurant-platform/shared-types";
+import type { PlatformRestaurantDetailResponse, PlatformRestaurantSummaryResponse, SpringPage } from "@restaurant-platform/shared-types";
 import { Registry } from "@/components/Registry";
 import type { SearchParams } from "@/components/restaurant-query";
 
-const mocks = vi.hoisted(() => ({ requireAdmin: vi.fn(), listRestaurants: vi.fn(), redirect: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireAdmin: vi.fn(), listRestaurants: vi.fn(), getRestaurant: vi.fn(), redirect: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/admin-context", () => ({ requireAdmin: mocks.requireAdmin }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-admin-return-path": "/restaurants?search=Selected" }) }));
@@ -33,6 +33,14 @@ const other: PlatformRestaurantSummaryResponse = {
   ...selected, id: "00000000-0000-4000-8000-000000000003", name: "Other restaurant", ownerEmail: "other@example.test",
 };
 const overview = { totalRestaurants: 1428, activeRestaurants: 1172, inactiveRestaurants: 256, totalOrders: 43210, totalRestaurantMembers: 8903 };
+const android = { displayName: null, stagingApplicationId: null, productionApplicationId: null, iconPath: null };
+const detail: PlatformRestaurantDetailResponse = {
+  restaurant: { id: restaurantId, name: selected.name, slug: selected.slug, description: null, phone: "+959123456789", address: "123 Test St", houseNo: null, street: null, ward: null, township: selected.township, city: selected.city, latitude: null, longitude: null, logoUrl: null, active: true, createdAt: selected.createdAt, updatedAt: selected.createdAt },
+  currency: "MMK", timezone: "Asia/Yangon", memberCount: 27, orderCount: 1538,
+  owners: [{ userId, email: selected.ownerEmail, fullName: selected.ownerFullName, invitationStatus: "INVITED" }],
+  configuration: { primaryColor: "#234D3C", secondaryColor: null, guestDomains: { staging: [], production: ["selected.example.com"] }, android: { operations: android, customer: android } },
+  ownerWorkspaceUrl: `https://guest.example.com/workspace?restaurantId=${restaurantId}`, qrSetupUrl: `https://guest.example.com/workspace?restaurantId=${restaurantId}&setup=qr`, setupInstructions: ["Accept the email invitation.", "Configure menus and QR ordering in Operations."],
+};
 
 function page(content = [selected, other]): SpringPage<PlatformRestaurantSummaryResponse> {
   return { content, totalElements: content.length, totalPages: content.length ? 1 : 0, size: 20, number: 0,
@@ -41,8 +49,9 @@ function page(content = [selected, other]): SpringPage<PlatformRestaurantSummary
 const params = (value: SearchParams = {}) => ({ searchParams: Promise.resolve(value) });
 
 beforeEach(() => {
-  mocks.requireAdmin.mockReset().mockResolvedValue({ state: "authorized", userId, overview, api: { listRestaurants: mocks.listRestaurants } });
+  mocks.requireAdmin.mockReset().mockResolvedValue({ state: "authorized", userId, overview, api: { listRestaurants: mocks.listRestaurants, getRestaurant: mocks.getRestaurant } });
   mocks.listRestaurants.mockReset().mockResolvedValue(page());
+  mocks.getRestaurant.mockReset().mockResolvedValue(detail);
   mocks.redirect.mockReset().mockImplementation((path: string) => { throw new Error(`REDIRECT:${path}`); });
 });
 
@@ -104,6 +113,14 @@ describe("actual protected admin routes", () => {
     expect(html).toContain("Search restaurants");
   });
 
+  it("recovers from a registry page that became empty after records changed", async () => {
+    mocks.listRestaurants.mockResolvedValue({ ...page([]), number: 4, totalElements: 1, totalPages: 1 });
+    const html = await renderRestaurantRoute({ page: "4", search: "Selected" });
+    expect(html).toContain("Return to first page");
+    expect(html).toContain("/restaurants?search=Selected");
+    expect(html).not.toContain("81–80");
+  });
+
   it.each([401, 403])("handles a directory HTTP %s after a successful layout check", async status => {
     mocks.listRestaurants.mockRejectedValue(new ApiHttpError(status, status === 401 ? "UNAUTHORIZED" : "FORBIDDEN"));
     await expect(renderRestaurantRoute({ search: "Selected", page: "2" })).rejects.toThrow("REDIRECT:");
@@ -135,25 +152,26 @@ describe("actual protected admin routes", () => {
     },
   );
 
-  it("shows only the selected restaurant from the authorized directory response", async () => {
+  it("fetches an independent restaurant detail and configuration by exact UUID", async () => {
     const html = renderToStaticMarkup(await RestaurantDetailsPage(params({ id: restaurantId.toUpperCase(), page: "3", search: "  Selected  " })));
-    expect(mocks.listRestaurants).toHaveBeenCalledExactlyOnceWith({ page: 3, size: 20, search: "Selected" });
+    expect(mocks.getRestaurant).toHaveBeenCalledExactlyOnceWith(restaurantId);
+    expect(mocks.listRestaurants).not.toHaveBeenCalled();
     for (const value of ["Selected restaurant", "Selected owner", "selected@example.test", "Yangon", "Bahan", "1,538"]) expect(html).toContain(value);
     expect(html).not.toContain("Other restaurant");
     expect(html).not.toContain("other@example.test");
-    expect(html).toContain("Directory summary");
+    for (const text of ["Guest Website", "Operations Android", "Customer Android", "awaiting acceptance", "selected.example.com", "QR setup instructions"]) expect(html).toContain(text);
   });
 
-  it("does not fabricate detail data when the selected record is absent from the current page", async () => {
-    mocks.listRestaurants.mockResolvedValue(page([other]));
+  it("does not fabricate detail data when the selected record is missing", async () => {
+    mocks.getRestaurant.mockRejectedValue(new ApiHttpError(404, "RESTAURANT_NOT_FOUND"));
     const html = renderToStaticMarkup(await RestaurantDetailsPage(params({ id: restaurantId })));
-    expect(html).toContain("Restaurant selection is no longer available");
+    expect(html).toContain("Restaurant not found");
     expect(html).not.toContain("selected@example.test");
     expect(html).not.toContain("other@example.test");
   });
 
   it.each([401, 403])("handles a detail HTTP %s without returning a restaurant record", async status => {
-    mocks.listRestaurants.mockRejectedValue(new ApiHttpError(status, status === 401 ? "UNAUTHORIZED" : "FORBIDDEN"));
+    mocks.getRestaurant.mockRejectedValue(new ApiHttpError(status, status === 401 ? "UNAUTHORIZED" : "FORBIDDEN"));
     await expect(RestaurantDetailsPage(params({ id: restaurantId, page: "2", search: "Selected" }))).rejects.toThrow("REDIRECT:");
     const target = mocks.redirect.mock.calls[0][0] as string;
     if (status === 403) expect(target).toBe("/access");
@@ -167,11 +185,10 @@ describe("actual protected admin routes", () => {
     }
   });
 
-  it("renders guarded provisioning as an explicit preparation preview", async () => {
+  it("renders guarded email provisioning with initial branding and verified identity input", async () => {
     const html = renderToStaticMarkup(await ProvisioningPage());
     expect(mocks.requireAdmin).toHaveBeenCalledWith("/provisioning");
-    expect(html).toContain("Onboarding preview");
-    expect(html).toContain("Creating restaurants and sending owner invitations are not available yet");
+    for (const text of ["Email onboarding", "Initial branding", "Existing Owner Auth user ID", "Timezone", "Currency"]) expect(html).toContain(text);
     expect(mocks.listRestaurants).not.toHaveBeenCalled();
   });
 

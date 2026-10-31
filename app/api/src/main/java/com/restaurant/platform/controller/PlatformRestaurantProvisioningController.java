@@ -18,7 +18,7 @@ public class PlatformRestaurantProvisioningController {
 
     /**
      * Restricted platform-operator endpoint. It creates/invites the owner account,
-     * creates the restaurant, assigns OWNER, and returns the first owner/QR links.
+     * creates the restaurant, assigns OWNER by verified Auth UUID, and returns safe setup links.
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

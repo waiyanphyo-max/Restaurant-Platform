@@ -4,7 +4,10 @@ import type {
   CustomerAddressRequest, CustomerAddressResponse, CustomerProfileRequest,
   CustomerProfileResponse, DeliveryTaskDto, DeliveryZoneDto, ManagerOrderDetailDto,
   MyRestaurantResponse, NotificationResponse, OrderSummaryDto, PlatformOverviewResponse,
-  PlatformRestaurantSummaryResponse, PublicMenuResponse, PublicModifierGroupResponse,
+  PlatformRestaurantSummaryResponse, PlatformRestaurantDetailResponse,
+  PlatformRestaurantProvisionRequest, PlatformRestaurantProvisionResponse,
+  PlatformRestaurantConfigurationRequest, PlatformRestaurantStatusRequest,
+  PublicMenuResponse, PublicModifierGroupResponse,
   QueueTicketManagerDto, QueueTrackingResponse, RestaurantResponse, SpringPage,
   UpdateDeliveryStatusRequest, UpdateOrderStatusRequest
 } from "@restaurant-platform/shared-types";
@@ -71,12 +74,41 @@ export function createPublicRestaurantApiClient(options: PublicRestaurantApiClie
 /** The backend UUID allowlist authorizes access; no frontend role claim grants it. */
 export function createPlatformAdminApiClient(options: AuthenticatedApiTransportOptions) {
   const transport = createAuthenticatedTransport(options);
+  const prefix = "/api/v1/platform/restaurants";
+  const restaurantPath = (id: string) => `${prefix}/${requireUuid(id, "restaurantId")}`;
+  function checkedDetail(value: PlatformRestaurantDetailResponse, id: string) {
+    checkedRestaurantResponse(value?.restaurant, requireUuid(id, "restaurantId"), "id");
+    return value;
+  }
   return {
     getOverview: (o?: ApiRequestOptions) => read<PlatformOverviewResponse>(transport, "/api/v1/platform/overview", o),
     listRestaurants(query: PlatformRestaurantQuery = {}, o?: ApiRequestOptions): Promise<SpringPage<PlatformRestaurantSummaryResponse>> {
       const { page, size } = pageQuery(query);
-      return read(transport, "/api/v1/platform/restaurants", o, { page, size, search: query.search ?? "" });
-    }
+      return read(transport, prefix, o, { page, size, search: query.search ?? "" });
+    },
+    async getRestaurant(id: string, o?: ApiRequestOptions): Promise<PlatformRestaurantDetailResponse> {
+      return checkedDetail(await read(transport, restaurantPath(id), o), id);
+    },
+    async provisionRestaurant(body: PlatformRestaurantProvisionRequest, o?: ApiRequestOptions): Promise<PlatformRestaurantProvisionResponse> {
+      if (body.ownerUserId != null) requireUuid(body.ownerUserId, "ownerUserId");
+      const response = await transport.request<PlatformRestaurantProvisionResponse>({ method: "POST", path: prefix, body, options: o });
+      // Fail closed against an older backend that still returns reusable QR credentials.
+      if (response?.commonQrToken != null || response?.commonQrUrl != null || !response?.restaurant?.id || !response.ownerUserId) {
+        throw new ApiProtocolError();
+      }
+      try {
+        requireUuid(response.restaurant.id, "restaurantId");
+        requireUuid(response.ownerUserId, "ownerUserId");
+      } catch { throw new ApiProtocolError(); }
+      if (body.ownerUserId && response.ownerUserId.toLowerCase() !== body.ownerUserId.toLowerCase()) throw new ApiProtocolError();
+      return response;
+    },
+    async updateRestaurantStatus(id: string, body: PlatformRestaurantStatusRequest, o?: ApiRequestOptions): Promise<PlatformRestaurantDetailResponse> {
+      return checkedDetail(await transport.request({ method: "PATCH", path: `${restaurantPath(id)}/status`, body, options: o }), id);
+    },
+    async updateRestaurantConfiguration(id: string, body: PlatformRestaurantConfigurationRequest, o?: ApiRequestOptions): Promise<PlatformRestaurantDetailResponse> {
+      return checkedDetail(await transport.request({ method: "PUT", path: `${restaurantPath(id)}/configuration`, body, options: o }), id);
+    },
   };
 }
 

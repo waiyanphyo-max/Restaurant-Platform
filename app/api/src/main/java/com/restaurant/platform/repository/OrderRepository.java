@@ -18,6 +18,8 @@ import java.util.UUID;
 public interface OrderRepository
         extends JpaRepository<Order, UUID> {
 
+    long countByRestaurantId(UUID restaurantId);
+
     Optional<Order> findByIdAndRestaurantId(
             UUID id,
             UUID restaurantId

@@ -24,7 +24,7 @@ export interface PlatformRestaurantSummaryResponse {
   orderCount: number;
 }
 
-/** Kept as a wire shape for compatibility auditing; see the M2 gap report. */
+/** app/api/dto/restaurant/CreateRestaurantRequest.java */
 export interface CreateRestaurantRequest {
   name: string;
   slug: string;
@@ -66,7 +66,10 @@ export interface RestaurantResponse {
 export interface PlatformRestaurantProvisionRequest {
   ownerEmail: string;
   ownerFullName?: string | null;
+  /** Exact Supabase Auth identity; Spring verifies its confirmed email with Auth Admin. */
+  ownerUserId?: Uuid | null;
   restaurant: CreateRestaurantRequest;
+  configuration?: PlatformRestaurantConfiguration | null;
 }
 
 export interface PlatformRestaurantProvisionResponse {
@@ -76,6 +79,58 @@ export interface PlatformRestaurantProvisionResponse {
   ownerRole: string;
   restaurant: RestaurantResponse;
   ownerWorkspaceUrl: string;
-  commonQrUrl: string;
-  commonQrToken: string;
+  /** Deprecated legacy fields are always null; platform responses contain no QR credentials. */
+  commonQrUrl: null;
+  commonQrToken: null;
+  ownerInvitationStatus: "INVITED" | "ACCEPTED";
+  qrSetupUrl: string;
+}
+
+export interface PlatformAndroidConfiguration {
+  displayName: string | null;
+  stagingApplicationId: string | null;
+  productionApplicationId: string | null;
+  iconPath: string | null;
+}
+
+/** Public deployment metadata. Saving it does not deploy an app or verify a domain. */
+export interface PlatformRestaurantConfiguration {
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  guestDomains: { staging: string[]; production: string[] };
+  android: {
+    operations: PlatformAndroidConfiguration;
+    customer: PlatformAndroidConfiguration;
+  };
+}
+
+export type PlatformOwnerInvitationStatus = "INVITED" | "ACCEPTED" | "NOT_INVITED" | "PROVIDER_UNAVAILABLE";
+
+export interface PlatformRestaurantOwnerResponse {
+  userId: Uuid;
+  email: string | null;
+  fullName: string | null;
+  invitationStatus: PlatformOwnerInvitationStatus;
+}
+
+export interface PlatformRestaurantDetailResponse {
+  restaurant: RestaurantResponse;
+  currency: string | null;
+  timezone: string | null;
+  memberCount: number;
+  orderCount: number;
+  owners: PlatformRestaurantOwnerResponse[];
+  configuration: PlatformRestaurantConfiguration;
+  ownerWorkspaceUrl: string;
+  qrSetupUrl: string;
+  setupInstructions: string[];
+}
+
+export interface PlatformRestaurantStatusRequest { active: boolean; }
+
+export interface PlatformRestaurantConfigurationRequest {
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  configuration: PlatformRestaurantConfiguration;
 }

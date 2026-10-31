@@ -25,6 +25,8 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, UUID> {
 
     boolean existsBySlug(String slug);
 
+    boolean existsBySlugAndIdNot(String slug, UUID restaurantId);
+
     @Query(value = """
             select new com.restaurant.platform.dto.platform.PlatformRestaurantSummaryResponse(
                 r.id, r.name, r.slug, r.city, r.township, r.isActive, r.createdAt,
