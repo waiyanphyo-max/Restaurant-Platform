@@ -1,6 +1,7 @@
 import { StatusBar, StyleSheet, Text, View } from "react-native";
 import { foundationTokens, resolveBrandTokens } from "@restaurant-platform/ui-tokens";
 import { readEmbeddedTenant } from "./tenant";
+import { AuthPanel } from "./auth/AuthPanel";
 
 const tenant = readEmbeddedTenant();
 const brand = resolveBrandTokens(tenant.branding);
@@ -15,8 +16,9 @@ export default function App() {
       </View>
       <View style={styles.content}>
         <Text style={styles.title}>Home delivery ordering</Text>
-        <Text style={styles.body}>This application is locked to one restaurant. Account and delivery features will be added in later milestones.</Text>
-        <Text style={styles.note}>Orders, menus, prices, and permissions will come from the existing Spring Boot API.</Text>
+        <Text style={styles.body}>This application is locked to one restaurant. Delivery ordering screens will be added in later milestones.</Text>
+        <Text style={styles.note}>Orders, menus, prices, and customer ownership will come from the existing Spring Boot API.</Text>
+        <AuthPanel />
       </View>
     </View>
   );

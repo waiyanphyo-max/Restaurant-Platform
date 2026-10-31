@@ -10,6 +10,7 @@ module.exports = ({ config }) => {
     scheme: `rp-${selected.restaurant.slug}-customer`,
     version: "0.1.0",
     platforms: ["android"],
+    plugins: [...(config.plugins ?? []), "expo-secure-store"],
     orientation: "portrait",
     android: {
       ...config.android,

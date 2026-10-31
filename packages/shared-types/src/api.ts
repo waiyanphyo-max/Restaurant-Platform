@@ -18,6 +18,17 @@ export interface MenuModifierGroupDto {
   options: MenuModifierOptionDto[];
 }
 
+/** PublicModifierController returns this shape rather than the menu group DTO. */
+export interface PublicModifierGroupResponse {
+  id: Uuid;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number;
+  active: boolean;
+  options: { id: Uuid; groupId: Uuid; name: string; additionalPrice: number; available: boolean }[];
+}
+
 export interface MenuVariantDto {
   id: Uuid;
   name: string;

@@ -1,6 +1,7 @@
 import { StatusBar, StyleSheet, Text, View } from "react-native";
 import { foundationTokens, resolveBrandTokens } from "@restaurant-platform/ui-tokens";
 import { readEmbeddedTenant } from "./tenant";
+import { AuthPanel } from "./auth/AuthPanel";
 
 const tenant = readEmbeddedTenant();
 const brand = resolveBrandTokens(tenant.branding);
@@ -16,7 +17,8 @@ export default function App() {
       <View style={styles.content}>
         <Text style={styles.title}>Restaurant operations</Text>
         <Text style={styles.body}>Owner, Manager, Staff, and Driver workflows will use this restaurant-locked application.</Text>
-        <Text style={styles.note}>Authentication and operational screens are planned for later milestones.</Text>
+        <Text style={styles.note}>Operational screens will be added after backend membership and permission checks are integrated.</Text>
+        <AuthPanel />
       </View>
     </View>
   );

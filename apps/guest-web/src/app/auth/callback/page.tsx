@@ -1,5 +1,5 @@
-import { PendingAuthReturn } from "@/components/PendingAuthReturn";
+import { AuthReturn } from "@/components/AuthReturn";
 
 export default function AuthCallback() {
-  return <PendingAuthReturn purpose="callback" />;
+  return <AuthReturn purpose="callback" />;
 }

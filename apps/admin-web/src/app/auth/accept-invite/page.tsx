@@ -1,5 +1,5 @@
-import { PendingAuthReturn } from "@/components/PendingAuthReturn";
+import { AuthReturn } from "@/components/AuthReturn";
 
 export default function AcceptInvite() {
-  return <PendingAuthReturn purpose="invitation" />;
+  return <AuthReturn purpose="invitation" />;
 }
