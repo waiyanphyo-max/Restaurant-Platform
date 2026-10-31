@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { browserAuthSession } from "@/lib/auth/browser";
+import { ConfirmationDialog } from "./ui";
 
 export function SignOutButton() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
 
@@ -14,16 +13,16 @@ export function SignOutButton() {
     const session = browserAuthSession();
     if (!session) {
       setError(true);
-      return;
+      throw new Error("Sign-out is unavailable");
     }
     setBusy(true);
     setError(false);
     try {
       await session.signOut();
-      router.replace("/login");
-      router.refresh();
+      window.location.replace("/login");
     } catch {
       setError(true);
+      throw new Error("Sign-out could not be completed");
     } finally {
       setBusy(false);
     }
@@ -31,10 +30,8 @@ export function SignOutButton() {
 
   return (
     <div>
-      <button type="button" onClick={signOut} disabled={busy}>
-        {busy ? "Signing out…" : "Sign out"}
-      </button>
-      {error && <p role="alert">Sign-out could not be completed. Please try again.</p>}
+      <ConfirmationDialog triggerLabel={busy ? "Signing out…" : "Sign out"} title="Sign out of this workspace?" description="You will need to sign in again to access Platform Admin on this browser." confirmLabel="Sign out" onConfirm={signOut} />
+      {error && <p className="field-error" role="alert">Sign-out could not be completed. Please try again.</p>}
     </div>
   );
 }
