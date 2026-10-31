@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("@/app/(admin)/actions", () => ({ provisionRestaurant: vi.fn() }));
 import { validateProvisioningDraft, type ProvisioningDraft } from "./ProvisioningForm";
 
 const valid: ProvisioningDraft = { name: "Test restaurant", slug: "test-restaurant", city: "Yangon", township: "Bahan", ownerEmail: "owner@example.test", ownerFullName: "" };
 
-describe("restaurant information preview validation", () => {
+describe("restaurant provisioning validation", () => {
   it("accepts required restaurant details and an optional owner name", () => {
     expect(validateProvisioningDraft(valid)).toEqual({});
   });
@@ -21,5 +22,10 @@ describe("restaurant information preview validation", () => {
     expect(errors).toHaveProperty("ownerFullName");
     expect(errors).toHaveProperty("city");
     expect(errors).toHaveProperty("ownerEmail");
+  });
+
+  it("checks timezone, currency, Auth UUID and initial branding", () => {
+    expect(validateProvisioningDraft({ ...valid, timezone: "Mars/City", currency: "MMKK", ownerUserId: "owner@example.test", primaryColor: "red", logoUrl: "javascript:alert(1)" })).toMatchObject({ timezone: expect.any(String), currency: expect.any(String), ownerUserId: expect.any(String), primaryColor: expect.any(String), logoUrl: expect.any(String) });
+    expect(validateProvisioningDraft({ ...valid, timezone: "Asia/Yangon", currency: "MMK", primaryColor: "#234D3C", ownerUserId: "00000000-0000-4000-8000-000000000001" })).toEqual({});
   });
 });

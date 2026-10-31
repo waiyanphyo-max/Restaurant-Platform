@@ -18,6 +18,7 @@ export async function Registry({ params }: { params: SearchParams }) {
     return <Notice tone="error" title="Restaurant directory unavailable" action={<Link className="button button-secondary" href={href}>Try again</Link>}>We couldn’t retrieve the restaurant directory. Please try again.</Notice>;
   }
   const { data } = result;
+  if (data.content.length === 0 && query.page > 0 && data.totalElements > 0) return <section className="panel"><Notice title="This directory page is empty" action={<Link className="button button-secondary" href={registryHref(0, query.search)}>Return to first page</Link>}>Restaurant records have changed. Continue from the first page of this search.</Notice></section>;
   return <section className="panel directory-panel" aria-label="Restaurant directory">
     <div className="directory-toolbar"><div><h2>All restaurants <span className="count-badge">{data.totalElements.toLocaleString("en-US")}</span></h2><p>Search your platform’s restaurant records.</p></div><form action="/restaurants" className="search-form" role="search"><label htmlFor="restaurant-search" className="sr-only">Search restaurants</label><span aria-hidden="true" className="search-symbol">⌕</span><input id="restaurant-search" name="search" type="search" defaultValue={query.search} maxLength={200} placeholder="Search restaurants, owners, locations…" /><button className="button button-secondary" type="submit">Search</button></form></div>
     <RestaurantsTable rows={data.content} page={data.number} search={query.search} />

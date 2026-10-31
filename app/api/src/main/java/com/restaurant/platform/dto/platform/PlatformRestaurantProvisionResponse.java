@@ -12,6 +12,8 @@ public record PlatformRestaurantProvisionResponse(
         RestaurantResponse restaurant,
         String ownerWorkspaceUrl,
         String commonQrUrl,
-        String commonQrToken
+        String commonQrToken,
+        String ownerInvitationStatus,
+        String qrSetupUrl
 ) {
 }

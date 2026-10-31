@@ -3,6 +3,8 @@ package com.restaurant.platform.integration;
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.order.CreateOrderResponse;
 import com.restaurant.platform.dto.order.CreateQrOrderRequest;
+import com.restaurant.platform.dto.platform.PlatformRestaurantConfiguration;
+import com.restaurant.platform.entity.RestaurantPlatformConfiguration;
 import com.restaurant.platform.service.QrOrderIdempotencyService;
 import com.restaurant.platform.service.PushNotificationOutboxRepository;
 import jakarta.persistence.EntityManagerFactory;
@@ -241,6 +243,74 @@ class PostgresMigrationSchemaTest {
                 FROM public.push_notification_outbox
                 WHERE id = ?
                 """, String.class, first.id()));
+    }
+
+    @Test
+    void platformConfigurationMigrationIsTenantScopedAndUnavailableToClientRoles() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        assertTrue(jdbc.queryForObject("""
+                SELECT relrowsecurity FROM pg_class
+                WHERE oid = 'public.restaurant_platform_configuration'::regclass
+                """, Boolean.class));
+        for (String role : List.of("anon", "authenticated")) {
+            assertFalse(jdbc.queryForObject("""
+                    SELECT has_table_privilege(?, 'public.restaurant_platform_configuration', 'SELECT')
+                    """, Boolean.class, role));
+            assertFalse(jdbc.queryForObject("""
+                    SELECT has_table_privilege(?, 'public.restaurant_platform_configuration', 'INSERT')
+                    """, Boolean.class, role));
+        }
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        for (UUID id : List.of(first, second)) {
+            jdbc.update("""
+                    INSERT INTO public.restaurants (id, name, slug, township, city)
+                    VALUES (?, 'Config Test', ?, 'Bahan', 'Yangon')
+                    """, id, "config-" + id.toString().replace("-", ""));
+        }
+        jdbc.update("""
+                INSERT INTO public.restaurant_platform_configuration (restaurant_id, configuration)
+                VALUES (?, '{"primaryColor":"#222222"}'::jsonb)
+                """, second);
+        var configuration = new PlatformRestaurantConfiguration("#111111", "#ABCDEF",
+                new PlatformRestaurantConfiguration.GuestDomains(
+                        List.of("staging.garden.example.test"), List.of("garden.example.test")),
+                new PlatformRestaurantConfiguration.Android(
+                        new PlatformRestaurantConfiguration.AndroidApplication("Garden Operations",
+                                "test.garden.operations.staging", "test.garden.operations", "assets/garden/operations.png"),
+                        new PlatformRestaurantConfiguration.AndroidApplication("Garden Customer",
+                                "test.garden.customer.staging", "test.garden.customer", "assets/garden/customer.png")));
+        EntityManagerFactory factory = entityManagerFactoryBean.getObject();
+        assertNotNull(factory);
+        var entityManager = factory.createEntityManager();
+        try {
+            entityManager.getTransaction().begin();
+            var row = new RestaurantPlatformConfiguration();
+            row.setRestaurantId(first);
+            row.setConfiguration(configuration);
+            entityManager.persist(row);
+            entityManager.flush();
+            entityManager.clear();
+
+            var restored = entityManager.find(RestaurantPlatformConfiguration.class, first);
+            assertNotNull(restored);
+            assertEquals(first, restored.getRestaurantId());
+            assertEquals(configuration, restored.getConfiguration(),
+                    "Hibernate must round-trip nested configuration records, domain arrays, and Android metadata through JSONB");
+            assertNotNull(restored.getUpdatedAt(), "Hibernate should populate the configuration update timestamp");
+            entityManager.getTransaction().commit();
+        } finally {
+            if (entityManager.getTransaction().isActive()) entityManager.getTransaction().rollback();
+            entityManager.close();
+        }
+        assertEquals("#111111", jdbc.queryForObject("""
+                SELECT configuration->>'primaryColor' FROM public.restaurant_platform_configuration
+                WHERE restaurant_id = ?
+                """, String.class, first));
+        assertEquals("#222222", jdbc.queryForObject("""
+                SELECT configuration->>'primaryColor' FROM public.restaurant_platform_configuration
+                WHERE restaurant_id = ?
+                """, String.class, second));
     }
 
     @Test

@@ -5,7 +5,7 @@ The factories accept a configured API origin, never an origin entered by an end 
 | Factory | Boundary |
 | --- | --- |
 | `createPublicRestaurantApiClient` | Fixed restaurant public menu, modifiers and QR checkout; queue credentials stay in `X-Queue-Token`. It accepts no session provider and never sends a bearer token. |
-| `createPlatformAdminApiClient` | Overview and restaurant registry. Spring's validated UUID allowlist decides access. |
+| `createPlatformAdminApiClient` | Overview, searchable registry, restaurant detail, verified-identity provisioning, active status and branding/deployment metadata. Spring's validated UUID allowlist decides access. |
 | `createRestaurantMemberApiClient` | Fixed restaurant operations. `getConfiguredMembership` returns only that restaurant's active membership. Spring decides every permission. |
 | `createCustomerApiClient` | UUID-owned account profile/addresses and fixed restaurant delivery checkout. |
 
@@ -15,4 +15,8 @@ Methods accept an optional `ApiRequestOptions` with `signal` and `timeoutMs` (de
 
 Handle `ApiHttpError` using `status`, stable `code`, and `fieldErrors`; `serverMessage` is the localized Spring message. `MissingAccessTokenError`, `ApiNetworkError`, `ApiTimeoutError`, `ApiCancelledError`, `ApiProtocolError`, `ApiConfigurationError`, and `TenantAccessError` distinguish local failures without including credentials or raw response bodies in their messages.
 
-Wire DTOs mirror inspected Java records in `packages/shared-types`. They are compile-time types, not a generated runtime schema. Tenant IDs are additionally checked on responses that include them. See `docs/api-coverage-gap-report.md` for the complete 85-route inventory, 31 implemented client routes, deferred routes and incompatible identity/history contracts. In particular, provisioning and global customer history are not exposed by these clients.
+Wire DTOs mirror inspected Java records in `packages/shared-types`. They are compile-time types, not a generated runtime schema. Tenant IDs are additionally checked on responses that include them, including the nested restaurant in platform detail and mutation responses. Platform provisioning rejects legacy responses containing QR credentials and checks a requested existing Owner UUID against the returned UUID. These guards supplement Spring authorization.
+
+M4 adds `getRestaurant`, `provisionRestaurant`, `updateRestaurantStatus`, and `updateRestaurantConfiguration`. Provisioning optionally accepts an existing `ownerUserId`; Spring verifies that exact UUID and confirmed email through Supabase Auth Admin. A new invitation binds only the provider-returned UUID. These mutations are never automatically retried. See `docs/m4-acceptance.md` for contracts, retry instructions, migration requirements and verification boundaries. The historical M2 coverage audit is in `docs/api-coverage-gap-report.md`; global customer history remains outside branded clients.
+
+The API-client tests include actual `fetch` against a temporary loopback HTTP fixture server. They verify transport and contracts; Spring authorization is verified separately by backend HTTP tests. No remote provider or database is contacted by the loopback test.

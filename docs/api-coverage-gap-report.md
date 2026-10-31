@@ -2,6 +2,8 @@
 
 Audit date: 2026-10-30; M2 implementation review resumed 2026-10-31. This report compares the current Spring Boot controllers and Java DTOs with the typed frontend API boundary. [`docs/api.md`](api.md) remains the complete route reference. Source files under `app/api/**` and `supabase/**` are unchanged in M2. A typed client is a transport contract; only Spring Boot and Supabase Auth decide whether a request is authorized.
 
+**M4 update (2026-10-31):** The route counts and gaps below are the historical M2 audit. M4 resolves the platform Owner identity gap, exposes secure provisioning in the typed client, and adds platform detail, active status and branding/configuration endpoints. Platform responses now withhold raw QR credentials. The additive configuration-table migration is supplied for review and has not been applied remotely. See [M4 acceptance and remaining gaps](m4-acceptance.md) for the current contracts, retry behavior and verification limits. Phone invitation/claim and automated domain/app deployment remain unavailable.
+
 ## Existing Spring route inventory
 
 There are **85** `@GetMapping`/`@PostMapping`/`@PutMapping`/`@PatchMapping`/`@DeleteMapping` methods in the current controllers. The groups below account for all 85; a path with alternatives represents separate methods.

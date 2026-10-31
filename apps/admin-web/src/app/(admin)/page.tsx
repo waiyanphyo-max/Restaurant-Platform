@@ -8,6 +8,7 @@ export default async function OverviewPage() {
   const metrics = [
     { label: "Total restaurants", value: overview.totalRestaurants, description: "Across the platform", icon: "restaurants" },
     { label: "Active restaurants", value: overview.activeRestaurants, description: "Currently active", icon: "check" },
+    { label: "Inactive restaurants", value: overview.inactiveRestaurants, description: "Currently inactive", icon: "restaurants" },
     { label: "Restaurant members", value: overview.totalRestaurantMembers, description: "Across all restaurants", icon: "user" },
     { label: "Total orders", value: overview.totalOrders, description: "All recorded orders", icon: "details" },
   ];

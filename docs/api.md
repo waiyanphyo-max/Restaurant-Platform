@@ -718,11 +718,41 @@ Request example:
 }
 ```
 
-The endpoint validates the restaurant input before sending an invite, invites a new owner by email through Supabase Auth Admin when no matching profile exists, creates the restaurant and its default settings, and grants that Auth user the `OWNER` role. If the email already belongs to an existing profile, the existing account can be assigned as owner without sending another invite. The owner invitation is sent by Supabase Auth; the API never creates or returns a password.
+The endpoint validates restaurant and initial configuration input before sending an email invitation through Supabase Auth Admin. Ownership binds only to the Auth UUID returned by the provider. To onboard an existing account, include `ownerUserId` with the exact Supabase Auth UUID; Spring fetches that UUID through Auth Admin and requires its confirmed email to match `ownerEmail`. A mutable profile email or phone never determines ownership. The API never creates or returns a password.
 
-Response includes the owner user ID, `OWNER` role, restaurant profile, owner workspace URL, Common QR URL, and the raw Common QR token. The raw token is a one-time provisioning secret: use it to produce/print the Common QR and do not log or persist the API response. The owner workspace URL preselects the restaurant but is not an access credential; the owner must still authenticate and the backend continues enforcing restaurant permissions.
+Optional `configuration` uses the same public metadata object as the configuration endpoint below, allowing initial theme colors, guest domains and Android metadata. Initial logo/name/public slug are in `restaurant`. Restaurant, membership, settings and supplied configuration are committed in one database transaction.
 
-The Auth invitation and PostgreSQL transaction cannot form one distributed atomic transaction. The implementation checks the restaurant payload first and reuses an existing profile on retry if the invitation was created but restaurant creation later failed. Operators should still verify the final response before handing credentials/QR artwork to a restaurant.
+Response includes `ownerUserId`, `ownerEmail`, `invitationSent`, `ownerRole`, `restaurant`, `ownerWorkspaceUrl`, `ownerInvitationStatus` (`INVITED` or `ACCEPTED`) and `qrSetupUrl`. The legacy `commonQrUrl` and `commonQrToken` fields remain present as `null`. The safe workspace/setup links contain the restaurant UUID and no QR credential; the Owner must sign in and pass restaurant authorization to create or rotate QR codes.
+
+Auth invitations cannot roll back with PostgreSQL. An invitation can therefore exist after a later database failure. Check the registry before retrying an uncertain creation. If Auth reports the email is already registered, ask the Owner to finish email verification and retry with that account's exact Auth UUID. The API verifies this UUID and confirmed email again. No mutation is automatically retried by the shared client. Duplicate slugs return `409 RESTAURANT_SLUG_EXISTS`; unverified existing accounts return `409 PLATFORM_OWNER_EMAIL_NOT_VERIFIED`. Missing provider configuration returns `503 PLATFORM_OWNER_INVITATION_NOT_CONFIGURED`; provider errors return `502 PLATFORM_OWNER_INVITATION_PROVIDER_ERROR`. Phone invitation/claim remains unavailable until its verified identity workflow and SMS provider are implemented.
+
+### `GET /api/v1/platform/restaurants/{restaurantId}`
+
+Returns `PlatformRestaurantDetailResponse`: `restaurant`, `currency`, `timezone`, `memberCount`, `orderCount`, `owners`, `configuration`, `ownerWorkspaceUrl`, `qrSetupUrl`, and `setupInstructions`. Counts and owners are scoped to the path UUID. Currency/timezone can be `null` for a legacy restaurant without settings. Each Owner includes `userId`, `email`, `fullName` and `invitationStatus`: `INVITED`, `ACCEPTED`, `NOT_INVITED`, or `PROVIDER_UNAVAILABLE`. Acceptance is derived from trusted Auth confirmation timestamps for the membership UUID. A provider failure leaves the restaurant visible and marks the status unknown.
+
+### `PATCH /api/v1/platform/restaurants/{restaurantId}/status`
+
+Accepts `{ "active": false }` or `{ "active": true }` and persists the existing restaurant active flag. Returns the same detail DTO. It does not delete the restaurant or its memberships.
+
+### `PUT /api/v1/platform/restaurants/{restaurantId}/configuration`
+
+Accepts `{ "name": "Example Kitchen", "slug": "example-kitchen", "logoUrl": null, "configuration": { ... } }` and returns the updated detail DTO. Duplicate slugs are rejected, including database uniqueness races. `configuration` is public deployment metadata:
+
+```json
+{
+  "primaryColor": "#24563B",
+  "secondaryColor": "#F8F8F0",
+  "guestDomains": { "staging": ["staging.example.com"], "production": ["example.com"] },
+  "android": {
+    "operations": { "displayName": "Example Operations", "stagingApplicationId": "com.example.operations.staging", "productionApplicationId": "com.example.operations", "iconPath": null },
+    "customer": { "displayName": "Example Kitchen", "stagingApplicationId": "com.example.customer.staging", "productionApplicationId": "com.example.customer", "iconPath": null }
+  }
+}
+```
+
+Unconfigured strings are `null` and domain lists are empty. Colors use six-digit hex, logos use HTTPS asset URLs, domains are hostnames, application IDs follow Android package syntax, and icon paths are relative asset paths. Domain records and Android metadata do not change DNS, route tenants, deploy a website or build Android apps. They contain no signing keys, provider credentials, raw QR tokens or invite tokens.
+
+The additive `20261031090000_add_platform_restaurant_configuration.sql` migration supplies private server-managed metadata storage. Review and apply it through the normal migration process before deploying the API change; this task does not apply remote migrations.
 
 ### Server configuration
 

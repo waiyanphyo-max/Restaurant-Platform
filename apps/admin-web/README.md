@@ -1,6 +1,6 @@
-# Platform Admin web · M3
+# Platform Admin web · M4
 
-A standalone Next.js administration workspace with a responsive sidebar, account controls, accessible forms, paginated tables, confirmation dialogs and explicit loading/error states. It does not import the retired `apps/web` interface.
+Next.js platform administration at `http://localhost:3001`. Spring Boot supplies all business data and authorizes every read and mutation using a verified JWT UUID and its server-side `PLATFORM_ADMIN_USER_IDS` allowlist.
 
 ## Run locally
 
@@ -8,50 +8,58 @@ From the repository root:
 
 ```powershell
 Copy-Item apps/admin-web/.env.example apps/admin-web/.env.local
-# Fill in this environment's public Supabase configuration and API origin.
+# Fill in this environment's public Auth configuration and API origin.
 npm run build:packages
 npm run dev:admin
 ```
 
-Use `http://localhost:3001`. Set `APP_STAGE=local`, `ADMIN_WEB_ORIGIN=http://localhost:3001`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. HTTPS is required for deployed origins. The app shows setup requirements and fails closed when required configuration is absent or invalid. Never put Supabase secret/service-role keys or the platform allowlist in browser variables.
+Set `APP_STAGE=local`, `ADMIN_WEB_ORIGIN=http://localhost:3001`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Deployed origins require HTTPS. Missing or invalid configuration fails closed. Never put service-role keys or the platform allowlist in browser variables.
 
-Configure `PLATFORM_ADMIN_USER_IDS` **on Spring only**, with approved Supabase Auth UUIDs. The frontend has no email/metadata allowlist. Spring validates the bearer JWT and enforces authorization on each platform endpoint. Existing backend and database contracts are unchanged.
+The additive SQL file described in [M4 acceptance](../../docs/m4-acceptance.md) must exist in a target database before using the new metadata endpoints. This task creates the migration file only; it does not apply remote migrations.
 
 ## Routes and capabilities
 
 | Route | Behavior |
 | --- | --- |
-| `/login` | Supabase email/password sign-in with a restricted local return destination. |
-| `/` | Actual database overview counts; zero remains zero. |
-| `/restaurants` | Authorized registry with server search, pagination, empty/error states and detail links. |
-| `/restaurant-details` | Select from the directory; shows only the selected summary from a fresh, authorized registry response. |
-| `/provisioning` | Validate and review an unsaved preparation form. Creation and invitations are explicitly unavailable. |
+| `/` | Real total, active/inactive restaurant, order and restaurant membership counts. Memberships count records, not unique people. |
+| `/restaurants` | Server search and pagination, empty/error states and independent detail links. |
+| `/restaurant-details?id=UUID` | Fresh platform detail by UUID, Owner invitation status, restaurant totals, branding, domains, Android metadata and confirmed activation/deactivation. |
+| `/provisioning` | Validate and review restaurant identity, address/contact, timezone, currency and initial branding; create restaurant and onboard its Owner. |
 | `/settings` | Verified Auth UUID, backend permission, environment, connection and sign-out. |
-| `/access` | Configuration, permission or service recovery screen; logout remains available when Auth is configured. |
-| `/auth/callback`, `/auth/accept-invite` | Existing verified Supabase authentication return flows. |
+| `/login`, `/access` | Sign-in and configuration/access/service recovery. |
+| `/auth/callback`, `/auth/accept-invite` | Verified Supabase authentication returns. |
 
-There is no platform restaurant-detail or settings-mutation endpoint. Detail URLs retain the directory's search/page context; if a record moves out of that page, the user selects it again. The member-scoped restaurant API is not substituted for a platform API.
+Domain and Android configuration is metadata. Saving does not configure DNS, host a Guest Website or publish Android applications.
 
-Provisioning is intentionally a preparation preview. The existing shared client withholds the legacy provisioning endpoint because its existing-owner path can assign ownership through a profile email lookup without verified Auth UUID identity. See [the contract gap report](../../docs/api-coverage-gap-report.md). The form makes no mutation requests and stores no draft in browser storage. It creates no restaurant, sends no invitation and requests no QR credential.
+## Owner onboarding
 
-## Authentication and permission boundary
+For a new Owner, Spring invites the email using server-only Supabase Auth Admin access and assigns membership exclusively to the provider-returned UUID. For an existing account, supply its exact Supabase Auth UUID and email. Spring fetches that UUID from Auth Admin and requires its confirmed email to match. Profile contact strings never select the Owner.
 
-- Middleware refreshes Supabase cookies and verifies claims before protected requests. Refreshed cookies and private/no-store headers are propagated.
-- A request-scoped server context verifies the UUID identity, obtains the current SDK token and calls the shared `createPlatformAdminApiClient().getOverview()`. Only a successful backend authorization check permits the workspace.
-- Both layout and every protected page call the guard, including during client navigation. A middleware-overwritten request path preserves the destination across expired sessions without trusting an incoming header or external return URL.
-- Missing/expired identity or API **401** leads to sign-in; **403** shows restricted access; `503 PLATFORM_ADMIN_NOT_CONFIGURED` explains backend setup; unavailable services show recovery actions. Registry/detail requests apply the same error policy after their own API call.
-- Tokens are neither serialized into page props nor logged. Business data uses the shared authenticated Spring client with caching disabled. Supabase is used only for authentication.
-- SDK logout/account changes leave the workspace with a full navigation to discard the client router cache. Token refresh and visibility changes recheck the server; restored browser-history pages reload. Explicit logout asks for confirmation and reports failure.
+A duplicate registered email requires an explicit verified UUID. If an invitation succeeds but a subsequent database write fails, check the registry and Auth identity before retrying; email delivery cannot be rolled back with the database transaction. Forms do not automatically retry mutations or save drafts to browser storage.
+
+The detail screen resolves invitation status using the exact Owner membership UUID. Provider outages show an unavailable state. Phone onboarding remains gated until a verified backend identity workflow and SMS provider are ready; the restaurant contact phone is ordinary contact metadata.
+
+Platform responses contain no raw QR credentials. Setup links contain only a restaurant UUID and optional `setup=qr`, lead to the Owner workspace and still require authorization. The Owner completes menu/table/QR setup in Operations.
+
+## Authentication and request handling
+
+- Middleware refreshes Supabase cookies, verifies claims and propagates private/no-store headers.
+- Every protected page and server action independently calls the backend admin guard. Tokens are never serialized in component props.
+- The shared authenticated Spring client obtains current tokens and disables caching. Supabase is used for authentication only.
+- HTTP 401 returns to login; 403 returns to access recovery; missing backend allowlist and service outages have explicit recovery states.
+- The platform client validates restaurant IDs in detail/mutation responses and rejects legacy provisioning responses containing QR credentials.
+- SDK logout/account changes leave the workspace via full navigation. Session monitoring checks expiry and restored browser-history pages reload.
+- Server actions return restricted result shapes and stable validation/recovery messages. Duplicate, unverified identity and provider-unavailable states are distinct.
 
 ## Checks
 
 ```powershell
-npm run lint
 npm run typecheck
+npm run lint
 npm test
 npm run build -w @restaurant-platform/admin-web
 ```
 
-Tests exercise actual protected page functions, backend permission denial, current-token forwarding, cookie refresh, safe redirects, missing configuration, expiry, HTTP 401/403, registry errors/selection and provisioning validation. API responses in tests are fixtures only; production has no test identity, authorization bypass or seeded statistics.
+Tests exercise protected routes, page and mutation guards, overview counts, registry search/pagination, UUID detail selection, onboarding status/configuration rendering, validation, unsafe setup links, error recovery and token/session behavior. Shared client tests include actual loopback HTTP transport; Spring tests exercise its controllers, services and authorization.
 
-For live acceptance, use one allowlisted Auth account and one valid non-allowlisted account. Verify login/logout, reload restoration, direct and client navigation, cross-tab logout, expired/rejected tokens, missing backend allowlist, unavailable API, keyboard dialog cancellation, and desktop/mobile layouts. Live acceptance requires a running Spring service and provisioned Supabase accounts; unit tests do not replace it.
+Live Supabase email delivery, invite acceptance and an authenticated browser walkthrough require configured accounts and a running backend. PostgreSQL migration/schema tests require Docker. See [M4 acceptance](../../docs/m4-acceptance.md) for the verification matrix and remaining provider/deployment boundaries.

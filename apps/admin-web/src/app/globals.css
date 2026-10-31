@@ -268,6 +268,20 @@ input:disabled { background: #f0f3f1; }
 
 
 /* Layout constraints for narrow fields and status headings. */
+.lifecycle-panel { margin-top: 24px; }
+.configuration-section { border: 0; padding: 0; margin: 0; min-width: 0; }
+.configuration-section legend { font-size: 14px; font-weight: 600; margin-bottom: 18px; }
+.configuration-section + .configuration-section { padding-top: 24px; border-top: 1px solid var(--line); }
+.configuration-section:disabled { opacity: .65; }
+.field textarea { width: 100%; min-height: 84px; resize: vertical; border: 1px solid var(--line); border-radius: 7px; padding: 11px; font: inherit; color: var(--ink); background: white; }
+.field textarea:focus { outline: 2px solid var(--green); outline-offset: 2px; }
+.lifecycle-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid var(--line); margin-top: 26px; padding-top: 24px; }
+.lifecycle-status h3 { font-size: 15px; }
+.setup-list { color: var(--muted); font-size: 12px; line-height: 1.9; padding-left: 20px; }
+.setup-list li + li { margin-top: 8px; }
+.setup-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+.owner-details { margin-bottom: 18px; }
+.review-panel dt { text-transform: capitalize; }
 .field { min-width: 0; }
 .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .form-section-title { display: flex; align-items: center; gap: 12px; }
