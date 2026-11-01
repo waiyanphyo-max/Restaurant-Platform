@@ -143,6 +143,7 @@ public class SecurityConfig {
                                 "/api/v1/public/restaurants/*/menu",
                                 "/api/v1/public/restaurants/*/products/*/modifier-groups").permitAll()
                         .requestMatchers(HttpMethod.POST,
+                                "/api/v1/public/restaurants/*/qr-context",
                                 "/api/v1/public/restaurants/*/orders/common-qr",
                                 "/api/v1/public/restaurants/*/orders/table-qr").permitAll()
                         // These endpoints use the unguessable X-Queue-Token issued at QR checkout.
@@ -178,6 +179,7 @@ public class SecurityConfig {
                 "Accept",
                 "Origin",
                 "X-Queue-Token",
+                "X-Restaurant-Id",
                 "Idempotency-Key",
                 "Accept-Language"));
         configuration.setExposedHeaders(List.of("Location"));

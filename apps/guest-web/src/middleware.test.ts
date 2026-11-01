@@ -8,6 +8,14 @@ vi.mock("./lib/auth/refresh", () => ({ refreshGuestAuthSession: mocks.refreshGue
 afterEach(() => { vi.clearAllMocks(); });
 
 describe("guest routing middleware", () => {
+  it.each(["qrToken", "queueToken", "trackingToken", "token"])("rejects a credential-bearing %s query without rendering or echoing it", async key => {
+    const response = await middleware(new NextRequest(`https://garden.example.test/?${key}=private-credential`));
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain("private-credential");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(mocks.refreshGuestAuthSession).not.toHaveBeenCalled();
+  });
   it("removes a client-supplied route slug from an ordinary restaurant request", async () => {
     const request = new NextRequest("https://garden.example.test/menu", {
       headers: { host: "garden.example.test", "x-guest-route-slug": "tea-house" },

@@ -89,6 +89,32 @@ class QueueTrackingServiceTest {
     }
 
     @Test
+    void optionalRestaurantScopeRejectsOtherTenantsEvenWithTheirValidToken() {
+        QueueTicket ticket = ticket("READY");
+        when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+        UUID wrongRestaurant = UUID.randomUUID();
+        ApiException statusError = assertThrows(ApiException.class,
+                () -> service.getStatus(ticketId, token, wrongRestaurant));
+        ApiException notificationsError = assertThrows(ApiException.class,
+                () -> service.getNotifications(ticketId, token, wrongRestaurant));
+        ApiException readError = assertThrows(ApiException.class,
+                () -> service.markNotificationRead(ticketId, notificationId, token, wrongRestaurant));
+        for (ApiException error : List.of(statusError, notificationsError, readError)) {
+            assertEquals("QUEUE_TICKET_NOT_FOUND", error.getCode());
+            assertEquals(HttpStatus.NOT_FOUND, error.getStatus());
+        }
+        verifyNoInteractions(orderRepository, notificationRepository);
+    }
+
+    @Test
+    void optionalMatchingRestaurantScopeAcceptsValidToken() {
+        QueueTicket ticket = ticket("READY");
+        when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+        when(orderRepository.findByQueueTicketId(ticketId)).thenReturn(Optional.of(order("READY")));
+        assertEquals("READY", service.getStatus(ticketId, token, ticket.getRestaurantId()).queueStatus());
+    }
+
+    @Test
     void returnsOnlyNotificationsAttachedToTheValidatedTicket() {
         QueueTicket ticket = ticket("READY");
         AppNotification notification = notification();

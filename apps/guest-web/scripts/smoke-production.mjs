@@ -3,7 +3,7 @@
  * @restaurant-platform/guest-web` with no other guest server using this checkout.
  *
  * This does NOT test a live Spring/database deployment. A loopback HTTP server
- * implements the existing Spring public-menu wire contract with synthetic data.
+ * implements the Spring menu, QR context, checkout and queue wire contracts with synthetic data.
  * Two unique, temporary registry records exercise the real external registry in
  * `next start`; they are not shipped fixtures or application fallback data.
  * Existing configs, assets, environment files and build output are never edited.
@@ -35,6 +35,11 @@ let emptyMenu = false;
 let checks = 0;
 let streamedNotFoundResponses = 0;
 const upstreamRequests = [];
+const receipts = new Map();
+const queueTickets = new Map();
+const placedOrders = [];
+let unavailableProduct = false;
+let loseCheckoutResponse = false;
 
 function tenant(label, color) {
   const slug = `qa-m5-${suffix}-${label.toLowerCase()}`;
@@ -47,11 +52,96 @@ function tenant(label, color) {
     logo: `https://media.example.test/${slug}/logo.png`,
     productId: randomUUID(), categoryId: randomUUID(), variantId: randomUUID(),
     groupId: randomUUID(), optionId: randomUUID(),
+    tableId: randomUUID(), tableNumber: `T-${label}`,
+    commonQrToken: randomBytes(32).toString("hex"), tableQrToken: randomBytes(32).toString("hex"),
+    stock: 5, dailyQueueNumber: 0,
   };
 }
 
 const a = tenant("A", "#A12345");
 const b = tenant("B", "#126B89");
+const secretTokens = new Set([a.commonQrToken, a.tableQrToken, b.commonQrToken, b.tableQrToken]);
+
+function redact(value) {
+  let result = String(value);
+  for (const token of secretTokens) result = result.replaceAll(token, "[redacted]");
+  return result;
+}
+
+function sendJson(response, value, status = 200) {
+  response.statusCode = status;
+  response.setHeader("Content-Type", "application/json");
+  response.setHeader("Cache-Control", "no-store");
+  response.end(JSON.stringify(value));
+}
+
+async function guestContractFixture(req, res) {
+  upstreamRequests.push({ path: req.url, headers: { ...req.headers, "x-queue-token": req.headers["x-queue-token"] ? "[redacted]" : undefined } });
+  const selected = [a, b].find(item => req.url === `/api/v1/public/restaurants/${item.restaurantId}/menu`);
+  if (selected) return sendJson(res, upstreamStatus === 200 ? menu(mismatch ? b : selected) : { code: "RESTAURANT_NOT_FOUND" }, upstreamStatus);
+  const qrRoute = /^\/api\/v1\/public\/restaurants\/([\da-f-]+)\/(qr-context|orders\/(common-qr|table-qr))$/.exec(req.url ?? "");
+  if (qrRoute && req.method === "POST") {
+    const restaurant = [a, b].find(item => item.restaurantId === qrRoute[1]);
+    if (!restaurant) return sendJson(res, { code: "RESTAURANT_NOT_FOUND" }, 404);
+    let rawBody = "";
+    for await (const chunk of req) rawBody += chunk.toString();
+    const body = JSON.parse(rawBody);
+    const isContext = qrRoute[2] === "qr-context";
+    const kind = isContext ? body.kind : qrRoute[3] === "table-qr" ? "TABLE_QR" : "COMMON_QR";
+    const fingerprint = JSON.stringify(body);
+    const receiptKey = `${restaurant.restaurantId}:${kind}:${req.headers["idempotency-key"]}`;
+    const previous = receipts.get(receiptKey);
+    // Spring's idempotency replay precedes current QR/stock validation.
+    if (!isContext && previous) return previous.fingerprint === fingerprint
+      ? sendJson(res, previous.response) : sendJson(res, { code: "IDEMPOTENCY_KEY_REUSED" }, 409);
+    const tableQr = kind === "TABLE_QR";
+    if (body.qrToken !== (tableQr ? restaurant.tableQrToken : restaurant.commonQrToken)) return sendJson(res, { code: tableQr ? "INVALID_TABLE_QR_TOKEN" : "INVALID_COMMON_QR_TOKEN" }, 403);
+    if (isContext) return sendJson(res, { restaurantId: restaurant.restaurantId, kind, tableId: tableQr ? restaurant.tableId : null, tableNumber: tableQr ? restaurant.tableNumber : null });
+    assert.match(req.headers["idempotency-key"] ?? "", /^[A-Za-z0-9._:-]{8,128}$/);
+    if (!body.items?.length) return sendJson(res, { code: "VALIDATION_FAILED" }, 400);
+    let subtotal = 0;
+    let quantity = 0;
+    for (const line of body.items) {
+      if (line.productId !== restaurant.productId) return sendJson(res, { code: "INVALID_PRODUCT" }, 400);
+      if (unavailableProduct) return sendJson(res, { code: "PRODUCT_UNAVAILABLE" }, 409);
+      if (line.variantId !== restaurant.variantId) return sendJson(res, { code: "INVALID_PRODUCT_VARIANT" }, 400);
+      if (line.modifiers?.length !== 1 || line.modifiers[0].modifierOptionId !== restaurant.optionId) return sendJson(res, { code: "INVALID_MODIFIER_SELECTION_COUNT" }, 400);
+      subtotal += (3000 + 500 * line.modifiers[0].quantity) * line.quantity;
+      quantity += line.quantity;
+    }
+    if (quantity > restaurant.stock) return sendJson(res, { code: "INSUFFICIENT_STOCK" }, 409);
+    restaurant.stock -= quantity;
+    const orderId = randomUUID();
+    const orderNumber = `ORD-20261101-${randomBytes(4).toString("hex").toUpperCase()}`;
+    let queue = null;
+    if (!tableQr) {
+      const ticketId = randomUUID();
+      const token = randomBytes(32).toString("hex");
+      secretTokens.add(token);
+      const queueNumber = ++restaurant.dailyQueueNumber;
+      queue = { ticketId, queueNumber, displayCode: String(queueNumber).padStart(3, "0"), status: "WAITING", trackingToken: token };
+      queueTickets.set(ticketId, { restaurantId: restaurant.restaurantId, orderId, token, status: "WAITING", orderStatus: "PENDING", orderNumber, queueNumber, displayCode: queue.displayCode, notificationId: randomUUID(), read: false });
+    }
+    const response = { orderId, orderNumber, orderType: tableQr ? "DINE_IN" : "TAKEAWAY", orderChannel: kind, status: "PENDING", currency: "MMK", subtotal, deliveryFee: 0, discountAmount: 0, totalAmount: subtotal, queue };
+    receipts.set(receiptKey, { fingerprint, response });
+    placedOrders.push({ restaurantId: restaurant.restaurantId, kind, tableId: tableQr ? restaurant.tableId : null, items: body.items, orderId });
+    if (loseCheckoutResponse) { loseCheckoutResponse = false; req.socket.destroy(); return; }
+    return sendJson(res, response);
+  }
+  const queueRoute = /^\/api\/v1\/public\/queue-tickets\/([\da-f-]+)\/(status|notifications)(?:\/([\da-f-]+)\/read)?$/.exec(req.url ?? "");
+  if (queueRoute) {
+    const ticket = queueTickets.get(queueRoute[1]);
+    if (!ticket || req.headers["x-queue-token"] !== ticket.token || req.headers["x-restaurant-id"] !== ticket.restaurantId) return sendJson(res, { code: "QUEUE_TICKET_NOT_FOUND" }, 404);
+    if (queueRoute[2] === "status") return sendJson(res, { ticketId: queueRoute[1], queueNumber: ticket.queueNumber, displayCode: ticket.displayCode, queueStatus: ticket.status, orderNumber: ticket.orderNumber, orderStatus: ticket.orderStatus, createdAt: "2026-11-01T11:00:00+06:30", readyAt: ticket.status === "WAITING" ? null : "2026-11-01T11:05:00+06:30", calledAt: ["CALLED", "COMPLETED"].includes(ticket.status) ? "2026-11-01T11:06:00+06:30" : null, completedAt: ticket.status === "COMPLETED" ? "2026-11-01T11:07:00+06:30" : null });
+    if (queueRoute[3]) {
+      if (queueRoute[3] !== ticket.notificationId || req.method !== "PATCH") return sendJson(res, { code: "NOTIFICATION_NOT_FOUND" }, 404);
+      ticket.read = true;
+    }
+    const notice = { id: ticket.notificationId, orderId: ticket.orderId, queueTicketId: queueRoute[1], notificationType: "ORDER_READY", title: "Your order is ready", body: `Queue ${ticket.displayCode} is ready for collection.`, channel: "IN_APP", status: ticket.read ? "READ" : "PENDING", createdAt: "2026-11-01T11:05:00+06:30", readAt: ticket.read ? "2026-11-01T11:06:00+06:30" : null };
+    return sendJson(res, queueRoute[3] ? notice : ["READY", "CALLED", "COMPLETED"].includes(ticket.status) ? [notice] : []);
+  }
+  return sendJson(res, { code: "NOT_FOUND" }, 404);
+}
 
 function configuration(item, iconPath) {
   const androidApp = kind => ({
@@ -126,6 +216,30 @@ function request(port, host, pathname, extraHeaders = {}) {
     });
     req.setTimeout(5_000, () => req.destroy(new Error("Production smoke HTTP request timed out")));
     req.on("error", reject);
+  });
+}
+
+function guestPost(port, restaurant, body, extraHeaders = {}, pathname = "/api/guest") {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const req = http.request({ hostname: "127.0.0.1", port, path: pathname, method: "POST", headers: {
+      Host: restaurant.host, Origin: `http://${restaurant.host}`, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data), ...extraHeaders,
+    } }, response => {
+      let responseBody = "";
+      response.setEncoding("utf8");
+      response.on("data", chunk => { responseBody += chunk; });
+      response.on("end", () => {
+        try {
+          assert.match(response.headers["cache-control"] ?? "", /no-store/);
+          assert.equal(response.headers["referrer-policy"], "no-referrer");
+          resolve({ status: response.statusCode, data: JSON.parse(responseBody) });
+        } catch (error) { reject(error); }
+      });
+      response.on("error", reject);
+    });
+    req.setTimeout(10_000, () => req.destroy(new Error("Guest checkout fixture request timed out")));
+    req.on("error", reject);
+    req.end(data);
   });
 }
 
@@ -208,12 +322,7 @@ try {
   }
 
   upstream = http.createServer((req, res) => {
-    upstreamRequests.push({ path: req.url, headers: req.headers });
-    const selected = [a, b].find(item => req.url === `/api/v1/public/restaurants/${item.restaurantId}/menu`);
-    res.setHeader("Content-Type", "application/json");
-    res.setHeader("Cache-Control", "no-store");
-    res.statusCode = selected ? upstreamStatus : 404;
-    res.end(JSON.stringify(selected && upstreamStatus === 200 ? menu(mismatch ? b : selected) : { code: "RESTAURANT_NOT_FOUND" }));
+    guestContractFixture(req, res).catch(() => sendJson(res, { code: "FIXTURE_ERROR" }, 500));
   });
   const upstreamPort = await listen(upstream);
   const reservation = http.createServer();
@@ -232,7 +341,7 @@ try {
     nextProcess.once("exit", (code, signal) => resolve({ code, signal }));
     nextProcess.once("error", reject);
   });
-  const captureOutput = chunk => { nextOutput = (nextOutput + chunk.toString()).slice(-16_000); };
+  const captureOutput = chunk => { nextOutput = (nextOutput + redact(chunk.toString())).slice(-16_000); };
   nextProcess.stdout.on("data", captureOutput);
   nextProcess.stderr.on("data", captureOutput);
   let ready = false;
@@ -295,6 +404,25 @@ try {
   await assertDenied(guestPort, "unknown.guest.test", "/", { "x-forwarded-host": a.host });
   await assertDenied(guestPort, `localhost:${guestPort}`, `/r/${a.slug}/menu`);
   await assertDenied(guestPort, `${a.slug}.localhost:${guestPort}`, "/menu");
+  for (const name of ["qrToken", "queueToken"]) {
+    // A deliberately invalid placeholder checks accidental incoming URL handling, never a live capability.
+    const accidentalCredential = `invalid-query-credential-${suffix}-${name}`;
+    secretTokens.add(accidentalCredential);
+    const before = upstreamRequests.length;
+    const rejectedQuery = await request(guestPort, a.host, `/?${name}=${accidentalCredential}`);
+    assert.equal(rejectedQuery.status, 400);
+    assert.ok(!rejectedQuery.body.includes(accidentalCredential), "A credential query was echoed into the public error body");
+    assert.equal(rejectedQuery.headers["referrer-policy"], "no-referrer");
+    assert.match(rejectedQuery.headers["cache-control"] ?? "", /no-store/);
+    assert.equal(upstreamRequests.length, before);
+    checks++;
+  }
+  const beforeLocalApi = upstreamRequests.length;
+  const localApi = await guestPost(guestPort, { host: `localhost:${guestPort}` }, { action: "validate", kind: "TABLE_QR", qrToken: a.tableQrToken }, {}, `/r/${a.slug}/api/guest`);
+  assert.equal(localApi.status, 404);
+  assert.equal(localApi.data.error, "unavailable");
+  assert.equal(upstreamRequests.length, beforeLocalApi, "A local production API path bypassed host resolution");
+  checks++;
   const spoofedContext = await request(guestPort, a.host, "/menu", {
     "x-forwarded-host": b.host, "x-guest-route-slug": b.slug,
   });
@@ -323,21 +451,148 @@ try {
   const empty = await request(guestPort, a.host, "/menu");
   assertBrand(empty, a, b);
   assert.ok(empty.body.includes("The menu is being prepared"));
+  emptyMenu = false;
+
+  const completed = new Map();
+  for (const [restaurant, other] of [[a, b], [b, a]]) {
+    for (const kind of ["TABLE_QR", "COMMON_QR"]) {
+      const qrToken = kind === "TABLE_QR" ? restaurant.tableQrToken : restaurant.commonQrToken;
+      const context = await guestPost(guestPort, restaurant, { action: "validate", kind, qrToken });
+      assert.equal(context.status, 200);
+      assert.equal(context.data.data.restaurantId, restaurant.restaurantId);
+      assert.equal(context.data.data.kind, kind);
+      assert.equal(context.data.data.tableId, kind === "TABLE_QR" ? restaurant.tableId : null);
+      assert.ok(!JSON.stringify(context.data).includes(qrToken), "QR context exposed its credential");
+      checks++;
+
+      const items = [{ productId: restaurant.productId, variantId: restaurant.variantId, quantity: 2, specialInstruction: "Less sweet / အချိုလျှော့", modifiers: [{ modifierOptionId: restaurant.optionId, quantity: 1 }] }];
+      const payload = { action: "checkout", kind, qrToken, items, idempotencyKey: `smoke-${randomUUID()}` };
+      const beforeOrders = placedOrders.length;
+      // Commit the Common order, then sever the first upstream connection: the shared transport must replay its key.
+      if (kind === "COMMON_QR") loseCheckoutResponse = true;
+      const checkout = await guestPost(guestPort, restaurant, payload);
+      assert.equal(checkout.status, 200);
+      assert.equal(checkout.data.ok, true);
+      const receipt = checkout.data.data;
+      assert.equal(receipt.orderType, kind === "TABLE_QR" ? "DINE_IN" : "TAKEAWAY");
+      assert.equal(receipt.orderChannel, kind);
+      assert.equal(receipt.totalAmount, 7000, "Checkout must display the variant+modifier price calculated by the backend fixture");
+      assert.equal(receipt.status, "PENDING");
+      assert.equal(placedOrders.length, beforeOrders + 1);
+      const saved = placedOrders.at(-1);
+      assert.equal(saved.restaurantId, restaurant.restaurantId);
+      assert.equal(saved.tableId, kind === "TABLE_QR" ? restaurant.tableId : null);
+      assert.deepEqual(saved.items, items);
+      const duplicate = await guestPost(guestPort, restaurant, payload);
+      assert.equal(duplicate.status, 200);
+      assert.equal(duplicate.data.data.orderId, receipt.orderId, "A repeated checkout must return its original order");
+      assert.equal(placedOrders.length, beforeOrders + 1, "A repeated checkout created another order");
+      const changedKeyPayload = await guestPost(guestPort, restaurant, { ...payload, items: [{ ...items[0], quantity: 1 }] });
+      assert.equal(changedKeyPayload.data.error, "conflict");
+      assert.equal(changedKeyPayload.data.ambiguous, true);
+      checks += 3;
+
+      const foreignQr = await guestPost(guestPort, restaurant, { action: "validate", kind, qrToken: kind === "TABLE_QR" ? other.tableQrToken : other.commonQrToken });
+      assert.equal(foreignQr.data.error, "invalid-qr");
+      const invalid = await guestPost(guestPort, restaurant, { action: "validate", kind, qrToken: "invalid-credential" });
+      assert.equal(invalid.data.error, "invalid-qr");
+      const invalidCheckout = await guestPost(guestPort, restaurant, { ...payload, qrToken: "invalid-credential", idempotencyKey: `smoke-${randomUUID()}` });
+      assert.equal(invalidCheckout.data.error, "invalid-qr");
+      const crossTenantCheckout = await guestPost(guestPort, restaurant, { ...payload, qrToken: kind === "TABLE_QR" ? other.tableQrToken : other.commonQrToken, idempotencyKey: `smoke-${randomUUID()}` });
+      assert.equal(crossTenantCheckout.data.error, "invalid-qr");
+      const foreignProduct = await guestPost(guestPort, restaurant, { ...payload, idempotencyKey: `smoke-${randomUUID()}`, items: [{ ...items[0], productId: other.productId }] });
+      assert.equal(foreignProduct.data.error, "selection");
+      unavailableProduct = true;
+      const unavailableSelection = await guestPost(guestPort, restaurant, { ...payload, idempotencyKey: `smoke-${randomUUID()}` });
+      unavailableProduct = false;
+      assert.equal(unavailableSelection.data.error, "selection");
+      assert.equal(unavailableSelection.data.ambiguous, false);
+      const outOfStock = await guestPost(guestPort, restaurant, { ...payload, idempotencyKey: `smoke-${randomUUID()}`, items: [{ ...items[0], quantity: 999 }] });
+      assert.equal(outOfStock.data.error, "selection");
+      const missingModifier = await guestPost(guestPort, restaurant, { ...payload, idempotencyKey: `smoke-${randomUUID()}`, items: [{ ...items[0], modifiers: [] }] });
+      assert.equal(missingModifier.data.error, "selection");
+      const emptyCart = await guestPost(guestPort, restaurant, { ...payload, items: [] });
+      assert.equal(emptyCart.data.error, "selection");
+      assert.equal(placedOrders.length, beforeOrders + 1, "A rejected checkout created an order");
+      checks += 9;
+
+      if (kind === "COMMON_QR") {
+        assert.ok(receipt.queue, "Common QR must return its queue capability");
+        assert.equal(receipt.queue.queueNumber, 1, "Each tenant has its own date-scoped queue counter");
+        assert.equal(receipt.queue.displayCode, "001");
+        assert.match(receipt.orderNumber, /^ORD-20261101-/);
+        assert.ok(duplicate.data.data.queue.trackingToken === receipt.queue.trackingToken, "Idempotency must replay the original queue capability");
+        const queueToken = receipt.queue.trackingToken;
+        const ticketId = receipt.queue.ticketId;
+        const statusPayload = { action: "status", ticketId, queueToken };
+        const waiting = await guestPost(guestPort, restaurant, statusPayload);
+        assert.equal(waiting.data.data.queueStatus, "WAITING");
+        assert.equal(waiting.data.data.orderStatus, "PENDING");
+        assert.equal(waiting.data.data.createdAt.slice(0, 10), "2026-11-01");
+        const ticket = queueTickets.get(ticketId);
+        ticket.status = "READY"; ticket.orderStatus = "READY";
+        const readyStatus = await guestPost(guestPort, restaurant, statusPayload);
+        assert.equal(readyStatus.data.data.queueStatus, "READY");
+        const notifications = await guestPost(guestPort, restaurant, { ...statusPayload, action: "notifications" });
+        assert.equal(notifications.data.data[0].notificationType, "ORDER_READY");
+        const markRead = await guestPost(guestPort, restaurant, { ...statusPayload, action: "read", notificationId: ticket.notificationId });
+        assert.equal(markRead.data.data.status, "READ");
+        ticket.status = "CALLED";
+        assert.equal((await guestPost(guestPort, restaurant, statusPayload)).data.data.queueStatus, "CALLED");
+        ticket.status = "COMPLETED"; ticket.orderStatus = "COMPLETED";
+        assert.equal((await guestPost(guestPort, restaurant, statusPayload)).data.data.orderStatus, "COMPLETED");
+        const wrongTenant = await guestPost(guestPort, other, statusPayload);
+        assert.equal(wrongTenant.data.error, "invalid-qr");
+        const wrongTenantNotifications = await guestPost(guestPort, other, { ...statusPayload, action: "notifications" });
+        assert.equal(wrongTenantNotifications.data.error, "invalid-qr");
+        const wrongTenantRead = await guestPost(guestPort, other, { ...statusPayload, action: "read", notificationId: ticket.notificationId });
+        assert.equal(wrongTenantRead.data.error, "invalid-qr");
+        const badToken = await guestPost(guestPort, restaurant, { ...statusPayload, queueToken: "invalid-tracking-token" });
+        assert.equal(badToken.data.error, "invalid-qr");
+        completed.set(restaurant.restaurantId, { payload, receipt });
+        checks += 11;
+      } else assert.equal(receipt.queue, null);
+    }
+    assert.equal(restaurant.stock, 1, "Stock must be reserved once per successful order");
+  }
+
+  for (const restaurant of [a, b]) {
+    const { payload, receipt } = completed.get(restaurant.restaurantId);
+    const oldToken = restaurant.commonQrToken;
+    restaurant.commonQrToken = randomBytes(32).toString("hex");
+    secretTokens.add(restaurant.commonQrToken);
+    const rotated = await guestPost(guestPort, restaurant, { action: "validate", kind: "COMMON_QR", qrToken: oldToken });
+    assert.equal(rotated.data.error, "invalid-qr");
+    const replayAfterRotation = await guestPost(guestPort, restaurant, payload);
+    assert.equal(replayAfterRotation.data.data.orderId, receipt.orderId, "Rotation must not prevent a retry from recovering a committed receipt");
+    const newOrderWithOldQr = await guestPost(guestPort, restaurant, { ...payload, idempotencyKey: `smoke-${randomUUID()}` });
+    assert.equal(newOrderWithOldQr.data.error, "invalid-qr");
+    checks += 3;
+  }
+
+  const crossOrigin = await guestPost(guestPort, a, { action: "validate", kind: "TABLE_QR", qrToken: a.tableQrToken }, { Origin: "https://attacker.test" });
+  assert.equal(crossOrigin.status, 403);
+  assert.equal(crossOrigin.data.error, "invalid-qr");
+  checks++;
 
   assert.ok(upstreamRequests.length > 0);
   for (const { path: requestedPath, headers } of upstreamRequests) {
-    assert.ok([a, b].some(item => requestedPath === `/api/v1/public/restaurants/${item.restaurantId}/menu`));
+    assert.ok(!requestedPath.includes("?") && !requestedPath.includes("#"), "Public upstream requests must not carry query or fragment credentials");
+    assert.ok(/^\/api\/v1\/public\/(restaurants\/[\da-f-]+\/(menu|qr-context|orders\/(table-qr|common-qr))|queue-tickets\/[\da-f-]+\/(status|notifications)(\/[\da-f-]+\/read)?)$/.test(requestedPath));
     assert.equal(headers.authorization, undefined);
     assert.equal(headers.cookie, undefined);
     assert.equal(headers.referer, undefined);
-    assert.equal(headers["x-restaurant-id"], undefined);
+    if (requestedPath.includes("/queue-tickets/")) {
+      assert.ok([a.restaurantId, b.restaurantId].includes(headers["x-restaurant-id"]));
+      assert.equal(headers["x-queue-token"], "[redacted]");
+    } else assert.equal(headers["x-restaurant-id"], undefined);
   }
   checks++;
-  console.log(`Production HTTP smoke passed: ${checks} checks against the built Next app and synthetic Spring menu contract (${streamedNotFoundResponses} correctly denied streamed not-found responses).`);
+  console.log(`Production HTTP smoke passed: ${checks} checks against the built Next app and synthetic Spring menu/QR/checkout/queue contracts (${placedOrders.length} orders, ${streamedNotFoundResponses} correctly denied streamed not-found responses).`);
   console.log(`Unknown-host initial response: ${lastReadiness}`);
 } catch (error) {
-  console.error(error);
-  if (nextOutput) console.error(`Next production output (synthetic test traffic only):\n${nextOutput}`);
+  console.error(redact(error.stack ?? error));
+  if (nextOutput) console.error(`Next production output (synthetic test traffic only):\n${redact(nextOutput)}`);
   process.exitCode = 1;
 } finally {
   const cleanupErrors = [];

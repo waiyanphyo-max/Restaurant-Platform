@@ -3,6 +3,13 @@ import { refreshGuestAuthSession } from "./lib/auth/refresh";
 import { GUEST_ROUTE_SLUG_HEADER, guestRouteSlug } from "./lib/tenant-routing";
 
 export async function middleware(request: NextRequest) {
+  // Never echo or render a credential accidentally supplied in a query string.
+  // Ingress must also redact such incoming URLs before its own access logging.
+  if ([...request.nextUrl.searchParams.keys()].some(key => /^(qrToken|queueToken|trackingToken|token)$/i.test(key))) {
+    return new NextResponse("Scan the original QR code again.", { status: 400, headers: {
+      "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff",
+    } });
+  }
   // Always overwrite client-supplied routing context, including on unknown routes.
   request.headers.delete(GUEST_ROUTE_SLUG_HEADER);
   const slug = guestRouteSlug(request.nextUrl.pathname);

@@ -573,65 +573,9 @@ public class OrderService {
             return idempotencyClaim.replayResponse();
         }
 
-        Restaurant restaurant = restaurantRepository
-                .findByIdAndIsActiveTrue(restaurantId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        "RESTAURANT_NOT_FOUND",
-                        "error.restaurant.not-found"
-                ));
-
-        RestaurantSettings settings = settingsRepository
-                .findById(restaurantId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.CONFLICT,
-                        "RESTAURANT_SETTINGS_MISSING",
-                        "error.restaurant.settings-missing"
-                ));
-
-        if (!Boolean.TRUE.equals(settings.getAcceptsOrders())
-                || !Boolean.TRUE.equals(settings.getAllowQrOrder())) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "QR_ORDERING_DISABLED",
-                    "error.restaurant.qr-ordering-disabled"
-            );
-        }
-
-        if (commonQr
-                && !Boolean.TRUE.equals(settings.getAllowTakeaway())) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "TAKEAWAY_UNAVAILABLE",
-                    "error.order.takeaway-unavailable"
-            );
-        }
-
-        DiningTable table = null;
-
-        if (commonQr) {
-            if (!secureEquals(
-                    settings.getCommonQrToken(),
-                    request.qrToken()
-            )) {
-                throw new ApiException(
-                        HttpStatus.FORBIDDEN,
-                        "INVALID_COMMON_QR_TOKEN",
-                        "error.qr.invalid-common-token"
-                );
-            }
-        } else {
-            table = diningTableRepository
-                    .findByRestaurantIdAndQrTokenAndIsActiveTrue(
-                            restaurantId,
-                            request.qrToken()
-                    )
-                    .orElseThrow(() -> new ApiException(
-                            HttpStatus.FORBIDDEN,
-                            "INVALID_TABLE_QR_TOKEN",
-                            "error.qr.invalid-table-token"
-                    ));
-        }
+        ValidatedQrContext context = requireQrContext(restaurantId, request.qrToken(), commonQr);
+        RestaurantSettings settings = context.settings();
+        DiningTable table = context.table();
 
         List<PreparedLine> lines = request.items().stream()
                 .map(item -> prepareLine(restaurantId, item))
@@ -834,6 +778,48 @@ public class OrderService {
         qrOrderIdempotencyService.complete(idempotencyClaim, response);
         return response;
     }
+
+    @Transactional(readOnly = true)
+    public QrContextResponse validateQrContext(UUID restaurantId, QrContextRequest request) {
+        ValidatedQrContext context = requireQrContext(
+                restaurantId, request.qrToken(), request.kind() == QrContextRequest.Kind.COMMON_QR);
+        DiningTable table = context.table();
+        return new QrContextResponse(restaurantId, request.kind(),
+                table == null ? null : table.getId(), table == null ? null : table.getTableNumber());
+    }
+
+    /** Shared by preflight and checkout; checkout always checks current rotation/settings again. */
+    private ValidatedQrContext requireQrContext(UUID restaurantId, String qrToken, boolean commonQr) {
+        restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "RESTAURANT_NOT_FOUND", "error.restaurant.not-found"));
+        RestaurantSettings settings = settingsRepository.findById(restaurantId)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
+                        "RESTAURANT_SETTINGS_MISSING", "error.restaurant.settings-missing"));
+        if (!Boolean.TRUE.equals(settings.getAcceptsOrders())
+                || !Boolean.TRUE.equals(settings.getAllowQrOrder())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "QR_ORDERING_DISABLED", "error.restaurant.qr-ordering-disabled");
+        }
+        if (commonQr && !Boolean.TRUE.equals(settings.getAllowTakeaway())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "TAKEAWAY_UNAVAILABLE", "error.order.takeaway-unavailable");
+        }
+        DiningTable table = null;
+        if (commonQr) {
+            if (!secureEquals(settings.getCommonQrToken(), qrToken)) {
+                throw new ApiException(HttpStatus.FORBIDDEN,
+                        "INVALID_COMMON_QR_TOKEN", "error.qr.invalid-common-token");
+            }
+        } else {
+            table = diningTableRepository.findByRestaurantIdAndQrTokenAndIsActiveTrue(restaurantId, qrToken)
+                    .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
+                            "INVALID_TABLE_QR_TOKEN", "error.qr.invalid-table-token"));
+        }
+        return new ValidatedQrContext(settings, table);
+    }
+
+    private record ValidatedQrContext(RestaurantSettings settings, DiningTable table) {}
 
     private boolean secureEquals(String expected, String actual) {
         if (expected == null || actual == null) {
