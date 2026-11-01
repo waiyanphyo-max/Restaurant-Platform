@@ -9,7 +9,8 @@
     "start": "next start --port 3002",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:production": "node scripts/smoke-production.mjs"
   },
   "dependencies": {
     "@restaurant-platform/api-client": "0.1.0",

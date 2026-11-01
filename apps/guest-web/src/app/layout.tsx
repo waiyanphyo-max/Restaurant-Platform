@@ -1,17 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { getGuestLocale } from "@/lib/locale-server";
+import { resolveGuestTenantContext } from "@/lib/tenant-server";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Restaurant Guest Website",
-  description: "Restaurant-branded guest ordering website foundation.",
-  robots: { index: false, follow: false },
-};
+export const dynamic = "force-dynamic";
+export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+export async function generateMetadata(): Promise<Metadata> {
+  const context = await resolveGuestTenantContext();
+  return {
+    title: context ? `${context.restaurant.branding.displayName} · Menu` : "Restaurant site unavailable",
+    description: "Explore the restaurant menu, available dishes and contact information.",
+    robots: { index: false, follow: false }, referrer: "no-referrer",
+  };
+}
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  return <html lang={await getGuestLocale()}><body>{children}</body></html>;
 }

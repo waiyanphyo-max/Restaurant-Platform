@@ -3,6 +3,8 @@
 **Status:** Design/runbook only. M1 does not change production DNS, backend configuration, Supabase Auth settings, deployed sites, QR credentials, or traffic.
 **Prerequisite:** Read the [M0 reset audit](frontend-reset-audit.md), [API contract](api.md), and [frontend monorepo architecture](frontend-monorepo-architecture.md).
 
+**M5 update:** The [Guest Website foundation](m5-guest-web-foundation.md) implements public menu browsing and tenant checks on reviewed individual restaurant hosts. It does not add the shared-origin compatibility bridge or complete QR checkout required by this production migration. Existing production URLs and credentials must remain in service while those gates are unresolved.
+
 ## Existing links and why they matter
 
 | Distributed link | Existing purpose | Required compatibility |
