@@ -6,6 +6,8 @@ Each real config has a `schemaVersion`, exact backend `restaurantId`, stable `sl
 
 The guest app selects a restaurant only from an explicitly configured Host header. It fails closed for unmapped hosts. A deployed Next.js standalone build must include this directory's real `<slug>.json` files; changing a restaurant domain or branding requires rebuilding/releasing the guest app. No template or test fixture is selected at runtime.
 
+M5 additionally permits reviewed real slugs on loopback development URLs when `GUEST_LOCAL_ROUTING=true` and the Node runtime is not production: `/r/<slug>` or `<slug>.localhost`. These URLs never enable a marketplace or a query-ID tenant override. Production still requires exact configured hosts. See the [Guest Website setup and domain runbook](../../docs/m5-guest-web-foundation.md); authenticated platform domain metadata does not automatically synchronize this registry or activate DNS.
+
 For an Android build, set `RESTAURANT_SLUG`, `MOBILE_ENV=staging|production`, and `PUBLIC_API_BASE_URL` to the shared HTTPS Spring Boot origin. The app config reads the matching real file, embeds its immutable restaurant ID and public branding, and chooses the application ID for its own app project and environment. Staging and production IDs differ, and Operations and Customer IDs differ. Set `iconPath` to a checked-in PNG under this directory's `assets/` tree for a branded launcher icon. Until a real config and icon are supplied, no production Android build is ready.
 
 `fixtures/starter.json` is test-only. It can be used by `npm run build:starter` with `MOBILE_ENV=development` to validate an Android JavaScript export; staging and production resolution never read it. The fixture represents no real restaurant and must not be deployed.

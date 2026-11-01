@@ -2,6 +2,8 @@
 
 **Status:** Starter foundation. This document defines boundaries and acceptance gates; it does not claim the new applications are feature-complete or ready for production traffic. Read the [M0 frontend reset audit](frontend-reset-audit.md) and [PAD-001](product-architecture-decision.md) before extending a client.
 
+**M5 update:** Guest Website public landing/menu/product pages now use the existing Spring public menu API, with server-side tenant/response checks and optional loopback-only local slug routing. The [M5 Guest Website runbook](m5-guest-web-foundation.md) supersedes M1's guest starter behavior and documents exact production domain configuration, missing backend resolver/open-state contracts and the legacy shared-origin migration gate. Other M1 boundaries below remain historical architecture context.
+
 ## Workspace map
 
 | Path | Purpose | Tenant model |

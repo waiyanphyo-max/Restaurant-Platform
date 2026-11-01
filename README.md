@@ -6,7 +6,7 @@ A multi-restaurant ordering and management platform with a shared Spring Boot AP
 
 - `app/api`: Spring Boot API, DTOs, entities, repositories, security, and service layer.
 - `apps/admin-web`: platform-admin Next.js starter.
-- `apps/guest-web`: host-resolved, restaurant-branded Next.js guest starter with legacy URL aliases.
+- `apps/guest-web`: tenant-resolved, restaurant-branded public landing/menu/product pages with legacy QR entry aliases and local slug routing.
 - `apps/operations-mobile`: separate React Native/Expo Android application project for Owner, Manager, Staff, and Driver.
 - `apps/customer-mobile`: separate React Native/Expo Android application project for one restaurant's delivery customers.
 - `packages/api-client`, `packages/shared-types`, `packages/ui-tokens`: shared transport, wire types, and design primitives.
@@ -18,6 +18,7 @@ A multi-restaurant ordering and management platform with a shared Spring Boot AP
 - `docs/database-erd.md`: entity relationships, schema ownership, and migration workflow.
 - `docs/frontend-monorepo-architecture.md`: M1 package boundaries, tenant branding, and environment rules.
 - `docs/production-url-migration.md`: compatibility and cutover requirements for already distributed URLs.
+- `docs/m5-guest-web-foundation.md`: public menu integration, tenant isolation, local setup, production domain configuration and remaining backend gaps.
 - `.env.example`: sample backend environment variables only; never put real secrets in this file or in the frontend.
 
 The database schema remains the source of truth. Hibernate is configured with `ddl-auto: validate`; it must not create or modify production schema.
@@ -142,6 +143,8 @@ M0 removed the previous Next.js implementation from `apps/web`; [`docs/frontend-
 The new frontend must use the existing API contracts in [`docs/api.md`](docs/api.md) and preserve previously distributed Common QR, Table QR, owner workspace, and Supabase authentication URLs. Spring Boot continues to enforce authorization. Backend web-link and CORS defaults have not been migrated; follow [`docs/production-url-migration.md`](docs/production-url-migration.md) before switching traffic. M1 starters are not production ordering or admin deployments.
 
 M2 adds separate public and authenticated [typed API clients](packages/api-client/README.md), Next.js cookie-based and Android SecureStore-backed Supabase Auth adapters, and an Admin access check against Spring. See [M2 acceptance](docs/m2-acceptance.md), the [API coverage and gap report](docs/api-coverage-gap-report.md), the [actual role-permission matrix](docs/role-permission-matrix.md), and the [disabled phone-auth design](docs/phone-auth-design.md). Live Auth, device storage, and production URL migration still require staging verification.
+
+M5 adds restaurant-branded public menu browsing through the real Spring menu endpoint, server-side tenant/response checks and English/Burmese UI localization. Local development supports reviewed restaurant slugs; production requires exact configured domains. See the [Guest Website setup and production domain runbook](docs/m5-guest-web-foundation.md). QR entry stays public; checkout and migration of an old shared QR origin remain separate readiness gates.
 
 ## External push notification delivery
 
