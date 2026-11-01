@@ -9,6 +9,8 @@ import { findMenuProduct, formatMenuPrice, loadGuestMenu, safeImageUrl } from "@
 import { MenuContent, ProductAvailability, ProductPrice, RestaurantContact } from "./MenuContent";
 import { LegacyQrCredential } from "./LegacyQrCredential";
 import { GuestState } from "./GuestState";
+import { GuestOrdering } from "./GuestOrdering";
+import { ProductConfigurator } from "./ProductConfigurator";
 
 export async function GuestPage({ slug, view, productId, search = {} }: {
   slug?: string; view: "home" | "menu" | "product" | "workspace";
@@ -23,7 +25,7 @@ export async function GuestPage({ slug, view, productId, search = {} }: {
   if (intent.kind === "invalid") notFound();
   if (intent.kind === "owner") return <section className="state-panel"><h1>{text.ownerTitle}</h1><p>{text.ownerNote}</p></section>;
   const result = await loadGuestMenu(restaurant);
-  if (result.kind !== "ready") return <GuestState kind={result.kind === "unavailable" ? "unavailable" : "error"} locale={locale} basePath={basePath} />;
+  if (result.kind !== "ready") return <><GuestOrdering currency="" /><GuestState kind={result.kind === "unavailable" ? "unavailable" : "error"} locale={locale} basePath={basePath} /></>;
   const menu = result.menu;
   const isQr = intent.kind === "common-qr" || intent.kind === "table-qr";
   const MenuHeading = view === "home" && !isQr ? "h2" : "h1";
@@ -34,6 +36,7 @@ export async function GuestPage({ slug, view, productId, search = {} }: {
     const { product, category } = match;
     const image = safeImageUrl(product.imageUrl);
     return <>
+      <GuestOrdering currency={menu.currency} />
       <Link className="back-link" href={`${basePath}/menu`} prefetch={false}>← {text.back}</Link>
       <article className={`product-detail ${image ? "has-image" : ""}`}>
         {image && <img className="detail-image" src={image} alt={product.name} width={640} height={640} decoding="async" referrerPolicy="no-referrer" />}
@@ -44,6 +47,7 @@ export async function GuestPage({ slug, view, productId, search = {} }: {
           })}</ul></section>}
           {product.modifierGroups.length > 0 && <section className="choices-section" aria-labelledby="modifier-heading"><h2 id="modifier-heading">{text.modifiers}</h2>{product.modifierGroups.map(group => <div key={group.id} className="modifier-group"><div className="modifier-heading"><h3>{group.name}</h3><span className="choice-label">{group.required ? text.required : text.optional}</span></div><p className="muted">{text.selectionRange}: {group.minSelections}–{group.maxSelections}</p>{group.options.length ? <ul className="choice-list">{group.options.map(option => <li key={option.id}><div><strong>{option.name}</strong>{!option.available && <span className="muted">{text.unavailable}</span>}</div><span className="choice-price">+{formatMenuPrice(option.additionalPrice, menu.currency, locale)}</span></li>)}</ul> : <p>{text.noOptions}</p>}</div>)}</section>}
           <p className="menu-footnote">{text.availabilityNote}</p>
+          <ProductConfigurator product={product} currency={menu.currency} />
         </div>
       </article>
       <RestaurantContact menu={menu} locale={locale} />
@@ -52,6 +56,7 @@ export async function GuestPage({ slug, view, productId, search = {} }: {
 
   return <>
     {isQr && <LegacyQrCredential />}
+    <GuestOrdering currency={menu.currency} />
     {view === "home" && !isQr ? <section className="welcome-panel"><div className="welcome-copy"><span className="eyebrow">{text.welcome}</span><h1>{menu.restaurantName}</h1><p>{menu.description || text.welcomeNote}</p><a className="button" href="#our-menu">{text.browse}<span aria-hidden="true">↗</span></a><span className="guest-note">{text.guestNote}</span></div><div className="welcome-art" aria-hidden="true"><div className="plate"><span>✳</span></div><span className="art-caption">{menu.restaurantName}</span></div></section> : null}
     <section className="menu-heading" id="our-menu"><div><span className="eyebrow">{view === "home" && !isQr ? menu.restaurantName : text.menu}</span><MenuHeading>{text.menuIntro}</MenuHeading></div><p>{text.guestNote}</p></section>
     <MenuContent menu={menu} locale={locale} basePath={basePath} />

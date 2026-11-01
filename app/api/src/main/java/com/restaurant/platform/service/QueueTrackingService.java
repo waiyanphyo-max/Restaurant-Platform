@@ -31,7 +31,12 @@ public class QueueTrackingService {
 
     @Transactional(readOnly = true)
     public QueueTrackingResponse getStatus(UUID ticketId, String rawToken) {
-        QueueTicket ticket = requireTicketWithValidToken(ticketId, rawToken);
+        return getStatus(ticketId, rawToken, null);
+    }
+
+    @Transactional(readOnly = true)
+    public QueueTrackingResponse getStatus(UUID ticketId, String rawToken, UUID restaurantId) {
+        QueueTicket ticket = requireTicketWithValidToken(ticketId, rawToken, restaurantId);
 
         Order order = orderRepository
                 .findByQueueTicketId(ticket.getId())
@@ -52,7 +57,12 @@ public class QueueTrackingService {
 
     @Transactional(readOnly = true)
     public List<NotificationResponse> getNotifications(UUID ticketId, String rawToken) {
-        QueueTicket ticket = requireTicketWithValidToken(ticketId, rawToken);
+        return getNotifications(ticketId, rawToken, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<NotificationResponse> getNotifications(UUID ticketId, String rawToken, UUID restaurantId) {
+        QueueTicket ticket = requireTicketWithValidToken(ticketId, rawToken, restaurantId);
 
         return notificationRepository
                 .findByQueueTicketIdOrderByCreatedAtDesc(ticket.getId())
@@ -66,7 +76,13 @@ public class QueueTrackingService {
             UUID ticketId,
             UUID notificationId,
             String rawToken) {
-        QueueTicket ticket = requireTicketWithValidToken(ticketId, rawToken);
+        return markNotificationRead(ticketId, notificationId, rawToken, null);
+    }
+
+    @Transactional
+    public NotificationResponse markNotificationRead(
+            UUID ticketId, UUID notificationId, String rawToken, UUID restaurantId) {
+        QueueTicket ticket = requireTicketWithValidToken(ticketId, rawToken, restaurantId);
 
         AppNotification notification = notificationRepository
                 .findByIdAndQueueTicketId(notificationId, ticket.getId())
@@ -82,7 +98,7 @@ public class QueueTrackingService {
         return toResponse(notificationRepository.save(notification));
     }
 
-    private QueueTicket requireTicketWithValidToken(UUID ticketId, String rawToken) {
+    private QueueTicket requireTicketWithValidToken(UUID ticketId, String rawToken, UUID restaurantId) {
         if (ticketId == null || rawToken == null || rawToken.isBlank()) {
             throw queueTicketNotFound();
         }
@@ -90,7 +106,8 @@ public class QueueTrackingService {
         QueueTicket ticket = queueTicketRepository.findById(ticketId)
                 .orElseThrow(this::queueTicketNotFound);
 
-        if (!TokenUtils.matches(rawToken, ticket.getPublicTokenHash())) {
+        if ((restaurantId != null && !restaurantId.equals(ticket.getRestaurantId()))
+                || !TokenUtils.matches(rawToken, ticket.getPublicTokenHash())) {
             // Same response for unknown ticket IDs and invalid tokens to avoid
             // exposing which queue ticket IDs exist.
             throw queueTicketNotFound();
