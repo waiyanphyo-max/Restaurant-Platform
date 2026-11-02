@@ -24,4 +24,12 @@ describe("embedded Operations configuration", () => {
     expect(() => parseEmbeddedTenant({ ...build, tenant: { ...build.tenant, restaurantId: "other" } })).toThrow();
     expect(() => parseEmbeddedTenant({ ...build, tenant: { ...build.tenant, branding: { displayName: "", primaryColor: "red" } } })).toThrow();
   });
+  it("only permits safe configured guest origins and leaves unconfigured QR export unavailable", () => {
+    expect(parseEmbeddedTenant(build).guestBaseUrl).toBeNull();
+    expect(parseEmbeddedTenant({ ...build, guestBaseUrl: "http://10.0.2.2:3000" }).guestBaseUrl).toBe("http://10.0.2.2:3000");
+    expect(parseEmbeddedTenant({ ...build, mobileEnvironment: "production", apiBaseUrl: "https://api.example.test", guestBaseUrl: "https://restaurant.example.test" }).guestBaseUrl).toBe("https://restaurant.example.test");
+    for (const guestBaseUrl of ["http://evil.test", "https://user:pass@restaurant.test", "https://restaurant.test/path", "https://restaurant.test?token=bad", "https://restaurant.test#bad"]) {
+      expect(() => parseEmbeddedTenant({ ...build, guestBaseUrl })).toThrow();
+    }
+  });
 });

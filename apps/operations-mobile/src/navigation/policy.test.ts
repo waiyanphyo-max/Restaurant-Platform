@@ -11,15 +11,15 @@ const ids = (role: string) => getNavigationItems(member(role), restaurantId).map
 
 describe("operations navigation policy", () => {
   it("matches the Owner and Manager supported navigation in the requested order", () => {
-    expect(ids("OWNER")).toEqual(["dashboard", "orders", "menu", "sales-history", "reports", "team", "settings", "profile"]);
-    expect(ids("MANAGER")).toEqual(["dashboard", "orders", "menu", "sales-history", "reports", "deliveries", "profile"]);
+    expect(ids("OWNER")).toEqual(["dashboard", "orders", "menu", "sales-history", "reports", "team", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
+    expect(ids("MANAGER")).toEqual(["dashboard", "orders", "menu", "sales-history", "reports", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
   });
 
   it("restricts staff and drivers to operational screens", () => {
-    expect(ids("STAFF")).toEqual(["dashboard", "orders", "menu", "deliveries", "profile"]);
-    expect(ids("DELIVERY_DRIVER")).toEqual(["dashboard", "deliveries", "profile"]);
+    expect(ids("STAFF")).toEqual(["dashboard", "orders", "menu", "queue", "notifications", "deliveries", "profile"]);
+    expect(ids("DELIVERY_DRIVER")).toEqual(["dashboard", "notifications", "deliveries", "profile"]);
     for (const role of ["STAFF", "DELIVERY_DRIVER"]) {
-      for (const screen of ["reports", "sales-history", "accounting", "shopping", "team", "settings"]) {
+      for (const screen of ["reports", "sales-history", "accounting", "shopping", "team", "settings", "tables"]) {
         expect(canAccessScreen(screen, member(role), restaurantId)).toBe(false);
       }
       expect(getPlannedNavigationItems(member(role), restaurantId)).toEqual([]);

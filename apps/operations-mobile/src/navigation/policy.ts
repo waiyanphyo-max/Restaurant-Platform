@@ -3,9 +3,9 @@ import type { MyRestaurantResponse } from "@restaurant-platform/shared-types";
 export const OPERATIONS_ROLES = ["OWNER", "MANAGER", "STAFF", "DELIVERY_DRIVER"] as const;
 export type OperationsRole = typeof OPERATIONS_ROLES[number];
 export type ScreenId = "dashboard" | "orders" | "menu" | "shopping" | "sales-history"
-  | "accounting" | "reports" | "team" | "settings" | "deliveries" | "profile";
+  | "accounting" | "reports" | "team" | "settings" | "deliveries" | "profile" | "tables" | "queue" | "notifications";
 export type OperationsPermission = "RESTAURANT_READ" | "ORDER_READ" | "MENU_READ"
-  | "REPORT_READ" | "MEMBERS_MANAGE" | "SETTINGS_MANAGE" | "DELIVERY_READ";
+  | "REPORT_READ" | "MEMBERS_MANAGE" | "SETTINGS_MANAGE" | "DELIVERY_READ" | "QUEUE_MANAGE";
 
 export interface NavigationItem {
   readonly id: ScreenId;
@@ -26,9 +26,9 @@ const financialRoles = ["OWNER", "MANAGER"] as const;
  * every endpoint. Future accounting permissions must be explicit backend grants.
  */
 const rolePermissions: Readonly<Record<OperationsRole, readonly OperationsPermission[]>> = {
-  OWNER: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "REPORT_READ", "MEMBERS_MANAGE", "SETTINGS_MANAGE", "DELIVERY_READ"],
-  MANAGER: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "REPORT_READ", "SETTINGS_MANAGE", "DELIVERY_READ"],
-  STAFF: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "DELIVERY_READ"],
+  OWNER: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "REPORT_READ", "MEMBERS_MANAGE", "SETTINGS_MANAGE", "DELIVERY_READ", "QUEUE_MANAGE"],
+  MANAGER: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "REPORT_READ", "SETTINGS_MANAGE", "DELIVERY_READ", "QUEUE_MANAGE"],
+  STAFF: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "DELIVERY_READ", "QUEUE_MANAGE"],
   DELIVERY_DRIVER: ["RESTAURANT_READ", "DELIVERY_READ"]
 };
 
@@ -50,9 +50,15 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     requiredPermission: "REPORT_READ", description: "Existing daily operations report; accounting revenue and profit are unavailable." },
   { id: "team", label: "Team", path: "/team", status: "ready", roles: ["OWNER"],
     requiredPermission: "MEMBERS_MANAGE", description: "Restaurant membership information." },
-  { id: "settings", label: "Settings", path: "/settings", status: "ready", roles: ["OWNER"],
+  { id: "settings", label: "Restaurant", path: "/settings", status: "ready", roles: ["OWNER", "MANAGER"],
     requiredPermission: "SETTINGS_MANAGE", description: "Restaurant configuration." },
-  { id: "deliveries", label: "Deliveries", path: "/deliveries", status: "ready", roles: ["MANAGER", "STAFF", "DELIVERY_DRIVER"],
+  { id: "tables", label: "Tables & QR", path: "/tables", status: "ready", roles: ["OWNER", "MANAGER"],
+    requiredPermission: "SETTINGS_MANAGE", description: "Tables and sensitive one-time QR generation." },
+  { id: "queue", label: "Pickup queue", path: "/queue", status: "ready", roles: ["OWNER", "MANAGER", "STAFF"],
+    requiredPermission: "QUEUE_MANAGE", description: "Current queue day and pickup calls." },
+  { id: "notifications", label: "Updates", path: "/notifications", status: "ready", roles: allRoles,
+    requiredPermission: "RESTAURANT_READ", description: "Your notifications for the configured restaurant." },
+  { id: "deliveries", label: "Deliveries", path: "/deliveries", status: "ready", roles: allRoles,
     requiredPermission: "DELIVERY_READ", description: "Delivery operations; drivers see only their assigned tasks." },
   { id: "profile", label: "Profile", path: "/profile", status: "ready", roles: allRoles,
     requiredPermission: "RESTAURANT_READ", description: "Your signed-in account, restaurant membership and sign out." }

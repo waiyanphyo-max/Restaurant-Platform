@@ -4,6 +4,9 @@ import com.restaurant.platform.dto.delivery.DefaultDeliveryDriverRequest;
 import com.restaurant.platform.dto.delivery.DefaultDeliveryDriverResponse;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.DeliveryService;
+import com.restaurant.platform.service.DeliveryAssignmentOptionsService;
+import com.restaurant.platform.dto.delivery.DeliveryAssignmentOption;
+import java.util.List;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +20,12 @@ public class DeliverySettingsController {
 
     private final DeliveryService deliveryService;
     private final RestaurantAuthorization authorization;
+    private final DeliveryAssignmentOptionsService assignmentOptionsService;
+
+    @GetMapping("/assignment-options")
+    public List<DeliveryAssignmentOption> assignmentOptions(@PathVariable UUID restaurantId) {
+        return assignmentOptionsService.list(restaurantId);
+    }
 
     @GetMapping("/default-driver")
     public DefaultDeliveryDriverResponse getDefaultDriver(

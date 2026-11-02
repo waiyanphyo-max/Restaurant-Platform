@@ -5,7 +5,7 @@ const test = require("node:test");
 const configure = require("../app.config.js");
 
 function withEnvironment(values, callback) {
-  const names = ["MOBILE_ENV", "RESTAURANT_SLUG", "PUBLIC_API_BASE_URL", "OPERATIONS_PHONE_OTP_ENABLED"];
+  const names = ["MOBILE_ENV", "RESTAURANT_SLUG", "PUBLIC_API_BASE_URL", "PUBLIC_GUEST_BASE_URL", "OPERATIONS_PHONE_OTP_ENABLED"];
   const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
   try {
     for (const name of names) {

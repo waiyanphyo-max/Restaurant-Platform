@@ -3,7 +3,12 @@ import { ScreenGuard } from "../../src/navigation/ScreenGuard";
 import { DashboardScreen } from "../../src/features/operations/DashboardScreen";
 import { OrdersScreen } from "../../src/features/operations/OrdersScreen";
 import { ReportsScreen } from "../../src/features/operations/ReportsScreen";
-import { MenuScreen, SettingsScreen, TeamScreen } from "../../src/features/operations/ManagementScreens";
+import { MenuScreen } from "../../src/features/menu/MenuScreen";
+import { SettingsScreen } from "../../src/features/management/SettingsScreen";
+import { TeamScreen } from "../../src/features/management/TeamScreen";
+import { TablesScreen } from "../../src/features/management/TablesScreen";
+import { QueueScreen } from "../../src/features/operations/QueueScreen";
+import { NotificationsScreen } from "../../src/features/operations/NotificationsScreen";
 import { DeliveriesScreen } from "../../src/features/operations/DeliveriesScreen";
 import { ProfileScreen } from "../../src/features/profile/ProfileScreen";
 
@@ -15,6 +20,7 @@ export default function OperationsRoute() {
       : screen === "sales-history" ? <OrdersScreen history /> : screen === "reports" ? <ReportsScreen />
       : screen === "menu" ? <MenuScreen /> : screen === "team" ? <TeamScreen />
       : screen === "settings" ? <SettingsScreen /> : screen === "deliveries" ? <DeliveriesScreen />
+      : screen === "tables" ? <TablesScreen /> : screen === "queue" ? <QueueScreen /> : screen === "notifications" ? <NotificationsScreen />
       : screen === "profile" ? <ProfileScreen /> : null}
   </ScreenGuard>;
 }

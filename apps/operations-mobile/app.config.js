@@ -13,7 +13,8 @@ module.exports = ({ config }) => {
     plugins: [
       "expo-router",
       ["expo-secure-store", { configureAndroidBackup: true }],
-      ["expo-build-properties", { android: { usesCleartextTraffic: selected.environment === "development" } }]
+      ["expo-build-properties", { android: { usesCleartextTraffic: selected.environment === "development" } }],
+      ["expo-image-picker", { cameraPermission: false, microphonePermission: false, photosPermission: "Choose a restaurant or menu image." }]
     ],
     orientation: "portrait",
     android: {
@@ -30,6 +31,9 @@ module.exports = ({ config }) => {
       appKind: "operations",
       mobileEnvironment: selected.environment,
       apiBaseUrl: selected.apiBaseUrl,
+      guestBaseUrl: selected.environment === "development"
+        ? process.env.PUBLIC_GUEST_BASE_URL || null
+        : `https://${selected.restaurant.guestDomains[selected.environment][0]}`,
       features: { phoneOtpRequested: process.env.OPERATIONS_PHONE_OTP_ENABLED === "true" }
     }
   };

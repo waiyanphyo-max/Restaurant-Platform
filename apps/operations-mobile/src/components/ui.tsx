@@ -1,10 +1,11 @@
 import { useId, type PropsWithChildren, type ReactNode } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { resolveBrandTokens } from "@restaurant-platform/ui-tokens";
 import { readEmbeddedTenant } from "../tenant";
 
-export function Page({ title, subtitle, children }: PropsWithChildren<{ title: string; subtitle?: string }>) {
-  return <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+export function Page({ title, subtitle, children, onRefresh, refreshing = false }: PropsWithChildren<{ title: string; subtitle?: string; onRefresh?: () => void; refreshing?: boolean }>) {
+  return <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled"
+    refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined}>
     <Text accessibilityRole="header" style={styles.heading}>{title}</Text>
     {subtitle ? <Text style={styles.muted}>{subtitle}</Text> : null}
     {children}
@@ -80,7 +81,10 @@ export function StateView({ kind, title, message, onRetry }: {
 }) {
   const titles = { loading: "Loading your workspace", offline: "You are offline", error: "Something went wrong", denied: "Access unavailable" };
   return <Card><Text accessibilityRole="header" style={styles.cardTitle}>{title ?? titles[kind]}</Text>
-    {kind === "loading" ? <ActivityIndicator accessibilityLabel="Loading" /> : null}
+    {kind === "loading" ? <><ActivityIndicator accessibilityLabel="Loading" />
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ gap: 10 }}>
+        {["100%", "82%", "64%"].map(width => <View key={width} style={{ height: 16, borderRadius: 6, backgroundColor: "#e2e8f0", width: width as `${number}%` }} />)}
+      </View></> : null}
     {message ? <Text accessibilityRole={kind === "error" ? "alert" : "text"} style={styles.body}>{message}</Text> : null}
     {onRetry ? <Action title="Try again" onPress={onRetry} /> : null}
   </Card>;

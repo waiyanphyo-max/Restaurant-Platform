@@ -150,6 +150,7 @@ All routes below require a valid Supabase bearer token.
 
 - `GET /api/v1/restaurants/{restaurantId}/delivery-settings/default-driver`
 - `PATCH /api/v1/restaurants/{restaurantId}/delivery-settings/default-driver`
+- `GET /api/v1/restaurants/{restaurantId}/delivery-settings/assignment-options` — M8-A narrow picker, requires `DELIVERY_ASSIGN` (OWNER/MANAGER); returns `{userId, fullName, email}[]` for current same-restaurant `DELIVERY_DRIVER` members only. It does not grant member administration or broaden assignment eligibility. Assignment/default-driver writes still revalidate the target membership server-side.
 
 Required permission: `SETTINGS_MANAGE`.
 
@@ -274,6 +275,13 @@ Requires `QUEUE_MANAGE`. A ticket must belong to the route's restaurant and be i
 An order status update to `READY` already moves a linked queue ticket to `READY` and creates a `QUEUE_READY` in-app notification. A subsequent manager call records `QUEUE_CALLED`.
 
 ### Authenticated notification inbox
+
+M8-A branded Operations uses these scoped views of the existing notification store:
+
+- `GET /api/v1/restaurants/{restaurantId}/notifications?status=PENDING`
+- `PATCH /api/v1/restaurants/{restaurantId}/notifications/{notificationId}/read`
+
+Both require `RESTAURANT_READ` for the path restaurant and use only the JWT subject's addressed notifications. Records must link to an order (directly or through its queue ticket) in that restaurant; if both references exist they must match the same restaurant order. Unrelated/global records are excluded. Valid optional statuses and `NotificationResponse` fields match the personal inbox. Read is idempotent, preserves the first read timestamp, and returns 404 for another user's or restaurant's ID. An empty inbox does not mean the backend generates an Owner-wide activity feed: current notifications are addressed to particular users. No messaging provider or schema change is introduced.
 
 - `GET /api/v1/notifications` — returns notifications addressed to the authenticated JWT subject.
 - `GET /api/v1/notifications?status=PENDING` — optional status filter; valid values are `PENDING`, `SENT`, `FAILED`, and `READ`.

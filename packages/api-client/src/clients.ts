@@ -13,6 +13,14 @@ import type {
   QueueTicketManagerDto, QueueTrackingResponse, RestaurantResponse, SpringPage,
   UpdateDeliveryStatusRequest, UpdateOrderStatusRequest
 } from "@restaurant-platform/shared-types";
+import type {
+  CategoryRequest, ProductRequest, ProductVariantRequest, ProductVariantResponse,
+  ModifierGroupRequest, ModifierGroupResponse, ModifierOptionRequest, ModifierOptionResponse,
+  UpdateRestaurantRequest, RestaurantLogoResponse, RestaurantSettingsRequest, CommonQrTokenResponse,
+  DiningTableRequest, DiningTableResponse, DiningTableQrTokenResponse, InviteRestaurantMemberRequest,
+  RestaurantMemberRequest, TransferRestaurantOwnershipRequest, TransferRestaurantOwnershipResponse,
+  DeliveryZoneRequest, DeliveryZoneResponse, DefaultDeliveryDriverResponse, DeliveryAssignmentOption
+} from "@restaurant-platform/shared-types";
 import { ApiConfigurationError, ApiProtocolError, TenantAccessError } from "./errors.js";
 import { requireHeaderValue, requireUuid } from "./tenant.js";
 import { createTransport, createAuthenticatedTransport } from "./transport.js";
@@ -131,6 +139,14 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
   const prefix = `/api/v1/restaurants/${restaurantId}`;
   const orderPath = (id: string) => `${prefix}/orders/${requireUuid(id, "orderId")}`;
   const deliveryPath = (id: string) => `${prefix}/deliveries/${requireUuid(id, "deliveryId")}`;
+  const productPath = (id: string) => `${prefix}/products/${requireUuid(id, "productId")}`;
+  const groupPath = (id: string) => `${prefix}/modifier-groups/${requireUuid(id, "groupId")}`;
+  const tablePath = (id: string) => `${prefix}/tables/${requireUuid(id, "tableId")}`;
+  const memberPath = (id: string) => `${prefix}/members/${requireUuid(id, "memberId")}`;
+  const write = <T>(method: "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, o?: ApiRequestOptions): Promise<T> =>
+    transport.request({ method, path, body, options: o });
+  const upload = <T>(path: string, multipartBody: FormData, o?: ApiRequestOptions): Promise<T> =>
+    transport.request({ method: "POST", path, multipartBody, options: o });
   return {
     restaurantId,
     async getConfiguredMembership(o?: ApiRequestOptions): Promise<MyRestaurantResponse> {
@@ -155,6 +171,66 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
     },
     getSettings: async (o?: ApiRequestOptions) => checkedRestaurantResponse(
       await read<RestaurantSettingsResponse>(transport, `${prefix}/settings`, o), restaurantId, "restaurantId"),
+    updateRestaurantProfile: async (body: UpdateRestaurantRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<RestaurantResponse>("PUT", `${prefix}/profile`, body, o), restaurantId, "id"),
+    uploadRestaurantLogo: async (formData: FormData, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await upload<RestaurantLogoResponse>(`${prefix}/logo`, formData, o), restaurantId, "restaurantId"),
+    updateSettings: async (body: RestaurantSettingsRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<RestaurantSettingsResponse>("PUT", `${prefix}/settings`, body, o), restaurantId, "restaurantId"),
+    rotateCommonQrToken: async (o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<CommonQrTokenResponse>("POST", `${prefix}/settings/common-qr-token/rotate`, undefined, o), restaurantId, "restaurantId"),
+    listTables: async (o?: ApiRequestOptions) => (await read<DiningTableResponse[]>(transport, `${prefix}/tables`, o))
+      .map(table => checkedRestaurantResponse(table, restaurantId, "restaurantId")),
+    createTable: (body: DiningTableRequest, o?: ApiRequestOptions) => write<DiningTableQrTokenResponse>("POST", `${prefix}/tables`, body, o),
+    updateTable: async (id: string, body: DiningTableRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<DiningTableResponse>("PUT", tablePath(id), body, o), restaurantId, "restaurantId"),
+    rotateTableQrToken: (id: string, o?: ApiRequestOptions) => write<DiningTableQrTokenResponse>("POST", `${tablePath(id)}/qr-token/rotate`, undefined, o),
+    inviteMember: async (body: InviteRestaurantMemberRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<RestaurantMemberResponse>("POST", `${prefix}/members/invitations`, body, o), restaurantId, "restaurantId"),
+    updateMember: async (id: string, body: RestaurantMemberRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<RestaurantMemberResponse>("PUT", memberPath(id), { ...body, userId: requireUuid(body.userId, "userId") }, o), restaurantId, "restaurantId"),
+    removeMember: (id: string, o?: ApiRequestOptions) => write<void>("DELETE", memberPath(id), undefined, o),
+    transferOwnership: async (body: TransferRestaurantOwnershipRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<TransferRestaurantOwnershipResponse>("POST", `${prefix}/members/transfer-ownership`,
+        { newOwnerUserId: requireUuid(body.newOwnerUserId, "newOwnerUserId") }, o), restaurantId, "restaurantId"),
+    createCategory: (body: CategoryRequest, o?: ApiRequestOptions) => write<CategoryResponse>("POST", `${prefix}/categories`, body, o),
+    updateCategory: (id: string, body: CategoryRequest, o?: ApiRequestOptions) => write<CategoryResponse>("PUT", `${prefix}/categories/${requireUuid(id, "categoryId")}`, body, o),
+    createProduct: (body: ProductRequest, o?: ApiRequestOptions) => write<ProductManagementResponse>("POST", `${prefix}/products`,
+      { ...body, categoryId: requireUuid(body.categoryId, "categoryId") }, o),
+    updateProduct: (id: string, body: ProductRequest, o?: ApiRequestOptions) => write<ProductManagementResponse>("PUT", productPath(id),
+      { ...body, categoryId: requireUuid(body.categoryId, "categoryId") }, o),
+    listVariants: (id: string, o?: ApiRequestOptions) => read<ProductVariantResponse[]>(transport, `${productPath(id)}/variants`, o),
+    createVariant: (id: string, body: ProductVariantRequest, o?: ApiRequestOptions) => write<ProductVariantResponse>("POST", `${productPath(id)}/variants`, body, o),
+    updateVariant: (id: string, variantId: string, body: ProductVariantRequest, o?: ApiRequestOptions) => write<ProductVariantResponse>("PUT", `${productPath(id)}/variants/${requireUuid(variantId, "variantId")}`, body, o),
+    listModifierGroups: (o?: ApiRequestOptions) => read<ModifierGroupResponse[]>(transport, `${prefix}/modifier-groups`, o),
+    createModifierGroup: (body: ModifierGroupRequest, o?: ApiRequestOptions) => write<ModifierGroupResponse>("POST", `${prefix}/modifier-groups`, body, o),
+    updateModifierGroup: (id: string, body: ModifierGroupRequest, o?: ApiRequestOptions) => write<ModifierGroupResponse>("PUT", groupPath(id), body, o),
+    createModifierOption: (id: string, body: ModifierOptionRequest, o?: ApiRequestOptions) => write<ModifierOptionResponse>("POST", `${groupPath(id)}/options`, body, o),
+    updateModifierOption: (id: string, optionId: string, body: ModifierOptionRequest, o?: ApiRequestOptions) => write<ModifierOptionResponse>("PUT", `${groupPath(id)}/options/${requireUuid(optionId, "optionId")}`, body, o),
+    getProductModifierGroups: (id: string, o?: ApiRequestOptions) => read<ModifierGroupResponse[]>(transport, `${productPath(id)}/modifier-groups`, o),
+    linkProductModifierGroup: (id: string, groupId: string, o?: ApiRequestOptions) => write<void>("PUT", `${productPath(id)}/modifier-groups/${requireUuid(groupId, "groupId")}`, undefined, o),
+    unlinkProductModifierGroup: (id: string, groupId: string, o?: ApiRequestOptions) => write<void>("DELETE", `${productPath(id)}/modifier-groups/${requireUuid(groupId, "groupId")}`, undefined, o),
+    uploadProductImage: (id: string, formData: FormData, o?: ApiRequestOptions) => upload<ProductManagementResponse>(`${productPath(id)}/image`, formData, o),
+    uploadVariantImage: (id: string, variantId: string, formData: FormData, o?: ApiRequestOptions) => upload<ProductVariantResponse>(`${productPath(id)}/variants/${requireUuid(variantId, "variantId")}/image`, formData, o),
+    listDeliveryZones: async (o?: ApiRequestOptions) => (await read<DeliveryZoneResponse[]>(transport, `${prefix}/delivery-zones`, o))
+      .map(zone => checkedRestaurantResponse(zone, restaurantId, "restaurantId")),
+    createDeliveryZone: async (body: DeliveryZoneRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<DeliveryZoneResponse>("POST", `${prefix}/delivery-zones`, body, o), restaurantId, "restaurantId"),
+    updateDeliveryZone: async (id: string, body: DeliveryZoneRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<DeliveryZoneResponse>("PUT", `${prefix}/delivery-zones/${requireUuid(id, "zoneId")}`, body, o), restaurantId, "restaurantId"),
+    getDefaultDriver: async (o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await read<DefaultDeliveryDriverResponse>(transport, `${prefix}/delivery-settings/default-driver`, o), restaurantId, "restaurantId"),
+    setDefaultDriver: async (body: { driverUserId: string }, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await write<DefaultDeliveryDriverResponse>("PATCH", `${prefix}/delivery-settings/default-driver`,
+        { driverUserId: requireUuid(body.driverUserId, "driverUserId") }, o), restaurantId, "restaurantId"),
+    listDeliveryAssignmentOptions: (o?: ApiRequestOptions) => read<DeliveryAssignmentOption[]>(transport, `${prefix}/delivery-settings/assignment-options`, o),
+    listNotifications: (status?: string, o?: ApiRequestOptions) => read<NotificationResponse[]>(transport, `${prefix}/notifications`, o, { status }),
+    markNotificationRead: (id: string, o?: ApiRequestOptions) => write<NotificationResponse>("PATCH", `${prefix}/notifications/${requireUuid(id, "notificationId")}/read`, undefined, o),
+    collectPayment: async (id: string, paymentId: string, o?: ApiRequestOptions) => {
+      const payment = await write<PaymentResponse>("PATCH", `${orderPath(id)}/payments/${requireUuid(paymentId, "paymentId")}/collect`, undefined, o);
+      if (payment?.orderId?.toLowerCase() !== requireUuid(id, "orderId") || payment?.id?.toLowerCase() !== requireUuid(paymentId, "paymentId")) throw new ApiProtocolError();
+      return payment;
+    },
     async listOrderPayments(id: string, o?: ApiRequestOptions): Promise<PaymentResponse[]> {
       const orderId = requireUuid(id, "orderId");
       const payments = await read<PaymentResponse[]>(transport, `${orderPath(orderId)}/payments`, o);

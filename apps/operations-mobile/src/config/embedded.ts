@@ -5,6 +5,7 @@ export interface EmbeddedOperationsTenant {
   slug: string;
   branding: RestaurantBranding;
   apiBaseUrl: string;
+  guestBaseUrl: string | null;
   environment: "development" | "staging" | "production";
   phoneOtpRequested: boolean;
 }
@@ -37,6 +38,15 @@ export function parseEmbeddedTenant(extra: unknown): EmbeddedOperationsTenant {
     throw new Error("Operations build has an unsafe API origin");
   }
   const branding: RestaurantBranding = { displayName: tenant.branding.displayName, primaryColor: tenant.branding.primaryColor };
+  let guestBaseUrl: string | null = null;
+  if (extra.guestBaseUrl != null) {
+    if (typeof extra.guestBaseUrl !== "string") throw new Error("Invalid guest origin");
+    const guest = new URL(extra.guestBaseUrl);
+    const localGuest = extra.mobileEnvironment === "development" && guest.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "10.0.2.2", "[::1]"].includes(guest.hostname);
+    if ((guest.protocol !== "https:" && !localGuest) || guest.username || guest.password || guest.pathname !== "/" || guest.search || guest.hash) throw new Error("Unsafe guest origin");
+    guestBaseUrl = guest.origin;
+  }
   if (typeof tenant.branding.logoUrl === "string") {
     const logo = new URL(tenant.branding.logoUrl);
     if (logo.protocol !== "https:" || logo.username || logo.password || logo.search || logo.hash) throw new Error("Unsafe restaurant logo URL");
@@ -44,7 +54,7 @@ export function parseEmbeddedTenant(extra: unknown): EmbeddedOperationsTenant {
   }
   return {
     restaurantId: tenant.restaurantId.toLowerCase(), slug: tenant.slug, branding,
-    apiBaseUrl: url.origin, environment: extra.mobileEnvironment as EmbeddedOperationsTenant["environment"],
+    apiBaseUrl: url.origin, guestBaseUrl, environment: extra.mobileEnvironment as EmbeddedOperationsTenant["environment"],
     phoneOtpRequested: isRecord(extra.features) && extra.features.phoneOtpRequested === true
   };
 }
