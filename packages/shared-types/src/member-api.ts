@@ -1,5 +1,78 @@
 import type { CreateOrderItemRequest, IsoDateTime, Uuid } from "./api.js";
 
+/** Existing Java wire contract; order totals and collected payments use different time windows. */
+export interface DailyOperationsReportResponse {
+  restaurantId: Uuid;
+  reportDate: string;
+  timezone: string;
+  totalOrders: number;
+  pendingOrders: number;
+  acceptedOrders: number;
+  preparingOrders: number;
+  readyOrders: number;
+  outForDeliveryOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  orderAmountExcludingCancelled: number;
+  paidAmount: number;
+}
+
+/** Existing menu/category records, not inventory valuation or a purchase catalog. */
+export interface CategoryResponse {
+  id: Uuid;
+  name: string;
+  displayOrder: number;
+  active: boolean;
+}
+
+export interface ProductManagementResponse {
+  id: Uuid;
+  categoryId: Uuid;
+  name: string;
+  description: string | null;
+  price: number;
+  imageUrl: string | null;
+  trackStock: boolean;
+  stockQuantity: number | null;
+  available: boolean;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface RestaurantMemberResponse {
+  id: Uuid;
+  restaurantId: Uuid;
+  userId: Uuid;
+  email: string | null;
+  fullName: string | null;
+  role: string;
+  createdAt: IsoDateTime;
+}
+
+/** GET settings omits the common QR secret. */
+export interface RestaurantSettingsResponse {
+  restaurantId: Uuid;
+  currency: string;
+  timezone: string;
+  minimumOrder: number;
+  defaultDeliveryFee: number;
+  acceptsOrders: boolean;
+  allowQrOrder: boolean;
+  allowDelivery: boolean;
+  allowTakeaway: boolean;
+  defaultDeliveryDriverUserId: Uuid | null;
+}
+
+export interface PaymentResponse {
+  id: Uuid;
+  orderId: Uuid;
+  method: string;
+  status: string;
+  amount: number;
+  paidAt: IsoDateTime | null;
+  createdAt: IsoDateTime;
+}
+
 export interface OrderSummaryDto {
   id: Uuid;
   orderNumber: string;

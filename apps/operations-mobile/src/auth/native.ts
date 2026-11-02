@@ -4,7 +4,8 @@ import { createClient, processLock } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 import { AppState, Platform } from "react-native";
 import { readEmbeddedTenant } from "../tenant";
-import { createSecureSessionStorage } from "./storage";
+import { createLogoutProtectedSessionStorage } from "./storage";
+import { phoneOtpAvailability } from "./phone";
 import {
   createNativeSessionController,
   type AppLifecyclePort,
@@ -40,6 +41,12 @@ function checkedPublishableKey(value: string | undefined): string {
 
 let singleton: NativeSessionController | null = null;
 
+/** No Spring capability/provider-readiness endpoint exists yet; a flag alone cannot enable SMS. */
+export function getOperationsPhoneOtpAvailability() {
+  const tenant = readEmbeddedTenant();
+  return phoneOtpAvailability(tenant.phoneOtpRequested, null, tenant.restaurantId);
+}
+
 /** Returns only Auth methods. Business data must go through the Spring API. */
 export function getOperationsAuth(): NativeSessionController {
   if (singleton) return singleton;
@@ -49,9 +56,15 @@ export function getOperationsAuth(): NativeSessionController {
   const publishableKey = checkedPublishableKey(process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const projectUrl = new URL(supabaseUrl);
   const projectScope = `${projectUrl.hostname}.${projectUrl.port || (projectUrl.protocol === "https:" ? "443" : "80")}`;
+  // Pin the SDK's existing default key so M2 secure sessions survive this foundation upgrade.
+  const sessionKey = `sb-${projectUrl.hostname.split(".")[0]}-auth-token`;
+  const storage = createLogoutProtectedSessionStorage(
+    `rp.operations.${tenant.environment}.${tenant.restaurantId}.${projectScope}`, SecureStore, sessionKey
+  );
   const client = createClient(supabaseUrl, publishableKey, {
     auth: {
-      storage: createSecureSessionStorage(`rp.operations.${tenant.environment}.${tenant.restaurantId}.${projectScope}`, SecureStore),
+      storage,
+      storageKey: sessionKey,
       lock: processLock,
       autoRefreshToken: false,
       persistSession: true,
@@ -67,14 +80,17 @@ export function getOperationsAuth(): NativeSessionController {
       return data.session;
     },
     async signInWithPassword(email, password) {
+      await storage.prepareSignIn();
       const { data, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.session) throw new Error("Supabase did not return a session");
       return data.session;
     },
     async signOut() {
-      const { error } = await client.auth.signOut({ scope: "local" });
-      if (error) throw error;
+      await storage.signOut(async () => {
+        const { error } = await client.auth.signOut({ scope: "local" });
+        if (error) throw error;
+      });
     },
     async refreshSession() {
       const { data, error } = await client.auth.refreshSession();

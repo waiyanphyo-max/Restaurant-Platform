@@ -5,7 +5,7 @@ const test = require("node:test");
 const configure = require("../app.config.js");
 
 function withEnvironment(values, callback) {
-  const names = ["MOBILE_ENV", "RESTAURANT_SLUG", "PUBLIC_API_BASE_URL"];
+  const names = ["MOBILE_ENV", "RESTAURANT_SLUG", "PUBLIC_API_BASE_URL", "OPERATIONS_PHONE_OTP_ENABLED"];
   const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
   try {
     for (const name of names) {
@@ -28,6 +28,18 @@ test("operations fixture export embeds a fixed restaurant and operations applica
     assert.equal(result.extra.tenant.restaurantId, "00000000-0000-4000-8000-000000000001");
     assert.equal(result.extra.appKind, "operations");
     assert.equal(result.extra.serviceRoleKey, undefined);
+    assert.equal(result.extra.features.phoneOtpRequested, false);
+    assert.ok(result.plugins.includes("expo-router"));
+    assert.deepEqual(result.plugins.find(plugin => Array.isArray(plugin) && plugin[0] === "expo-secure-store"),
+      ["expo-secure-store", { configureAndroidBackup: true }]);
+    assert.equal(result.plugins.find(plugin => Array.isArray(plugin) && plugin[0] === "expo-build-properties")[1].android.usesCleartextTraffic, true);
+  });
+});
+
+test("phone build request cannot contain an implicit enabled default", () => {
+  withEnvironment({ MOBILE_ENV: "development", RESTAURANT_SLUG: "starter-fixture", PUBLIC_API_BASE_URL: "http://10.0.2.2:8080", OPERATIONS_PHONE_OTP_ENABLED: "true" }, () => {
+    const result = configure({ config: {} });
+    assert.equal(result.extra.features.phoneOtpRequested, true);
   });
 });
 

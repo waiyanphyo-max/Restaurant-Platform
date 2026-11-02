@@ -1,0 +1,57 @@
+import { describe, expect, it } from "vitest";
+import type { MyRestaurantResponse } from "@restaurant-platform/shared-types";
+import { canAccessScreen, getNavigationItems, getPlannedNavigationItems, getValidatedRole, OPERATIONS_ROLES } from "./policy";
+
+const restaurantId = "12345678-1234-1234-1234-123456789abc";
+const otherRestaurantId = "12345678-1234-1234-1234-123456789def";
+const member = (role: string, overrides: Partial<MyRestaurantResponse> = {}): MyRestaurantResponse => ({
+  restaurantId, name: "Restaurant", slug: "restaurant", role, active: true, ...overrides
+});
+const ids = (role: string) => getNavigationItems(member(role), restaurantId).map(item => item.id);
+
+describe("operations navigation policy", () => {
+  it("matches the Owner and Manager supported navigation in the requested order", () => {
+    expect(ids("OWNER")).toEqual(["dashboard", "orders", "menu", "sales-history", "reports", "team", "settings", "profile"]);
+    expect(ids("MANAGER")).toEqual(["dashboard", "orders", "menu", "sales-history", "reports", "deliveries", "profile"]);
+  });
+
+  it("restricts staff and drivers to operational screens", () => {
+    expect(ids("STAFF")).toEqual(["dashboard", "orders", "menu", "deliveries", "profile"]);
+    expect(ids("DELIVERY_DRIVER")).toEqual(["dashboard", "deliveries", "profile"]);
+    for (const role of ["STAFF", "DELIVERY_DRIVER"]) {
+      for (const screen of ["reports", "sales-history", "accounting", "shopping", "team", "settings"]) {
+        expect(canAccessScreen(screen, member(role), restaurantId)).toBe(false);
+      }
+      expect(getPlannedNavigationItems(member(role), restaurantId)).toEqual([]);
+    }
+  });
+
+  it("never exposes a route while membership is absent, inactive, malformed, or for another restaurant", () => {
+    for (const membership of [undefined, null, member("CUSTOMER"), member("manager"), member("OWNER", { active: false }),
+      member("OWNER", { restaurantId: otherRestaurantId })]) {
+      expect(getNavigationItems(membership, restaurantId)).toEqual([]);
+      expect(canAccessScreen("dashboard", membership, restaurantId)).toBe(false);
+      expect(getPlannedNavigationItems(membership, restaurantId)).toEqual([]);
+    }
+    expect(getNavigationItems(member("OWNER"), "not-a-uuid")).toEqual([]);
+  });
+
+  it("allows UUID case differences without weakening the exact tenant match", () => {
+    expect(getValidatedRole(member("MANAGER", { restaurantId: restaurantId.toUpperCase() }), restaurantId)).toBe("MANAGER");
+  });
+
+  it("blocks deep links to planned and unknown screens for every role", () => {
+    for (const role of OPERATIONS_ROLES) {
+      for (const screen of ["shopping", "accounting", "admin", "../reports", "REPORTS"]) {
+        expect(canAccessScreen(screen, member(role), restaurantId)).toBe(false);
+      }
+    }
+  });
+
+  it("keeps accounting feature boundaries available as metadata only for Owner and Manager", () => {
+    for (const role of ["OWNER", "MANAGER"]) {
+      expect(getPlannedNavigationItems(member(role), restaurantId).map(item => item.id)).toEqual(["shopping", "accounting"]);
+      expect(getNavigationItems(member(role), restaurantId).every(item => item.status === "ready")).toBe(true);
+    }
+  });
+});

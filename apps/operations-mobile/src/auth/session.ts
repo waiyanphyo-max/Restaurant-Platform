@@ -62,6 +62,7 @@ export function createNativeSessionController(
   let expectedIdentity: string | null = null;
   let identityChanged = false;
   let refreshPromise: Promise<string | null> | null = null;
+  let refreshGeneration = -1;
   const listeners = new Set<(value: AuthSnapshot) => void>();
 
   function publish(session: NativeSession | null): AuthSnapshot {
@@ -103,8 +104,9 @@ export function createNativeSessionController(
   });
 
   async function refresh(expectedUserId: string): Promise<string | null> {
-    if (refreshPromise) return refreshPromise;
+    if (refreshPromise && refreshGeneration === generation) return refreshPromise;
     const startedAt = generation;
+    refreshGeneration = startedAt;
     refreshPromise = (async () => {
       const result = await auth.refreshSession();
       if (startedAt !== generation || disposed || !acceptSessionEvents) return null;
@@ -124,7 +126,7 @@ export function createNativeSessionController(
       publish(next);
       return next.access_token;
     })().finally(() => {
-      refreshPromise = null;
+      if (refreshGeneration === startedAt) refreshPromise = null;
     });
     return refreshPromise;
   }
