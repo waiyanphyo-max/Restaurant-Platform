@@ -10,7 +10,11 @@ module.exports = ({ config }) => {
     scheme: `rp-${selected.restaurant.slug}-operations`,
     version: "0.1.0",
     platforms: ["android"],
-    plugins: [...(config.plugins ?? []), "expo-secure-store"],
+    plugins: [
+      "expo-router",
+      ["expo-secure-store", { configureAndroidBackup: true }],
+      ["expo-build-properties", { android: { usesCleartextTraffic: selected.environment === "development" } }]
+    ],
     orientation: "portrait",
     android: {
       ...config.android,
@@ -25,7 +29,8 @@ module.exports = ({ config }) => {
       },
       appKind: "operations",
       mobileEnvironment: selected.environment,
-      apiBaseUrl: selected.apiBaseUrl
+      apiBaseUrl: selected.apiBaseUrl,
+      features: { phoneOtpRequested: process.env.OPERATIONS_PHONE_OTP_ENABLED === "true" }
     }
   };
 };

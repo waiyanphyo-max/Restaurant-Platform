@@ -3,6 +3,8 @@ import type {
   CreateQrOrderRequest, CreateStaffOrderRequest, CreateStaffOrderResponse,
   CustomerAddressRequest, CustomerAddressResponse, CustomerProfileRequest,
   CustomerProfileResponse, DeliveryTaskDto, DeliveryZoneDto, ManagerOrderDetailDto,
+  CategoryResponse, DailyOperationsReportResponse, PaymentResponse, ProductManagementResponse,
+  RestaurantMemberResponse, RestaurantSettingsResponse,
   MyRestaurantResponse, NotificationResponse, OrderSummaryDto, PlatformOverviewResponse,
   PlatformRestaurantSummaryResponse, PlatformRestaurantDetailResponse,
   PlatformRestaurantProvisionRequest, PlatformRestaurantProvisionResponse,
@@ -39,6 +41,16 @@ function checkedRestaurantResponse<T>(value: T, expected: string, key: "restaura
   const actual = value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined;
   if (typeof actual !== "string" || actual.toLowerCase() !== expected) throw new ApiProtocolError();
   return value;
+}
+
+function reportDateQuery(date?: string): { date?: string } {
+  if (date === undefined) return {};
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00.000Z`) : new Date(NaN);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+    throw new ApiConfigurationError("Report date must be a valid YYYY-MM-DD calendar date");
+  }
+  // Spring applies the restaurant timezone and rejects future report dates.
+  return { date };
 }
 
 /** No session provider is accepted: every request omits cookies and bearer credentials. */
@@ -132,6 +144,24 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
     },
     getRestaurant: async (o?: ApiRequestOptions) => checkedRestaurantResponse(
       await read<RestaurantResponse>(transport, prefix, o), restaurantId, "id"),
+    getDailyReport: async (date?: string, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await read<DailyOperationsReportResponse>(transport, `${prefix}/reports/daily`, o, reportDateQuery(date)), restaurantId, "restaurantId"),
+    listProducts: (o?: ApiRequestOptions) => read<ProductManagementResponse[]>(transport, `${prefix}/products`, o),
+    listCategories: (o?: ApiRequestOptions) => read<CategoryResponse[]>(transport, `${prefix}/categories`, o),
+    async listMembers(o?: ApiRequestOptions): Promise<RestaurantMemberResponse[]> {
+      const members = await read<RestaurantMemberResponse[]>(transport, `${prefix}/members`, o);
+      if (!Array.isArray(members)) throw new ApiProtocolError();
+      return members.map(member => checkedRestaurantResponse(member, restaurantId, "restaurantId"));
+    },
+    getSettings: async (o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await read<RestaurantSettingsResponse>(transport, `${prefix}/settings`, o), restaurantId, "restaurantId"),
+    async listOrderPayments(id: string, o?: ApiRequestOptions): Promise<PaymentResponse[]> {
+      const orderId = requireUuid(id, "orderId");
+      const payments = await read<PaymentResponse[]>(transport, `${orderPath(orderId)}/payments`, o);
+      if (!Array.isArray(payments) || payments.some(payment => !payment || typeof payment.orderId !== "string"
+          || payment.orderId.toLowerCase() !== orderId)) throw new ApiProtocolError();
+      return payments;
+    },
     listOrders: (q: PageQuery = {}, o?: ApiRequestOptions) => read<SpringPage<OrderSummaryDto>>(transport, `${prefix}/orders`, o, pageQuery(q)),
     getOrder: async (id: string, o?: ApiRequestOptions) => checkedRestaurantResponse(
       await read<ManagerOrderDetailDto>(transport, orderPath(id), o), restaurantId, "restaurantId"),

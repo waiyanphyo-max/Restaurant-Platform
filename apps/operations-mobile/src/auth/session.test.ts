@@ -121,6 +121,23 @@ describe("native session lifecycle", () => {
     controller.dispose();
   });
 
+  it("does not reuse an earlier account generation's pending refresh after a new sign-in", async () => {
+    const { controller, auth } = setup(session(firstUser, "old-token", 1_050));
+    let finishOld!: (value: NativeSession) => void;
+    auth.refreshSession = vi.fn()
+      .mockImplementationOnce(() => new Promise<NativeSession>(resolve => { finishOld = resolve; }))
+      .mockResolvedValueOnce(session(firstUser, "new-login-refreshed", 4_000));
+    const oldToken = controller.getAccessToken();
+    await vi.waitFor(() => expect(finishOld).toBeTypeOf("function"));
+    auth.signInWithPassword = vi.fn(async () => session(firstUser, "new-login", 1_050));
+    await controller.signInWithPassword("user@example.test", "password");
+    expect(await controller.getAccessToken()).toBe("new-login-refreshed");
+    finishOld(session(firstUser, "stale-refreshed", 4_000));
+    expect(await oldToken).toBeNull();
+    expect(auth.refreshSession).toHaveBeenCalledTimes(2);
+    controller.dispose();
+  });
+
   it("blocks an automatic SDK refresh event that changes identity", async () => {
     const { controller, setSession } = setup(session());
     const listener = vi.fn();
