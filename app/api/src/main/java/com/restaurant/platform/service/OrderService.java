@@ -7,6 +7,7 @@ import com.restaurant.platform.repository.*;
 import com.restaurant.platform.security.TokenUtils;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.accounting.AccountingSupport;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -44,6 +45,10 @@ public class OrderService {
     private final RestaurantAuthorization restaurantAuthorization;
     private final NamedParameterJdbcTemplate jdbc;
     private final QrOrderIdempotencyService qrOrderIdempotencyService;
+    private AccountingSupport accounting;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAccountingSupport(AccountingSupport accounting) { this.accounting = accounting; }
 
     public OrderService(
             RestaurantRepository restaurantRepository,
@@ -96,6 +101,7 @@ public class OrderService {
             CreateQrOrderRequest request,
             String idempotencyKey
     ) {
+        if (accounting != null) accounting.lock(restaurantId);
         return createQrOrder(restaurantId, request, true, idempotencyKey);
     }
 
@@ -105,6 +111,7 @@ public class OrderService {
             CreateQrOrderRequest request,
             String idempotencyKey
     ) {
+        if (accounting != null) accounting.lock(restaurantId);
         return createQrOrder(restaurantId, request, false, idempotencyKey);
     }
 
@@ -145,6 +152,7 @@ public class OrderService {
         restaurantAuthorization.requireAuthenticatedUserMatches(actorUserId);
         restaurantAuthorization.requirePermission(restaurantId,
                 com.restaurant.platform.security.RestaurantPermission.ORDER_CREATE);
+        if (accounting != null) accounting.lock(restaurantId);
         if (request == null || request.items() == null || request.items().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "STAFF_ORDER_FIELDS_REQUIRED", "error.order.staff-fields-required");
@@ -291,6 +299,7 @@ public class OrderService {
             UUID userId,
             CreateDeliveryOrderRequest request) {
         restaurantAuthorization.requireAuthenticatedUserMatches(userId);
+        if (accounting != null) accounting.lock(restaurantId);
         if (request == null || request.addressId() == null
                 || request.deliveryZoneId() == null
                 || request.items() == null || request.items().isEmpty()) {

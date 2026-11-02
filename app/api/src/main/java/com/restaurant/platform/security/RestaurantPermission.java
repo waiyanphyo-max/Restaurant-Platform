@@ -22,5 +22,7 @@ public enum RestaurantPermission {
     PAYMENT_READ,
     PAYMENT_COLLECT,
 
-    REPORT_READ
+    REPORT_READ,
+    FINANCE_READ,
+    FINANCE_MANAGE
 }

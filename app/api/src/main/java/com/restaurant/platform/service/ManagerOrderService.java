@@ -21,6 +21,7 @@ import com.restaurant.platform.repository.OrderItemModifierRepository;
 import com.restaurant.platform.repository.OrderStatusHistoryRepository;
 import com.restaurant.platform.repository.QueueTicketRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
+import com.restaurant.platform.accounting.AccountingSupport;
 import com.restaurant.platform.security.RestaurantPermission;
 
 import org.springframework.data.domain.Page;
@@ -68,6 +69,10 @@ public class ManagerOrderService {
     private final AppNotificationRepository appNotificationRepository;
     private final RestaurantAuthorization restaurantAuthorization;
     private final DeliveryService deliveryService;
+    private AccountingSupport accounting;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAccountingSupport(AccountingSupport accounting) { this.accounting = accounting; }
 
     public ManagerOrderService(
             OrderRepository orderRepository,
@@ -255,6 +260,7 @@ public class ManagerOrderService {
         );
 
         // 3. Validate the requested status.
+        if (accounting != null) accounting.lock(restaurantId);
         if (request == null
                 || request.status() == null
                 || request.status().isBlank()) {

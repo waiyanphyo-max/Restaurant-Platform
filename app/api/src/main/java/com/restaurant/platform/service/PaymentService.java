@@ -1,6 +1,7 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.accounting.AccountingSupport;
 import com.restaurant.platform.dto.payment.PaymentResponse;
 import com.restaurant.platform.entity.AppNotification;
 import com.restaurant.platform.entity.Order;
@@ -27,6 +28,10 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final AppNotificationRepository notificationRepository;
     private final RestaurantAuthorization authorization;
+    private AccountingSupport accounting;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAccountingSupport(AccountingSupport accounting) { this.accounting = accounting; }
 
     public PaymentService(
             OrderRepository orderRepository,
@@ -57,6 +62,7 @@ public class PaymentService {
             UUID restaurantId, UUID orderId, UUID paymentId, UUID actorUserId) {
         authorization.requireAuthenticatedUserMatches(actorUserId);
         authorization.requirePermission(restaurantId, RestaurantPermission.PAYMENT_COLLECT);
+        if (accounting != null) accounting.lock(restaurantId);
 
         Order order = orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)
                 .orElseThrow(this::orderNotFound);
@@ -84,6 +90,7 @@ public class PaymentService {
         OffsetDateTime paidAt = OffsetDateTime.now(ZoneOffset.UTC);
         payment.setStatus("PAID");
         payment.setPaidAt(paidAt);
+        payment.setCollectedByUserId(actorUserId);
         payment = paymentRepository.save(payment);
 
         if (order.getCustomerId() != null) {

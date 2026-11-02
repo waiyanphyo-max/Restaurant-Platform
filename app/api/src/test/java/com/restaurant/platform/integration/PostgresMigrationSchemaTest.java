@@ -125,6 +125,11 @@ class PostgresMigrationSchemaTest {
     }
 
     @Test
+    void accountingDomainsPreserveFinancialIntegrity() throws Exception {
+        com.restaurant.platform.accounting.AccountingDatabaseChecks.verify(dataSource);
+    }
+
+    @Test
     void allMigrationsCreateTheExpectedSecurityAndCheckoutSchema() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 

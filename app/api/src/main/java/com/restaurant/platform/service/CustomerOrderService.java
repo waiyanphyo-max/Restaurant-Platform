@@ -1,6 +1,7 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.accounting.AccountingSupport;
 import com.restaurant.platform.dto.customer.CustomerDeliveryStatusDto;
 import com.restaurant.platform.dto.customer.CustomerOrderDetailDto;
 import com.restaurant.platform.dto.customer.CustomerOrderStatusDto;
@@ -62,6 +63,10 @@ public class CustomerOrderService {
     private final DeliveryRepository deliveryRepository;
     private final RestaurantAuthorization authorization;
     private final OrderService orderService;
+    private AccountingSupport accounting;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAccountingSupport(AccountingSupport accounting) { this.accounting = accounting; }
 
     public CustomerOrderService(
             OrderRepository orderRepository,
@@ -236,6 +241,13 @@ public class CustomerOrderService {
     @Transactional
     public CustomerOrderDetailDto cancelMyOrder(UUID userId, UUID orderId) {
         authorization.requireAuthenticatedUserMatches(userId);
+        if (accounting != null) {
+            // A scalar projection avoids caching stale order status while awaiting the tenant lock.
+            UUID restaurantId = orderRepository.findRestaurantIdByIdAndCustomerId(orderId, userId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                            "CUSTOMER_ORDER_NOT_FOUND", "error.customer-order.not-found"));
+            accounting.lock(restaurantId);
+        }
         Order order = orderRepository.findByIdAndCustomerIdForUpdate(orderId, userId)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,

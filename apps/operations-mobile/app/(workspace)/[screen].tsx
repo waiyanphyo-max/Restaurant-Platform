@@ -11,13 +11,17 @@ import { QueueScreen } from "../../src/features/operations/QueueScreen";
 import { NotificationsScreen } from "../../src/features/operations/NotificationsScreen";
 import { DeliveriesScreen } from "../../src/features/operations/DeliveriesScreen";
 import { ProfileScreen } from "../../src/features/profile/ProfileScreen";
+import { SalesLedgerScreen } from "../../src/features/accounting/SalesLedgerScreen";
+import { ShoppingScreen } from "../../src/features/accounting/ShoppingScreen";
+import { AccountingScreen } from "../../src/features/accounting/AccountingScreen";
 
 export default function OperationsRoute() {
   const { screen } = useLocalSearchParams<{ screen: string }>();
   // The guard mounts before any feature component can issue requests.
   return <ScreenGuard screenId={screen}>
     {screen === "dashboard" ? <DashboardScreen /> : screen === "orders" ? <OrdersScreen />
-      : screen === "sales-history" ? <OrdersScreen history /> : screen === "reports" ? <ReportsScreen />
+      : screen === "sales-history" ? <SalesLedgerScreen /> : screen === "reports" ? <ReportsScreen />
+      : screen === "shopping" ? <ShoppingScreen /> : screen === "accounting" ? <AccountingScreen />
       : screen === "menu" ? <MenuScreen /> : screen === "team" ? <TeamScreen />
       : screen === "settings" ? <SettingsScreen /> : screen === "deliveries" ? <DeliveriesScreen />
       : screen === "tables" ? <TablesScreen /> : screen === "queue" ? <QueueScreen /> : screen === "notifications" ? <NotificationsScreen />

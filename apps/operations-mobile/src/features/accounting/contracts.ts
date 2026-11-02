@@ -1,7 +1,7 @@
 /**
- * M8 PROPOSALS ONLY. These types describe contracts that the current Spring API
- * does not implement. No runtime client, route, or mock data is exported here.
- * Existing order/payment/daily-report wire DTOs remain in the shared API layer.
+ * Historical M8 proposals retained for design reference; not runtime wire contracts.
+ * Implemented accounting wire types live in packages/shared-types/accounting-*.ts
+ * and packages/api-client/accounting-*.ts. Use those modules for actual API calls.
  */
 import type { IsoDateTime, Uuid } from "@restaurant-platform/shared-types";
 

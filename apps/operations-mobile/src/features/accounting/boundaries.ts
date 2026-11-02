@@ -1,4 +1,6 @@
-/** Architecture inventory for M8/M9; not a navigation permission or live API. */
+/** Historical M8/M9 planning inventory; not a navigation permission or runtime capability check.
+ * Current implemented accounting modules and remaining COGS limits are documented in docs/accounting.md.
+ */
 export const accountingBoundaries = [
   { id: "sales-dashboard", title: "Sales Dashboard", readiness: "requires-backend", responsibilities: ["daily/monthly/yearly revenue", "trends", "order counts"] },
   { id: "sales-history", title: "Detailed Sales History", readiness: "partial-operational-data", responsibilities: ["historical line snapshots", "payments/refunds/cancellations", "authorized staff", "search/date filters"] },

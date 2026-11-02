@@ -1,4 +1,6 @@
-# Accounting readiness after M8-A
+# Historical accounting readiness after M8-A
+
+This document records the earlier M8-A audit. Shared accounting has since been implemented; use [current accounting documentation](accounting.md) for live contracts, permissions, screens and known limitations.
 
 Source audit: 2026-11-02. M8-A implements restaurant operations only. No shopping, purchase, expense, supplier, cashbook, ledger, or financial-report tables, migrations, routes, or screens were introduced. The detailed [API gap report](accounting-api-gap-report.md) and type-only [proposed contracts](../apps/operations-mobile/src/features/accounting/contracts.ts) remain design inputs rather than live APIs.
 

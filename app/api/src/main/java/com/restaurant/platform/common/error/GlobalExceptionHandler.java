@@ -17,6 +17,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
@@ -104,6 +107,14 @@ public class GlobalExceptionHandler {
                 message("error.bad-request", locale),
                 request,
                 List.of());
+    }
+
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class,
+            MissingRequestHeaderException.class, MissingServletRequestParameterException.class})
+    public ResponseEntity<ApiErrorResponse> handleInvalidRequestParameter(
+            Exception exception, HttpServletRequest request, Locale locale) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST_PARAMETERS",
+                message("error.bad-request", locale), request, List.of());
     }
 
     @ExceptionHandler(ResponseStatusException.class)

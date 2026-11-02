@@ -769,3 +769,6 @@ The additive `20261031090000_add_platform_restaurant_configuration.sql` migratio
 - `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_INVITE_REDIRECT_URL`: existing server-only Supabase Auth Admin invitation configuration.
 
 Do not expose the Supabase service-role/secret key to the browser or mobile app. The Next.js app provides `/login` and `/auth/accept-invite`; set the invitation redirect to that route. Dashboard and API authorization continue to depend on validated backend identity and allowlists/memberships, not frontend metadata. See `docs/auth-session-setup.md` for Supabase URL and email-template settings.
+## Shared accounting
+
+Owner/Manager accounting routes, financial DTOs, filters, exports, attachment access and mutation idempotency are documented in [accounting.md](accounting.md). These routes live under `/api/v1/restaurants/{restaurantId}/accounting` and require `FINANCE_READ` or `FINANCE_MANAGE`.

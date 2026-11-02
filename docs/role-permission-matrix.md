@@ -26,6 +26,8 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 | `PAYMENT_READ` | ✓ | ✓ | ✓ | — | Restaurant order payment list |
 | `PAYMENT_COLLECT` | ✓ | ✓ | ✓ | — | Collect cash-at-counter payment |
 | `REPORT_READ` | ✓ | ✓ | — | — | Daily operations report |
+| `FINANCE_READ` | ✓ | ✓ | — | — | Accounting ledger, shopping/purchases, expenses, cashbook, suppliers, reports, audit, receipts and CSV |
+| `FINANCE_MANAGE` | ✓ | ✓ | — | — | Accounting postings, financial payments, refunds, reversals and closing |
 
 ## Product boundaries outside the restaurant role enum
 

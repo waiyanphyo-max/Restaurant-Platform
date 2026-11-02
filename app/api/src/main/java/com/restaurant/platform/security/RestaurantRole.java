@@ -23,7 +23,9 @@ public enum RestaurantRole {
             RestaurantPermission.DELIVERY_STATUS_UPDATE,
             RestaurantPermission.PAYMENT_READ,
             RestaurantPermission.PAYMENT_COLLECT,
-            RestaurantPermission.REPORT_READ
+            RestaurantPermission.REPORT_READ,
+            RestaurantPermission.FINANCE_READ,
+            RestaurantPermission.FINANCE_MANAGE
     )),
 
     STAFF(EnumSet.of(

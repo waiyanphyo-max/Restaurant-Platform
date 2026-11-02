@@ -40,6 +40,8 @@ export interface RequestSpec {
   options?: ApiRequestOptions;
   /** Only GETs or explicit idempotency-key writes may opt into a retry. */
   retryTransient?: boolean;
+  /** Authenticated CSV exports share the same origin, credential and error handling rules. */
+  responseType?: "text";
 }
 
 export interface ApiTransport {
@@ -150,7 +152,7 @@ export function createTransport(options: ApiTransportOptions, getAccessToken?: A
     if (spec.body !== undefined) {
       headers.set("Content-Type", "application/json");
     }
-    headers.set("Accept", "application/json");
+    headers.set("Accept", spec.responseType === "text" ? "text/csv" : "application/json");
 
     const controller = new AbortController();
     let timedOut = false;
@@ -176,6 +178,10 @@ export function createTransport(options: ApiTransportOptions, getAccessToken?: A
       }
       if (!response.ok) throw await httpError(response);
       if (response.status === 204) return undefined as T;
+      if (spec.responseType === "text") {
+        if (!response.headers.get("content-type")?.toLowerCase().startsWith("text/csv")) throw new ApiProtocolError();
+        return await response.text() as T;
+      }
       try { return await response.json() as T; } catch {
         if (timedOut || spec.options?.signal?.aborted) throw new Error("aborted");
         throw new ApiProtocolError();

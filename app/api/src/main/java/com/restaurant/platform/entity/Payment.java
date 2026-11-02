@@ -38,6 +38,9 @@ public class Payment {
     @Column(name = "paid_at")
     private OffsetDateTime paidAt;
 
+    @Column(name = "collected_by_user_id")
+    private UUID collectedByUserId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;

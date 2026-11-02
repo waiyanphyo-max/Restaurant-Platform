@@ -11,8 +11,8 @@ const ids = (role: string) => getNavigationItems(member(role), restaurantId).map
 
 describe("operations navigation policy", () => {
   it("matches the Owner and Manager supported navigation in the requested order", () => {
-    expect(ids("OWNER")).toEqual(["dashboard", "orders", "menu", "sales-history", "reports", "team", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
-    expect(ids("MANAGER")).toEqual(["dashboard", "orders", "menu", "sales-history", "reports", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
+    expect(ids("OWNER")).toEqual(["dashboard", "orders", "menu", "shopping", "sales-history", "accounting", "reports", "team", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
+    expect(ids("MANAGER")).toEqual(["dashboard", "orders", "menu", "shopping", "sales-history", "accounting", "reports", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
   });
 
   it("restricts staff and drivers to operational screens", () => {
@@ -40,17 +40,19 @@ describe("operations navigation policy", () => {
     expect(getValidatedRole(member("MANAGER", { restaurantId: restaurantId.toUpperCase() }), restaurantId)).toBe("MANAGER");
   });
 
-  it("blocks deep links to planned and unknown screens for every role", () => {
+  it("blocks deep links to unknown screens for every role", () => {
     for (const role of OPERATIONS_ROLES) {
-      for (const screen of ["shopping", "accounting", "admin", "../reports", "REPORTS"]) {
+      for (const screen of ["admin", "../reports", "REPORTS"]) {
         expect(canAccessScreen(screen, member(role), restaurantId)).toBe(false);
       }
     }
   });
 
-  it("keeps accounting feature boundaries available as metadata only for Owner and Manager", () => {
+  it("enables real accounting routes for Owner and Manager", () => {
     for (const role of ["OWNER", "MANAGER"]) {
-      expect(getPlannedNavigationItems(member(role), restaurantId).map(item => item.id)).toEqual(["shopping", "accounting"]);
+      expect(getPlannedNavigationItems(member(role), restaurantId)).toEqual([]);
+      expect(canAccessScreen("shopping", member(role), restaurantId)).toBe(true);
+      expect(canAccessScreen("accounting", member(role), restaurantId)).toBe(true);
       expect(getNavigationItems(member(role), restaurantId).every(item => item.status === "ready")).toBe(true);
     }
   });
