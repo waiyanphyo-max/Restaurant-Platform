@@ -219,6 +219,7 @@ function DailyCashCount({ day, requestKeys, onSaved }: { day: CashbookDay; reque
       {day.closing ? <>
         <Body>Finalized count {financialAmount(day.closing.actualCash)} · Variance {financialAmount(day.closing.variance)}</Body>
         <Body>Closed {day.closing.closedAt} by {day.closing.responsibleMember}</Body>
+        {day.closing.reconciliationNote ? <Body>Reconciliation note {day.closing.reconciliationNote}</Body> : null}
       </> : null}
     </Card>
     {needsReconciliation ? <Card title="Historical cash inputs to reconcile">
@@ -236,14 +237,13 @@ function DailyCashCount({ day, requestKeys, onSaved }: { day: CashbookDay; reque
       <FormField label="Actual counted closing cash" value={count} onChangeText={setCount} keyboardType="number-pad" maxLength={19}
         error={count && variance === null ? "Enter a whole-currency count within the supported variance range." : undefined} />
       {variance === null ? null : <Body>Preview variance {financialAmount(variance)}</Body>}
-      {needsReconciliation ? <>
-        <FormToggle label="I have reconciled the historical cash inputs" value={acknowledged} onChange={setAcknowledged} />
-        <FormField label="How were the historical inputs reconciled?" value={reason} onChangeText={setReason} maxLength={2000} multiline />
-      </> : null}
+      {needsReconciliation ? <FormToggle label="I have reconciled the historical cash inputs" value={acknowledged} onChange={setAcknowledged} /> : null}
+      <FormField label={needsReconciliation ? "How were the historical inputs and any variance reconciled?" : "Cash variance explanation (optional)"}
+        value={reason} onChangeText={setReason} maxLength={2000} multiline />
       <Action title="Review closing count" disabled={mutation.busy || variance === null || needsReconciliation && (!acknowledged || !reason.trim())} onPress={prepareClose} />
     </Card> : null}
     <ConfirmDialog visible={review !== null} title="Finalize the cash count"
-      message={review ? `${review.date}. Expected ${financialAmount(review.expectedCash ?? "")}. Counted ${financialAmount(review.actualCash)}. Variance ${financialAmount(closingVariance(review.expectedCash ?? "", review.actualCash) ?? "")}.` : ""}
+      message={review ? `${review.date}. Expected ${financialAmount(review.expectedCash ?? "")}. Counted ${financialAmount(review.actualCash)}. Variance ${financialAmount(closingVariance(review.expectedCash ?? "", review.actualCash) ?? "")}.${review.reconciliationReason ? " The reconciliation note will be saved with this closing." : ""}` : ""}
       confirmLabel="Finalize counted cash" onCancel={() => setReview(null)} onConfirm={close} />
   </>;
 }

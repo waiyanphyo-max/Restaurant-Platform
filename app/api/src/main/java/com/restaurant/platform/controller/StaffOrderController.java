@@ -2,6 +2,7 @@ package com.restaurant.platform.controller;
 
 import com.restaurant.platform.dto.order.CreateStaffOrderRequest;
 import com.restaurant.platform.dto.order.CreateStaffOrderResponse;
+import com.restaurant.platform.dto.order.StaffOrderOptions;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.OrderService;
 import jakarta.validation.Valid;
@@ -18,6 +19,11 @@ public class StaffOrderController {
 
     private final OrderService orderService;
     private final RestaurantAuthorization authorization;
+
+    @GetMapping("/staff/options")
+    public StaffOrderOptions getStaffOrderOptions(@PathVariable UUID restaurantId) {
+        return orderService.getStaffOrderOptions(restaurantId);
+    }
 
     @PostMapping("/staff")
     @ResponseStatus(HttpStatus.CREATED)

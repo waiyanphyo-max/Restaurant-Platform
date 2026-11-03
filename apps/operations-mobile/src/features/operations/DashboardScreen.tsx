@@ -8,22 +8,24 @@ import { Action, Body, Card, Page } from "../../components/ui";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { readEmbeddedTenant } from "../../tenant";
 import { getNavigationItems } from "../../navigation/policy";
+import { operationalAmount } from "./format";
 
 export function DashboardScreen() {
   const { state } = useOperationsAuth();
   const role = state.status === "ready" ? state.membership.role : "";
   const operational = ["OWNER", "MANAGER", "STAFF"].includes(role);
+  const management = ["OWNER", "MANAGER"].includes(role);
   const query = useApiQuery(async signal => {
     const api = getOperationsApi();
-    const management = ["OWNER", "MANAGER"].includes(role);
-    const [restaurant, orders, queue, deliveries, notifications] = await Promise.allSettled([
+    const [restaurant, orders, queue, deliveries, notifications, daily] = await Promise.allSettled([
       api.getRestaurant({ signal }),
       operational ? Promise.all(["PENDING", "ACCEPTED", "PREPARING", "READY"].map(status => api.listOrders({ status, size: 1 }, { signal }))) : Promise.resolve(null),
       operational ? api.listQueue(undefined, { signal }) : Promise.resolve(null),
       management ? api.listDeliveries({ size: 5 }, { signal }) : api.listMyDeliveries({ size: 5 }, { signal }),
-      api.listNotifications("PENDING", { signal })
+      api.listNotifications("PENDING", { signal }),
+      management ? api.getDailyReport(undefined, { signal }) : Promise.resolve(null)
     ] as const);
-    for (const result of [restaurant, orders, queue, deliveries, notifications]) {
+    for (const result of [restaurant, orders, queue, deliveries, notifications, daily]) {
       if (result.status === "rejected" && (result.reason instanceof MissingAccessTokenError || result.reason instanceof ApiHttpError && result.reason.status === 401)) throw result.reason;
     }
     return {
@@ -31,7 +33,8 @@ export function DashboardScreen() {
       orders: orders.status === "fulfilled" ? orders.value : null,
       queue: queue.status === "fulfilled" ? queue.value : null,
       deliveries: deliveries.status === "fulfilled" ? deliveries.value : null,
-      notifications: notifications.status === "fulfilled" ? notifications.value : null
+      notifications: notifications.status === "fulfilled" ? notifications.value : null,
+      daily: daily.status === "fulfilled" ? daily.value : null
     };
   }, `dashboard:${role}`);
   if (state.status !== "ready") return null;
@@ -43,6 +46,15 @@ export function DashboardScreen() {
         <Body>{data.restaurant?.name ?? state.membership.name}</Body>
         <Body>{data.restaurant ? data.restaurant.active ? "Restaurant active" : "Restaurant inactive" : "Profile unavailable. Pull to refresh."}</Body>
       </Card>
+      {management ? <Card title="Today's restaurant operations">
+        {data.daily ? <>
+          <Body>{data.daily.reportDate} · {data.daily.timezone}</Body>
+          <Body>{data.daily.totalOrders} created · {data.daily.completedOrders} completed · {data.daily.cancelledOrders} cancelled</Body>
+          <Body>Value of orders created today, excluding cancellations: {operationalAmount(data.daily.orderAmountExcludingCancelled)}</Body>
+          <Body>Payments marked paid today: {operationalAmount(data.daily.paidAmount)}</Body>
+        </> : <Body>Today's operational totals are unavailable. Pull to refresh.</Body>}
+        <Link href="/reports">Open shared financial reports</Link>
+      </Card> : null}
       {operational ? <Card title="Orders needing attention">
         {data.orders ? data.orders.map((page, index) => <Body key={index}>{["Pending acceptance", "Accepted", "Preparing", "Ready"][index]}: {page.totalElements}</Body>) : <Body>Order overview unavailable. Retry after checking your connection.</Body>}
         <Link href="/orders">Manage orders</Link>

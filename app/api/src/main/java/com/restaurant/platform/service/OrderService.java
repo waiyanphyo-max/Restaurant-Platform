@@ -6,6 +6,7 @@ import com.restaurant.platform.entity.*;
 import com.restaurant.platform.repository.*;
 import com.restaurant.platform.security.TokenUtils;
 import com.restaurant.platform.security.RestaurantAuthorization;
+import com.restaurant.platform.security.RestaurantPermission;
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.accounting.AccountingSupport;
 
@@ -144,14 +145,41 @@ public class OrderService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public StaffOrderOptions getStaffOrderOptions(UUID restaurantId) {
+        restaurantAuthorization.requirePermission(restaurantId, RestaurantPermission.ORDER_CREATE);
+        requireActiveRestaurant(restaurantId);
+        RestaurantSettings settings = requireStaffOrderSettings(restaurantId);
+        if (!Boolean.TRUE.equals(settings.getAcceptsOrders())) {
+            return new StaffOrderOptions(false, false, List.of());
+        }
+
+        var tables = diningTableRepository.findByRestaurantIdAndIsActiveTrue(restaurantId).stream()
+                .sorted(Comparator.comparing(DiningTable::getTableNumber))
+                .map(table -> new StaffOrderOptions.Table(table.getId(), table.getTableNumber()))
+                .toList();
+        return new StaffOrderOptions(!tables.isEmpty(), Boolean.TRUE.equals(settings.getAllowTakeaway()), tables);
+    }
+
+    private Restaurant requireActiveRestaurant(UUID restaurantId) {
+        return restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "RESTAURANT_NOT_FOUND", "error.restaurant.not-found"));
+    }
+
+    private RestaurantSettings requireStaffOrderSettings(UUID restaurantId) {
+        return settingsRepository.findById(restaurantId)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
+                        "RESTAURANT_SETTINGS_MISSING", "error.restaurant.settings-missing"));
+    }
+
     @Transactional
     public CreateStaffOrderResponse createStaffOrder(
             UUID restaurantId,
             UUID actorUserId,
             CreateStaffOrderRequest request) {
         restaurantAuthorization.requireAuthenticatedUserMatches(actorUserId);
-        restaurantAuthorization.requirePermission(restaurantId,
-                com.restaurant.platform.security.RestaurantPermission.ORDER_CREATE);
+        restaurantAuthorization.requirePermission(restaurantId, RestaurantPermission.ORDER_CREATE);
         if (accounting != null) accounting.lock(restaurantId);
         if (request == null || request.items() == null || request.items().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
@@ -174,12 +202,8 @@ public class OrderService {
                     "TABLE_NOT_ALLOWED_FOR_TAKEAWAY", "error.order.table-not-allowed");
         }
 
-        Restaurant restaurant = restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "RESTAURANT_NOT_FOUND", "error.restaurant.not-found"));
-        RestaurantSettings settings = settingsRepository.findById(restaurantId)
-                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
-                        "RESTAURANT_SETTINGS_MISSING", "error.restaurant.settings-missing"));
+        Restaurant restaurant = requireActiveRestaurant(restaurantId);
+        RestaurantSettings settings = requireStaffOrderSettings(restaurantId);
         if (!Boolean.TRUE.equals(settings.getAcceptsOrders())) {
             throw new ApiException(HttpStatus.CONFLICT,
                     "ORDERS_NOT_ACCEPTED", "error.restaurant.orders-not-accepted");

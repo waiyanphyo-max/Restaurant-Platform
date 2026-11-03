@@ -168,6 +168,7 @@ function ShoppingPlanner({ timezone, requests, replacement, onClearReplacement, 
   return <>
     <Card title="Shopping list">
       <Body>Items appear in suggestions through six days after their last confirmed purchase. Older items stay searchable and a new confirmed purchase restores eligibility.</Body>
+      <Action title="Refresh shopping items and sheets" secondary disabled={mutation.busy} onPress={() => { catalog.reload(); sheets.reload(); }} />
       <Action title="Add reusable shopping item" secondary disabled={mutation.busy} onPress={() => setCatalogForm({ item: null })} />
       <FormToggle label="Suggested items only" value={suggestions} onChange={value => { setSuggestions(value); setCatalogPage(0); }} />
       <FormField label="Find a shopping item by name" value={search} onChangeText={setSearch} maxLength={150}

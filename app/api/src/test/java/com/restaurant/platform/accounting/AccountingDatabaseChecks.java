@@ -1,13 +1,21 @@
 package com.restaurant.platform.accounting;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.entity.RestaurantSettings;
+import com.restaurant.platform.repository.DeliveryRepository;
+import com.restaurant.platform.repository.OrderRepository;
+import com.restaurant.platform.repository.RestaurantMemberRepository;
 import com.restaurant.platform.repository.RestaurantSettingsRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
+import com.restaurant.platform.security.RestaurantRole;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.transaction.support.TransactionTemplate;
 import javax.sql.DataSource;
 import java.math.BigDecimal;
@@ -23,10 +31,122 @@ public final class AccountingDatabaseChecks {
     private AccountingDatabaseChecks() { }
     public static void verify(DataSource dataSource) throws Exception {
         plansSuggestionsAndPurchaseSnapshots(dataSource);
+        sharedManagerAccounting(dataSource);
         salesCashClosingAndReport(dataSource);
         expenseCorrectionsAndCashHistory(dataSource);
         concurrentRetriesAndTenantConstraints(dataSource);
         clientDatabaseAccessAndImmutableHistory(dataSource);
+    }
+
+    public static void sharedManagerAccounting(DataSource source) {
+        var f = new Fixture(source);
+        var other = new Fixture(source);
+        UUID owner = f.actor, manager = UUID.randomUUID();
+        f.jdbc.update("INSERT INTO auth.users(id) VALUES(?)", manager);
+        var members = mock(RestaurantMemberRepository.class);
+        registerMember(members, f.restaurant, owner, RestaurantRole.OWNER);
+        registerMember(members, f.restaurant, manager, RestaurantRole.MANAGER);
+        var settings = mock(RestaurantSettingsRepository.class);
+        var record = new RestaurantSettings();
+        record.setRestaurantId(f.restaurant);
+        record.setTimezone("Asia/Yangon");
+        record.setCurrency("MMK");
+        when(settings.findById(f.restaurant)).thenReturn(Optional.of(record));
+        var auth = new RestaurantAuthorization(members, mock(DeliveryRepository.class), mock(OrderRepository.class));
+        var support = new AccountingSupport(f.jdbc, auth, settings);
+        var jdbc = new NamedParameterJdbcTemplate(f.jdbc);
+        var sales = new SalesAccountingService(jdbc, support);
+        var reports = new FinancialReportService(support, jdbc, sales);
+        var purchases = new ProcurementService(f.jdbc, support);
+        var expenses = new ExpenseService(f.jdbc, support);
+        var cash = new CashbookService(f.jdbc, support);
+
+        YearMonth month = YearMonth.from(f.today).minusMonths(1);
+        LocalDate saleDate = month.atDay(14), closingDate = f.today.minusDays(1);
+        UUID saleId = f.order(500, saleDate);
+        f.payment(saleId, 500, "ONLINE", "PAID", saleDate.atTime(12, 0).atZone(ZoneId.of("Asia/Yangon")).toOffsetDateTime());
+        other.order(900, saleDate);
+        try {
+            authenticate(owner);
+            var ownerDashboard = sales.dashboard(f.restaurant, saleDate, month, month.getYear());
+            var supplier = f.tx(() -> purchases.saveSupplier(f.restaurant, null, "supplier",
+                    new ProcurementDtos.SupplierInput("Market", null, true, null)));
+            var eggs = f.tx(() -> purchases.saveItem(f.restaurant, null, "eggs",
+                    new ProcurementDtos.ItemInput("Eggs", "tray", BigDecimal.ONE, supplier.id(), true, null)));
+            var oil = f.tx(() -> purchases.saveItem(f.restaurant, null, "oil",
+                    new ProcurementDtos.ItemInput("Cooking oil", "litre", BigDecimal.ONE, supplier.id(), true, null)));
+            var eggPurchase = f.tx(() -> purchases.confirmPurchase(f.restaurant, "owner-eggs",
+                    datedPurchase(eggs.id(), "tray", supplier.id(), f.today.minusDays(6), 100)));
+            var oldOilPurchase = f.tx(() -> purchases.confirmPurchase(f.restaurant, "old-oil",
+                    datedPurchase(oil.id(), "litre", supplier.id(), f.today.minusDays(7), 80)));
+            var ownerReport = reports.report(f.restaurant, month.atDay(1), month.atEndOfMonth());
+
+            authenticate(manager);
+            assertEquals(ownerDashboard, sales.dashboard(f.restaurant, saleDate, month, month.getYear()));
+            assertEquals(ownerReport, reports.report(f.restaurant, month.atDay(1), month.atEndOfMonth()));
+            assertEquals(500, ownerDashboard.selectedMonth().netSales());
+            assertEquals(500, ownerDashboard.selectedMonth().collectedPayments());
+            var ledger = sales.ledger(f.restaurant, month.atDay(1), month.atEndOfMonth(), "Historical product",
+                    null, "PAID", "STAFF", SalesDtos.LedgerSort.NEWEST, 0, 20);
+            assertEquals(List.of(saleId), ledger.content().stream().map(SalesDtos.LedgerOrder::id).toList());
+            var detail = sales.detail(f.restaurant, saleId);
+            assertEquals(saleDate.atStartOfDay(ZoneId.of("Asia/Yangon")).toInstant(), detail.createdAt().toInstant());
+            assertTrue(detail.lines().stream().anyMatch(line -> line.productName().equals("Historical product") && line.unitPrice() == 200));
+            assertEquals("INSUFFICIENT_RESTAURANT_PERMISSION", assertThrows(ApiException.class,
+                    () -> sales.dashboard(other.restaurant, saleDate, month, month.getYear())).getCode());
+
+            var suggestions = purchases.items(f.restaurant, null, true, 0, 20);
+            assertEquals(List.of(eggs.id()), suggestions.content().stream().map(ProcurementDtos.Item::id).toList());
+            assertEquals(oil.id(), purchases.items(f.restaurant, "oil", false, 0, 20).content().getFirst().id());
+            YearMonth purchaseMonth = YearMonth.from(eggPurchase.purchase().purchaseDate());
+            var history = purchases.purchases(f.restaurant, purchaseMonth.atDay(1), purchaseMonth.atEndOfMonth(),
+                    supplier.id(), "Eggs", "UNPAID", 0, 20);
+            assertEquals(eggPurchase.purchase().id(), history.content().getFirst().id());
+            var oilInput = datedPurchase(oil.id(), "litre", supplier.id(), closingDate, 120);
+            var managerPurchase = f.tx(() -> purchases.confirmPurchase(f.restaurant, "manager-oil", oilInput));
+            assertEquals(managerPurchase.purchase().id(), f.tx(() -> purchases.confirmPurchase(f.restaurant, "manager-oil", oilInput)).purchase().id());
+            assertEquals(3, f.count("accounting_purchases"));
+            assertEquals(300, purchases.payables(f.restaurant, 0, 20).content().getFirst().outstandingAmount());
+            assertEquals(0, f.count("accounting_expenses"));
+
+            var original = f.tx(() -> expenses.create(f.restaurant, "expense", new ExpenseDtos.Create(
+                    ExpenseDtos.Category.WATER, 60L, closingDate, "Water bill", null, null)));
+            var replacement = f.tx(() -> expenses.correct(f.restaurant, original.id(), "correct-expense", new ExpenseDtos.Correction(
+                    new ExpenseDtos.Create(ExpenseDtos.Category.WATER, 70L, closingDate, "Water bill", null, null), "Correct bill amount")));
+            f.tx(() -> expenses.pay(f.restaurant, replacement.id(), "pay-expense", new ExpenseDtos.Pay(70L,
+                    ExpenseDtos.Method.CASH, closingDate.atTime(12, 0).atZone(ZoneId.of("Asia/Yangon")).toOffsetDateTime())));
+            f.tx(() -> cash.open(f.restaurant, "opening", new CashbookDtos.Opening(closingDate, 500L, "Initial count")));
+            var close = f.tx(() -> cash.close(f.restaurant, "close", new CashbookDtos.Close(closingDate, 425L, false, "Five missing at count", 430L)));
+            assertEquals(-5, close.variance());
+            assertEquals(manager, close.responsibleMember());
+
+            authenticate(owner);
+            assertEquals(oil.id(), purchases.items(f.restaurant, "oil", true, 0, 20).content().getFirst().id());
+            assertEquals(manager, purchases.purchase(f.restaurant, managerPurchase.purchase().id()).purchase().createdBy());
+            assertEquals(80, purchases.purchase(f.restaurant, oldOilPurchase.purchase().id()).lines().getFirst().unitCost());
+            assertEquals(manager, expenses.get(f.restaurant, original.id()).cancelledBy());
+            assertEquals("Five missing at count", cash.day(f.restaurant, closingDate).closing().reconciliationNote());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private static ProcurementDtos.PurchaseInput datedPurchase(UUID item, String unit, UUID supplier, LocalDate date, long cost) {
+        return new ProcurementDtos.PurchaseInput(date, date.atTime(12, 0).atZone(ZoneId.of("Asia/Yangon")).toOffsetDateTime(), supplier,
+                List.of(new ProcurementDtos.LineInput(item, BigDecimal.ONE, unit, cost, supplier)), null, null, null, null, null, null);
+    }
+
+    private static void registerMember(RestaurantMemberRepository repository, UUID restaurant, UUID user, RestaurantRole role) {
+        var member = new RestaurantMember();
+        member.setRestaurantId(restaurant);
+        member.setUserId(user);
+        member.setRole(role);
+        when(repository.findByRestaurantIdAndUserId(restaurant, user)).thenReturn(Optional.of(member));
+    }
+
+    private static void authenticate(UUID subject) {
+        var token = Jwt.withTokenValue("accounting-test-token").header("alg", "ES256").subject(subject.toString()).build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(token, List.of()));
     }
 
     public static void plansSuggestionsAndPurchaseSnapshots(DataSource dataSource) {

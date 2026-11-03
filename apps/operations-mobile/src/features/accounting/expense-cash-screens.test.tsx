@@ -56,13 +56,19 @@ describe("expense and cash views", () => {
 
   it("displays search, server filters, chronological sort and the expense register empty state", () => {
     scenario.records.expenses = page;
-    scenario.records["expense-report"] = { from: "2026-11-02", to: "2026-11-02", totals: [] };
+    scenario.records["expense-report"] = { from: "2026-11-02", to: "2026-11-02", totals: [
+      { periodStart: "2026-11-02", category: "RENT", postedAmount: "9007199254740992", cancelledAmount: "0", expenseAmount: "9007199254740992" },
+      { periodStart: "2026-11-02", category: "WATER", postedAmount: "2", cancelledAmount: "1", expenseAmount: "1" }
+    ] };
     const html = renderToStaticMarkup(<ExpenseScreen requestKeys={keyStore()} />);
+    expect(html).toContain("Day (YYYY-MM-DD)");
+    expect(html).toContain("Date range");
     expect(html).toContain("Search descriptions or payees");
     expect(html).toContain("All categories");
     expect(html).toContain("All statuses");
     expect(html).toContain("Oldest first");
     expect(html).toContain("No matching expenses");
+    expect(html).toContain("Total operating expenses 9,007,199,254,740,993");
   });
 
   it("shows dated cash history with an exact signed amount and traceable source", () => {
@@ -87,6 +93,14 @@ describe("expense and cash views", () => {
     expect(html).toContain("Expected closing cash 9,007,199,254,741,023");
     expect(html).toContain("Historical cash refund requires reconciliation.");
     expect(html).toContain('<button disabled="">Review closing count');
+  });
+
+  it("allows a variance explanation on a day with complete historical inputs", () => {
+    scenario.records["cash-day"] = { ...day, missingInputs: [] };
+    scenario.records["cash-closings"] = page;
+    const html = renderToStaticMarkup(<DailyCashClosingScreen requestKeys={keyStore()} />);
+    expect(html).toContain("Cash variance explanation (optional)");
+    expect(html).not.toContain("I have reconciled the historical cash inputs");
   });
 
   it.each(["loading", "offline", "error", "denied"])("shows %s handling for live accounting queries", status => {

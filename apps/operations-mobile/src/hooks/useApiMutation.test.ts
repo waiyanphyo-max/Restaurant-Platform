@@ -36,9 +36,19 @@ describe("mutation request lifecycle", () => {
     expect(harness.signOut).toHaveBeenCalledTimes(1);
   });
   it("does not retry a failed write and releases its duplicate guard", async () => {
-    const hook = useApiMutation(); const action = vi.fn().mockRejectedValue(new ApiNetworkError());
-    await hook.run(action); expect(action).toHaveBeenCalledTimes(1);
+    const hook = useApiMutation(); const failure = new ApiNetworkError(); const action = vi.fn().mockRejectedValue(failure);
+    const onFailure = vi.fn();
+    await hook.run(action, undefined, onFailure); expect(action).toHaveBeenCalledTimes(1);
+    expect(onFailure).toHaveBeenCalledExactlyOnceWith(failure);
     const next = vi.fn().mockResolvedValue(undefined); await hook.run(next); expect(next).toHaveBeenCalledTimes(1);
+  });
+  it("discards a late failure callback after the workspace unmounts", async () => {
+    let reject!: (failure: unknown) => void;
+    const onFailure = vi.fn(); const hook = useApiMutation();
+    const work = hook.run(() => new Promise<void>((_resolve, fail) => { reject = fail; }), undefined, onFailure);
+    for (const cleanup of harness.cleanups) cleanup();
+    reject(new ApiNetworkError()); await work;
+    expect(onFailure).not.toHaveBeenCalled();
   });
   it("does not start an action without verified workspace access", async () => {
     harness.state.status = "denied"; const hook = useApiMutation(); const action = vi.fn();

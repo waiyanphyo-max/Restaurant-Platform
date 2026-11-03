@@ -34,6 +34,7 @@ export function OrderDetailScreen({ orderId }: { orderId: string }) {
         {financial ? <Body>Created by: {order.createdByUserId ?? "Guest or unavailable"}</Body> : null}
         {order.tableId ? <Body>Table ID: {order.tableId}</Body> : null}
         {order.queueTicketId ? <Link href="/queue">View pickup queue</Link> : null}
+        {order.orderChannel === "STAFF" && order.deliveryNote ? <Body>Order note: {order.deliveryNote}</Body> : null}
         {order.orderType === "DELIVERY" ? <><Body>{order.deliveryName} · {order.deliveryPhone}</Body><Body>{order.deliveryAddress}</Body><Body>{order.deliveryNote}</Body><Link href="/deliveries">Manage delivery and cash on delivery</Link></> : null}
       </Card>
       <Card title="Order actions"><FormField label="Status note (optional)" value={note} onChangeText={setNote} maxLength={500} />
@@ -52,7 +53,7 @@ export function OrderDetailScreen({ orderId }: { orderId: string }) {
         {!payments.length ? <Body>Payment information unavailable; this does not mean the order is paid.</Body> : null}
         {payments.filter(payment => canCollectPayment(payment, order.status)).map(payment => <Action key={payment.id} title={`Confirm cash collected: ${operationalAmount(payment.amount)}`} disabled={mutation.busy}
           onPress={() => setConfirmation({ paymentId: payment.id, message: `Confirm you physically received ${operationalAmount(payment.amount)} in cash for this order?` })} />)}
-        <Body>Refund and cancellation statuses are operational records. A reconciled refund history is not yet available.</Body>
+        <Link href="/sales-history">View refund and reversal records in Sales History</Link>
       </Card> : null}
       <Card title="Order status history"><DataTable columns={["Status", "Timestamp (offset)", "Note"]} rows={order.statusHistory.map(event => ({ key: event.id,
         cells: [event.status, exactTimestamp(event.createdAt), event.note ?? "—"] }))} /></Card>

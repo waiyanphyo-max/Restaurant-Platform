@@ -32,13 +32,13 @@ export function FinancialSummaryScreen() {
     <QueryResult {...query}>{report => <>
       <Card title="Reporting basis"><Body>{report.timezone} · All amounts in whole {report.currency} units.</Body></Card>
       <SalesTotals title="Sales and collections" value={report.sales} />
-      <Card title="Cash flow and expense summary">
+      <Card title="Trading payments and expenses">
         <Body>Confirmed purchases {salesAmount(report.confirmedPurchases)}</Body>
         <Body>Registered operating expenses {salesAmount(report.registeredOperatingExpenses)}</Body>
         <Body>Purchase payments less reversals {salesAmount(report.purchasePayments)}</Body>
         <Body>Expense payments less reversals {salesAmount(report.expensePayments)}</Body>
         <Body>Trading payment net {salesAmount(report.tradingPaymentNet)}</Body>
-        <Body>Trading payment net includes cash and non-cash settlement activity.</Body>
+        <Body>This partial cash-flow view includes cash and non-cash settlements for sales, purchases and expenses. Other cash movements and capital activity are outside its scope.</Body>
       </Card>
       <Card title="Operating expenses by category">
         {report.expensesByCategory.length ? report.expensesByCategory.map(category =>
@@ -49,6 +49,7 @@ export function FinancialSummaryScreen() {
         {report.missingInputs.map(input => <Body key={input}>{input}</Body>)}
       </Card>
     </>}</QueryResult>
+    <Action title="Refresh financial summary" secondary onPress={query.reload} disabled={query.state.status === "loading"} />
   </>;
 }
 

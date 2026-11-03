@@ -5,13 +5,15 @@ import { getOperationsApi } from "../../api";
 import { QueryResult } from "../../components/QueryResult";
 import { Action, Body, Card, ConfirmDialog, DataTable, FormField, Page } from "../../components/ui";
 import { MutationFeedback } from "../../components/forms";
-import { Choices } from "../management/controls";
+import { Choices, FormStatus } from "../management/controls";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { FinancialPagination } from "./FinancialPagination";
+import { FinancialPeriodFields } from "./FinancialPeriodFields";
+import { emptyFinancialPeriod, resolveFinancialPeriod, type FinancialPeriodInput } from "./financial-period";
 import type { FinancialRequestKeys } from "./financial-requests";
 import {
   chronologicalLabels, financialAmount, useFinancialAction, validFinancialAmount,
-  validFinancialDate, validFinancialDateRange, validFinancialTimestamp
+  validFinancialDate, validFinancialTimestamp
 } from "./expense-cash-form";
 
 const categories = ["RENT", "SALARIES_WAGES", "ELECTRICITY", "WATER", "INTERNET", "TRANSPORT", "PACKAGING", "EQUIPMENT_MAINTENANCE", "MARKETING", "MISCELLANEOUS"] as const;
@@ -49,8 +51,13 @@ function ExpenseRegister({ filters, page, onApply, onPageChange, onOpen, onAdd, 
   filters: ExpenseFilters; page: number; onApply(value: ExpenseFilters): void; onPageChange(page: number): void;
   onOpen(id: string): void; onAdd(): void; onTemplates(): void;
 }) {
-  const [from, setFrom] = useState(filters.from ?? "");
-  const [to, setTo] = useState(filters.to ?? "");
+  const [periodInput, setPeriodInput] = useState<FinancialPeriodInput>(() => ({
+    ...emptyFinancialPeriod,
+    mode: filters.from === filters.to ? "DAY" : "RANGE",
+    day: filters.from ?? "",
+    from: filters.from ?? "",
+    to: filters.to ?? ""
+  }));
   const [search, setSearch] = useState(filters.search ?? "");
   const [category, setCategory] = useState<ExpenseCategory | "ALL">(filters.category ?? "ALL");
   const [status, setStatus] = useState<typeof statuses[number]>(filters.paymentStatus ?? "ALL");
@@ -61,21 +68,23 @@ function ExpenseRegister({ filters, page, onApply, onPageChange, onOpen, onAdd, 
   const report = useApiQuery(signal => getOperationsApi().getExpenseReport({ from: filters.from, to: filters.to, period }, { signal }), JSON.stringify(["expense-report", filters.from, filters.to, period]));
   function reload() { query.reload(); report.reload(); }
   function apply() {
-    if (!validFinancialDateRange(from, to)) {
-      setError("Enter a chronological date range of up to 366 days.");
-      return;
+    try {
+      const range = resolveFinancialPeriod(periodInput);
+      setError("");
+      if (periodInput.mode !== "RANGE") setPeriod(periodInput.mode);
+      onApply({ ...range, search: search.trim() || undefined, category: category === "ALL" ? undefined : category,
+        paymentStatus: status === "ALL" ? undefined : status, sort });
+      reload();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Check the expense period.");
     }
-    setError("");
-    onApply({ from: from || undefined, to: to || undefined, search: search.trim() || undefined,
-      category: category === "ALL" ? undefined : category, paymentStatus: status === "ALL" ? undefined : status, sort });
-    reload();
   }
   return <Page title="Expense register" subtitle="Operating obligations and their separate payment records. Amounts use whole currency units." onRefresh={reload}>
     <Action title="Add expense" onPress={onAdd} />
     <Action title="Recurring expense templates" secondary onPress={onTemplates} />
     <Card title="Search and filter expenses">
-      <FormField label="From date (YYYY-MM-DD)" value={from} onChangeText={setFrom} placeholder="Blank for restaurant today" />
-      <FormField label="Through date (YYYY-MM-DD)" value={to} onChangeText={setTo} error={error || undefined} />
+      <FinancialPeriodFields value={periodInput} onChange={setPeriodInput} />
+      <FormStatus error={error} />
       <FormField label="Search descriptions or payees" value={search} onChangeText={setSearch} maxLength={200} returnKeyType="search" onSubmitEditing={apply} />
       <Choices label="Category filter" value={category} values={["ALL", ...categories]} labels={{ ALL: "All categories" }} onChange={setCategory} />
       <Choices label="Payment status filter" value={status} values={statuses} labels={{ ALL: "All statuses" }} onChange={setStatus} />
@@ -97,6 +106,7 @@ function ExpenseRegister({ filters, page, onApply, onPageChange, onOpen, onAdd, 
       <Choices label="Group dates by" value={period} values={periods} onChange={setPeriod} />
       <QueryResult {...report}>{data => <>
         <Body>{data.from} through {data.to}. The totals include all categories and payment statuses in this date range.</Body>
+        <Body>Total operating expenses {financialAmount(data.totals.reduce((sum, row) => sum + BigInt(row.expenseAmount), 0n).toString())}</Body>
         <DataTable columns={["Period", "Category", "Posted", "Cancelled", "Net expense"]} rows={data.totals.map(row => ({
           key: `${row.periodStart}:${row.category}`, cells: [row.periodStart, label(row.category), financialAmount(row.postedAmount),
             financialAmount(row.cancelledAmount), financialAmount(row.expenseAmount)]

@@ -90,9 +90,8 @@ public class RestaurantAuthorization {
     }
 
     /**
-     * Checks delivery access without allowing a driver to enumerate all deliveries
-     * in a restaurant. A DELIVERY_DRIVER must be the assigned driver; other
-     * restaurant members need DELIVERY_READ and restaurant-scoped order ownership.
+     * Management can access restaurant-wide deliveries. Members with only
+     * delivery read access must be assigned to the restaurant-scoped task.
      */
     public boolean canAccessDelivery(UUID restaurantId, UUID deliveryId) {
         UUID userId = getCurrentUserIdOrNull();
@@ -109,7 +108,7 @@ public class RestaurantAuthorization {
             return false;
         }
 
-        if (member.getRole() == RestaurantRole.DELIVERY_DRIVER) {
+        if (!member.getRole().allows(RestaurantPermission.DELIVERY_ASSIGN)) {
             return deliveryRepository
                     .findByIdAndDriverUserId(deliveryId, userId)
                     .map(delivery -> orderBelongsToRestaurant(delivery, restaurantId))
