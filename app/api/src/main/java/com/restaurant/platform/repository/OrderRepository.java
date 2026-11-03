@@ -55,6 +55,11 @@ public interface OrderRepository
 
     Optional<Order> findByIdAndCustomerId(UUID id, UUID customerId);
 
+    /** Resolve the lock scope without caching a mutable Order before the tenant lock. */
+    @Query("select o.restaurantId from Order o where o.id = :orderId and o.customerId = :customerId")
+    Optional<UUID> findRestaurantIdByIdAndCustomerId(
+            @Param("orderId") UUID orderId, @Param("customerId") UUID customerId);
+
     @Query(value = """
             select count(*) as "totalOrders",
                    count(*) filter (where status = 'PENDING') as "pendingOrders",

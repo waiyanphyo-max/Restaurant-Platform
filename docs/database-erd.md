@@ -51,6 +51,8 @@ erDiagram
 
 ## Migration workflow
 
+Shared accounting adds restaurant-scoped suppliers, reusable shopping items and draft sheets, immutable purchase headers/lines/payments, expenses/recurring templates, cash movements/closing revisions, private receipts, request keys, audit events and sales refunds. Existing orders/items/payments remain the sales source. See [accounting.md](accounting.md) and its domain references for tables, relationships, exact numeric conventions and constraints.
+
 1. Add new schema changes as a new timestamped file; do not edit an already-applied migration. Current follow-up migrations include `20261025130000_add_storage_media_fields.sql`, `20261021110000_add_default_delivery_driver.sql`, `20261022001000_sync_auth_user_profiles.sql`, `20261022002000_allow_cancelled_payment_status.sql`, `20261024083000_add_qr_order_idempotency.sql`, `20261024091000_add_delivery_zone_coverage.sql`, and `20261024100000_add_push_notification_outbox.sql`.
 2. Inspect `npx supabase migration list` and `npx supabase db push --dry-run` before applying any migration.
 3. Run `npx supabase db push` only after confirming the pending migrations are the intended changes.

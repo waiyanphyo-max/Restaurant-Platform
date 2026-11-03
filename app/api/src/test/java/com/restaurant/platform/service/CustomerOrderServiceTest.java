@@ -1,6 +1,7 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.accounting.AccountingSupport;
 import com.restaurant.platform.dto.customer.ReorderDeliveryOrderRequest;
 import com.restaurant.platform.dto.order.CreateDeliveryOrderRequest;
 import com.restaurant.platform.dto.order.CreateOrderItemRequest;
@@ -167,6 +168,25 @@ class CustomerOrderServiceTest {
         assertEquals("CUSTOMER_ORDER_CANNOT_BE_CANCELLED", error.getCode());
         assertEquals(HttpStatus.CONFLICT, error.getStatus());
         verify(orderRepository, never()).save(any(Order.class));
+        verify(productRepository, never()).releaseStock(any(), any(), anyInt());
+    }
+
+    @Test
+    void cancellationLoadsMutableOrderStateOnlyAfterAcquiringTheRestaurantLock() {
+        AccountingSupport accounting = mock(AccountingSupport.class);
+        service.setAccountingSupport(accounting);
+        Order mutableOrder = order("PENDING");
+        when(orderRepository.findRestaurantIdByIdAndCustomerId(orderId, userId)).thenReturn(Optional.of(restaurantId));
+        doAnswer(call -> { mutableOrder.setStatus("ACCEPTED"); return null; }).when(accounting).lock(restaurantId);
+        when(orderRepository.findByIdAndCustomerIdForUpdate(orderId, userId)).thenReturn(Optional.of(mutableOrder));
+
+        ApiException error = assertThrows(ApiException.class, () -> service.cancelMyOrder(userId, orderId));
+        assertEquals("CUSTOMER_ORDER_CANNOT_BE_CANCELLED", error.getCode());
+        var sequence = inOrder(orderRepository, accounting);
+        sequence.verify(orderRepository).findRestaurantIdByIdAndCustomerId(orderId, userId);
+        sequence.verify(accounting).lock(restaurantId);
+        sequence.verify(orderRepository).findByIdAndCustomerIdForUpdate(orderId, userId);
+        verify(orderRepository, never()).findByIdAndCustomerId(any(), any());
         verify(productRepository, never()).releaseStock(any(), any(), anyInt());
     }
 

@@ -1,6 +1,7 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.accounting.AccountingSupport;
 import com.restaurant.platform.dto.delivery.AssignDeliveryDriverRequest;
 import com.restaurant.platform.dto.delivery.DefaultDeliveryDriverResponse;
 import com.restaurant.platform.dto.delivery.DeliveryTaskDto;
@@ -59,6 +60,10 @@ public class DeliveryService {
     private final RestaurantMemberRepository memberRepository;
     private final AppNotificationRepository notificationRepository;
     private final RestaurantAuthorization authorization;
+    private AccountingSupport accounting;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAccountingSupport(AccountingSupport accounting) { this.accounting = accounting; }
 
     public DeliveryService(
             DeliveryRepository deliveryRepository,
@@ -194,6 +199,7 @@ public class DeliveryService {
         authorization.requireAuthenticatedUserMatches(actorUserId);
         authorization.requirePermission(
                 restaurantId, RestaurantPermission.DELIVERY_STATUS_UPDATE);
+        if (accounting != null) accounting.lock(restaurantId);
         if (request == null || request.status() == null || request.status().isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "DELIVERY_STATUS_REQUIRED", "error.delivery.status-required");
@@ -240,7 +246,7 @@ public class DeliveryService {
                 requireTransition("PICKED_UP".equals(currentStatus)
                                 && "OUT_FOR_DELIVERY".equals(order.getStatus()),
                         currentStatus, nextStatus);
-                confirmCashOnDeliveryPayment(order, request.cashCollected(), now);
+                confirmCashOnDeliveryPayment(order, request.cashCollected(), now, actorUserId);
                 delivery.setStatus("DELIVERED");
                 delivery.setDeliveredAt(now);
                 order.setStatus("COMPLETED");
@@ -424,7 +430,7 @@ public class DeliveryService {
     }
 
     private void confirmCashOnDeliveryPayment(
-            Order order, Boolean cashCollected, OffsetDateTime paidAt) {
+            Order order, Boolean cashCollected, OffsetDateTime paidAt, UUID actorUserId) {
         List<Payment> payments = paymentRepository
                 .findByOrderIdOrderByCreatedAtDesc(order.getId());
         List<Payment> pendingCod = payments.stream()
@@ -442,6 +448,7 @@ public class DeliveryService {
         for (Payment payment : pendingCod) {
             payment.setStatus("PAID");
             payment.setPaidAt(paidAt);
+            payment.setCollectedByUserId(actorUserId);
             paymentRepository.save(payment);
         }
     }

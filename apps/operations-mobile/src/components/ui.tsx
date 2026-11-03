@@ -1,10 +1,11 @@
 import { useId, type PropsWithChildren, type ReactNode } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { resolveBrandTokens } from "@restaurant-platform/ui-tokens";
 import { readEmbeddedTenant } from "../tenant";
 
-export function Page({ title, subtitle, children }: PropsWithChildren<{ title: string; subtitle?: string }>) {
-  return <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+export function Page({ title, subtitle, children, onRefresh, refreshing = false }: PropsWithChildren<{ title: string; subtitle?: string; onRefresh?: () => void; refreshing?: boolean }>) {
+  return <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled"
+    refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined}>
     <Text accessibilityRole="header" style={styles.heading}>{title}</Text>
     {subtitle ? <Text style={styles.muted}>{subtitle}</Text> : null}
     {children}
@@ -17,11 +18,11 @@ export function Card({ title, children }: PropsWithChildren<{ title?: string }>)
 
 export function Body({ children }: PropsWithChildren) { return <Text style={styles.body}>{children}</Text>; }
 
-export function Action({ title, onPress, disabled = false, secondary = false }: {
-  title: string; onPress(): void; disabled?: boolean; secondary?: boolean;
+export function Action({ title, onPress, disabled = false, secondary = false, selected }: {
+  title: string; onPress(): void; disabled?: boolean; secondary?: boolean; selected?: boolean;
 }) {
   const brand = resolveBrandTokens(readEmbeddedTenant().branding);
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled, selected }} disabled={disabled} onPress={onPress}
     style={({ pressed }) => [styles.action, { backgroundColor: secondary ? "#e8edf1" : brand.primaryColor, opacity: disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
     <Text style={[styles.actionText, { color: secondary ? "#18222e" : brand.onPrimaryColor }]}>{title}</Text>
   </Pressable>;
@@ -45,7 +46,9 @@ export function DataTable({ columns, rows, emptyMessage = "No records found." }:
     <View>
       <View style={[styles.tableRow, styles.tableHeader]}>{columns.map(column => <Text key={column} style={[styles.cell, styles.label]}>{column}</Text>)}</View>
       {rows.map(row => <View key={row.key} style={styles.tableRow}>{row.cells.map((cell, index) =>
-        <View key={index} style={styles.cell}>{typeof cell === "string" || typeof cell === "number" ? <Text style={styles.body}>{cell}</Text> : cell}</View>)}</View>)}
+        <View key={index} style={styles.cell}>{typeof cell === "string" || typeof cell === "number"
+          ? <Text accessibilityLabel={columns[index] ? `${columns[index]}: ${cell}` : undefined} style={styles.body}>{cell}</Text>
+          : cell}</View>)}</View>)}
     </View>
   </ScrollView>;
 }
@@ -80,7 +83,10 @@ export function StateView({ kind, title, message, onRetry }: {
 }) {
   const titles = { loading: "Loading your workspace", offline: "You are offline", error: "Something went wrong", denied: "Access unavailable" };
   return <Card><Text accessibilityRole="header" style={styles.cardTitle}>{title ?? titles[kind]}</Text>
-    {kind === "loading" ? <ActivityIndicator accessibilityLabel="Loading" /> : null}
+    {kind === "loading" ? <><ActivityIndicator accessibilityLabel="Loading" />
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ gap: 10 }}>
+        {["100%", "82%", "64%"].map(width => <View key={width} style={{ height: 16, borderRadius: 6, backgroundColor: "#e2e8f0", width: width as `${number}%` }} />)}
+      </View></> : null}
     {message ? <Text accessibilityRole={kind === "error" ? "alert" : "text"} style={styles.body}>{message}</Text> : null}
     {onRetry ? <Action title="Try again" onPress={onRetry} /> : null}
   </Card>;

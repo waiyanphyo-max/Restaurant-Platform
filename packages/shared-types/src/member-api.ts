@@ -209,3 +209,46 @@ export interface UpdateDeliveryStatusRequest {
   note?: string | null;
   cashCollected?: boolean | null;
 }
+
+/** M8-A operational writes mirror existing Spring records; no accounting contracts. */
+export interface CategoryRequest { name: string; displayOrder?: number; active?: boolean; }
+export interface ProductRequest {
+  categoryId: Uuid; name: string; description?: string | null; price: number;
+  imageUrl?: string | null; trackStock: boolean; stockQuantity?: number | null; available: boolean;
+}
+export interface ProductVariantRequest { name: string; price: number; available: boolean; imageUrl?: string | null; }
+export interface ProductVariantResponse extends ProductVariantRequest {
+  id: Uuid; productId: Uuid; imageUrl: string | null; createdAt: IsoDateTime; updatedAt: IsoDateTime;
+}
+export interface ModifierGroupRequest { name: string; required?: boolean; minSelections?: number; maxSelections?: number; active?: boolean; }
+export interface ModifierOptionRequest { name: string; additionalPrice: number; available: boolean; }
+export interface ModifierOptionResponse extends ModifierOptionRequest { id: Uuid; groupId: Uuid; }
+export interface ModifierGroupResponse {
+  id: Uuid; name: string; required: boolean; minSelections: number; maxSelections: number;
+  active: boolean; options: ModifierOptionResponse[];
+}
+export interface UpdateRestaurantRequest {
+  name: string; description?: string | null; phone?: string | null; address?: string | null;
+  houseNo?: string | null; street?: string | null; ward?: string | null; township: string; city: string;
+  latitude?: number | null; longitude?: number | null; logoUrl?: string | null;
+}
+export interface RestaurantLogoResponse { restaurantId: Uuid; logoUrl: string; }
+export type RestaurantSettingsRequest = Omit<RestaurantSettingsResponse, "restaurantId" | "defaultDeliveryDriverUserId">;
+export interface CommonQrTokenResponse { restaurantId: Uuid; commonQrToken: string; }
+export interface DiningTableRequest { tableNumber: string; active?: boolean; }
+export interface DiningTableResponse { id: Uuid; restaurantId: Uuid; tableNumber: string; active: boolean; createdAt: IsoDateTime; }
+export interface DiningTableQrTokenResponse { tableId: Uuid; tableNumber: string; qrToken: string; }
+export type AssignableMemberRole = "MANAGER" | "STAFF" | "DELIVERY_DRIVER";
+export interface InviteRestaurantMemberRequest { email: string; fullName?: string | null; role: AssignableMemberRole; }
+export interface RestaurantMemberRequest { userId: Uuid; role: AssignableMemberRole; }
+export interface TransferRestaurantOwnershipRequest { newOwnerUserId: Uuid; }
+export interface TransferRestaurantOwnershipResponse {
+  restaurantId: Uuid; previousOwnerUserId: Uuid; newOwnerUserId: Uuid; previousOwnerRole: string; newOwnerRole: string;
+}
+export interface DeliveryZoneRequest {
+  name: string; deliveryFee: number; minimumOrder: number; active?: boolean;
+  coverageCity?: string | null; coverageTownship?: string | null;
+}
+export interface DeliveryZoneResponse extends DeliveryZoneRequest { id: Uuid; restaurantId: Uuid; active: boolean; coverageCity: string | null; coverageTownship: string | null; }
+export interface DefaultDeliveryDriverResponse { restaurantId: Uuid; defaultDriverUserId: Uuid | null; }
+export interface DeliveryAssignmentOption { userId: Uuid; fullName: string | null; email: string | null; }

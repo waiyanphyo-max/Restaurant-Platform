@@ -6,7 +6,7 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 
 ## Restaurant membership grants
 
-`✓` means the enum grants the permission for that role. The service may enforce additional record ownership, state, or role checks. `OWNER` currently receives all enum permissions; `MANAGER` grants are listed explicitly in Java, so a new enum permission is **not** automatically granted to managers.
+`✓` means the enum grants the permission for that role. The service may enforce additional record ownership, state, or role checks. Each role has an explicit list of grants in Java. Adding a permission to the enum requires a separate role grant.
 
 | Permission | Owner | Manager | Staff | Driver | Typical backend use |
 | --- | :---: | :---: | :---: | :---: | --- |
@@ -26,6 +26,8 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 | `PAYMENT_READ` | ✓ | ✓ | ✓ | — | Restaurant order payment list |
 | `PAYMENT_COLLECT` | ✓ | ✓ | ✓ | — | Collect cash-at-counter payment |
 | `REPORT_READ` | ✓ | ✓ | — | — | Daily operations report |
+| `FINANCE_READ` | ✓ | ✓ | — | — | Accounting ledger, shopping/purchases, expenses, cashbook, suppliers, reports, audit, receipts and CSV |
+| `FINANCE_MANAGE` | ✓ | ✓ | — | — | Accounting postings, financial payments, refunds, reversals and closing |
 
 ## Product boundaries outside the restaurant role enum
 
@@ -46,6 +48,8 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 - Order status writes require `ORDER_STATUS_UPDATE`; cancellation also requires `ORDER_CANCEL`, delivery transitions require `DELIVERY_STATUS_UPDATE`, and queue-changing transitions require `QUEUE_MANAGE`.
 - A Staff member currently has restaurant-wide delivery read/status permission, and the order-status route does not uniformly enforce assigned-only Staff delivery work. This is a **backend policy gap** if the product requires Staff to deliver only assigned tasks. A frontend filter is insufficient; propose and test server-side assigned-user checks in `DeliveryService` and `ManagerOrderService` before exposing that workflow.
 - `GET /api/v1/restaurants/{restaurantId}/settings` requires `SETTINGS_MANAGE`, so Staff and Driver cannot read this management response. Public menu/branding must come from public endpoints and approved tenant config instead.
+- M8-A adds `GET /api/v1/restaurants/{restaurantId}/delivery-settings/assignment-options` under existing `DELIVERY_ASSIGN`: OWNER/MANAGER receive only current same-restaurant DELIVERY_DRIVER user IDs, display names and email labels. Manager still cannot enumerate/administer `/members`. This preserves current dedicated-driver eligibility rather than implementing the broader target below.
+- M8-A adds restaurant-scoped GET/PATCH-read `/api/v1/restaurants/{restaurantId}/notifications`. Existing `RESTAURANT_READ` plus addressed-user ownership and associated order/queue tenant scope apply. This is a view of the user's current inbox, not access to other members' notifications or an Owner-wide activity feed. The personal `/api/v1/notifications` contract remains unchanged and is not called by the branded app.
 
 See [API coverage and gaps](api-coverage-gap-report.md) for exact implemented route groups and missing phone/identity contracts.
 

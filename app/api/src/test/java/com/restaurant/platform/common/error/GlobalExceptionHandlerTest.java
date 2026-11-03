@@ -2,6 +2,9 @@ package com.restaurant.platform.common.error;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -76,6 +79,19 @@ class GlobalExceptionHandlerTest {
         assertEquals("FORBIDDEN", response.getBody().code());
         assertEquals("Access denied.", response.getBody().message());
         assertFalse(response.getBody().message().contains("internal permission expression"));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void unexpectedAccountingErrorOmitsFinancialPayloadFromLogs(CapturedOutput output) {
+        var request = new MockHttpServletRequest("POST", "/api/v1/restaurants/restaurant/accounting/expenses");
+        var response = handler.handleUnexpectedException(
+                new IllegalStateException("private expense row amount 4378265", new RuntimeException("private invoice")),
+                request, Locale.ENGLISH);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertTrue(output.getAll().contains("Unhandled accounting API error (IllegalStateException)"));
+        assertFalse(output.getAll().contains("4378265"));
+        assertFalse(output.getAll().contains("private invoice"));
     }
 
     @Test

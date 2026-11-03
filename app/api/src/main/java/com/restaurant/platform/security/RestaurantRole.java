@@ -5,7 +5,26 @@ import java.util.Set;
 
 public enum RestaurantRole {
 
-    OWNER(EnumSet.allOf(RestaurantPermission.class)),
+    OWNER(EnumSet.of(
+            RestaurantPermission.RESTAURANT_READ,
+            RestaurantPermission.SETTINGS_MANAGE,
+            RestaurantPermission.MEMBERS_MANAGE,
+            RestaurantPermission.MENU_READ,
+            RestaurantPermission.MENU_MANAGE,
+            RestaurantPermission.ORDER_READ,
+            RestaurantPermission.ORDER_CREATE,
+            RestaurantPermission.ORDER_STATUS_UPDATE,
+            RestaurantPermission.ORDER_CANCEL,
+            RestaurantPermission.QUEUE_MANAGE,
+            RestaurantPermission.DELIVERY_READ,
+            RestaurantPermission.DELIVERY_ASSIGN,
+            RestaurantPermission.DELIVERY_STATUS_UPDATE,
+            RestaurantPermission.PAYMENT_READ,
+            RestaurantPermission.PAYMENT_COLLECT,
+            RestaurantPermission.REPORT_READ,
+            RestaurantPermission.FINANCE_READ,
+            RestaurantPermission.FINANCE_MANAGE
+    )),
 
     // Explicit grants avoid accidentally granting newly added permissions to managers.
     MANAGER(EnumSet.of(
@@ -23,7 +42,9 @@ public enum RestaurantRole {
             RestaurantPermission.DELIVERY_STATUS_UPDATE,
             RestaurantPermission.PAYMENT_READ,
             RestaurantPermission.PAYMENT_COLLECT,
-            RestaurantPermission.REPORT_READ
+            RestaurantPermission.REPORT_READ,
+            RestaurantPermission.FINANCE_READ,
+            RestaurantPermission.FINANCE_MANAGE
     )),
 
     STAFF(EnumSet.of(

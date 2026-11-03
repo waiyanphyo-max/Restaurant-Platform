@@ -19,18 +19,22 @@ export function useApiQuery<T>(query: (signal: AbortSignal) => Promise<T>, query
   useEffect(() => {
     const controller = new AbortController();
     setResult({ key: requestKey, state: { status: "loading" } });
-    if (identity) void queryRef.current(controller.signal).then(data => {
-      if (!controller.signal.aborted) setResult({ key: requestKey, state: { status: "ready", data } });
-    }).catch((error: unknown) => {
-      if (controller.signal.aborted) return;
-      const denied = error instanceof MissingAccessTokenError || error instanceof ApiHttpError && [401, 403].includes(error.status);
-      setResult({ key: requestKey, state: { status: denied ? "denied" : error instanceof ApiNetworkError || error instanceof ApiTimeoutError ? "offline" : "error" } });
-      // A record-specific 403 stays denied. Rechecking membership here can cause
-      // an endless remount loop when that endpoint has stricter permissions.
-      if (error instanceof MissingAccessTokenError || error instanceof ApiHttpError && error.status === 401) {
-        void signOutRef.current().catch(() => undefined);
+    async function load() {
+      try {
+        const data = await queryRef.current(controller.signal);
+        if (!controller.signal.aborted) setResult({ key: requestKey, state: { status: "ready", data } });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        const denied = error instanceof MissingAccessTokenError || error instanceof ApiHttpError && [401, 403].includes(error.status);
+        setResult({ key: requestKey, state: { status: denied ? "denied" : error instanceof ApiNetworkError || error instanceof ApiTimeoutError ? "offline" : "error" } });
+        // A record-specific 403 stays denied. Rechecking membership here can cause
+        // an endless remount loop when that endpoint has stricter permissions.
+        if (error instanceof MissingAccessTokenError || error instanceof ApiHttpError && error.status === 401) {
+          void signOutRef.current().catch(() => undefined);
+        }
       }
-    });
+    }
+    if (identity) void load();
     return () => controller.abort();
   }, [identity, requestKey]);
 

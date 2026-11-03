@@ -11,12 +11,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
@@ -106,6 +111,14 @@ public class GlobalExceptionHandler {
                 List.of());
     }
 
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class,
+            MissingRequestHeaderException.class, MissingServletRequestParameterException.class})
+    public ResponseEntity<ApiErrorResponse> handleInvalidRequestParameter(
+            Exception exception, HttpServletRequest request, Locale locale) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST_PARAMETERS",
+                message("error.bad-request", locale), request, List.of());
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleResponseStatusException(
             ResponseStatusException exception,
@@ -189,8 +202,11 @@ public class GlobalExceptionHandler {
             HttpServletRequest request,
             Locale locale) {
 
-        // Log the database cause on the server only; do not expose it to API clients.
-        log.warn("Database constraint conflict at {}", request.getRequestURI());
+        if (isAccountingRequest(request)) {
+            log.warn("Accounting request rejected by a database constraint");
+        } else {
+            log.warn("Database constraint conflict at {}", request.getRequestURI());
+        }
         return response(
                 HttpStatus.CONFLICT,
                 "DATA_CONFLICT",
@@ -218,13 +234,22 @@ public class GlobalExceptionHandler {
             HttpServletRequest request,
             Locale locale) {
 
-        log.error("Unhandled API error at {}", request.getRequestURI(), exception);
+        if (isAccountingRequest(request)) {
+            // Database exception messages and causes can include stored financial values.
+            log.error("Unhandled accounting API error ({})", exception.getClass().getSimpleName());
+        } else {
+            log.error("Unhandled API error at {}", request.getRequestURI(), exception);
+        }
         return response(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_ERROR",
                 message("error.internal", locale),
                 request,
                 List.of());
+    }
+
+    private boolean isAccountingRequest(HttpServletRequest request) {
+        return request.getRequestURI().contains("/accounting/");
     }
 
     private ResponseEntity<ApiErrorResponse> response(
@@ -241,7 +266,12 @@ public class GlobalExceptionHandler {
                 message,
                 request.getRequestURI(),
                 errors);
-        return ResponseEntity.status(status).body(body);
+        var response = ResponseEntity.status(status);
+        if (isAccountingRequest(request)) {
+            // CSV and receipt downloads still return structured errors on failure.
+            response.contentType(MediaType.APPLICATION_JSON).cacheControl(CacheControl.noStore());
+        }
+        return response.body(body);
     }
 
     /**

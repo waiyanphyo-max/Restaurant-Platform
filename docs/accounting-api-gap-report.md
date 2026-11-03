@@ -1,4 +1,6 @@
-# M7 accounting contract audit and M8 implementation boundary
+# Historical M7 accounting contract audit and M8 implementation boundary
+
+This is the pre-implementation audit. The subsequent shared accounting implementation is documented in [accounting.md](accounting.md), with exact metric definitions and remaining COGS/legacy-data limitations.
 
 Audit date: 2026-11-02. Scope: checked-in Spring Boot controllers, services, repositories, entities, DTOs, Supabase migration history, and shared TypeScript clients. This is a source audit; it does not assert that a remote database has these migrations or that a live API was exercised. No migrations were created or applied for M7.
 

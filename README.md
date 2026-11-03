@@ -23,6 +23,8 @@ A multi-restaurant ordering and management platform with a shared Spring Boot AP
 
 The database schema remains the source of truth. Hibernate is configured with `ddl-auto: validate`; it must not create or modify production schema.
 
+Shared restaurant accounting now includes Owner/Manager sales dashboards and ledger, shopping plans and confirmed purchases, suppliers/payables, operating expenses, cash reconciliation, private receipts and immutable audit history. See [accounting behavior, API and deployment notes](docs/accounting.md). Financial reports clearly show a cash-flow/expense summary when verified COGS is missing; they do not claim net profit.
+
 ## Requirements
 
 - JDK 21

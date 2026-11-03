@@ -34,10 +34,14 @@ export interface RequestSpec {
   path: string;
   query?: Record<string, string | number | boolean | null | undefined>;
   body?: unknown;
+  /** Explicit multipart upload. Fetch supplies the boundary, including native file URI parts. */
+  multipartBody?: FormData;
   headers?: Record<string, string>;
   options?: ApiRequestOptions;
   /** Only GETs or explicit idempotency-key writes may opt into a retry. */
   retryTransient?: boolean;
+  /** Authenticated CSV exports share the same origin, credential and error handling rules. */
+  responseType?: "text";
 }
 
 export interface ApiTransport {
@@ -128,11 +132,15 @@ export function createTransport(options: ApiTransportOptions, getAccessToken?: A
   async function attempt<T>(spec: RequestSpec, target: URL): Promise<T> {
     if (spec.options?.signal?.aborted) throw new ApiCancelledError();
     const timeoutMs = requireTimeout(spec.options?.timeoutMs ?? defaultTimeout);
-    let body: string | undefined;
-    try { body = spec.body === undefined ? undefined : JSON.stringify(spec.body); } catch {
+    if (spec.body !== undefined && spec.multipartBody !== undefined) {
+      throw new ApiConfigurationError("A request cannot contain both JSON and multipart bodies");
+    }
+    let body: string | FormData | undefined = spec.multipartBody;
+    try { if (spec.multipartBody === undefined) body = spec.body === undefined ? undefined : JSON.stringify(spec.body); } catch {
       throw new ApiConfigurationError("Request body must be serializable JSON");
     }
     const headers = new Headers(spec.headers);
+    if (spec.multipartBody !== undefined) headers.delete("Content-Type");
     if (headers.has("Authorization")) {
       throw new ApiConfigurationError("Authorization is managed only by the authenticated transport");
     }
@@ -144,7 +152,7 @@ export function createTransport(options: ApiTransportOptions, getAccessToken?: A
     if (spec.body !== undefined) {
       headers.set("Content-Type", "application/json");
     }
-    headers.set("Accept", "application/json");
+    headers.set("Accept", spec.responseType === "text" ? "text/csv" : "application/json");
 
     const controller = new AbortController();
     let timedOut = false;
@@ -170,6 +178,10 @@ export function createTransport(options: ApiTransportOptions, getAccessToken?: A
       }
       if (!response.ok) throw await httpError(response);
       if (response.status === 204) return undefined as T;
+      if (spec.responseType === "text") {
+        if (!response.headers.get("content-type")?.toLowerCase().startsWith("text/csv")) throw new ApiProtocolError();
+        return await response.text() as T;
+      }
       try { return await response.json() as T; } catch {
         if (timedOut || spec.options?.signal?.aborted) throw new Error("aborted");
         throw new ApiProtocolError();

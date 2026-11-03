@@ -59,6 +59,53 @@ class PostgresMigrationSchemaTest {
     private static LocalContainerEntityManagerFactoryBean entityManagerFactoryBean;
     private static Path migrationDirectory;
 
+    @Test
+    void restaurantInboxQueriesExcludeOtherTenantsAndUsers() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        UUID first = UUID.randomUUID(), second = UUID.randomUUID(), user = UUID.randomUUID(), otherUser = UUID.randomUUID();
+        for (UUID id : List.of(first, second)) jdbc.update("""
+                INSERT INTO public.restaurants (id, name, slug, township, city) VALUES (?, 'Inbox Test', ?, 'Bahan', 'Yangon')
+                """, id, "inbox-" + id.toString().replace("-", ""));
+        for (UUID id : List.of(user, otherUser)) jdbc.update("INSERT INTO auth.users (id) VALUES (?)", id);
+        UUID firstOrder = UUID.randomUUID(), secondOrder = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO public.orders (id, restaurant_id, order_number, order_type, order_channel, subtotal, total_amount)
+                VALUES (?, ?, 'INBOX-1', 'TAKEAWAY', 'STAFF', 1000, 1000), (?, ?, 'INBOX-2', 'TAKEAWAY', 'STAFF', 1000, 1000)
+                """, firstOrder, first, secondOrder, second);
+        UUID counter = UUID.randomUUID(), ticket = UUID.randomUUID();
+        jdbc.update("INSERT INTO public.daily_queue_counters (id, restaurant_id, queue_date) VALUES (?, ?, CURRENT_DATE)", counter, second);
+        jdbc.update("""
+                INSERT INTO public.queue_tickets (id, restaurant_id, daily_counter_id, queue_number, display_code)
+                VALUES (?, ?, ?, 1, 'I001')
+                """, ticket, second, counter);
+        jdbc.update("UPDATE public.orders SET queue_ticket_id = ? WHERE id = ?", ticket, secondOrder);
+        UUID own = UUID.randomUUID(), crossTenant = UUID.randomUUID(), crossUser = UUID.randomUUID(), conflicting = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO public.notifications (id, user_id, order_id, notification_type, title, body, channel)
+                VALUES (?, ?, ?, 'ORDER_UPDATE', 'Own', 'Own', 'IN_APP'),
+                       (?, ?, ?, 'ORDER_UPDATE', 'Other tenant', 'Other tenant', 'IN_APP'),
+                       (?, ?, ?, 'ORDER_UPDATE', 'Other user', 'Other user', 'IN_APP')
+                """, own, user, firstOrder, crossTenant, user, secondOrder, crossUser, otherUser, firstOrder);
+        jdbc.update("""
+                INSERT INTO public.notifications (id, user_id, order_id, queue_ticket_id, notification_type, title, body, channel)
+                VALUES (?, ?, ?, ?, 'ORDER_UPDATE', 'Conflicting references', 'Excluded', 'IN_APP')
+                """, conflicting, user, firstOrder, ticket);
+        var factory = entityManagerFactoryBean.getObject();
+        assertNotNull(factory);
+        var entityManager = factory.createEntityManager();
+        try {
+            var repository = new org.springframework.data.jpa.repository.support.JpaRepositoryFactory(entityManager)
+                    .getRepository(com.restaurant.platform.repository.AppNotificationRepository.class);
+            assertEquals(List.of(own), repository.findForRestaurantUser(first, user, null).stream().map(com.restaurant.platform.entity.AppNotification::getId).toList());
+            assertTrue(repository.findForRestaurantUserById(first, user, crossTenant).isEmpty());
+            assertTrue(repository.findForRestaurantUserById(first, user, crossUser).isEmpty());
+            assertTrue(repository.findForRestaurantUserById(first, user, conflicting).isEmpty());
+            assertTrue(repository.findForRestaurantUserById(second, user, conflicting).isEmpty());
+            assertTrue(repository.findForRestaurantUser(first, user, "READ").isEmpty());
+            assertTrue(repository.findForRestaurantUserById(first, user, own).isPresent());
+        } finally { entityManager.close(); }
+    }
+
     @BeforeAll
     static void applyMigrationsAndValidateHibernateMappings() throws Exception {
         migrationDirectory = findMigrationDirectory();
@@ -75,6 +122,11 @@ class PostgresMigrationSchemaTest {
         if (entityManagerFactoryBean != null) {
             entityManagerFactoryBean.destroy();
         }
+    }
+
+    @Test
+    void accountingDomainsPreserveFinancialIntegrity() throws Exception {
+        com.restaurant.platform.accounting.AccountingDatabaseChecks.verify(dataSource);
     }
 
     @Test

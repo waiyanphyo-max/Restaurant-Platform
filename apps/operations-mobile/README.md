@@ -1,4 +1,4 @@
-# Operations Android foundation (M7)
+# Operations Android
 
 One Expo/React Native/TypeScript source generates independently branded Android applications for OWNER, MANAGER, STAFF and DELIVERY_DRIVER. The build embeds one restaurant UUID, branding, API origin and environment. There is no restaurant picker or route-based tenant override. Customer Android remains a separate app.
 
@@ -11,15 +11,21 @@ One Expo/React Native/TypeScript source generates independently branded Android 
 | `src/config/`, `src/tenant.ts` | Checked public configuration from Expo metadata |
 | `src/navigation/` | Shared role/permission manifest and direct-route policy |
 | `src/components/` | Forms, actions, cards, tables, confirmation dialogs, loading/offline/error states, count chart |
-| `src/hooks/` | Abortable screen queries; no persisted business-data cache |
-| `src/features/operations/` | Read-only orders, historical detail, private menu, daily report, deliveries, team and settings |
+| `src/hooks/` | Abortable queries, session-aware mutations and duplicate-tap prevention; no persisted business-data cache |
+| `src/features/operations/` | Live dashboard, orders/status/payments, queue, scoped notifications and delivery management |
+| `src/features/menu/` | Category/product/variant/modifier CRUD, stock/availability, authenticated image uploads |
+| `src/features/management/` | Restaurant profile/settings/logo, Owner team administration, tables and ephemeral QR display/share/export |
 | `src/features/profile/` | Verified membership profile, refresh access, logout |
-| `src/features/accounting/` | Nine M8 boundaries and **proposed-only** DTOs; no working accounting endpoints |
+| `src/features/accounting/` | Shared financial views, sales and purchase history, shopping, suppliers and payables, expenses, cash closing, audit and CSV sharing |
 | `src/api.ts`, shared `packages/api-client` | Typed Spring REST calls locked to the embedded restaurant |
 
-Owner navigation prepares Dashboard, Orders, Menu, Shopping, Sales History, Accounting, Reports, Team and Settings. Manager prepares Dashboard, Orders, Menu, Shopping, Sales History, Accounting, Reports and Deliveries. Shopping and Accounting remain absent from runnable navigation until backend contracts exist. Both use the same feature modules. Staff has Dashboard/Orders/Menu and assigned deliveries; Driver has Dashboard and assigned deliveries. All roles have Profile. Financial report/payment-history screens are narrowed to Owner/Manager; Staff order prices remain operational data authorized by `ORDER_READ`.
+Owners and Managers share the Operations dashboard, Orders, Menu, Shopping, Sales History, Accounting, Reports, Restaurant settings, Tables & QR, Pickup queue and Deliveries. Owners also manage Team and the restaurant logo. Staff have operational Orders, read-only Menu, Pickup queue and assigned Deliveries. Drivers use assigned Deliveries. All roles have scoped Updates and Profile.
 
-Sales History currently shows paginated operational orders, snapshot product/variant/modifier prices and quantities, discounts, channel, exact timestamps, creator UUID, status history and separate payment records. Search, server date filters, dated refunds and accounting recognition require M8. The daily report distinguishes orders created from payments collected and makes no revenue or profit claim. No missing accounting result is presented as zero. See [the detailed accounting audit](../../docs/accounting-api-gap-report.md) and [acceptance evidence](../../docs/m7-acceptance.md).
+Reports contains Financial Overview, Sales Reports, Financial Summary and Export Reports. Sales History opens individual orders with recorded line prices, timestamps, status events, payments, refunds and reversals. Shopping contains the catalog and purchase plans, confirmed purchase history and details, suppliers and payables. Accounting contains the expense register and correction forms, cashbook, daily closing and audit history. Search, sorting and pagination operate on server-filtered history. Spring checks the current user, restaurant and explicit finance permissions on each read and write. See [accounting contracts](../../docs/accounting.md) and [M8-A acceptance](../../docs/m8-a-acceptance.md).
+
+The Owner/Manager can manage current DRIVER-role assignees, delivery zones/city/township/fees and default drivers. No all-role assignment policy is introduced. Counter cash collection and COD completion require explicit confirmation; completed orders are never presumed paid. Catalog removal uses existing deactivation/availability updates because no hard-delete endpoints exist. Invitations use the server's verified Auth identity flow; provider acceptance is not proof of email delivery or account activation.
+
+Staging/production QR URLs use the first registered guest domain for the selected environment. Development requires an explicit `PUBLIC_GUEST_BASE_URL` (local HTTP is allowed only for loopback/emulator hosts). Without it, one-time QR creation/rotation is disabled to avoid losing returned credentials. Verify the guest domain serves this same restaurant before sharing codes. QR URLs preserve existing guest routes and keep the credential in the fragment. Existing QR secrets cannot be retrieved; only create/rotate returns them. Rotation invalidates old printed codes. In-memory QR values clear on blur/background, and delayed callbacks cannot restore or share them after leaving the screen. Deliberate PNG exports use timestamp filenames in app-private cache: failed exports are deleted immediately; successful sharing schedules best-effort deletion after five minutes so the recipient has time to copy the image. Each Tables & QR screen mount also purges this feature's exported PNGs older than five minutes. If Android suspends or kills the process, timer cleanup may be delayed until the next screen mount or OS cache cleanup. Sharing intentionally hands the QR credential to the chosen recipient/application. Native picker/QR sharing require a rebuilt Android development client with the added native dependencies.
 
 ## Local development
 

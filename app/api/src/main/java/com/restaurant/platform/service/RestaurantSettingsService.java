@@ -1,6 +1,7 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.accounting.AccountingSupport;
 import com.restaurant.platform.dto.settings.CommonQrTokenResponse;
 import com.restaurant.platform.dto.settings.RestaurantSettingsRequest;
 import com.restaurant.platform.dto.settings.RestaurantSettingsResponse;
@@ -23,6 +24,10 @@ public class RestaurantSettingsService {
 
     private final RestaurantSettingsRepository settingsRepository;
     private final RestaurantAuthorization authorization;
+    private AccountingSupport accounting;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAccountingSupport(AccountingSupport accounting) { this.accounting = accounting; }
 
     public RestaurantSettingsService(
             RestaurantSettingsRepository settingsRepository,
@@ -41,6 +46,7 @@ public class RestaurantSettingsService {
     public RestaurantSettingsResponse updateSettings(
             UUID restaurantId, UUID userId, RestaurantSettingsRequest request) {
         requireSettingsPermission(restaurantId, userId);
+        if (accounting != null) accounting.lock(restaurantId);
         if (request == null || request.currency() == null || request.currency().isBlank()
                 || request.timezone() == null || request.timezone().isBlank()
                 || request.minimumOrder() == null || request.minimumOrder() < 0
@@ -79,6 +85,7 @@ public class RestaurantSettingsService {
     @Transactional
     public CommonQrTokenResponse rotateCommonQrToken(UUID restaurantId, UUID userId) {
         requireSettingsPermission(restaurantId, userId);
+        if (accounting != null) accounting.lock(restaurantId);
         RestaurantSettings settings = requireSettings(restaurantId);
         String token = TokenUtils.generateToken();
         settings.setCommonQrToken(token);
