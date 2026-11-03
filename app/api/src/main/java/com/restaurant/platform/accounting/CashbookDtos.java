@@ -2,6 +2,7 @@ package com.restaurant.platform.accounting;
 
 import jakarta.validation.constraints.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -15,8 +16,12 @@ public final class CashbookDtos {
     public record Movement(@NotNull Kind kind, @NotNull Direction direction, @NotNull @Positive Long amount,
                            @NotNull OffsetDateTime occurredAt, @NotBlank @Size(max=2000) String reason) { }
     public record Close(@NotNull LocalDate date, @NotNull @PositiveOrZero Long actualCash,
-                        Boolean acknowledgeMissingInputs, @Size(max=2000) String reconciliationReason) {
-        public Close(LocalDate date,Long actualCash) { this(date,actualCash,false,null); }
+                        Boolean acknowledgeMissingInputs, @Size(max=2000) String reconciliationReason,
+                        @JsonInclude(JsonInclude.Include.NON_NULL) Long expectedCash) {
+        public Close(LocalDate date,Long actualCash) { this(date,actualCash,false,null,null); }
+        public Close(LocalDate date, Long actualCash, Boolean acknowledgeMissingInputs, String reconciliationReason) {
+            this(date, actualCash, acknowledgeMissingInputs, reconciliationReason, null);
+        }
     }
     public record Closing(UUID id, LocalDate date, int revision, @JsonFormat(shape=JsonFormat.Shape.STRING) long openingBalance, @JsonFormat(shape=JsonFormat.Shape.STRING) long expectedCash,
                           @JsonFormat(shape=JsonFormat.Shape.STRING) long actualCash, @JsonFormat(shape=JsonFormat.Shape.STRING) long variance, UUID responsibleMember, OffsetDateTime closedAt,

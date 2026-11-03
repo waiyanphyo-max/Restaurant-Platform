@@ -20,6 +20,8 @@ All routes begin `/api/v1/restaurants/{restaurantId}/accounting/sales`.
 
 Ledger, product and CSV requests accept exactly one of `date`, `month`, or the complete inclusive `from`/`to` pair. Omitting all dates selects today in the restaurant's timezone. Supported ranges contain at most 366 calendar days. Page sizes are 1–200. Ledger/CSV additionally support `product` (historical product name or ID), `order` (display number or ID), exact `channel`, and accounting `paymentStatus`: `UNPAID`, `PARTIALLY_PAID`, `PAID`, `PARTIALLY_REFUNDED`, `REFUNDED`, or `CANCELLED`. Searches are server-side and escape SQL wildcard characters. Channel codes are `TABLE_QR`, `COMMON_QR`, `STAFF`, and `CUSTOMER_APP`.
 
+Ledger and CSV accept `sort=NEWEST|OLDEST|HIGHEST_TOTAL`. The ledger defaults to newest first and CSV to oldest first. Product breakdown accepts `sort=MOST_SOLD|HIGHEST_SALES|NAME`, defaulting to quantity sold. Sorting applies before pagination to the complete filtered result.
+
 ## Definitions and accounting basis
 
 - **Gross sales:** immutable stored order subtotal plus delivery fee, before order discounts, for noncancelled orders created within the selected restaurant-local period.

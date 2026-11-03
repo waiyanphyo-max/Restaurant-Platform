@@ -128,17 +128,30 @@ public class CashbookService {
           ORDER BY c.revision DESC LIMIT 1
           """,(rs,n)->rs.getLong(1),restaurant,date.minusDays(1)).stream().findFirst().orElse(null);
     }
-    public Page<Transaction> transactions(UUID restaurant,LocalDate from,LocalDate to,int page,int size) {
+    public Page<Transaction> transactions(UUID restaurant,LocalDate from,LocalDate to,String search,Chronology sort,int page,int size) {
         support.read(restaurant);page(page,size);var range=support.range(restaurant,from,to);
         String filter=" FROM ("+TRANSACTIONS+") t WHERE restaurant_id=? AND occurred_at>=? AND occurred_at<?";
-        Long count=jdbc.queryForObject("SELECT COUNT(*)"+filter,Long.class,restaurant,range.start(),range.end());
-        var items=jdbc.query("SELECT *"+filter+" ORDER BY occurred_at,id LIMIT ? OFFSET ?",(rs,n)->new Transaction(rs.getObject("id",UUID.class),rs.getString("source"),rs.getObject("source_id",UUID.class),rs.getObject("occurred_at",OffsetDateTime.class),rs.getLong("signed_amount"),rs.getObject("recorded_by",UUID.class),rs.getString("description")),restaurant,range.start(),range.end(),size,Math.multiplyExact(page,size));
+        var args = new ArrayList<Object>(List.of(restaurant,range.start(),range.end()));
+        if (search != null && !search.isBlank()) {
+            if (search.length() > 200) throw invalid("INVALID_CASHBOOK_SEARCH");
+            filter += """
+                 AND (strpos(lower(replace(source,'_',' ')),lower(replace(?,'_',' ')))>0
+                   OR strpos(lower(description),lower(?))>0 OR strpos(source_id::text,lower(?))>0)
+                """;
+            args.addAll(List.of(search,search,search));
+        }
+        Long count=jdbc.queryForObject("SELECT COUNT(*)"+filter,Long.class,args.toArray());
+        args.add(size);
+        args.add(Math.multiplyExact(page,size));
+        String order = " ORDER BY occurred_at " + sort.direction() + ",id,source LIMIT ? OFFSET ?";
+        var items=jdbc.query("SELECT *"+filter+order,(rs,n)->new Transaction(rs.getObject("id",UUID.class),rs.getString("source"),rs.getObject("source_id",UUID.class),rs.getObject("occurred_at",OffsetDateTime.class),rs.getLong("signed_amount"),rs.getObject("recorded_by",UUID.class),rs.getString("description")),args.toArray());
         return new Page<>(items,count==null?0:count,page,size);
     }
-    public Page<Closing> closings(UUID restaurant,LocalDate from,LocalDate to,int page,int size) {
+    public Page<Closing> closings(UUID restaurant,LocalDate from,LocalDate to,Chronology sort,int page,int size) {
         support.read(restaurant);page(page,size);var range=support.range(restaurant,from,to);
         Long count=jdbc.queryForObject("SELECT COUNT(*) FROM public.accounting_cash_closings WHERE restaurant_id=? AND closing_date BETWEEN ? AND ?",Long.class,restaurant,range.from(),range.to());
-        var items=jdbc.query(CLOSINGS+" WHERE c.restaurant_id=? AND c.closing_date BETWEEN ? AND ? ORDER BY closing_date DESC,revision DESC LIMIT ? OFFSET ?",CLOSING_MAPPER,restaurant,range.from(),range.to(),size,Math.multiplyExact(page,size));
+        String order = " ORDER BY closing_date " + sort.direction() + ",revision " + sort.direction() + " LIMIT ? OFFSET ?";
+        var items=jdbc.query(CLOSINGS+" WHERE c.restaurant_id=? AND c.closing_date BETWEEN ? AND ?"+order,CLOSING_MAPPER,restaurant,range.from(),range.to(),size,Math.multiplyExact(page,size));
         return new Page<>(items,count==null?0:count,page,size);
     }
     @Transactional
@@ -188,6 +201,7 @@ public class CashbookService {
             if(r==null||r.date()==null||r.actualCash()==null||r.actualCash()<0)throw invalid("INVALID_CASH_COUNT");
             support.assertOpenDay(restaurant,r.date());Day current=day(restaurant,r.date());
             if(current.openingBalance()==null)throw conflict("PREVIOUS_CASH_DAY_MUST_BE_CLOSED");
+            if(r.expectedCash()!=null&&!r.expectedCash().equals(current.expectedClosingCash()))throw conflict("CASH_CLOSING_EXPECTED_CHANGED");
             if(!current.missingInputs().isEmpty()) {
                 if(!Boolean.TRUE.equals(r.acknowledgeMissingInputs()))throw conflict("CASH_RECONCILIATION_INPUTS_REQUIRED");
                 ExpenseService.reason(new ExpenseDtos.Reason(r.reconciliationReason()));

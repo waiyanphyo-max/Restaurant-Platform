@@ -16,8 +16,10 @@ public class ExpenseController {
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required=false) ExpenseDtos.Category category,@RequestParam(required=false) String search,
-            @RequestParam(required=false) String paymentStatus,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
-        return service.list(restaurantId,from,to,category,search,paymentStatus,page,size);
+            @RequestParam(required=false) String paymentStatus,
+            @RequestParam(defaultValue="NEWEST") AccountingSupport.Chronology sort,
+            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
+        return service.list(restaurantId,from,to,category,search,paymentStatus,sort,page,size);
     }
     @GetMapping("/expenses/{expenseId}")
     public ExpenseDtos.Detail detail(@PathVariable UUID restaurantId,@PathVariable UUID expenseId) {return service.detail(restaurantId,expenseId);}
@@ -29,6 +31,11 @@ public class ExpenseController {
     public ExpenseDtos.Detail reversePayment(@PathVariable UUID restaurantId,@PathVariable UUID expenseId,@PathVariable UUID paymentId,@RequestHeader("Idempotency-Key") String key,@Valid @RequestBody ExpenseDtos.Reason r) {return service.reversePayment(restaurantId,expenseId,paymentId,key,r);}
     @PostMapping("/expenses/{expenseId}/cancel")
     public ExpenseDtos.Expense cancel(@PathVariable UUID restaurantId,@PathVariable UUID expenseId,@RequestHeader("Idempotency-Key") String key,@Valid @RequestBody ExpenseDtos.Reason r) {return service.cancel(restaurantId,expenseId,key,r);}
+    @PostMapping("/expenses/{expenseId}/correct")
+    public ExpenseDtos.Expense correct(@PathVariable UUID restaurantId,@PathVariable UUID expenseId,
+            @RequestHeader("Idempotency-Key") String key,@Valid @RequestBody ExpenseDtos.Correction request) {
+        return service.correct(restaurantId,expenseId,key,request);
+    }
     @GetMapping("/expenses/report")
     public ExpenseDtos.Report report(@PathVariable UUID restaurantId,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,

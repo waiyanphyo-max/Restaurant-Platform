@@ -19,8 +19,9 @@ public class ProcurementController {
 
     @GetMapping("/suppliers")
     public Page<Supplier> suppliers(@PathVariable UUID restaurantId,@RequestParam(required=false) String search,
+                                    @RequestParam(defaultValue="NAME_ASC") SupplierSort sort,
                                     @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
-        return service.suppliers(restaurantId,search,page,size);
+        return service.suppliers(restaurantId,search,sort,page,size);
     }
     @PostMapping("/suppliers")
     public Supplier createSupplier(@PathVariable UUID restaurantId,@RequestHeader("Idempotency-Key") String key,@Valid @RequestBody SupplierInput input) {
@@ -33,8 +34,9 @@ public class ProcurementController {
     @GetMapping("/shopping/items")
     public Page<Item> items(@PathVariable UUID restaurantId,@RequestParam(required=false) String search,
                             @RequestParam(defaultValue="false") boolean suggestionsOnly,
+                            @RequestParam(defaultValue="NAME_ASC") ShoppingItemSort sort,
                             @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
-        return service.items(restaurantId,search,suggestionsOnly,page,size);
+        return service.items(restaurantId,search,suggestionsOnly,sort,page,size);
     }
     @PostMapping("/shopping/items")
     public Item createItem(@PathVariable UUID restaurantId,@RequestHeader("Idempotency-Key") String key,@Valid @RequestBody ItemInput input) {
@@ -67,8 +69,9 @@ public class ProcurementController {
                                            @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,
                                            @RequestParam(required=false) UUID supplierId,@RequestParam(required=false) String item,
                                            @RequestParam(required=false) String paymentStatus,
+                                           @RequestParam(defaultValue="NEWEST") PurchaseSort sort,
                                            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
-        return service.purchases(restaurantId,from,to,supplierId,item,paymentStatus,page,size);
+        return service.purchases(restaurantId,from,to,supplierId,item,paymentStatus,sort,page,size);
     }
     @GetMapping("/purchases/{id}")
     public PurchaseDetail purchase(@PathVariable UUID restaurantId,@PathVariable UUID id) {return service.purchase(restaurantId,id);}
@@ -107,8 +110,10 @@ public class ProcurementController {
                 .body(service.export(restaurantId,from,to,supplierId,item,paymentStatus));
     }
     @GetMapping("/suppliers/payables")
-    public Page<Payable> payables(@PathVariable UUID restaurantId,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
-        return service.payables(restaurantId,page,size);
+    public Page<Payable> payables(@PathVariable UUID restaurantId,@RequestParam(required=false) String search,
+                                 @RequestParam(defaultValue="NAME_ASC") PayableSort sort,
+                                 @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
+        return service.payables(restaurantId,search,sort,page,size);
     }
     @GetMapping("/suppliers/{id}/payments")
     public Page<SupplierPayment> supplierPayments(@PathVariable UUID restaurantId,@PathVariable UUID id,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {

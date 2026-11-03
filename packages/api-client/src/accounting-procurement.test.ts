@@ -33,4 +33,19 @@ describe("procurement contracts",()=>{
     await expect(client(fetchImpl).listPurchases()).rejects.toMatchObject({status:403});
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
+  it("forwards server-side search and sort before paging procurement lists",async()=>{
+    const fetchImpl=vi.fn<typeof fetch>().mockImplementation(async()=>new Response("{}",{headers:{"Content-Type":"application/json"}}));
+    const api=client(fetchImpl);
+    await api.listShoppingItems({search:"rice",suggestionsOnly:true,sort:"LAST_PURCHASE_DESC",page:2,size:20});
+    await api.listPurchases({item:"Historic rice",sort:"TOTAL_DESC",page:3});
+    await api.listAccountingSuppliers({search:"market",sort:"NAME_DESC",page:1});
+    await api.getSupplierPayables({search:"fresh market",sort:"OUTSTANDING_DESC",page:4});
+    const params=fetchImpl.mock.calls.map(([url])=>Object.fromEntries(new URL(String(url)).searchParams));
+    expect(params).toEqual([
+      {search:"rice",suggestionsOnly:"true",sort:"LAST_PURCHASE_DESC",page:"2",size:"20"},
+      {item:"Historic rice",sort:"TOTAL_DESC",page:"3"},
+      {search:"market",sort:"NAME_DESC",page:"1"},
+      {search:"fresh market",sort:"OUTSTANDING_DESC",page:"4"}
+    ]);
+  });
 });

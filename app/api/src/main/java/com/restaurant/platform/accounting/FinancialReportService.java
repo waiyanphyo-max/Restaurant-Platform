@@ -59,6 +59,39 @@ public class FinancialReportService {
                         "Legacy refunded payments without an authoritative refund timestamp are excluded from dated refund outflows and can make historical payment summaries incomplete."));
     }
 
+    public String export(UUID restaurantId, LocalDate from, LocalDate to) {
+        var report = report(restaurantId, from, to);
+        var sales = report.sales();
+        var csv = new StringBuilder("section,metric,value\r\n");
+        row(csv, "period", "From", report.from());
+        row(csv, "period", "Through", report.to());
+        row(csv, "period", "Timezone", report.timezone());
+        row(csv, "period", "Whole currency", report.currency());
+        row(csv, "sales", "Gross sales", sales.grossSales());
+        row(csv, "sales", "Discounts", sales.discounts());
+        row(csv, "sales", "Net sales", sales.netSales());
+        row(csv, "sales", "Collected payments", sales.collectedPayments());
+        row(csv, "sales", "Outstanding for these orders", sales.outstandingPayments());
+        row(csv, "sales", "Dated refunds net of reversals", sales.refundedAmounts());
+        row(csv, "sales", "Legacy refunds missing an event time", sales.legacyRefundsWithoutEventTime());
+        row(csv, "sales", "Orders", sales.orders());
+        row(csv, "sales", "Cancelled orders", sales.cancelledOrders());
+        row(csv, "sales", "Products sold", sales.productsSold());
+        row(csv, "summary", "Confirmed purchases", report.confirmedPurchases());
+        row(csv, "summary", "Registered operating expenses", report.registeredOperatingExpenses());
+        row(csv, "summary", "Purchase payments net of reversals", report.purchasePayments());
+        row(csv, "summary", "Expense payments net of reversals", report.expensePayments());
+        row(csv, "summary", "Trading payment net (cash and noncash)", report.tradingPaymentNet());
+        for (var expense : report.expensesByCategory()) row(csv, "expense category", expense.category(), expense.amount());
+        for (var limitation : report.missingInputs()) row(csv, "note", "Accounting scope", limitation);
+        return csv.toString();
+    }
+
+    private static void row(StringBuilder csv, String section, String metric, Object value) {
+        csv.append(AccountingSupport.csv(section)).append(',').append(AccountingSupport.csv(metric)).append(',')
+                .append(value instanceof Long ? value : AccountingSupport.csv(value)).append("\r\n");
+    }
+
     // The domain name is a fixed internal constant, never request input.
     private long payments(String domain, MapSqlParameterSource parameters) {
         return sum("""

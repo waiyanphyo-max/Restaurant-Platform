@@ -19,4 +19,13 @@ describe("financial form request identities", () => {
     expect(requests.key("expense.pay:expense-a", { amount: "9007199254740993" })).not.toBe(first);
     expect(requests.key("expense.pay:expense-b", { amount: "9007199254740992" })).not.toBe(first);
   });
+  it("starts a fresh intent for an identical new expense after confirmed success", () => {
+    let sequence = 0;
+    const requests = new FinancialRequestKeys(() => `request-${++sequence}`);
+    const expense = { category: "RENT", amount: "100" };
+    const initial = requests.key("expense.create", expense);
+    expect(requests.key("expense.create", { ...expense })).toBe(initial);
+    requests.complete("expense.create", expense);
+    expect(requests.key("expense.create", expense)).not.toBe(initial);
+  });
 });

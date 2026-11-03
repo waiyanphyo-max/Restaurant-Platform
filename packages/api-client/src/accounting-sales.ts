@@ -1,4 +1,4 @@
-import type { SalesDashboard, SalesLedgerOrder, SalesLedgerPage, SalesLedgerQuery, SalesPeriodQuery, SalesProduct, SalesRefund, SalesRefundRequest, SalesRefundReversal } from "@restaurant-platform/shared-types";
+import type { SalesDashboard, SalesLedgerOrder, SalesLedgerPage, SalesLedgerQuery, SalesPeriodQuery, SalesProduct, SalesProductsQuery, SalesRefund, SalesRefundRequest, SalesRefundReversal } from "@restaurant-platform/shared-types";
 import { ApiConfigurationError } from "./errors.js";
 import type { RestaurantMemberApiClientOptions } from "./clients.js";
 import { requireHeaderValue, requireUuid } from "./tenant.js";
@@ -31,7 +31,7 @@ export function createSalesAccountingApiClient(options: RestaurantMemberApiClien
       return transport.request<SalesLedgerPage<SalesLedgerOrder>>({method:"GET",path:`${prefix}/ledger`,query:{...query},options:requestOptions,retryTransient:true});
     },
     getOrder: (id: string,requestOptions?: ApiRequestOptions) => transport.request<SalesLedgerOrder>({method:"GET",path:`${prefix}/ledger/${requireUuid(id,"orderId")}`,options:requestOptions,retryTransient:true}),
-    getProducts: (query: SalesPeriodQuery & { search?: string; page?: number; size?: number }={},requestOptions?: ApiRequestOptions) => {
+    getProducts: (query: SalesProductsQuery={},requestOptions?: ApiRequestOptions) => {
       period(query);
       return transport.request<SalesLedgerPage<SalesProduct>>({method:"GET",path:`${prefix}/products`,query:{...query},options:requestOptions,retryTransient:true});
     },

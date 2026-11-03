@@ -17,12 +17,19 @@ public class CashbookController {
     public CashbookDtos.Page<CashbookDtos.Transaction> transactions(@PathVariable UUID restaurantId,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {return service.transactions(restaurantId,from,to,page,size);}
+            @RequestParam(required=false) String search,
+            @RequestParam(defaultValue="OLDEST") AccountingSupport.Chronology sort,
+            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
+        return service.transactions(restaurantId,from,to,search,sort,page,size);
+    }
     @GetMapping("/closings")
     public CashbookDtos.Page<CashbookDtos.Closing> closings(@PathVariable UUID restaurantId,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {return service.closings(restaurantId,from,to,page,size);}
+            @RequestParam(defaultValue="NEWEST") AccountingSupport.Chronology sort,
+            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size) {
+        return service.closings(restaurantId,from,to,sort,page,size);
+    }
     @PostMapping("/openings")
     public CashbookDtos.Id open(@PathVariable UUID restaurantId,@RequestHeader("Idempotency-Key") String key,@Valid @RequestBody CashbookDtos.Opening r) {return new CashbookDtos.Id(service.open(restaurantId,key,r));}
     @PostMapping("/movements")

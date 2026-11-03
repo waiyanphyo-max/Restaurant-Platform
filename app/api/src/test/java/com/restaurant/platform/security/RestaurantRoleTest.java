@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class RestaurantRoleTest {
 
     @Test
-    void ownerHasEveryRestaurantPermission() {
-        for (RestaurantPermission permission : RestaurantPermission.values()) {
-            assertTrue(RestaurantRole.OWNER.allows(permission), permission.name());
-        }
+    void ownerRetainsMembershipAndAccountingGrants() {
+        assertTrue(RestaurantRole.OWNER.allows(RestaurantPermission.MEMBERS_MANAGE));
+        assertTrue(RestaurantRole.OWNER.allows(RestaurantPermission.FINANCE_READ));
+        assertTrue(RestaurantRole.OWNER.allows(RestaurantPermission.FINANCE_MANAGE));
     }
 
     @Test

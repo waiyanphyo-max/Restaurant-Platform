@@ -4,7 +4,7 @@ Implemented 2026-11-02 in the shared Spring API, typed API client, and Owner/Man
 
 ## Access and installation
 
-`FINANCE_READ` and `FINANCE_MANAGE` belong only to Owner and Manager. Services resolve current JWT identity and restaurant membership for every request, including CSV, audit and private receipt downloads. Staff and Driver retain their existing operational collection permissions without gaining accounting access. Forged client roles do not grant access.
+`FINANCE_READ` and `FINANCE_MANAGE` are explicit backend grants for Owner and Manager. Services resolve the current JWT identity and membership in the requested restaurant for every request, including CSV, audit and private receipt downloads. Staff and Driver retain their existing operational collection permissions. Financial reads and writes require separate grants, and navigation only controls screen visibility. Accounting error logs omit exception messages, causes and record paths.
 
 Review and apply the forward-only migrations `20261102090000` through `20261102101000` through the existing deployment procedure. No application startup migration runner was added; production migrations are never automatically applied. Hibernate remains `ddl-auto: validate`. New accounting tables use explicit SQL repositories within Spring transactions; existing JPA order/payment mappings remain validated.
 
@@ -70,10 +70,10 @@ All paths below are relative to `/api/v1/restaurants/{restaurantId}/accounting`.
 | `/shopping/items`, `/shopping/sheets` | Persistent catalog and editable unpurchased plans. |
 | `/purchases`, `/purchases/{id}`, `/purchases/report`, `/purchases/export.csv` | Confirmed purchase history, totals, detail and export. |
 | `/suppliers`, `/suppliers/payables`, `/suppliers/{id}/payments` | Supplier register, obligations and canonical payment history. |
-| `/expenses`, `/expenses/report`, `/expense-templates` | Incurred expenses, dated payments, reports and explicitly confirmed recurrences. |
+| `/expenses`, `/expenses/{id}/correct`, `/expenses/report`, `/expense-templates` | Incurred expenses, dated payments, linked corrections, reports and explicitly confirmed recurrences. |
 | `/cashbook/daily`, `/cashbook/transactions`, `/cashbook/closings`, `/cashbook/openings`, `/cashbook/movements` | Cash reconciliation, opening/count and controlled history. |
-| `/reports/summary` | Verifiable payment-flow and expense summary with unavailable profit inputs. |
-| `/audit?entityId=...&page=0&size=50` | Tenant-authorized immutable audit history. |
+| `/reports/summary`, `/reports/summary.csv` | Verifiable payment-flow and expense summary with unavailable profit inputs, in JSON or private CSV. Both accept inclusive `from` and `to`. |
+| `/audit?entityId=...&search=...&sort=NEWEST&page=0&size=50` | Tenant-authorized immutable audit history. Search covers entity type, action, reason, record ID and actor ID. Sort accepts `NEWEST` (default) or `OLDEST`. |
 | `POST /receipts`, `GET /receipts/{id}` | Private PNG/JPEG/WebP/PDF attachment upload/download. |
 
 Every new mutation requires `Idempotency-Key` (1–120 letters/digits or `. _ : -`). Use a new key for a new intended action. Receipt upload uses multipart `file`, a maximum of 5 MiB, and content signatures. Receipt downloads require finance authorization, are sent as attachments with `nosniff` and `private, no-store`, and have no public storage URL. Receipt references on purchases/expenses must belong to the same restaurant.
@@ -81,6 +81,8 @@ Every new mutation requires `Idempotency-Key` (1–120 letters/digits or `. _ : 
 History lists have server-side filters and pagination; exports apply the complete bounded filter range independently of the loaded page. CSV cells are quoted and protected against spreadsheet formula injection. See domain references for request DTO fields and correction endpoints.
 
 ## Verification
+
+See the [M8 acceptance report](m8-acceptance.md) for the current screen map, executed tests and device limitations.
 
 Unit/HTTP tests cover finance role boundaries, spoofed membership/tenant denial, exact large amounts, fractional amount rejection, decimal quantities, CSV escaping, DST/leap-year ranges, recurring dates and reconciliation rules. The PostgreSQL migration suite applies migrations to a disposable PostgreSQL 17 Docker database, validates Hibernate mappings, and runs shared real transaction checks. On machines without Docker, `AccountingLocalPostgresTest` can explicitly target a pre-migrated disposable `jdbc:postgresql://127.0.0.1:<port>/accounting_verify` using `ACCOUNTING_TEST_DATABASE_URL`; remote URLs are rejected.
 

@@ -56,7 +56,7 @@ public class ExpenseService {
               rs.getObject("reversed_at",OffsetDateTime.class),rs.getString("reversal_reason"),rs.getObject("reversed_by",UUID.class)),restaurant,id);
         return new Detail(item,payments);
     }
-    public Page<Expense> list(UUID restaurant,LocalDate from,LocalDate to,Category category,String query,String status,int page,int size) {
+    public Page<Expense> list(UUID restaurant,LocalDate from,LocalDate to,Category category,String query,String status,Chronology sort,int page,int size) {
         support.read(restaurant); page(page,size); var range=support.range(restaurant,from,to);
         if(status!=null&&!Set.of("UNPAID","PARTIALLY_PAID","PAID","CANCELLED").contains(status)) throw invalid("INVALID_EXPENSE_STATUS");
         String filter=" WHERE e.restaurant_id=? AND e.expense_date BETWEEN ? AND ?";
@@ -72,7 +72,8 @@ public class ExpenseService {
         };
         Long total=jdbc.queryForObject("SELECT COUNT(*) FROM ("+selected+") counted",Long.class,args.toArray());
         args.add(size);args.add(Math.multiplyExact(page,size));
-        return new Page<>(jdbc.query(selected+" ORDER BY expense_date DESC,created_at DESC,id LIMIT ? OFFSET ?",MAPPER,args.toArray()),total==null?0:total,page,size);
+        String order = " ORDER BY expense_date " + sort.direction() + ",created_at " + sort.direction() + ",id LIMIT ? OFFSET ?";
+        return new Page<>(jdbc.query(selected+order,MAPPER,args.toArray()),total==null?0:total,page,size);
     }
     @Transactional
     public Expense create(UUID restaurant,String key,Create request) {
@@ -127,13 +128,34 @@ public class ExpenseService {
     public Expense cancel(UUID restaurant,UUID expense,String key,Reason r) {
         UUID actor=support.write(restaurant);reason(r);
         support.once(restaurant,"expense.cancel."+expense,key,r,()->{
-            Expense current=get(restaurant,expense);
-            if(current.cancelledAt()!=null)throw conflict("EXPENSE_ALREADY_CANCELLED");
-            if(current.paidAmount()!=0)throw conflict("REVERSE_EXPENSE_PAYMENTS_FIRST");
-            UUID id=UUID.randomUUID();
-            jdbc.update("INSERT INTO public.accounting_expense_cancellations(id,restaurant_id,expense_id,reason,created_by) VALUES(?,?,?,?,?)",id,restaurant,expense,r.reason().trim(),actor);
+            UUID id=cancelRecord(restaurant,expense,actor,r.reason().trim());
             support.audit(restaurant,actor,"EXPENSE",expense,"CANCEL",r.reason(),r);return id;
         }); return get(restaurant,expense);
+    }
+    @Transactional
+    public Expense correct(UUID restaurant, UUID original, String key, Correction request) {
+        UUID actor = support.write(restaurant);
+        reason(request == null ? null : new Reason(request.reason()));
+        String correctionReason = request.reason().trim();
+        UUID replacement = support.once(restaurant, "expense.correct." + original, key, request, () -> {
+            cancelRecord(restaurant, original, actor, correctionReason);
+            UUID replacementId = insert(restaurant, actor, request.replacement(), null);
+            support.audit(restaurant, actor, "EXPENSE", original, "CORRECT", correctionReason,
+                    Map.of("replacementExpenseId", replacementId));
+            support.audit(restaurant, actor, "EXPENSE", replacementId, "REPLACE", correctionReason,
+                    Map.of("originalExpenseId", original));
+            return replacementId;
+        });
+        return get(restaurant, replacement);
+    }
+    private UUID cancelRecord(UUID restaurant, UUID expense, UUID actor, String reason) {
+        Expense current = get(restaurant, expense);
+        if (current.cancelledAt() != null) throw conflict("EXPENSE_ALREADY_CANCELLED");
+        if (current.paidAmount() != 0) throw conflict("REVERSE_EXPENSE_PAYMENTS_FIRST");
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO public.accounting_expense_cancellations(id,restaurant_id,expense_id,reason,created_by) VALUES(?,?,?,?,?)",
+                id, restaurant, expense, reason, actor);
+        return id;
     }
     public Report report(UUID restaurant,LocalDate from,LocalDate to,Period period) {
         support.read(restaurant);var range=support.range(restaurant,from,to);

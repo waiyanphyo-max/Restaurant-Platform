@@ -6,7 +6,7 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 
 ## Restaurant membership grants
 
-`✓` means the enum grants the permission for that role. The service may enforce additional record ownership, state, or role checks. `OWNER` currently receives all enum permissions; `MANAGER` grants are listed explicitly in Java, so a new enum permission is **not** automatically granted to managers.
+`✓` means the enum grants the permission for that role. The service may enforce additional record ownership, state, or role checks. Each role has an explicit list of grants in Java. Adding a permission to the enum requires a separate role grant.
 
 | Permission | Owner | Manager | Staff | Driver | Typical backend use |
 | --- | :---: | :---: | :---: | :---: | --- |

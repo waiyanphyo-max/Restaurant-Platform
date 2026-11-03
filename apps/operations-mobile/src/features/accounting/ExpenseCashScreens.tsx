@@ -1,223 +1,287 @@
-import { useRef, useState } from "react";
-import type { CashMovementKind, CashbookDay, ExpenseCategory, ExpensePaymentMethod } from "@restaurant-platform/api-client";
+import { useState } from "react";
+import type { ExpenseCategory, ExpenseCreate, ExpensePayment, ExpensePaymentMethod, ExpenseQuery, ExpenseRecord } from "@restaurant-platform/api-client";
+import type { AccountingChronology } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { QueryResult } from "../../components/QueryResult";
 import { Action, Body, Card, ConfirmDialog, DataTable, FormField, Page } from "../../components/ui";
-import { FormToggle, MutationFeedback } from "../../components/forms";
+import { MutationFeedback } from "../../components/forms";
 import { Choices } from "../management/controls";
 import { useApiQuery } from "../../hooks/useApiQuery";
-import { useApiMutation } from "../../hooks/useApiMutation";
-import { isIsoDate } from "../operations/format";
-import { FinancialRequestKeys } from "./financial-requests";
+import { FinancialPagination } from "./FinancialPagination";
+import type { FinancialRequestKeys } from "./financial-requests";
+import {
+  chronologicalLabels, financialAmount, useFinancialAction, validFinancialAmount,
+  validFinancialDate, validFinancialDateRange, validFinancialTimestamp
+} from "./expense-cash-form";
 
-const categories: readonly ExpenseCategory[] = ["RENT", "SALARIES_WAGES", "ELECTRICITY", "WATER", "INTERNET", "TRANSPORT", "PACKAGING", "EQUIPMENT_MAINTENANCE", "MARKETING", "MISCELLANEOUS"];
-const methods: readonly ExpensePaymentMethod[] = ["CASH", "BANK_TRANSFER", "CARD", "OTHER"];
-const movementKinds: readonly CashMovementKind[] = ["OTHER_RECEIPT", "OWNER_DEPOSIT", "OWNER_WITHDRAWAL", "BANK_DEPOSIT", "BANK_WITHDRAWAL", "ADJUSTMENT"];
-export function financialAmount(value: string | null) { return value === null ? "Opening count required" : /^-?\d+$/.test(value) ? value.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "Amount unavailable"; }
+const categories = ["RENT", "SALARIES_WAGES", "ELECTRICITY", "WATER", "INTERNET", "TRANSPORT", "PACKAGING", "EQUIPMENT_MAINTENANCE", "MARKETING", "MISCELLANEOUS"] as const;
+const statuses = ["ALL", "UNPAID", "PARTIALLY_PAID", "PAID", "CANCELLED"] as const;
+const methods = ["CASH", "BANK_TRANSFER", "CARD", "OTHER"] as const;
+const periods = ["DAY", "MONTH", "YEAR"] as const;
+const pageSize = 20;
 
-/** Repeated submits of an unchanged form reuse its key, including after success. */
-function useFinancialAction() {
-  const mutation = useApiMutation();
-  const pending = useRef(new FinancialRequestKeys());
-  async function post<T>(operation: string, body: unknown, action: (key: string) => Promise<T>, success?: (value: T) => void) {
-    const retainedKey = pending.current.key(operation, body);
-    await mutation.run(() => action(retainedKey), value => { success?.(value); });
-  }
-  return { ...mutation, post };
+type ExpenseView = { kind: "register" | "add" | "templates" } | { kind: "detail" | "edit"; id: string };
+type ExpenseFilters = Pick<ExpenseQuery, "from" | "to" | "search" | "category" | "paymentStatus" | "sort">;
+type ExpenseDraft = Omit<ExpenseCreate, "payee" | "receiptId"> & { payee: string; receiptId: string };
+
+function label(value: string) { return value.replaceAll("_", " ").toLowerCase(); }
+
+export function ExpenseScreen({ requestKeys }: { requestKeys: FinancialRequestKeys }) {
+  const [view, setView] = useState<ExpenseView>({ kind: "register" });
+  const [filters, setFilters] = useState<ExpenseFilters>({ sort: "NEWEST" });
+  const [page, setPage] = useState(0);
+  const back = () => setView({ kind: "register" });
+  const open = (id: string) => setView({ kind: "detail", id });
+  if (view.kind === "add") return <Page title="Add expense">
+    <Action title="Back to expense register" secondary onPress={back} />
+    <ExpenseEditor requestKeys={requestKeys} onSaved={open} />
+  </Page>;
+  if (view.kind === "templates") return <ExpenseTemplates requestKeys={requestKeys} onBack={back} />;
+  if (view.kind === "edit" || view.kind === "detail") return <ExpenseDetailScreen key={view.id} id={view.id}
+    editing={view.kind === "edit"} requestKeys={requestKeys} onBack={view.kind === "edit" ? () => open(view.id) : back}
+    onEdit={() => setView({ kind: "edit", id: view.id })} onSaved={open} />;
+  return <ExpenseRegister filters={filters} page={page} onPageChange={setPage}
+    onApply={value => { setFilters(value); setPage(0); }}
+    onOpen={open} onAdd={() => setView({ kind: "add" })} onTemplates={() => setView({ kind: "templates" })} />;
 }
 
-export function ExpenseScreen() {
-  const [fromInput, setFrom] = useState(""); const [toInput, setTo] = useState("");
-  const [searchInput, setSearch] = useState("");
-  const [filter, setFilter] = useState<{ from?: string; to?: string; search?: string }>({});
-  const [page, setPage] = useState(0); const [invalid, setInvalid] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [mode, setMode] = useState<"REGISTER" | "RECORD" | "TEMPLATES">("REGISTER");
-  const [category, setCategory] = useState<ExpenseCategory>("RENT"); const [amount, setAmount] = useState("");
-  const [expenseDate, setExpenseDate] = useState(""); const [description, setDescription] = useState("");
-  const [payee, setPayee] = useState(""); const [receiptId, setReceipt] = useState("");
-  const [frequency, setFrequency] = useState<"MONTHLY" | "YEARLY">("MONTHLY");
-  const [reason, setReason] = useState("");
-  const [reportPeriod, setPeriod] = useState<"DAY" | "MONTH" | "YEAR">("DAY");
-  const query = useApiQuery(signal => getOperationsApi().listExpenses({ ...filter, page, size: 20 }, { signal }), `expenses:${JSON.stringify(filter)}:${page}`);
-  const report = useApiQuery(signal => getOperationsApi().getExpenseReport({ ...filter, period: reportPeriod }, { signal }), `expense-report:${JSON.stringify(filter)}:${reportPeriod}`);
-  const templates = useApiQuery(signal => getOperationsApi().listExpenseTemplates({ signal }), "expense-templates");
-  const mutation = useFinancialAction();
-  function reload() { query.reload(); report.reload(); templates.reload(); }
+function ExpenseRegister({ filters, page, onApply, onPageChange, onOpen, onAdd, onTemplates }: {
+  filters: ExpenseFilters; page: number; onApply(value: ExpenseFilters): void; onPageChange(page: number): void;
+  onOpen(id: string): void; onAdd(): void; onTemplates(): void;
+}) {
+  const [from, setFrom] = useState(filters.from ?? "");
+  const [to, setTo] = useState(filters.to ?? "");
+  const [search, setSearch] = useState(filters.search ?? "");
+  const [category, setCategory] = useState<ExpenseCategory | "ALL">(filters.category ?? "ALL");
+  const [status, setStatus] = useState<typeof statuses[number]>(filters.paymentStatus ?? "ALL");
+  const [sort, setSort] = useState<AccountingChronology>(filters.sort ?? "NEWEST");
+  const [period, setPeriod] = useState<typeof periods[number]>("DAY");
+  const [error, setError] = useState("");
+  const query = useApiQuery(signal => getOperationsApi().listExpenses({ ...filters, page, size: pageSize }, { signal }), JSON.stringify(["expenses", filters, page]));
+  const report = useApiQuery(signal => getOperationsApi().getExpenseReport({ from: filters.from, to: filters.to, period }, { signal }), JSON.stringify(["expense-report", filters.from, filters.to, period]));
+  function reload() { query.reload(); report.reload(); }
   function apply() {
-    if (fromInput && !isIsoDate(fromInput) || toInput && !isIsoDate(toInput) || fromInput && toInput && toInput < fromInput) { setInvalid(true); return; }
-    setInvalid(false);setPage(0);setFilter({ from: fromInput || undefined, to: toInput || undefined, search: searchInput || undefined });
+    if (!validFinancialDateRange(from, to)) {
+      setError("Enter a chronological date range of up to 366 days.");
+      return;
+    }
+    setError("");
+    onApply({ from: from || undefined, to: to || undefined, search: search.trim() || undefined,
+      category: category === "ALL" ? undefined : category, paymentStatus: status === "ALL" ? undefined : status, sort });
+    reload();
   }
-  const createBody = { category, amount, expenseDate, description, payee: payee || null, receiptId: receiptId || null };
-  const templateBody = { category, amount, description, payee: payee || null, frequency, startsOn: expenseDate };
-  return <Page title="Operating expenses" subtitle="Recorded obligations and separate payment history. Whole-currency amounts." onRefresh={reload}>
-    <Choices<"REGISTER" | "RECORD" | "TEMPLATES"> label="Expense workspace" value={mode} values={["REGISTER", "RECORD", "TEMPLATES"] as const} onChange={setMode} />
-    <MutationFeedback {...mutation} />
-    {mode === "REGISTER" ? <>
-      <Card title="Find historical expenses">
-        <FormField label="From date (YYYY-MM-DD)" value={fromInput} onChangeText={setFrom} placeholder="Blank for restaurant today" />
-        <FormField label="Through date (inclusive)" value={toInput} onChangeText={setTo} placeholder="Use the same date for one day" />
-        <FormField label="Search descriptions or payees" value={searchInput} onChangeText={setSearch} />
-        {invalid ? <Body>Enter a valid chronological date range.</Body> : null}
-        <Action title="Load expenses" onPress={apply} />
-      </Card>
-      <QueryResult {...query}>{data => <>
-        {data.items.map(expense => <Card key={expense.id} title={`${expense.expenseDate} · ${expense.category.replaceAll("_", " ")}`}>
-          <Body>{expense.description} · {expense.payee ?? "No payee"}</Body>
-          <Body>Amount {financialAmount(expense.amount)} · Paid {financialAmount(expense.paidAmount)} · Outstanding {financialAmount(expense.outstandingAmount)}</Body>
-          <Body>{expense.paymentStatus} · Recorded by {expense.recordedBy} at {expense.createdAt}</Body>
-          {expense.cancelledAt ? <Body>Cancelled {expense.cancelledAt}: {expense.cancellationReason}</Body> : null}
-          <Action title="View payments and corrections" secondary onPress={() => setSelected(expense.id)} />
-        </Card>)}
-        {!data.items.length ? <Card><Body>No expenses for this period.</Body></Card> : null}
-        <Body>{data.total} records · Page {page + 1}</Body>
-        <Action title="Previous expenses" secondary disabled={page === 0} onPress={() => setPage(v => v - 1)} />
-        <Action title="Next expenses" secondary disabled={(page + 1) * data.size >= data.total} onPress={() => setPage(v => v + 1)} />
+  return <Page title="Expense register" subtitle="Operating obligations and their separate payment records. Amounts use whole currency units." onRefresh={reload}>
+    <Action title="Add expense" onPress={onAdd} />
+    <Action title="Recurring expense templates" secondary onPress={onTemplates} />
+    <Card title="Search and filter expenses">
+      <FormField label="From date (YYYY-MM-DD)" value={from} onChangeText={setFrom} placeholder="Blank for restaurant today" />
+      <FormField label="Through date (YYYY-MM-DD)" value={to} onChangeText={setTo} error={error || undefined} />
+      <FormField label="Search descriptions or payees" value={search} onChangeText={setSearch} maxLength={200} returnKeyType="search" onSubmitEditing={apply} />
+      <Choices label="Category filter" value={category} values={["ALL", ...categories]} labels={{ ALL: "All categories" }} onChange={setCategory} />
+      <Choices label="Payment status filter" value={status} values={statuses} labels={{ ALL: "All statuses" }} onChange={setStatus} />
+      <Choices label="Sort by expense date" value={sort} values={["NEWEST", "OLDEST"]} labels={chronologicalLabels} onChange={setSort} />
+      <Action title="Load expenses" onPress={apply} />
+    </Card>
+    <QueryResult {...query}>{data => <>
+      {data.items.length === 0 ? <Card title="No matching expenses"><Body>Change the filters or add an expense.</Body></Card> : null}
+      {data.items.map(expense => <Card key={expense.id} title={expense.description}>
+        <Body>{expense.expenseDate} · {label(expense.category)} · {label(expense.paymentStatus)}</Body>
+        {expense.payee ? <Body>Payee {expense.payee}</Body> : null}
+        <Body>Amount {financialAmount(expense.amount)} · Paid {financialAmount(expense.paidAmount)} · Outstanding {financialAmount(expense.outstandingAmount)}</Body>
+        <Action title="View expense detail" secondary onPress={() => onOpen(expense.id)} />
+      </Card>)}
+      <Body>{data.total} expenses</Body>
+      <FinancialPagination page={page} totalPages={Math.ceil(data.total / data.size)} onPageChange={onPageChange} />
+    </>}</QueryResult>
+    <Card title="Expense totals by category">
+      <Choices label="Group dates by" value={period} values={periods} onChange={setPeriod} />
+      <QueryResult {...report}>{data => <>
+        <Body>{data.from} through {data.to}. The totals include all categories and payment statuses in this date range.</Body>
+        <DataTable columns={["Period", "Category", "Posted", "Cancelled", "Net expense"]} rows={data.totals.map(row => ({
+          key: `${row.periodStart}:${row.category}`, cells: [row.periodStart, label(row.category), financialAmount(row.postedAmount),
+            financialAmount(row.cancelledAmount), financialAmount(row.expenseAmount)]
+        }))} />
       </>}</QueryResult>
-      {selected ? <ExpenseDetails expenseId={selected} onSaved={reload} onDismiss={() => setSelected(null)} /> : null}
-      <Card title="Expense report">
-        <Choices<"DAY" | "MONTH" | "YEAR"> label="Group expense dates by" value={reportPeriod} values={["DAY", "MONTH", "YEAR"] as const} onChange={setPeriod} />
-        <QueryResult {...report}>{data => <><Body>{data.from} through {data.to}. Cancelled amounts remain visible. Search above applies to register records; report includes every expense in the selected date range.</Body>
-          <DataTable columns={["Period", "Category", "Posted", "Cancelled", "Net expense"]} rows={data.totals.map(row => ({ key: `${row.periodStart}:${row.category}`, cells: [row.periodStart, row.category, financialAmount(row.postedAmount), financialAmount(row.cancelledAmount), financialAmount(row.expenseAmount)] }))} /></>}</QueryResult>
-      </Card>
-    </> : null}
-    {mode === "RECORD" || mode === "TEMPLATES" ? <Card title={mode === "RECORD" ? "Record an expense obligation" : "Create a recurring template"}>
-      <Body>Record inventory purchases in the purchase register. Check that this obligation has not already been recorded there.</Body>
-      <Choices<ExpenseCategory> label="Expense category" value={category} values={categories} onChange={setCategory} />
-      <FormField label="Whole-currency amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
-      <FormField label={mode === "RECORD" ? "Expense date (YYYY-MM-DD)" : "First occurrence date (YYYY-MM-DD)"} value={expenseDate} onChangeText={setExpenseDate} />
-      <FormField label="Description" value={description} onChangeText={setDescription} />
-      <FormField label="Payee (optional)" value={payee} onChangeText={setPayee} />
-      {mode === "RECORD" ? <><FormField label="Private receipt ID (optional)" value={receiptId} onChangeText={setReceipt} autoCapitalize="none" />
-        <Body>Posting records an unpaid obligation. Record payment separately when paid.</Body>
-        <Action title="Post expense" disabled={mutation.busy} onPress={() => { void mutation.post("expense.create", createBody, key => getOperationsApi().createExpense(createBody, key), item => { setSelected(item.id);setMode("REGISTER");reload(); }); }} />
-      </> : <><Choices<"MONTHLY" | "YEARLY"> label="Recurrence" value={frequency} values={["MONTHLY", "YEARLY"] as const} onChange={setFrequency} />
-        <Body>Templates require explicit confirmation for each due date. Saving this template posts no expense.</Body>
-        <Action title="Save recurring template" disabled={mutation.busy} onPress={() => { void mutation.post("expense.template", templateBody, key => getOperationsApi().createExpenseTemplate(templateBody, key), () => { reload(); }); }} />
-      </>}
-    </Card> : null}
-    {mode === "TEMPLATES" ? <Card title="Recurring templates">
-      <FormField label="Date to explicitly confirm (YYYY-MM-DD)" value={expenseDate} onChangeText={setExpenseDate} />
-      <FormField label="Reason to stop a template" value={reason} onChangeText={setReason} />
-      <QueryResult {...templates}>{items => <>{items.map(template => <Card key={template.id} title={template.description}>
-        <Body>{template.category} · {financialAmount(template.amount)} · {template.frequency} from {template.startsOn} · {template.active ? "Active" : "Stopped"}</Body>
-        <Action title="Confirm and post selected occurrence" disabled={!template.active || mutation.busy || !isIsoDate(expenseDate)} onPress={() => { void mutation.post(`template.confirm:${template.id}`, { expenseDate }, key => getOperationsApi().confirmExpenseTemplate(template.id, expenseDate, key), () => reload()); }} />
-        <Action title="Stop template" secondary disabled={!template.active || mutation.busy || !reason.trim()} onPress={() => { void mutation.post(`template.stop:${template.id}`, { reason }, key => getOperationsApi().stopExpenseTemplate(template.id, reason, key), () => reload()); }} />
-      </Card>)}</>}</QueryResult>
-    </Card> : null}
+    </Card>
   </Page>;
 }
 
-function ExpenseDetails({ expenseId, onSaved, onDismiss }: { expenseId: string; onSaved(): void; onDismiss(): void }) {
-  const query = useApiQuery(signal => getOperationsApi().getExpense(expenseId, { signal }), `expense-detail:${expenseId}`);
-  const [amount, setAmount] = useState(""); const [method, setMethod] = useState<ExpensePaymentMethod>("CASH");
-  const [paidAt, setPaidAt] = useState(() => new Date().toISOString());const [reason, setReason] = useState("");
-  const mutation = useFinancialAction();const reload = () => { query.reload(); onSaved(); };
-  const body = { amount, method, paidAt };
-  return <Card title="Expense detail and audit history">
-    <Action title="Close expense detail" secondary onPress={onDismiss} /><MutationFeedback {...mutation} />
-    <QueryResult {...query}>{data => <>
-      <Body>{data.expense.id} · {data.expense.description}</Body>
-      <Body>Historical amount {financialAmount(data.expense.amount)} · {data.expense.paymentStatus}</Body>
-      <Body>Expense date {data.expense.expenseDate}; recorded {data.expense.createdAt} by {data.expense.recordedBy}</Body>
-      {data.expense.receiptId ? <Body>Private receipt: {data.expense.receiptId}</Body> : null}
-      <FormField label="Payment amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
-      <Choices<ExpensePaymentMethod> label="Payment method" value={method} values={methods} onChange={setMethod} />
-      <FormField label="Exact payment timestamp with offset" value={paidAt} onChangeText={setPaidAt} autoCapitalize="none" />
-      <Action title="Record actual payment" disabled={mutation.busy || !amount || data.expense.paymentStatus === "CANCELLED" || data.expense.outstandingAmount === "0"} onPress={() => { void mutation.post(`expense.pay:${expenseId}`, body, key => getOperationsApi().payExpense(expenseId, body, key), () => {setAmount("");setPaidAt(new Date().toISOString());reload();}); }} />
-      <FormField label="Correction or cancellation reason" value={reason} onChangeText={setReason} />
-      {data.payments.map(payment => <Card key={payment.id} title={`${payment.method} · ${financialAmount(payment.amount)}`}>
-        <Body>Paid {payment.paidAt}; recorded by {payment.recordedBy} at {payment.createdAt}</Body>
-        {payment.reversedAt ? <Body>Reversed {payment.reversedAt} by {payment.reversedBy}: {payment.reversalReason}</Body> : <>
-          <Body>A reversal records returned funds now and restores the unpaid balance.</Body>
-          <Action title="Record returned funds and reverse payment" secondary disabled={mutation.busy || !reason.trim()} onPress={() => { void mutation.post(`expense.payment.reverse:${payment.id}`, { reason }, key => getOperationsApi().reverseExpensePayment(expenseId, payment.id, reason, key), reload); }} />
-        </>}
-      </Card>)}
-      {data.expense.cancelledAt ? <Body>Cancelled {data.expense.cancelledAt} by {data.expense.cancelledBy}: {data.expense.cancellationReason}</Body> :
-        <Action title="Cancel expense after reversing payments" secondary disabled={mutation.busy || !reason.trim() || data.expense.paidAmount !== "0"} onPress={() => { void mutation.post(`expense.cancel:${expenseId}`, { reason }, key => getOperationsApi().cancelExpense(expenseId, reason, key), reload); }} />}
-    </>}</QueryResult>
+function ExpenseFields({ draft, onChange, template = false }: { draft: ExpenseDraft; onChange(value: ExpenseDraft): void; template?: boolean }) {
+  return <>
+    <Choices label="Expense category" value={draft.category} values={categories} onChange={category => onChange({ ...draft, category })} />
+    <FormField label="Whole-currency amount" value={draft.amount} onChangeText={amount => onChange({ ...draft, amount })} keyboardType="number-pad" maxLength={19} />
+    <FormField label={template ? "First occurrence date (YYYY-MM-DD)" : "Expense date (YYYY-MM-DD)"} value={draft.expenseDate} onChangeText={expenseDate => onChange({ ...draft, expenseDate })} maxLength={10} />
+    <FormField label="Description" value={draft.description} onChangeText={description => onChange({ ...draft, description })} maxLength={2000} multiline />
+    <FormField label="Payee (optional)" value={draft.payee} onChangeText={payee => onChange({ ...draft, payee })} maxLength={200} />
+    {!template ? <FormField label="Private receipt ID (optional)" value={draft.receiptId} onChangeText={receiptId => onChange({ ...draft, receiptId })} autoCapitalize="none" maxLength={36} /> : null}
+  </>;
+}
+
+function expenseDraft(existing?: ExpenseRecord): ExpenseDraft {
+  return { category: existing?.category ?? "RENT", amount: existing?.amount ?? "", expenseDate: existing?.expenseDate ?? "",
+    description: existing?.description ?? "", payee: existing?.payee ?? "", receiptId: existing?.receiptId ?? "" };
+}
+
+function expenseBody(draft: ExpenseDraft): ExpenseCreate {
+  return { ...draft, description: draft.description.trim(), payee: draft.payee.trim() || null, receiptId: draft.receiptId.trim() || null };
+}
+
+function validExpense(draft: ExpenseDraft) {
+  return validFinancialDate(draft.expenseDate) && validFinancialAmount(draft.amount) && Boolean(draft.description.trim()) &&
+    (!draft.receiptId.trim() || /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(draft.receiptId.trim()));
+}
+
+function ExpenseEditor({ original, requestKeys, onSaved }: { original?: ExpenseRecord; requestKeys: FinancialRequestKeys; onSaved(id: string): void }) {
+  const [draft, setDraft] = useState(() => expenseDraft(original));
+  const [reason, setReason] = useState("");
+  const [review, setReview] = useState(false);
+  const mutation = useFinancialAction(requestKeys);
+  function submit() {
+    setReview(false);
+    const body = expenseBody(draft);
+    if (original) {
+      const correction = { replacement: body, reason: reason.trim() };
+      void mutation.post(`expense.correct:${original.id}`, correction,
+        key => getOperationsApi().correctExpense(original.id, correction, key), value => onSaved(value.id));
+      return;
+    }
+    void mutation.post("expense.create", body, key => getOperationsApi().createExpense(body, key), value => {
+      requestKeys.complete("expense.create", body);
+      onSaved(value.id);
+    });
+  }
+  const disabled = mutation.busy || !validExpense(draft) || Boolean(original && !reason.trim());
+  return <Card title={original ? "Replacement expense" : "Record an expense obligation"}>
+    <Body>{original ? "Saving cancels the original and posts a replacement with a linked audit reason." : "Posting records an unpaid operating obligation. Record payment separately. Use Purchase History for inventory purchases."}</Body>
+    <ExpenseFields draft={draft} onChange={setDraft} />
+    {original ? <FormField label="Correction reason" value={reason} onChangeText={setReason} maxLength={2000} multiline /> : null}
+    <Body>Provide a valid date, positive whole-currency amount and description.</Body>
+    <MutationFeedback {...mutation} />
+    <Action title={original ? "Review correction" : "Post expense"} disabled={disabled} onPress={original ? () => setReview(true) : submit} />
+    <ConfirmDialog visible={review} title="Correct this expense" message="The original will remain in history as cancelled. A replacement and linked audit records will be posted together."
+      confirmLabel="Post replacement expense" onCancel={() => setReview(false)} onConfirm={submit} />
   </Card>;
 }
 
-export function CashbookScreen() {
-  const [dateInput, setDate] = useState("");const [date, setAppliedDate] = useState<string | undefined>();
-  const [toInput, setTo] = useState("");const [to, setAppliedTo] = useState<string | undefined>();
-  const [page, setPage] = useState(0);const [closingPage, setClosingPage] = useState(0);const [invalid, setInvalid] = useState(false);
-  const [amount, setAmount] = useState("");const [reason, setReason] = useState("");
-  const [kind, setKind] = useState<CashMovementKind>("OTHER_RECEIPT");const [direction, setDirection] = useState<"IN" | "OUT">("IN");
-  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString());const [count, setCount] = useState("");
-  const [confirm, setConfirm] = useState<CashbookDay | null>(null);const [acknowledge, setAcknowledge] = useState(false);
-  const query = useApiQuery(signal => getOperationsApi().getCashbookDay(date, { signal }), `cash-day:${date ?? "today"}`);
-  const transactions = useApiQuery(signal => getOperationsApi().getCashbookTransactions({ from: date, to: to ?? date, page, size: 20 }, { signal }), `cash-tx:${date}:${to}:${page}`);
-  const closings = useApiQuery(signal => getOperationsApi().getCashbookClosings({ from: date, to: to ?? date, page: closingPage, size: 20 }, { signal }), `cash-closings:${date}:${to}:${closingPage}`);
-  const mutation = useFinancialAction();const reload = () => { query.reload();transactions.reload();closings.reload(); };
-  function apply() {
-    if (dateInput && !isIsoDate(dateInput) || toInput && !isIsoDate(toInput) || dateInput && toInput && toInput < dateInput) { setInvalid(true);return; }
-    setInvalid(false);setAppliedDate(dateInput || undefined);setAppliedTo(toInput || undefined);setPage(0);setClosingPage(0);
+function ExpenseDetailScreen({ id, editing, requestKeys, onBack, onEdit, onSaved }: {
+  id: string; editing: boolean; requestKeys: FinancialRequestKeys; onBack(): void; onEdit(): void; onSaved(id: string): void;
+}) {
+  const query = useApiQuery(signal => getOperationsApi().getExpense(id, { signal }), `expense-detail:${id}`);
+  return <Page title={editing ? "Edit expense" : "Expense detail"} onRefresh={query.reload}>
+    <Action title={editing ? "Back to expense detail" : "Back to expense register"} secondary onPress={onBack} />
+    <QueryResult {...query}>{data => {
+      const canCorrect = !data.expense.cancelledAt && data.expense.paidAmount === "0";
+      if (editing) return canCorrect ? <ExpenseEditor original={data.expense} requestKeys={requestKeys} onSaved={onSaved} /> :
+        <Card><Body>This record can be corrected only while active and after any payments have been reversed.</Body></Card>;
+      return <ExpenseDetails expense={data.expense} payments={data.payments} canCorrect={canCorrect} requestKeys={requestKeys} onEdit={onEdit} onSaved={query.reload} />;
+    }}</QueryResult>
+  </Page>;
+}
+
+function ExpenseDetails({ expense, payments, canCorrect, requestKeys, onEdit, onSaved }: {
+  expense: ExpenseRecord; payments: ExpensePayment[];
+  canCorrect: boolean; requestKeys: FinancialRequestKeys; onEdit(): void; onSaved(): void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<ExpensePaymentMethod>("CASH");
+  const [paidAt, setPaidAt] = useState(() => new Date().toISOString());
+  const [reason, setReason] = useState("");
+  const [correction, setCorrection] = useState<{ paymentId: string } | "cancel" | null>(null);
+  const mutation = useFinancialAction(requestKeys);
+  const canPay = !expense.cancelledAt && expense.outstandingAmount !== "0";
+  function pay() {
+    const body = { amount, method, paidAt };
+    void mutation.post(`expense.pay:${expense.id}`, body, key => getOperationsApi().payExpense(expense.id, body, key), onSaved);
   }
-  const movement = { kind, direction, amount, occurredAt, reason };
-  return <Page title="Cashbook and daily closing" subtitle="Restaurant-local physical cash, with immutable counts and corrections." onRefresh={reload}>
-    <Card title="Choose historical dates">
-      <FormField label="Cashbook day / history from (YYYY-MM-DD)" value={dateInput} onChangeText={setDate} placeholder="Blank for restaurant today" />
-      <FormField label="History through (optional)" value={toInput} onChangeText={setTo} />
-      {invalid ? <Body>Enter a valid chronological date range.</Body> : null}<Action title="Load cashbook" onPress={apply} />
+  function correct() {
+    const body = { reason: reason.trim() };
+    const selected = correction;
+    setCorrection(null);
+    if (selected === "cancel") {
+      void mutation.post(`expense.cancel:${expense.id}`, body, key => getOperationsApi().cancelExpense(expense.id, body.reason, key), onSaved);
+    } else if (selected) {
+      void mutation.post(`expense.payment.reverse:${selected.paymentId}`, body,
+        key => getOperationsApi().reverseExpensePayment(expense.id, selected.paymentId, body.reason, key), onSaved);
+    }
+  }
+  return <>
+    <Card title={expense.description}>
+      <Body>{expense.expenseDate} · {label(expense.category)} · {label(expense.paymentStatus)}</Body>
+      {expense.payee ? <Body>Payee {expense.payee}</Body> : null}
+      <Body>Original amount {financialAmount(expense.amount)} · Paid {financialAmount(expense.paidAmount)} · Outstanding {financialAmount(expense.outstandingAmount)}</Body>
+      <Body>Recorded {expense.createdAt} by {expense.recordedBy}</Body>
+      <Body>Expense record {expense.id}</Body>
+      {expense.receiptId ? <Body>Private receipt {expense.receiptId}</Body> : null}
+      {expense.cancelledAt ? <Body>Cancelled {expense.cancelledAt} by {expense.cancelledBy}. Reason {expense.cancellationReason}</Body> : null}
+      {canCorrect ? <Action title="Edit expense by posting a correction" secondary onPress={onEdit} disabled={mutation.busy} /> : null}
     </Card>
     <MutationFeedback {...mutation} />
-    <QueryResult {...query}>{day => <>
-      <Card title={`${day.date} · ${day.timezone}`}>
-        <Body>Opening cash: {financialAmount(day.openingBalance)}</Body>
-        <Body>Cash sales received: {financialAmount(day.cashSalesReceived)}</Body>
-        <Body>Cash refunds paid: {financialAmount(day.cashRefundsPaid)}</Body>
-        <Body>Cash purchase payments: {financialAmount(day.cashPurchasePayments)}</Body>
-        <Body>Cash expense payments: {financialAmount(day.cashExpensePayments)}</Body>
-        <Body>Other cash receipts: {financialAmount(day.otherReceipts)} · Other cash payments: {financialAmount(day.otherPayments)}</Body>
-        <Body>Expected closing cash: {financialAmount(day.expectedClosingCash)}</Body>
-        <Body>This is consolidated restaurant cash, including cash collected by delivery drivers. Count all cash held for the restaurant, including driver custody. Record bank deposits and withdrawals explicitly. Digital payments and unpaid orders are excluded.</Body>
-        {(day.missingInputs ?? []).map(input => <Body key={input}>{input}</Body>)}
-        {day.closing ? <><Body>Finalized count: {financialAmount(day.closing.actualCash)} · Variance: {financialAmount(day.closing.variance)}</Body><Body>Closed {day.closing.closedAt} by {day.closing.responsibleMember}</Body></> : null}
-      </Card>
-      <Card title="Initialize or count cash">
-        <FormField label="Initial cash amount / movement amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
-        <FormField label="Reason for opening, movement or reversal" value={reason} onChangeText={setReason} />
-        {day.openingBalance === null ? <><Body>A single initial opening establishes the cashbook start. Following days require the previous day's finalized count.</Body>
-          <Action title="Record initial opening for selected day" disabled={mutation.busy || !reason.trim()} onPress={() => { const body = { date: day.date, amount, reason };void mutation.post("cash.open", body, key => getOperationsApi().openCashbook(body, key), reload); }} /></> : null}
-        <FormField label="Actual counted closing cash across the restaurant and drivers" value={count} onChangeText={setCount} keyboardType="numeric" />
-        {(day.missingInputs ?? []).length ? <><Body>Review the original records and record any necessary authorized adjustments before closing. Describe how missing historical inputs were reconciled in the reason above.</Body>
-          <FormToggle label="I have reconciled the missing historical cash inputs" value={acknowledge} onChange={setAcknowledge} /></> : null}
-        <Action title="Review and finalize selected day's count" disabled={mutation.busy || day.openingBalance === null || day.closing !== null || !count || !!(day.missingInputs ?? []).length && (!acknowledge || !reason.trim())} onPress={() => setConfirm(day)} />
-      </Card>
-    </>}</QueryResult>
-    <Card title="Other authorized physical cash movement">
-      <Choices<CashMovementKind> label="Movement type" value={kind} values={movementKinds} onChange={setKind} />
-      <Choices<"IN" | "OUT"> label="Cash direction" value={direction} values={["IN", "OUT"] as const} onChange={setDirection} />
-      <FormField label="Exact movement timestamp with offset" value={occurredAt} onChangeText={setOccurredAt} autoCapitalize="none" />
-      <Body>Use the amount and reason above. Record a new physical cash event; existing sales, purchases and expenses already appear automatically.</Body>
-      <Action title="Post authorized cash movement" disabled={mutation.busy || !reason.trim()} onPress={() => { void mutation.post("cash.movement", movement, key => getOperationsApi().createCashMovement(movement, key), reload); }} />
-    </Card>
-    <Card title="Chronological cash transactions">
-      <QueryResult {...transactions}>{data => <>
-        {data.items.map(item => <Card key={item.id} title={`${item.source.replaceAll("_", " ")} · ${financialAmount(item.signedAmount)}`}>
-          <Body>{item.occurredAt} · {item.description}</Body><Body>Source {item.sourceId} · Recorded by {item.recordedBy ?? "Historical cashier unavailable"}</Body>
-          {movementKinds.includes(item.source as CashMovementKind) ? <Action title="Record opposite movement as a reversal now" secondary disabled={mutation.busy || !reason.trim()} onPress={() => { void mutation.post(`cash.movement.reverse:${item.id}`, { reason }, key => getOperationsApi().reverseCashMovement(item.id, reason, key), reload); }} /> : null}
-        </Card>)}
-        {!data.items.length ? <Body>No cash transactions in this period.</Body> : null}
-        <Body>{data.total} transactions · Page {page + 1}</Body>
-        <Action title="Previous transactions" secondary disabled={page === 0} onPress={() => setPage(v => v - 1)} />
-        <Action title="Next transactions" secondary disabled={(page + 1) * data.size >= data.total} onPress={() => setPage(v => v + 1)} />
-      </>}</QueryResult>
-    </Card>
-    <Card title="Historical closing records">
-      <QueryResult {...closings}>{data => <>{data.items.map(item => <Card key={item.id} title={`${item.date} · Revision ${item.revision}`}>
-        <Body>Expected {financialAmount(item.expectedCash)} · Counted {financialAmount(item.actualCash)} · Variance {financialAmount(item.variance)}</Body>
-        <Body>Closed {item.closedAt} by {item.responsibleMember}</Body>
-        {item.reconciliationNote ? <Body>Reconciliation note: {item.reconciliationNote}</Body> : null}
-        {item.reversedAt ? <Body>Reversed {item.reversedAt} by {item.reversedBy}: {item.reversalReason}</Body> : <Action title="Reverse this finalized count with reason" secondary disabled={mutation.busy || !reason.trim()} onPress={() => { void mutation.post(`cash.closing.reverse:${item.id}`, { reason }, key => getOperationsApi().reverseCashClosing(item.id, reason, key), reload); }} />}
+    {canPay ? <Card title="Record payment">
+      <FormField label="Whole-currency payment amount" value={amount} onChangeText={setAmount} keyboardType="number-pad" maxLength={19} />
+      <Choices label="Payment method" value={method} values={methods} onChange={setMethod} />
+      <FormField label="Actual payment timestamp (ISO 8601 with offset)" value={paidAt} onChangeText={setPaidAt} autoCapitalize="none" />
+      <Action title="Record actual payment" disabled={mutation.busy || !validFinancialAmount(amount) || !validFinancialTimestamp(paidAt)} onPress={pay} />
+    </Card> : null}
+    <Card title="Payment history">
+      {!payments.length ? <Body>No payments recorded for this expense.</Body> : null}
+      {payments.map(payment => <Card key={payment.id} title={`${label(payment.method)} · ${financialAmount(payment.amount)}`}>
+        <Body>Paid {payment.paidAt}. Recorded by {payment.recordedBy} at {payment.createdAt}.</Body>
+        {payment.reversedAt ? <Body>Reversed {payment.reversedAt} by {payment.reversedBy}. Reason {payment.reversalReason}</Body> :
+          <Action title="Reverse returned payment" secondary disabled={mutation.busy} onPress={() => { setReason(""); setCorrection({ paymentId: payment.id }); }} />}
       </Card>)}
-        {!data.items.length ? <Body>No finalized counts in this period.</Body> : null}
-        <Action title="Previous closing records" secondary disabled={closingPage === 0} onPress={() => setClosingPage(v => v - 1)} />
-        <Action title="Next closing records" secondary disabled={(closingPage + 1) * data.size >= data.total} onPress={() => setClosingPage(v => v + 1)} />
+    </Card>
+    {canCorrect ? <Action title="Cancel this expense" secondary disabled={mutation.busy} onPress={() => { setReason(""); setCorrection("cancel"); }} /> : null}
+    {correction ? <Card title={correction === "cancel" ? "Confirm expense cancellation" : "Confirm returned funds"}>
+      <Body>{correction === "cancel" ? "The expense will remain in the register with its cancellation reason." : "Record a reversal only after funds have been returned. The reversal restores the unpaid balance."}</Body>
+      <FormField label="Reason for this correction" value={reason} onChangeText={setReason} maxLength={2000} multiline />
+      <Action title={correction === "cancel" ? "Confirm cancellation" : "Record payment reversal"} disabled={mutation.busy || !reason.trim()} onPress={correct} />
+      <Action title="Back to expense detail" secondary onPress={() => setCorrection(null)} />
+    </Card> : null}
+  </>;
+}
+
+function ExpenseTemplates({ requestKeys, onBack }: { requestKeys: FinancialRequestKeys; onBack(): void }) {
+  const [draft, setDraft] = useState(() => expenseDraft());
+  const [frequency, setFrequency] = useState<"MONTHLY" | "YEARLY">("MONTHLY");
+  const [occurrence, setOccurrence] = useState("");
+  const [reason, setReason] = useState("");
+  const query = useApiQuery(signal => getOperationsApi().listExpenseTemplates({ signal }), "expense-templates");
+  const mutation = useFinancialAction(requestKeys);
+  function create() {
+    const body = { category: draft.category, amount: draft.amount, description: draft.description.trim(),
+      payee: draft.payee.trim() || null, frequency, startsOn: draft.expenseDate };
+    void mutation.post("expense.template", body, key => getOperationsApi().createExpenseTemplate(body, key), () => {
+      requestKeys.complete("expense.template", body);
+      setDraft(expenseDraft());
+      query.reload();
+    });
+  }
+  return <Page title="Recurring expense templates" onRefresh={query.reload}>
+    <Action title="Back to expense register" secondary onPress={onBack} />
+    <MutationFeedback {...mutation} />
+    <Card title="Add a recurring template">
+      <ExpenseFields draft={draft} onChange={setDraft} template />
+      <Choices label="Recurrence" value={frequency} values={["MONTHLY", "YEARLY"]} onChange={setFrequency} />
+      <Body>Confirm each occurrence separately to post an expense.</Body>
+      <Action title="Save recurring template" disabled={mutation.busy || !validExpense(draft)} onPress={create} />
+    </Card>
+    <Card title="Existing templates">
+      <FormField label="Occurrence date to confirm (YYYY-MM-DD)" value={occurrence} onChangeText={setOccurrence} />
+      <FormField label="Reason to stop a template" value={reason} onChangeText={setReason} maxLength={2000} />
+      <QueryResult {...query}>{items => <>
+        {!items.length ? <Body>No recurring expense templates.</Body> : null}
+        {items.map(template => <Card key={template.id} title={template.description}>
+          <Body>{label(template.category)} · {financialAmount(template.amount)} · {label(template.frequency)} from {template.startsOn} · {template.active ? "Active" : "Stopped"}</Body>
+          {template.active ? <>
+            <Action title="Confirm and post selected occurrence" disabled={mutation.busy || !validFinancialDate(occurrence)}
+              onPress={() => { void mutation.post(`template.confirm:${template.id}`, occurrence,
+                key => getOperationsApi().confirmExpenseTemplate(template.id, occurrence, key), query.reload); }} />
+            <Action title="Stop recurring template" secondary disabled={mutation.busy || !reason.trim()}
+              onPress={() => { void mutation.post(`template.stop:${template.id}`, reason,
+                key => getOperationsApi().stopExpenseTemplate(template.id, reason.trim(), key), query.reload); }} />
+          </> : null}
+        </Card>)}
       </>}</QueryResult>
     </Card>
-    <ConfirmDialog visible={confirm !== null} title="Finalize the cash count" message={`${confirm?.date ?? ""}: expected ${financialAmount(confirm?.expectedClosingCash ?? null)}, counted ${financialAmount(count)}. Include driver-held cash. Later cash corrections require a controlled reversal. Verify all receipts and payouts first.`} confirmLabel="Finalize counted cash" onCancel={() => setConfirm(null)} onConfirm={() => { if (!confirm) return;const body = { date: confirm.date, actualCash: count, acknowledgeMissingInputs: acknowledge, reconciliationReason: reason || undefined };setConfirm(null);void mutation.post("cash.close", body, key => getOperationsApi().closeCashbook(body, key), reload); }} />
   </Page>;
 }

@@ -31,10 +31,15 @@ public class ProcurementService {
     }
 
     public Page<Supplier> suppliers(UUID restaurant, String search, int page, int size) {
+        return suppliers(restaurant, search, SupplierSort.NAME_ASC, page, size);
+    }
+
+    public Page<Supplier> suppliers(UUID restaurant, String search, SupplierSort sort, int page, int size) {
         support.read(restaurant); page(page, size);
         String pattern = searchPattern(search);
         long count = jdbc.queryForObject("SELECT count(*) FROM public.accounting_suppliers WHERE restaurant_id=? AND name ILIKE ?", Long.class, restaurant, pattern);
-        return new Page<>(jdbc.query("SELECT * FROM public.accounting_suppliers WHERE restaurant_id=? AND name ILIKE ? ORDER BY name,id LIMIT ? OFFSET ?",
+        String order = sort == SupplierSort.NAME_DESC ? "name DESC,id" : "name,id";
+        return new Page<>(jdbc.query("SELECT * FROM public.accounting_suppliers WHERE restaurant_id=? AND name ILIKE ? ORDER BY "+order+" LIMIT ? OFFSET ?",
                 this::supplier, restaurant, pattern, size, (long)page*size), count, page, size);
     }
 
@@ -59,6 +64,10 @@ public class ProcurementService {
     }
 
     public Page<Item> items(UUID restaurant, String search, boolean suggestionsOnly, int page, int size) {
+        return items(restaurant, search, suggestionsOnly, ShoppingItemSort.NAME_ASC, page, size);
+    }
+
+    public Page<Item> items(UUID restaurant, String search, boolean suggestionsOnly, ShoppingItemSort sort, int page, int size) {
         support.read(restaurant); page(page,size);
         LocalDate today=support.today(restaurant);
         Map<String,Object> args=new HashMap<>(); args.put("r",restaurant); args.put("search",searchPattern(search)); args.put("today",today);
@@ -66,7 +75,12 @@ public class ProcurementService {
         String filter=" WHERE i.restaurant_id=:r AND i.name ILIKE :search"+(suggestionsOnly ? " AND i.suggestion_enabled AND last_purchase.purchase_date BETWEEN :oldest AND :today":"");
         String base=ITEM_BASE;
         long count=named.queryForObject("SELECT count(*)"+base+filter,args,Long.class);
-        List<Item> content=named.query("SELECT i.*,last_purchase.purchase_date,last_purchase.unit_cost,last_purchase.unit AS latest_cost_unit"+base+filter+" ORDER BY i.name,i.id LIMIT :size OFFSET :offset",args,
+        String order = switch (sort) {
+            case NAME_ASC -> "i.name,i.id";
+            case NAME_DESC -> "i.name DESC,i.id";
+            case LAST_PURCHASE_DESC -> "last_purchase.purchase_date DESC NULLS LAST,i.name,i.id";
+        };
+        List<Item> content=named.query("SELECT i.*,last_purchase.purchase_date,last_purchase.unit_cost,last_purchase.unit AS latest_cost_unit"+base+filter+" ORDER BY "+order+" LIMIT :size OFFSET :offset",args,
                 (rs,n)->mapItem(rs,today));
         return new Page<>(content,count,page,size);
     }
@@ -199,11 +213,20 @@ public class ProcurementService {
     }
 
     public Page<PurchaseSummary> purchases(UUID restaurant,LocalDate from,LocalDate to,UUID supplier,String item,String paymentStatus,int page,int size) {
+        return purchases(restaurant,from,to,supplier,item,paymentStatus,PurchaseSort.NEWEST,page,size);
+    }
+
+    public Page<PurchaseSummary> purchases(UUID restaurant,LocalDate from,LocalDate to,UUID supplier,String item,String paymentStatus,PurchaseSort sort,int page,int size) {
         support.read(restaurant); page(page,size);
         Filter filter=purchaseFilter(restaurant,from,to,supplier,item,paymentStatus);
         Map<String,Object> args=filter.args(); args.put("size",size);args.put("offset",(long)page*size);
         long count=named.queryForObject("SELECT count(*) FROM ("+SUMMARY+filter.sql()+") q",args,Long.class);
-        List<PurchaseSummary> content=named.query(SUMMARY+filter.sql()+" ORDER BY p.purchase_date DESC,p.purchased_at DESC,p.id LIMIT :size OFFSET :offset",args,this::summary);
+        String order = switch (sort) {
+            case NEWEST -> "p.purchase_date DESC,p.purchased_at DESC,p.id";
+            case OLDEST -> "p.purchase_date,p.purchased_at,p.id";
+            case TOTAL_DESC -> "p.total_amount DESC,p.purchase_date DESC,p.purchased_at DESC,p.id";
+        };
+        List<PurchaseSummary> content=named.query(SUMMARY+filter.sql()+" ORDER BY "+order+" LIMIT :size OFFSET :offset",args,this::summary);
         return new Page<>(content,count,page,size);
     }
 
@@ -286,15 +309,25 @@ public class ProcurementService {
     }
 
     public Page<Payable> payables(UUID restaurant,int page,int size) {
+        return payables(restaurant,null,PayableSort.NAME_ASC,page,size);
+    }
+
+    public Page<Payable> payables(UUID restaurant,String search,PayableSort sort,int page,int size) {
         support.read(restaurant);page(page,size);
-        long count=jdbc.queryForObject("SELECT count(*) FROM public.accounting_suppliers WHERE restaurant_id=?",Long.class,restaurant);
+        String pattern = searchPattern(search);
+        long count=jdbc.queryForObject("SELECT count(*) FROM public.accounting_suppliers WHERE restaurant_id=? AND name ILIKE ?",Long.class,restaurant,pattern);
+        String order = switch (sort) {
+            case NAME_ASC -> "s.name,s.id";
+            case OUTSTANDING_DESC -> "outstanding DESC,s.name,s.id";
+            case DUE_ASC -> "due NULLS LAST,s.name,s.id";
+        };
         String sql="""
                 SELECT s.id,s.name,coalesce(sum(q.total_amount) FILTER(WHERE q.status='CONFIRMED'),0) AS obligations,
                   coalesce(sum(q.amount_paid),0) AS paid,coalesce(sum(q.outstanding_amount),0) AS outstanding,
                   min(q.due_date) FILTER(WHERE q.outstanding_amount>0) AS due
                 FROM public.accounting_suppliers s LEFT JOIN (
-                """+SUMMARY+" WHERE p.restaurant_id=:r) q ON q.supplier_id=s.id WHERE s.restaurant_id=:r GROUP BY s.id,s.name ORDER BY s.name,s.id LIMIT :size OFFSET :offset";
-        return new Page<>(named.query(sql,Map.of("r",restaurant,"size",size,"offset",(long)page*size),(rs,n)->new Payable(uuid(rs,"id"),rs.getString("name"),amount(rs,"obligations"),amount(rs,"paid"),amount(rs,"outstanding"),rs.getObject("due",LocalDate.class))),count,page,size);
+                """+SUMMARY+" WHERE p.restaurant_id=:r) q ON q.supplier_id=s.id WHERE s.restaurant_id=:r AND s.name ILIKE :search GROUP BY s.id,s.name ORDER BY "+order+" LIMIT :size OFFSET :offset";
+        return new Page<>(named.query(sql,Map.of("r",restaurant,"search",pattern,"size",size,"offset",(long)page*size),(rs,n)->new Payable(uuid(rs,"id"),rs.getString("name"),amount(rs,"obligations"),amount(rs,"paid"),amount(rs,"outstanding"),rs.getObject("due",LocalDate.class))),count,page,size);
     }
 
     public Page<SupplierPayment> supplierPayments(UUID restaurant,UUID supplier,int page,int size) {

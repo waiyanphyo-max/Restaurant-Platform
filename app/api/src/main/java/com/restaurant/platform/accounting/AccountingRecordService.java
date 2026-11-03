@@ -11,6 +11,7 @@ import com.restaurant.platform.common.error.ApiException;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -65,15 +66,31 @@ public class AccountingRecordService {
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-    public AuditPage audit(UUID restaurantId, UUID entityId, int page, int size) {
+    public AuditPage audit(UUID restaurantId, UUID entityId, String search, AccountingSupport.Chronology sort, int page, int size) {
         support.read(restaurantId); AccountingSupport.page(page, size);
-        Long total = jdbc.queryForObject("SELECT count(*) FROM public.accounting_audit WHERE restaurant_id=? AND (CAST(? AS uuid) IS NULL OR entity_id=?)", Long.class, restaurantId, entityId, entityId);
+        String filter = " FROM public.accounting_audit WHERE restaurant_id=?";
+        var args = new ArrayList<Object>(List.of(restaurantId));
+        if (entityId != null) {
+            filter += " AND entity_id=?";
+            args.add(entityId);
+        }
+        if (search != null && !search.isBlank()) {
+            if (search.length() > 200) throw AccountingSupport.invalid("INVALID_ACCOUNTING_AUDIT_SEARCH");
+            filter += """
+                 AND (strpos(lower(replace(entity_type,'_',' ')),lower(replace(?,'_',' ')))>0
+                   OR strpos(lower(action),lower(?))>0 OR strpos(lower(reason),lower(?))>0
+                   OR strpos(entity_id::text,lower(?))>0 OR strpos(actor_id::text,lower(?))>0)
+                """;
+            args.addAll(List.of(search,search,search,search,search));
+        }
+        Long total = jdbc.queryForObject("SELECT count(*)" + filter, Long.class, args.toArray());
+        args.add(size);
+        args.add((long) page * size);
+        String order = " ORDER BY created_at " + sort.direction() + ",id " + sort.direction() + " LIMIT ? OFFSET ?";
         List<AuditEntry> entries = jdbc.query("""
                 SELECT id,actor_id,entity_type,entity_id,action,reason,detail::text,created_at
-                FROM public.accounting_audit WHERE restaurant_id=? AND (CAST(? AS uuid) IS NULL OR entity_id=?)
-                ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?
-                """, (rs, n) -> new AuditEntry(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getObject(4, UUID.class),
-                rs.getString(5), rs.getString(6), rs.getString(7), rs.getObject(8, OffsetDateTime.class)), restaurantId, entityId, entityId, size, (long) page * size);
+                """ + filter + order, (rs, n) -> new AuditEntry(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getObject(4, UUID.class),
+                rs.getString(5), rs.getString(6), rs.getString(7), rs.getObject(8, OffsetDateTime.class)), args.toArray());
         return new AuditPage(entries, total == null ? 0 : total, page, size);
     }
     public record Receipt(UUID id, String contentType, long size, UUID createdBy, OffsetDateTime createdAt) { }

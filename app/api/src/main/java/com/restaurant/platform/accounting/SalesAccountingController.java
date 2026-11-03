@@ -31,9 +31,10 @@ public class SalesAccountingController {
             @RequestParam(required=false) @DateTimeFormat(pattern="yyyy-MM") YearMonth month,
             @RequestParam(required=false) String product,@RequestParam(required=false) String order,
             @RequestParam(required=false) String paymentStatus,@RequestParam(required=false) String channel,
+            @RequestParam(defaultValue="NEWEST") LedgerSort sort,
             @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
         LocalDate[] range=period(restaurantId,from,to,date,month);
-        return service.ledger(restaurantId,range[0],range[1],product,order,paymentStatus,channel,page,size);
+        return service.ledger(restaurantId,range[0],range[1],product,order,paymentStatus,channel,sort,page,size);
     }
     @GetMapping("/ledger/{orderId}")
     public LedgerOrder detail(@PathVariable UUID restaurantId,@PathVariable UUID orderId) { return service.detail(restaurantId,orderId); }
@@ -43,9 +44,10 @@ public class SalesAccountingController {
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required=false) @DateTimeFormat(pattern="yyyy-MM") YearMonth month,
-            @RequestParam(required=false) String search,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
+            @RequestParam(required=false) String search,@RequestParam(defaultValue="MOST_SOLD") ProductSort sort,
+            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
         LocalDate[] range=period(restaurantId,from,to,date,month);
-        return service.products(restaurantId,range[0],range[1],search,page,size);
+        return service.products(restaurantId,range[0],range[1],search,sort,page,size);
     }
     @GetMapping(value="/ledger.csv",produces="text/csv")
     public ResponseEntity<String> csv(@PathVariable UUID restaurantId,
@@ -54,12 +56,13 @@ public class SalesAccountingController {
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required=false) @DateTimeFormat(pattern="yyyy-MM") YearMonth month,
             @RequestParam(required=false) String product,@RequestParam(required=false) String order,
-            @RequestParam(required=false) String paymentStatus,@RequestParam(required=false) String channel) {
+            @RequestParam(required=false) String paymentStatus,@RequestParam(required=false) String channel,
+            @RequestParam(defaultValue="OLDEST") LedgerSort sort) {
         LocalDate[] range=period(restaurantId,from,to,date,month);
         return ResponseEntity.ok().contentType(new MediaType("text","csv",java.nio.charset.StandardCharsets.UTF_8))
             .header(HttpHeaders.CONTENT_DISPOSITION,"attachment; filename=\"sales-ledger.csv\"")
             .header(HttpHeaders.CACHE_CONTROL,"no-store")
-            .body(service.csvExport(restaurantId,range[0],range[1],product,order,paymentStatus,channel));
+            .body(service.csvExport(restaurantId,range[0],range[1],product,order,paymentStatus,channel,sort));
     }
     @PostMapping("/ledger/{orderId}/refunds")
     public Refund refund(@PathVariable UUID restaurantId,@PathVariable UUID orderId,

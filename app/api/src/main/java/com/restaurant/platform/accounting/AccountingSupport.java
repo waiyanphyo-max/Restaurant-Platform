@@ -142,5 +142,11 @@ public class AccountingSupport {
     public static ApiException conflict(String code) { return new ApiException(HttpStatus.CONFLICT, code, "error.accounting.conflict"); }
     public static ApiException missing(String code) { return new ApiException(HttpStatus.NOT_FOUND, code, "error.accounting.not-found"); }
     public record DateRange(LocalDate from, LocalDate to, OffsetDateTime start, OffsetDateTime end) { }
+    public enum Chronology {
+        NEWEST("DESC"), OLDEST("ASC");
+        private final String direction;
+        Chronology(String direction) { this.direction = direction; }
+        public String direction() { return direction; }
+    }
     private record Previous(String hash, UUID id) { }
 }

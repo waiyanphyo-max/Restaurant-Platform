@@ -1,4 +1,6 @@
 /** Accounting totals are exact whole-currency decimal strings. */
+export type AccountingChronology = "NEWEST" | "OLDEST";
+
 export interface FinancialSalesSummary {
   from: string; to: string; grossSales: string; discounts: string; netSales: string;
   collectedPayments: string; outstandingPayments: string; refundedAmounts: string;

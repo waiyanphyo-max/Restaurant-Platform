@@ -1,50 +1,71 @@
 import { useState } from "react";
 import { getOperationsApi } from "../../api";
 import { QueryResult } from "../../components/QueryResult";
-import { Action, Body, Card, FormField, Page } from "../../components/ui";
+import { Action, Body, Card, Page } from "../../components/ui";
 import { useApiQuery } from "../../hooks/useApiQuery";
-import { isIsoDate } from "./format";
-import { SalesDashboardPanel } from "../accounting/SalesDashboardPanel";
+import { ExportReportsScreen } from "../accounting/ExportReportsScreen";
+import { FinancialPeriodForm } from "../accounting/FinancialPeriodFields";
+import { SalesDashboardPanel, SalesTotals } from "../accounting/SalesDashboardPanel";
+import { salesAmount } from "../accounting/salesApi";
+import { Choices } from "../management/controls";
 
-export function ReportsScreen() {
-  const [input, setInput] = useState("");
-  const [until, setUntil] = useState("");
-  const [period, setPeriod] = useState<{ from?: string; to?: string }>({});
-  const [invalid, setInvalid] = useState(false);
-  const query = useApiQuery(signal => getOperationsApi().getFinancialReport(period.from, period.to, { signal }), `financial-report:${period.from}:${period.to}`);
-  function applyDate() {
-    const next = input.trim(), end = until.trim();
-    if ((next && !isIsoDate(next)) || (end && !isIsoDate(end)) || (next && end && next > end)) { setInvalid(true); return; }
-    setInvalid(false);
-    setPeriod({ from: next || undefined, to: end || undefined }); query.reload();
-  }
-  return <Page title="Financial reports" subtitle="Sales, recorded expenses and payment flow">
-    <SalesDashboardPanel />
-    <Card><FormField label="From date (YYYY-MM-DD)" placeholder="Blank for restaurant-local today" value={input} onChangeText={setInput}
-      autoCapitalize="none" error={invalid ? "Enter a valid date such as 2026-11-02." : undefined} />
-      <FormField label="Through date (inclusive)" placeholder="Use month/year start and end for a period report" value={until} onChangeText={setUntil} autoCapitalize="none" />
-      <Action title="Load report" onPress={applyDate} /></Card>
+export function FinancialOverviewScreen() {
+  const query = useApiQuery(signal => getOperationsApi().getFinancialReport(undefined, undefined, { signal }), "financial-overview");
+  return <>
     <QueryResult {...query}>{report => <>
-      <Card title={`${report.from} – ${report.to} · ${report.timezone}`}>
-        <Body>All amounts in whole {report.currency} units.</Body>
-        <Body>Gross sales: {report.sales.grossSales}</Body>
-        <Body>Discounts: {report.sales.discounts}</Body>
-        <Body>Net sales: {report.sales.netSales}</Body>
-        <Body>Collected payments: {report.sales.collectedPayments}</Body>
-        <Body>Outstanding for these orders: {report.sales.outstandingPayments}</Body>
-        <Body>Dated refunds: {report.sales.refundedAmounts}</Body>
-        <Body>Orders: {report.sales.orders} · Products sold: {report.sales.productsSold}</Body>
+      <Card title="Reporting basis"><Body>{report.timezone} · All amounts in whole {report.currency} units.</Body></Card>
+      <SalesTotals title="Today in this restaurant" value={report.sales} />
+      <Card title="Today's purchases and operating expenses">
+        <Body>Confirmed purchases {salesAmount(report.confirmedPurchases)}</Body>
+        <Body>Registered operating expenses {salesAmount(report.registeredOperatingExpenses)}</Body>
       </Card>
+    </>}</QueryResult>
+    <Action title="Refresh financial overview" secondary onPress={query.reload} disabled={query.state.status === "loading"} />
+  </>;
+}
+
+export function FinancialSummaryScreen() {
+  const [period, setPeriod] = useState<{ from?: string; to?: string }>({});
+  const query = useApiQuery(signal => getOperationsApi().getFinancialReport(period.from, period.to, { signal }), `financial-report:${period.from}:${period.to}`);
+  return <>
+    <FinancialPeriodForm onApply={value => { setPeriod(value); query.reload(); }} />
+    <QueryResult {...query}>{report => <>
+      <Card title="Reporting basis"><Body>{report.timezone} · All amounts in whole {report.currency} units.</Body></Card>
+      <SalesTotals title="Sales and collections" value={report.sales} />
       <Card title="Cash flow and expense summary">
-        <Body>Confirmed purchases: {report.confirmedPurchases}</Body>
-        <Body>Registered operating expenses: {report.registeredOperatingExpenses}</Body>
-        <Body>Purchase payments less reversals: {report.purchasePayments}</Body>
-        <Body>Expense payments less reversals: {report.expensePayments}</Body>
-        <Body>Trading payment net: {report.tradingPaymentNet}</Body>
-        <Body>Profit unavailable: verified inventory consumption and COGS are missing.</Body>
-        {report.expensesByCategory.map(category => <Body key={category.category}>{category.category}: {category.amount}</Body>)}
+        <Body>Confirmed purchases {salesAmount(report.confirmedPurchases)}</Body>
+        <Body>Registered operating expenses {salesAmount(report.registeredOperatingExpenses)}</Body>
+        <Body>Purchase payments less reversals {salesAmount(report.purchasePayments)}</Body>
+        <Body>Expense payments less reversals {salesAmount(report.expensePayments)}</Body>
+        <Body>Trading payment net {salesAmount(report.tradingPaymentNet)}</Body>
+        <Body>Trading payment net includes cash and non-cash settlement activity.</Body>
+      </Card>
+      <Card title="Operating expenses by category">
+        {report.expensesByCategory.length ? report.expensesByCategory.map(category =>
+          <Body key={category.category}>{category.category.replaceAll("_", " ")} · {salesAmount(category.amount)}</Body>
+        ) : <Body>No operating expenses were registered in this period.</Body>}
+      </Card>
+      <Card title="Profit figures unavailable">
         {report.missingInputs.map(input => <Body key={input}>{input}</Body>)}
       </Card>
     </>}</QueryResult>
+  </>;
+}
+
+const reportViews = {
+  OVERVIEW: "Financial overview",
+  SALES: "Sales reports",
+  SUMMARY: "Financial summary",
+  EXPORT: "Export reports"
+} as const;
+
+export function ReportsScreen() {
+  const [view, setView] = useState<keyof typeof reportViews>("OVERVIEW");
+  return <Page title={reportViews[view]} subtitle="Restaurant sales, collections, expenses and report exports">
+    <Card title="Financial reporting">
+      <Choices<keyof typeof reportViews> label="Report view" value={view} values={["OVERVIEW", "SALES", "SUMMARY", "EXPORT"]} onChange={setView} labels={reportViews} />
+    </Card>
+    {view === "OVERVIEW" ? <FinancialOverviewScreen /> : view === "SALES" ? <SalesDashboardPanel /> :
+      view === "SUMMARY" ? <FinancialSummaryScreen /> : <ExportReportsScreen />}
   </Page>;
 }

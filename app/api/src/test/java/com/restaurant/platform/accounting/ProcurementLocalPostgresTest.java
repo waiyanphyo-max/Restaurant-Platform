@@ -104,10 +104,49 @@ class ProcurementLocalPostgresTest {
         assertEquals(1,f.service.purchases(f.restaurant,f.today,f.today,null,null,null,1,1).content().size());
     }
 
+    @Test void sortAndSearchApplyBeforePagingProcurementRegisters() {
+        var f = new Fixture();
+        var alpha = f.tx(() -> f.service.saveSupplier(f.restaurant, null, "alpha",
+                new SupplierInput("Alpha Market", null, true, null)));
+        var zulu = f.tx(() -> f.service.saveSupplier(f.restaurant, null, "zulu",
+                new SupplierInput("Zulu Market", null, true, null)));
+        f.tx(() -> f.service.saveSupplier(f.restaurant, null, "other",
+                new SupplierInput("Other Shop", null, true, null)));
+        var apples = f.tx(() -> f.service.saveItem(f.restaurant, null, "apples",
+                new ItemInput("Apples", "kg", BigDecimal.ONE, alpha.id(), true, null)));
+        var zucchini = f.tx(() -> f.service.saveItem(f.restaurant, null, "zucchini",
+                new ItemInput("Zucchini", "kg", BigDecimal.ONE, zulu.id(), true, null)));
+        f.tx(() -> f.service.saveItem(f.restaurant, null, "apricots",
+                new ItemInput("Apricots", "kg", BigDecimal.ONE, null, true, null)));
+        var older = f.tx(() -> f.service.confirmPurchase(f.restaurant, "older", new PurchaseInput(
+                f.today.minusDays(1), f.now.minusDays(1), alpha.id(),
+                List.of(new LineInput(apples.id(), BigDecimal.ONE, "kg", 100L, alpha.id())),
+                null, f.today.plusDays(1), null, null, null, null)));
+        var newer = f.tx(() -> f.service.confirmPurchase(f.restaurant, "newer", new PurchaseInput(
+                f.today, f.now, zulu.id(),
+                List.of(new LineInput(zucchini.id(), BigDecimal.ONE, "kg", 300L, zulu.id())),
+                null, f.today.plusDays(7), null, null, null, null)));
+
+        assertEquals(zulu.id(), f.service.suppliers(f.restaurant, "market", SupplierSort.NAME_DESC, 0, 1).content().getFirst().id());
+        assertEquals(alpha.id(), f.service.suppliers(f.restaurant, "market", SupplierSort.NAME_DESC, 1, 1).content().getFirst().id());
+        assertEquals(zucchini.id(), f.service.items(f.restaurant, null, false, ShoppingItemSort.LAST_PURCHASE_DESC, 0, 1).content().getFirst().id());
+        assertEquals(apples.id(), f.service.items(f.restaurant, null, false, ShoppingItemSort.LAST_PURCHASE_DESC, 1, 1).content().getFirst().id());
+        assertEquals(older.purchase().id(), f.service.purchases(f.restaurant, f.today.minusDays(1), f.today,
+                null, null, null, PurchaseSort.OLDEST, 0, 1).content().getFirst().id());
+        assertEquals(newer.purchase().id(), f.service.purchases(f.restaurant, f.today.minusDays(1), f.today,
+                null, null, null, PurchaseSort.TOTAL_DESC, 0, 1).content().getFirst().id());
+        var ranked = f.service.payables(f.restaurant, "market", PayableSort.OUTSTANDING_DESC, 0, 1);
+        assertEquals(2, ranked.totalElements());
+        assertEquals(zulu.id(), ranked.content().getFirst().supplierId());
+        assertEquals(300, ranked.content().getFirst().outstandingAmount());
+        assertEquals(alpha.id(), f.service.payables(f.restaurant, null, PayableSort.DUE_ASC, 0, 1).content().getFirst().supplierId());
+    }
+
     private static final class Fixture {
         final UUID restaurant=UUID.randomUUID(),actor=UUID.randomUUID();
-        final LocalDate today=LocalDate.now(ZoneId.of("Asia/Yangon"));
-        final OffsetDateTime now=OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(1);
+        final ZoneId timezone=ZoneId.of("Asia/Yangon");
+        final LocalDate today=LocalDate.now(timezone).minusDays(1);
+        final OffsetDateTime now=today.atTime(12,0).atZone(timezone).toOffsetDateTime();
         final JdbcTemplate jdbc;
         final TransactionTemplate transaction;
         final ProcurementService service;

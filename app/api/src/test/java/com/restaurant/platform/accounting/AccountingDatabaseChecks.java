@@ -24,6 +24,7 @@ public final class AccountingDatabaseChecks {
     public static void verify(DataSource dataSource) throws Exception {
         plansSuggestionsAndPurchaseSnapshots(dataSource);
         salesCashClosingAndReport(dataSource);
+        expenseCorrectionsAndCashHistory(dataSource);
         concurrentRetriesAndTenantConstraints(dataSource);
         clientDatabaseAccessAndImmutableHistory(dataSource);
     }
@@ -77,6 +78,18 @@ public final class AccountingDatabaseChecks {
         assertEquals(YearMonth.from(f.today).lengthOfMonth(), dashboard.dailyTrend().size());
         assertEquals(12, dashboard.monthlyTrend().size());
         assertEquals("MMK", dashboard.currency());
+        var firstPage = f.sales.ledger(f.restaurant, f.today.minusDays(1), f.today, null, null, null, null, SalesDtos.LedgerSort.OLDEST, 0, 1);
+        assertEquals(3, firstPage.totalElements());
+        assertEquals(order, firstPage.content().getFirst().id());
+        assertEquals(digital, f.sales.ledger(f.restaurant, f.today.minusDays(1), f.today, null, null, null, null,
+                SalesDtos.LedgerSort.HIGHEST_TOTAL, 1, 1).content().getFirst().id());
+        var productMatches = f.sales.products(f.restaurant, f.today.minusDays(1), f.today, "Historical product", SalesDtos.ProductSort.HIGHEST_SALES, 0, 1);
+        assertEquals(3, productMatches.totalElements());
+        assertEquals("Historical product", productMatches.content().getFirst().historicalName());
+        assertEquals(400, productMatches.content().getFirst().lineSalesBeforeOrderDiscounts());
+        String csv = f.sales.csvExport(f.restaurant, f.today.minusDays(1), f.today, null, null, null, null, SalesDtos.LedgerSort.HIGHEST_TOTAL);
+        assertTrue(csv.indexOf(order.toString()) < csv.indexOf(digital.toString()));
+        assertTrue(csv.indexOf(digital.toString()) < csv.indexOf(unpaid.toString()));
         assertThrows(DataIntegrityViolationException.class, () -> f.payment(order, 1, "CASH_AT_COUNTER", "PAID", f.now.minusMinutes(18)));
         // Multiple item/payment rows must not multiply order totals.
         var yesterday = f.sales.summary(f.restaurant, f.today.minusDays(1), f.today.minusDays(1));
@@ -87,7 +100,7 @@ public final class AccountingDatabaseChecks {
         var historicalLine = detail.lines().stream().filter(line -> line.productName().equals("Historical product")).findFirst().orElseThrow();
         assertEquals(400, historicalLine.unitPrice());
         assertThrows(DataIntegrityViolationException.class, () -> f.jdbc.update("UPDATE public.order_items SET unit_price=99999 WHERE order_id=?", order));
-        assertNotNull(detail.createdAt());
+        assertEquals(f.today.minusDays(1).atStartOfDay(ZoneId.of("Asia/Yangon")).toInstant(), detail.createdAt().toInstant());
         assertEquals(f.actor, detail.payments().getFirst().collectedByUserId());
         assertThrows(DataIntegrityViolationException.class, () -> f.jdbc.update("UPDATE public.payments SET paid_at=? WHERE id=?", f.now, payment));
         assertThrows(DataIntegrityViolationException.class, () -> f.jdbc.update("UPDATE public.payments SET status='REFUNDED' WHERE id=?", payment));
@@ -116,13 +129,17 @@ public final class AccountingDatabaseChecks {
         f.tx(() -> f.cash.reverseClosing(f.restaurant, close.id(), "reverse-close", new ExpenseDtos.Reason("Correct count")));
         var amended = f.tx(() -> f.cash.close(f.restaurant, "amended-close", new CashbookDtos.Close(f.today, 1150L)));
         assertEquals(2, amended.revision());
-        assertEquals(2, f.cash.closings(f.restaurant, f.today, f.today, 0, 20).total());
+        assertEquals(2, f.cash.closings(f.restaurant, f.today, f.today, AccountingSupport.Chronology.NEWEST, 0, 20).total());
         var report = f.reports.report(f.restaurant, f.today, f.today);
         assertEquals("CASH_FLOW_AND_EXPENSE_SUMMARY", report.reportType());
         assertNull(report.costOfGoodsSold()); assertNull(report.netOperatingProfit());
         assertEquals(1350, report.tradingPaymentNet());
         assertEquals(250, report.confirmedPurchases());
         assertEquals(100, report.registeredOperatingExpenses());
+        var summaryCsv = f.reports.export(f.restaurant, f.today, f.today);
+        assertTrue(summaryCsv.contains("\"summary\",\"Trading payment net (cash and noncash)\",1350"));
+        assertTrue(summaryCsv.contains("\"expense category\",\"ELECTRICITY\",100"));
+        assertTrue(summaryCsv.contains("Gross profit and net operating profit are unavailable"));
         var reversalRequest = new SalesDtos.ReversalRequest("Refund was recorded incorrectly; money restored");
         assertThrows(ApiException.class, () -> f.tx(() -> f.sales.reverseRefund(f.restaurant, order, refund.id(), "blocked-refund-reversal", reversalRequest)));
         f.tx(() -> f.cash.reverseClosing(f.restaurant, amended.id(), "reopen-for-refund-correction", new ExpenseDtos.Reason("Post correction with restored cash")));
@@ -146,6 +163,26 @@ public final class AccountingDatabaseChecks {
         f.tx(() -> f.sales.reverseRefund(f.restaurant, historicalOrder, historicalRefund.id(), "old-refund-correction-today", reversalRequest));
         assertEquals(50, f.sales.summary(f.restaurant, f.today.minusDays(1), f.today.minusDays(1)).refundedAmounts());
         assertEquals(550, f.sales.summary(f.restaurant, f.today, f.today).refundedAmounts());
+
+        LocalDate leapDay = LocalDate.of(2024, 2, 29);
+        var lastSecond = leapDay.plusDays(1).atStartOfDay(ZoneId.of("Asia/Yangon")).minusSeconds(1).toOffsetDateTime();
+        var discountOrder = UUID.randomUUID();
+        f.jdbc.update("""
+                INSERT INTO public.orders(id,restaurant_id,order_number,order_type,order_channel,status,
+                    subtotal,delivery_fee,discount_amount,total_amount,created_at,created_by_user_id)
+                VALUES(?,?,?,'TAKEAWAY','STAFF','COMPLETED',1000,50,100,950,?,?)
+                """, discountOrder, f.restaurant, "discount-" + discountOrder.toString().substring(0,8), lastSecond, f.actor);
+        var cancelledOrder = f.order(500, leapDay);
+        f.jdbc.update("UPDATE public.orders SET status='CANCELLED' WHERE restaurant_id=? AND id=?", f.restaurant, cancelledOrder);
+        f.order(200, leapDay.plusDays(1));
+        var historical = f.sales.dashboard(f.restaurant, leapDay, YearMonth.from(leapDay), leapDay.getYear());
+        assertEquals(1050, historical.selectedDay().grossSales());
+        assertEquals(100, historical.selectedDay().discounts());
+        assertEquals(1, historical.selectedDay().cancelledOrders());
+        assertEquals(950, historical.selectedDay().netSales());
+        assertEquals(950, historical.selectedMonth().netSales());
+        assertEquals(1150, historical.selectedYear().netSales());
+        assertEquals(lastSecond.toInstant(), f.sales.detail(f.restaurant, discountOrder).createdAt().toInstant());
     }
 
     public static void concurrentRetriesAndTenantConstraints(DataSource dataSource) throws Exception {
@@ -206,7 +243,53 @@ public final class AccountingDatabaseChecks {
         assertThrows(ApiException.class,()->f.tx(()->f.cash.movement(f.restaurant,"backdated-cash",new CashbookDtos.Movement(CashbookDtos.Kind.OWNER_DEPOSIT,CashbookDtos.Direction.IN,1L,f.now.minusDays(1),"Late receipt"))));
         f.tx(()->f.cash.reverseClosing(f.restaurant,secondClose.id(),"reverse-latest",new ExpenseDtos.Reason("Recount")));
         f.tx(()->f.cash.reverseClosing(f.restaurant,firstClose.id(),"reverse-earlier",new ExpenseDtos.Reason("Recount")));
-        assertEquals(2,f.cash.closings(f.restaurant,f.today.minusDays(1),f.today,0,20).items().stream().filter(c->c.reversedAt()!=null).count());
+        assertEquals(2,f.cash.closings(f.restaurant,f.today.minusDays(1),f.today,AccountingSupport.Chronology.NEWEST,0,20).items().stream().filter(c->c.reversedAt()!=null).count());
+    }
+
+    public static void expenseCorrectionsAndCashHistory(DataSource source) {
+        var f = new Fixture(source);
+        var day = f.today.minusDays(1);
+        var later = f.today;
+        var initial = f.tx(() -> f.expenses.create(f.restaurant, "misc-expense",
+                new ExpenseDtos.Create(ExpenseDtos.Category.MISCELLANEOUS, 100L, day, "Utility bill", "Supplier", null)));
+        var invalid = new ExpenseDtos.Correction(
+                new ExpenseDtos.Create(ExpenseDtos.Category.WATER, 120L, day, "Water bill", "Supplier", UUID.randomUUID()),
+                "Correct the category");
+        assertThrows(ApiException.class, () -> f.tx(() -> f.expenses.correct(f.restaurant, initial.id(), "correct-bill", invalid)));
+        assertEquals("UNPAID", f.expenses.get(f.restaurant, initial.id()).paymentStatus());
+        assertEquals(0, f.count("accounting_expense_cancellations"));
+        var correction = new ExpenseDtos.Correction(
+                new ExpenseDtos.Create(ExpenseDtos.Category.WATER, 120L, later, "Water bill", "Supplier", null),
+                "Correct the category");
+        var replacement = f.tx(() -> f.expenses.correct(f.restaurant, initial.id(), "correct-bill", correction));
+        assertEquals(replacement.id(), f.tx(() -> f.expenses.correct(f.restaurant, initial.id(), "correct-bill", correction)).id());
+        assertNotEquals(initial.id(), replacement.id());
+        assertEquals("CANCELLED", f.expenses.get(f.restaurant, initial.id()).paymentStatus());
+        assertEquals(100, f.expenses.get(f.restaurant, initial.id()).amount());
+        assertEquals(2, f.count("accounting_expenses"));
+        var audit = new AccountingRecordService(f.support, f.jdbc, null);
+        var originalEvent = audit.audit(f.restaurant, initial.id(), "category", AccountingSupport.Chronology.NEWEST, 0, 20).content().getFirst();
+        assertEquals("CORRECT", originalEvent.action());
+        assertTrue(originalEvent.detailJson().contains(replacement.id().toString()));
+        assertEquals(replacement.id(), f.expenses.list(f.restaurant, day, later, null, "bill", null, AccountingSupport.Chronology.NEWEST, 0, 1).items().getFirst().id());
+        assertEquals(initial.id(), f.expenses.list(f.restaurant, day, later, null, "bill", null, AccountingSupport.Chronology.OLDEST, 0, 1).items().getFirst().id());
+        assertEquals(1, f.expenses.list(f.restaurant, day, later, ExpenseDtos.Category.WATER, null, "UNPAID", AccountingSupport.Chronology.NEWEST, 0, 20).total());
+        assertEquals(120, f.expenses.report(f.restaurant, day, later, ExpenseDtos.Period.YEAR).totals().stream().mapToLong(ExpenseDtos.Total::expenseAmount).sum());
+
+        f.tx(() -> f.cash.open(f.restaurant, "cash-start", new CashbookDtos.Opening(day, 100L, "First count")));
+        var time = day.atTime(12, 0).atZone(ZoneId.of("Asia/Yangon")).toOffsetDateTime();
+        var deposit = f.tx(() -> f.cash.movement(f.restaurant, "cash-deposit",
+                new CashbookDtos.Movement(CashbookDtos.Kind.OWNER_DEPOSIT, CashbookDtos.Direction.IN, 20L, time, "Owner funds")));
+        f.tx(() -> f.cash.movement(f.restaurant, "cash-withdrawal",
+                new CashbookDtos.Movement(CashbookDtos.Kind.OWNER_WITHDRAWAL, CashbookDtos.Direction.OUT, 5L, time.plusMinutes(5), "Owner funds")));
+        var history = f.cash.transactions(f.restaurant, day, day, "Owner", AccountingSupport.Chronology.NEWEST, 1, 1);
+        assertEquals(2, history.total());
+        assertEquals(deposit, history.items().getFirst().id());
+        assertEquals(1, f.cash.transactions(f.restaurant, day, day, "OWNER DEPOSIT", AccountingSupport.Chronology.OLDEST, 0, 20).total());
+        var stale = assertThrows(ApiException.class, () -> f.tx(() -> f.cash.close(f.restaurant, "cash-final", new CashbookDtos.Close(day, 110L, false, null, 100L))));
+        assertEquals("CASH_CLOSING_EXPECTED_CHANGED", stale.getCode());
+        var close = f.tx(() -> f.cash.close(f.restaurant, "cash-final", new CashbookDtos.Close(day, 110L, false, null, 115L)));
+        assertEquals(-5, close.variance());
     }
 
     private static final class Fixture {
@@ -220,6 +303,7 @@ public final class AccountingDatabaseChecks {
         final ExpenseService expenses;
         final CashbookService cash;
         final FinancialReportService reports;
+        final AccountingSupport support;
         Fixture(DataSource source) {
             jdbc = new JdbcTemplate(source); transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
             jdbc.update("INSERT INTO auth.users(id) VALUES(?)", actor);
@@ -228,7 +312,7 @@ public final class AccountingDatabaseChecks {
             var authorization = mock(RestaurantAuthorization.class); when(authorization.requireAuthenticatedUserId()).thenReturn(actor);
             var settings = mock(RestaurantSettingsRepository.class); var record = new RestaurantSettings(); record.setRestaurantId(restaurant); record.setTimezone("Asia/Yangon");
             when(settings.findById(restaurant)).thenReturn(Optional.of(record));
-            var support = new AccountingSupport(jdbc, authorization, settings);
+            support = new AccountingSupport(jdbc, authorization, settings);
             purchases = new ProcurementService(jdbc, support); sales = new SalesAccountingService(new NamedParameterJdbcTemplate(jdbc), support);
             expenses = new ExpenseService(jdbc, support); cash = new CashbookService(jdbc, support);
             reports = new FinancialReportService(support, new NamedParameterJdbcTemplate(jdbc), sales);

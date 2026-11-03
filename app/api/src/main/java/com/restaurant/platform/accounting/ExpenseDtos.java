@@ -1,5 +1,6 @@
 package com.restaurant.platform.accounting;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDate;
@@ -18,6 +19,7 @@ public final class ExpenseDtos {
                          @Size(max=200) String payee, UUID receiptId) { }
     public record Pay(@NotNull @Positive Long amount, @NotNull Method method, @NotNull OffsetDateTime paidAt) { }
     public record Reason(@NotBlank @Size(max=2000) String reason) { }
+    public record Correction(@NotNull @Valid Create replacement, @NotBlank @Size(max=2000) String reason) { }
     public record CreateTemplate(@NotNull Category category, @NotNull @Positive Long amount,
                                  @NotBlank @Size(max=2000) String description, @Size(max=200) String payee,
                                  @NotNull Frequency frequency, @NotNull LocalDate startsOn) { }

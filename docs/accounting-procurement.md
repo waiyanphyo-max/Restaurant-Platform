@@ -17,7 +17,18 @@ These Spring APIs are under `/api/v1/restaurants/{restaurantId}/accounting`. Own
 | `GET /purchases/report` | Confirmed/cancelled totals and monthly breakdown |
 | `GET /purchases/export.csv` | Snapshot line export; maximum 10,000 lines, with spreadsheet-formula escaping |
 
-List endpoints use `page` (zero based) and `size` (1–200). `from`/`to` are inclusive ISO dates; set them equal for daily history, to month boundaries for a month, or to a custom range (at most 366 days). Purchases, report and CSV accept `supplierId`, `item` and `paymentStatus=PAID|UNPAID|PARTIALLY_PAID`. `item` matches historical purchased names. Supplier/catalog lists accept `search`. Inactive suppliers and items remain searchable; no delete endpoint destroys history.
+List endpoints use `page` (zero based) and `size` (1–200). `from`/`to` are inclusive ISO dates. Set them equal for daily history, use month boundaries for a month, or supply a custom range of up to 366 days. Purchases, report and CSV accept `supplierId`, `item` and `paymentStatus=PAID|UNPAID|PARTIALLY_PAID`. `item` matches historical purchased names. Supplier, catalog and payables lists accept a name `search`. Inactive suppliers and items remain searchable and retain their history.
+
+The API sorts the complete filtered result before pagination. The first sort listed for each endpoint is its default.
+
+| Endpoint | `sort` values |
+| --- | --- |
+| `/suppliers` | `NAME_ASC`, `NAME_DESC` |
+| `/shopping/items` | `NAME_ASC`, `NAME_DESC`, `LAST_PURCHASE_DESC` |
+| `/purchases` | `NEWEST`, `OLDEST`, `TOTAL_DESC` |
+| `/suppliers/payables` | `NAME_ASC`, `OUTSTANDING_DESC`, `DUE_ASC` |
+
+Items without a purchase date and suppliers without an unpaid due date appear last when sorting by those fields. Report and CSV requests use the same filters as purchase history and cover the full matching range.
 
 CSV has one row per historical purchase line. Purchase total, amount paid, outstanding amount and payment/cancellation histories are emitted once per purchase, on its first line; subsequent lines leave those fields blank. Line totals remain present on every line so spreadsheets can sum either financial level without multiplying purchase totals by the number of lines.
 

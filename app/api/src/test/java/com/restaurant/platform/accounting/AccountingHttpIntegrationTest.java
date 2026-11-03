@@ -66,6 +66,56 @@ class AccountingHttpIntegrationTest {
             mvc.perform(get(BASE+"/receipts/"+UUID.randomUUID()).with(jwt().jwt(token->token.subject(ACTOR.toString())))).andExpect(status().isNotFound());
         }
     }
+    @Test void expenseCorrectionRequiresFinancialManageOnTheRequestedRestaurant() throws Exception {
+        String path = "/expenses/" + UUID.randomUUID() + "/correct";
+        String body = """
+                {"replacement":{"category":"WATER","amount":"100","expenseDate":"2026-01-01","description":"Water"},
+                "reason":"Correct category"}
+                """;
+        for (var role : List.of(RestaurantRole.STAFF, RestaurantRole.DELIVERY_DRIVER)) {
+            member(role);
+            mvc.perform(post(BASE + path).with(jwt().jwt(token -> token.subject(ACTOR.toString())))
+                    .header("Idempotency-Key", "correction").contentType("application/json").content(body))
+                    .andExpect(status().isForbidden());
+        }
+        member(RestaurantRole.OWNER);
+        mvc.perform(post("/api/v1/restaurants/" + UUID.randomUUID() + "/accounting" + path)
+                .with(jwt().jwt(token -> token.subject(ACTOR.toString())))
+                .header("Idempotency-Key", "correction").contentType("application/json").content(body))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(jdbc, named, settings);
+        for (var role : List.of(RestaurantRole.OWNER, RestaurantRole.MANAGER)) {
+            member(role);
+            mvc.perform(post(BASE + path).with(jwt().jwt(token -> token.subject(ACTOR.toString())))
+                    .header("Idempotency-Key", "invalid key").contentType("application/json").content(body))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"));
+        }
+    }
+    @Test void exportsAndPostingsUseBackendPermissionsAndStayPrivate() throws Exception {
+        var subject=jwt().jwt(token->token.subject(ACTOR.toString()).claim("role","OWNER"));
+        var order=UUID.randomUUID();
+        var refund="{\"paymentId\":\""+UUID.randomUUID()+"\",\"amount\":\"100\","
+                +"\"refundedAt\":\"2026-01-01T08:30:00Z\",\"reason\":\"Record a refund\"}";
+        for(var role:List.of(RestaurantRole.STAFF,RestaurantRole.DELIVERY_DRIVER)) {
+            member(role);
+            for (var path : List.of("/sales/ledger.csv", "/purchases/export.csv", "/reports/summary.csv")) {
+                mvc.perform(get(BASE+path).with(subject).accept("text/csv")).andExpect(status().isForbidden())
+                        .andExpect(header().string("Cache-Control",org.hamcrest.Matchers.containsString("no-store")))
+                        .andExpect(content().contentTypeCompatibleWith("application/json"))
+                        .andExpect(jsonPath("$.code").value("INSUFFICIENT_RESTAURANT_PERMISSION"));
+            }
+            mvc.perform(post(BASE+"/sales/ledger/"+order+"/refunds").with(subject)
+                    .header("Idempotency-Key","refund").contentType("application/json").content(refund))
+                    .andExpect(status().isForbidden());
+        }
+        member(RestaurantRole.OWNER);
+        var otherTenant=BASE.replace(RESTAURANT.toString(),UUID.randomUUID().toString());
+        mvc.perform(get(otherTenant+"/sales/ledger.csv").with(subject)).andExpect(status().isForbidden());
+        mvc.perform(post(otherTenant+"/sales/ledger/"+order+"/refunds").with(subject)
+                .header("Idempotency-Key","refund").contentType("application/json").content(refund))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(jdbc,named,settings);
+    }
     @Test void serverRejectsFractionalWholeCurrencyAndInvalidQuantitiesBeforePosting() throws Exception {
         member(RestaurantRole.OWNER);
         mvc.perform(post(BASE+"/expenses").with(jwt().jwt(token->token.subject(ACTOR.toString())))
@@ -77,6 +127,14 @@ class AccountingHttpIntegrationTest {
                 .content("{\"shoppingDate\":\"2026-01-01\",\"lines\":[{\"itemId\":\""+UUID.randomUUID()+"\",\"quantity\":\"0\",\"unit\":\"kg\",\"unitCost\":\"100\"}]}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(jdbc,named);
+    }
+    @Test void sortValuesAreBoundToTheAccountingEndpointAllowLists() throws Exception {
+        member(RestaurantRole.MANAGER);
+        for (String path : List.of("/sales/ledger?sort=NAME", "/sales/products?sort=NEWEST", "/sales/ledger.csv?sort=UNSUPPORTED")) {
+            mvc.perform(get(BASE+path).with(jwt().jwt(token->token.subject(ACTOR.toString()))))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(jdbc,named,settings);
     }
     @Test void malformedDatesEnumsIdsAndMissingRequestKeysAreClientErrors() throws Exception {
         member(RestaurantRole.OWNER);

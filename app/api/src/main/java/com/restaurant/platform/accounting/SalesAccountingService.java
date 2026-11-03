@@ -59,7 +59,7 @@ public class SalesAccountingService {
             summaryInternal(restaurantId,yearStart,yearStart.plusYears(1).minusDays(1)),
             trends(restaurantId,selectedMonth.atDay(1),selectedMonth.atEndOfMonth(),false),
             trends(restaurantId,yearStart,yearStart.plusYears(1).minusDays(1),true),
-            productsInternal(restaurantId, selectedMonth.atDay(1),selectedMonth.atEndOfMonth(),null,0,10).content(),
+            productsInternal(restaurantId, selectedMonth.atDay(1),selectedMonth.atEndOfMonth(),null,ProductSort.MOST_SOLD,0,10).content(),
             definitions(), List.of("No line discounts are stored: lineDiscount is zero; discounts remain at order level.",
             "Legacy REFUNDED payments have no refund event timestamp; legacyRefundsWithoutEventTime is cohort-only and is excluded from dated refund totals.",
             "Legacy cashier identities remain null when never recorded. Sales cohorts are restated for current cancellations; status history retains original cancellation timestamps."));
@@ -127,10 +127,10 @@ public class SalesAccountingService {
         return result;
     }
 
-    public LedgerPage<Product> products(UUID restaurantId,LocalDate from,LocalDate to,String search,int page,int size) {
-        support.read(restaurantId); return productsInternal(restaurantId,from,to,search,page,size);
+    public LedgerPage<Product> products(UUID restaurantId,LocalDate from,LocalDate to,String search,ProductSort sort,int page,int size) {
+        support.read(restaurantId); return productsInternal(restaurantId,from,to,search,sort,page,size);
     }
-    private LedgerPage<Product> productsInternal(UUID restaurantId,LocalDate from,LocalDate to,String search,int page,int size) {
+    private LedgerPage<Product> productsInternal(UUID restaurantId,LocalDate from,LocalDate to,String search,ProductSort sort,int page,int size) {
         page(page,size); var range=support.range(restaurantId,from,to);
         var p=parameters(restaurantId,range.start(),range.end()).addValue("search",like(search)).addValue("limit",size).addValue("offset",(long)page*size);
         String base="""
@@ -139,18 +139,23 @@ public class SalesAccountingService {
               AND (:search='' OR i.product_name ILIKE :search OR CAST(i.product_id AS text) ILIKE :search)
             """;
         long count=scalar("SELECT COUNT(*) FROM (SELECT i.product_id,i.product_name "+base+" GROUP BY i.product_id,i.product_name) grouped",p);
+        String ordering = switch (sort) {
+            case MOST_SOLD -> "quantity DESC,i.product_id,i.product_name";
+            case HIGHEST_SALES -> "amount DESC,i.product_id,i.product_name";
+            case NAME -> "lower(i.product_name),i.product_name,i.product_id";
+        };
         var rows=jdbc.query("SELECT i.product_id,i.product_name, SUM(i.quantity) quantity, SUM(i.subtotal) amount "+base+
-            " GROUP BY i.product_id,i.product_name ORDER BY quantity DESC,i.product_id,i.product_name LIMIT :limit OFFSET :offset",p,
+            " GROUP BY i.product_id,i.product_name ORDER BY "+ordering+" LIMIT :limit OFFSET :offset",p,
             (rs,n)->new Product(uuid(rs,"product_id"),rs.getString("product_name"),money(rs,"quantity"),money(rs,"amount")));
         return new LedgerPage<>(rows,page,size,count);
     }
 
-    public LedgerPage<LedgerOrder> ledger(UUID restaurantId,LocalDate from,LocalDate to,String product,String order,String paymentStatus,String channel,int page,int size) {
+    public LedgerPage<LedgerOrder> ledger(UUID restaurantId,LocalDate from,LocalDate to,String product,String order,String paymentStatus,String channel,LedgerSort sort,int page,int size) {
         support.read(restaurantId); page(page,size);
         var range=support.range(restaurantId,from,to);
         var p=filter(restaurantId,range.start(),range.end(),product,order,paymentStatus,channel).addValue("limit",size).addValue("offset",(long)page*size);
         long total=scalar(PAYMENT_CTE+"SELECT COUNT(*) FROM ledger o "+where(),p);
-        var rows=jdbc.query(PAYMENT_CTE+"SELECT o.* FROM ledger o "+where()+" ORDER BY o.created_at DESC,o.id DESC LIMIT :limit OFFSET :offset",p,
+        var rows=jdbc.query(PAYMENT_CTE+"SELECT o.* FROM ledger o "+where()+ledgerOrder(sort)+" LIMIT :limit OFFSET :offset",p,
             (rs,n)->order(rs,restaurantId));
         return new LedgerPage<>(rows,page,size,total);
     }
@@ -248,12 +253,12 @@ public class SalesAccountingService {
         return new RefundReversal(uuid(rs,"id"),uuid(rs,"order_id"),uuid(rs,"refund_id"),rs.getLong("amount"),rs.getString("method"),uuid(rs,"created_by"),time(rs,"created_at"),rs.getString("reason"));
     }
 
-    public String csvExport(UUID restaurantId,LocalDate from,LocalDate to,String product,String order,String paymentStatus,String channel) {
+    public String csvExport(UUID restaurantId,LocalDate from,LocalDate to,String product,String order,String paymentStatus,String channel,LedgerSort sort) {
         support.read(restaurantId); var range=support.range(restaurantId,from,to);
         var p=filter(restaurantId,range.start(),range.end(),product,order,paymentStatus,channel);
         long rows=scalar(PAYMENT_CTE+"SELECT COUNT(*) FROM ledger o "+where(),p);
         if(rows>5000) throw invalid("SALES_EXPORT_TOO_LARGE");
-        var orders=jdbc.query(PAYMENT_CTE+"SELECT o.* FROM ledger o "+where()+" ORDER BY o.created_at,o.id",p,(rs,n)->order(rs,restaurantId));
+        var orders=jdbc.query(PAYMENT_CTE+"SELECT o.* FROM ledger o "+where()+ledgerOrder(sort),p,(rs,n)->order(rs,restaurantId));
         StringBuilder out=new StringBuilder("order_id,order_number,created_at,creator,channel,type,status,table_id,table_number,queue,product_id,historical_product_name,variant_id,variant,modifiers,quantity,historical_unit_price,line_discount,line_total,order_discount_once,order_total_once,payment_status,payments,refunds,refund_reversals,timeline\r\n");
         int lineCount=0;
         for(var sale:orders) {
@@ -268,6 +273,14 @@ public class SalesAccountingService {
             }
         }
         return out.toString();
+    }
+
+    private static String ledgerOrder(LedgerSort sort) {
+        return switch (sort) {
+            case NEWEST -> " ORDER BY o.created_at DESC,o.id DESC";
+            case OLDEST -> " ORDER BY o.created_at,o.id";
+            case HIGHEST_TOTAL -> " ORDER BY o.total_amount DESC,o.created_at DESC,o.id DESC";
+        };
     }
 
     private MapSqlParameterSource filter(UUID restaurantId,OffsetDateTime start,OffsetDateTime end,String product,String order,String paymentStatus,String channel) {

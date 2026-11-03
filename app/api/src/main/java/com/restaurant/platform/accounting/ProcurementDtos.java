@@ -12,6 +12,11 @@ import java.util.UUID;
 /** Whole-currency prices; decimal quantities are supported only when the line total is whole currency. */
 public final class ProcurementDtos {
     private ProcurementDtos() { }
+    public enum SupplierSort { NAME_ASC, NAME_DESC }
+    public enum ShoppingItemSort { NAME_ASC, NAME_DESC, LAST_PURCHASE_DESC }
+    public enum PurchaseSort { NEWEST, OLDEST, TOTAL_DESC }
+    public enum PayableSort { NAME_ASC, OUTSTANDING_DESC, DUE_ASC }
+
     public record Page<T>(List<T> content, long totalElements, int page, int size) { }
     public record SupplierInput(@NotBlank @Size(max=150) String name, @Size(max=500) String contact,
                                 boolean active, @Size(max=1000) String reason) { }

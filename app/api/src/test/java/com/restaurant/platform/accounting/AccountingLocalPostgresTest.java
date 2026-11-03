@@ -18,6 +18,7 @@ class AccountingLocalPostgresTest {
     }
     @Test void realShoppingTransactionsAndHistory() { AccountingDatabaseChecks.plansSuggestionsAndPurchaseSnapshots(disposableSource()); }
     @Test void realSalesAndCashClosingTransactions() { AccountingDatabaseChecks.salesCashClosingAndReport(disposableSource()); }
+    @Test void realExpenseCorrectionsAndCashHistory() { AccountingDatabaseChecks.expenseCorrectionsAndCashHistory(disposableSource()); }
     @Test void concurrentRetriesAndTenantConstraints() throws Exception { AccountingDatabaseChecks.concurrentRetriesAndTenantConstraints(disposableSource()); }
     @Test void clientAccessAndImmutableHistory() { AccountingDatabaseChecks.clientDatabaseAccessAndImmutableHistory(disposableSource()); }
     @Test void hibernateStillValidatesAllEntityMappings() {

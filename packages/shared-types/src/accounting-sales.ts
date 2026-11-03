@@ -26,4 +26,7 @@ export interface SalesLedgerOrder {
 export interface SalesLedgerPage<T> { content: T[]; page: number; size: number; totalElements: number; }
 export interface SalesRefundRequest { paymentId: string; amount: AccountingWhole; refundedAt: string; reason: string; }
 export interface SalesPeriodQuery { date?: string; month?: string; from?: string; to?: string; }
-export interface SalesLedgerQuery extends SalesPeriodQuery { product?: string; order?: string; paymentStatus?: string; channel?: string; page?: number; size?: number; }
+export type SalesLedgerSort = "NEWEST" | "OLDEST" | "HIGHEST_TOTAL";
+export type SalesProductSort = "MOST_SOLD" | "HIGHEST_SALES" | "NAME";
+export interface SalesLedgerQuery extends SalesPeriodQuery { product?: string; order?: string; paymentStatus?: string; channel?: string; sort?: SalesLedgerSort; page?: number; size?: number; }
+export interface SalesProductsQuery extends SalesPeriodQuery { search?: string; sort?: SalesProductSort; page?: number; size?: number; }

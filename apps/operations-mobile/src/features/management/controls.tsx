@@ -5,10 +5,16 @@ export function Toggle({ label, value, onChange, disabled = false }: { label: st
   return <View style={styles.toggle}><Text style={styles.label}>{label}</Text><Switch accessibilityLabel={label} value={value} onValueChange={onChange} disabled={disabled} /></View>;
 }
 
-export function Choices<T extends string>({ label, value, values, onChange, disabled = false }: {
-  label: string; value: T; values: readonly T[]; onChange(value: T): void; disabled?: boolean;
+export function Choices<T extends string>({ label, value, values, labels, onChange, disabled = false }: {
+  label: string; value: T; values: readonly T[]; labels?: Partial<Record<T, string>>; onChange(value: NoInfer<T>): void; disabled?: boolean;
 }) {
-  return <View style={styles.choices}><Body>{label}</Body><View style={styles.row}>{values.map(item => <Action key={item} title={`${value === item ? "Selected: " : ""}${item.replaceAll("_", " ")}`} secondary={value !== item} disabled={disabled} onPress={() => onChange(item)} />)}</View></View>;
+  return <View style={styles.choices}>
+    <Body>{label}</Body>
+    <View style={styles.row}>
+      {values.map(item => <Action key={item} title={labels?.[item] ?? item.replaceAll("_", " ")}
+        selected={value === item} secondary={value !== item} disabled={disabled} onPress={() => onChange(item)} />)}
+    </View>
+  </View>;
 }
 
 export function FormStatus({ error, message }: { error?: string | null; message?: string | null }) {

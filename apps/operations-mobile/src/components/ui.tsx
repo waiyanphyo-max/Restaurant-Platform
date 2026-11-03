@@ -18,11 +18,11 @@ export function Card({ title, children }: PropsWithChildren<{ title?: string }>)
 
 export function Body({ children }: PropsWithChildren) { return <Text style={styles.body}>{children}</Text>; }
 
-export function Action({ title, onPress, disabled = false, secondary = false }: {
-  title: string; onPress(): void; disabled?: boolean; secondary?: boolean;
+export function Action({ title, onPress, disabled = false, secondary = false, selected }: {
+  title: string; onPress(): void; disabled?: boolean; secondary?: boolean; selected?: boolean;
 }) {
   const brand = resolveBrandTokens(readEmbeddedTenant().branding);
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled, selected }} disabled={disabled} onPress={onPress}
     style={({ pressed }) => [styles.action, { backgroundColor: secondary ? "#e8edf1" : brand.primaryColor, opacity: disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
     <Text style={[styles.actionText, { color: secondary ? "#18222e" : brand.onPrimaryColor }]}>{title}</Text>
   </Pressable>;
@@ -46,7 +46,9 @@ export function DataTable({ columns, rows, emptyMessage = "No records found." }:
     <View>
       <View style={[styles.tableRow, styles.tableHeader]}>{columns.map(column => <Text key={column} style={[styles.cell, styles.label]}>{column}</Text>)}</View>
       {rows.map(row => <View key={row.key} style={styles.tableRow}>{row.cells.map((cell, index) =>
-        <View key={index} style={styles.cell}>{typeof cell === "string" || typeof cell === "number" ? <Text style={styles.body}>{cell}</Text> : cell}</View>)}</View>)}
+        <View key={index} style={styles.cell}>{typeof cell === "string" || typeof cell === "number"
+          ? <Text accessibilityLabel={columns[index] ? `${columns[index]}: ${cell}` : undefined} style={styles.body}>{cell}</Text>
+          : cell}</View>)}</View>)}
     </View>
   </ScrollView>;
 }

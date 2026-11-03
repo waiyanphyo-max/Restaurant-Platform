@@ -1,4 +1,4 @@
-# Operations Android — M8-A Owner operations
+# Operations Android
 
 One Expo/React Native/TypeScript source generates independently branded Android applications for OWNER, MANAGER, STAFF and DELIVERY_DRIVER. The build embeds one restaurant UUID, branding, API origin and environment. There is no restaurant picker or route-based tenant override. Customer Android remains a separate app.
 
@@ -12,16 +12,16 @@ One Expo/React Native/TypeScript source generates independently branded Android 
 | `src/navigation/` | Shared role/permission manifest and direct-route policy |
 | `src/components/` | Forms, actions, cards, tables, confirmation dialogs, loading/offline/error states, count chart |
 | `src/hooks/` | Abortable queries, session-aware mutations and duplicate-tap prevention; no persisted business-data cache |
-| `src/features/operations/` | Live dashboard, orders/status/payments, queue, scoped notifications, delivery management and daily operational report |
+| `src/features/operations/` | Live dashboard, orders/status/payments, queue, scoped notifications and delivery management |
 | `src/features/menu/` | Category/product/variant/modifier CRUD, stock/availability, authenticated image uploads |
 | `src/features/management/` | Restaurant profile/settings/logo, Owner team administration, tables and ephemeral QR display/share/export |
 | `src/features/profile/` | Verified membership profile, refresh access, logout |
-| `src/features/accounting/` | Nine M8 boundaries and **proposed-only** DTOs; no working accounting endpoints |
+| `src/features/accounting/` | Shared financial views, sales and purchase history, shopping, suppliers and payables, expenses, cash closing, audit and CSV sharing |
 | `src/api.ts`, shared `packages/api-client` | Typed Spring REST calls locked to the embedded restaurant |
 
-Owner navigation includes Dashboard, Orders, Menu, Sales History, Reports, Team, Restaurant, Tables & QR, Pickup queue, Updates, Deliveries and Profile. Manager reuses the same permitted screens except Team and the Owner-only logo action. Staff retains read-only Menu, Orders and assigned Deliveries, with its existing queue permission. All roles have scoped Updates and Profile. Driver uses assigned Deliveries. Shopping and Accounting remain absent from runnable navigation until M8-B/M8-C implement their contracts. Spring independently enforces permissions on every request.
+Owners and Managers share the Operations dashboard, Orders, Menu, Shopping, Sales History, Accounting, Reports, Restaurant settings, Tables & QR, Pickup queue and Deliveries. Owners also manage Team and the restaurant logo. Staff have operational Orders, read-only Menu, Pickup queue and assigned Deliveries. Drivers use assigned Deliveries. All roles have scoped Updates and Profile.
 
-Sales History shows operational orders with snapshot names/prices, discounts, channel, timestamps, creator UUID, history and separate payment records. Status filtering is server-side; order search/channel filtering is explicitly limited to the loaded page. Menu search covers the full returned catalog with local pagination. Server date/search filters, refunds and accounting recognition await M8-B/M8-C. The existing daily report separates order-created totals from paid-at collections without claiming revenue/profit. See [M8-A acceptance](../../docs/m8-a-acceptance.md) and [accounting readiness](../../docs/accounting-readiness.md).
+Reports contains Financial Overview, Sales Reports, Financial Summary and Export Reports. Sales History opens individual orders with recorded line prices, timestamps, status events, payments, refunds and reversals. Shopping contains the catalog and purchase plans, confirmed purchase history and details, suppliers and payables. Accounting contains the expense register and correction forms, cashbook, daily closing and audit history. Search, sorting and pagination operate on server-filtered history. Spring checks the current user, restaurant and explicit finance permissions on each read and write. See [accounting contracts](../../docs/accounting.md) and [M8-A acceptance](../../docs/m8-a-acceptance.md).
 
 The Owner/Manager can manage current DRIVER-role assignees, delivery zones/city/township/fees and default drivers. No all-role assignment policy is introduced. Counter cash collection and COD completion require explicit confirmation; completed orders are never presumed paid. Catalog removal uses existing deactivation/availability updates because no hard-delete endpoints exist. Invitations use the server's verified Auth identity flow; provider acceptance is not proof of email delivery or account activation.
 

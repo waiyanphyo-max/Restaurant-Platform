@@ -8,6 +8,8 @@ import java.util.*;
 /** Monetary values are exact whole currency units. No price is read from the live menu. */
 public final class SalesDtos {
     private SalesDtos() { }
+    public enum LedgerSort { NEWEST, OLDEST, HIGHEST_TOTAL }
+    public enum ProductSort { MOST_SOLD, HIGHEST_SALES, NAME }
     public record Summary(LocalDate from, LocalDate to, @JsonFormat(shape=JsonFormat.Shape.STRING) long grossSales,
             @JsonFormat(shape=JsonFormat.Shape.STRING) long discounts, @JsonFormat(shape=JsonFormat.Shape.STRING) long netSales,
             @JsonFormat(shape=JsonFormat.Shape.STRING) long collectedPayments, @JsonFormat(shape=JsonFormat.Shape.STRING) long outstandingPayments,

@@ -31,6 +31,9 @@ public class AccountingRecordController {
 
     @GetMapping("/audit")
     public AccountingRecordService.AuditPage audit(@PathVariable UUID restaurantId,
-            @RequestParam(required = false) UUID entityId, @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) { return service.audit(restaurantId, entityId, page, size); }
+            @RequestParam(required = false) UUID entityId, @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "NEWEST") AccountingSupport.Chronology sort,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+        return service.audit(restaurantId, entityId, search, sort, page, size);
+    }
 }

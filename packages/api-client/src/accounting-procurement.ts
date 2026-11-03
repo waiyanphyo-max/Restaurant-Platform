@@ -1,8 +1,8 @@
 import type {
-  AccountingSupplier, AccountingSupplierInput, ConfirmPurchaseInput, ProcurementPage, ProcurementPageQuery,
-  PurchaseDetail, PurchasePaymentInput, PurchaseQuery, PurchaseReport, PurchaseSummary, ShoppingItem,
+  AccountingSupplier, AccountingSupplierInput, ConfirmPurchaseInput, PayablesQuery, ProcurementPage, ProcurementPageQuery,
+  PurchaseDetail, PurchaseFilters, PurchasePaymentInput, PurchaseQuery, PurchaseReport, PurchaseSummary, ShoppingItem,
   ShoppingItemInput, ShoppingItemQuery, ShoppingSheet, ShoppingSheetInput, ShoppingSheetQuery,
-  SupplierPayable, SupplierPurchasePayment
+  SupplierPayable, SupplierPurchasePayment, SupplierQuery
 } from "@restaurant-platform/shared-types";
 import { createAuthenticatedTransport, type ApiRequestOptions, type AuthenticatedApiTransportOptions } from "./transport.js";
 import { requireHeaderValue, requireUuid } from "./tenant.js";
@@ -22,7 +22,7 @@ export function createProcurementApiClient(options: ProcurementApiClientOptions)
     return transport.request({method,path:`${prefix}${path}`,headers:{"Idempotency-Key":requireHeaderValue(key,"Idempotency-Key")},body,options:o,retryTransient:true});
   }
   return {
-    listAccountingSuppliers:(query:ProcurementPageQuery&{search?:string}={},o?:ApiRequestOptions)=>get<ProcurementPage<AccountingSupplier>>("/suppliers",{...query},o),
+    listAccountingSuppliers:(query:SupplierQuery={},o?:ApiRequestOptions)=>get<ProcurementPage<AccountingSupplier>>("/suppliers",{...query},o),
     createAccountingSupplier:(body:AccountingSupplierInput,key:string,o?:ApiRequestOptions)=>mutate<AccountingSupplier>("POST","/suppliers",key,body,o),
     updateAccountingSupplier:(supplierId:string,body:AccountingSupplierInput,key:string,o?:ApiRequestOptions)=>mutate<AccountingSupplier>("PUT",`/suppliers/${id(supplierId)}`,key,body,o),
     listShoppingItems:(query:ShoppingItemQuery={},o?:ApiRequestOptions)=>get<ProcurementPage<ShoppingItem>>("/shopping/items",{...query},o),
@@ -38,9 +38,9 @@ export function createProcurementApiClient(options: ProcurementApiClientOptions)
     cancelPurchase:(purchaseId:string,reason:string,key:string,o?:ApiRequestOptions)=>mutate<PurchaseDetail>("POST",`/purchases/${id(purchaseId)}/cancel`,key,{reason},o),
     recordPurchasePayment:(purchaseId:string,body:PurchasePaymentInput,key:string,o?:ApiRequestOptions)=>mutate<PurchaseDetail>("POST",`/purchases/${id(purchaseId)}/payments`,key,body,o),
     reversePurchasePayment:(purchaseId:string,paymentId:string,reason:string,key:string,o?:ApiRequestOptions)=>mutate<PurchaseDetail>("POST",`/purchases/${id(purchaseId)}/payments/${id(paymentId)}/reverse`,key,{reason},o),
-    getPurchaseReport:(query:Omit<PurchaseQuery,"page"|"size">={},o?:ApiRequestOptions)=>get<PurchaseReport>("/purchases/report",{...query},o),
-    getPurchaseCsv:(query:Omit<PurchaseQuery,"page"|"size">={},o?:ApiRequestOptions)=>transport.request<string>({method:"GET",path:`${prefix}/purchases/export.csv`,query:{...query},options:o,responseType:"text",retryTransient:true}),
-    getSupplierPayables:(query:ProcurementPageQuery={},o?:ApiRequestOptions)=>get<ProcurementPage<SupplierPayable>>("/suppliers/payables",{...query},o),
+    getPurchaseReport:(query:PurchaseFilters={},o?:ApiRequestOptions)=>get<PurchaseReport>("/purchases/report",{...query},o),
+    getPurchaseCsv:(query:PurchaseFilters={},o?:ApiRequestOptions)=>transport.request<string>({method:"GET",path:`${prefix}/purchases/export.csv`,query:{...query},options:o,responseType:"text",retryTransient:true}),
+    getSupplierPayables:(query:PayablesQuery={},o?:ApiRequestOptions)=>get<ProcurementPage<SupplierPayable>>("/suppliers/payables",{...query},o),
     listSupplierPayments:(supplierId:string,query:ProcurementPageQuery={},o?:ApiRequestOptions)=>get<ProcurementPage<SupplierPurchasePayment>>(`/suppliers/${id(supplierId)}/payments`,{...query},o)
   };
 }

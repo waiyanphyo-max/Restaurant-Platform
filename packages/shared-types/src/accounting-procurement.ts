@@ -25,6 +25,13 @@ export interface PurchaseReport { from: string; to: string; confirmedTotal: Proc
 export interface SupplierPayable { supplierId: Uuid; supplierName: string; confirmedObligations: ProcurementMoney; amountPaid: ProcurementMoney; outstandingAmount: ProcurementMoney; earliestUnpaidDueDate: string | null; }
 export interface SupplierPurchasePayment { purchaseId: Uuid; invoiceReference: string | null; payment: PurchasePayment; }
 export interface ProcurementPageQuery { page?: number; size?: number; }
-export interface PurchaseQuery extends ProcurementPageQuery { from?: string; to?: string; supplierId?: Uuid; item?: string; paymentStatus?: PurchasePaymentStatus; }
-export interface ShoppingItemQuery extends ProcurementPageQuery { search?: string; suggestionsOnly?: boolean; }
+export type SupplierSort = "NAME_ASC" | "NAME_DESC";
+export type ShoppingItemSort = SupplierSort | "LAST_PURCHASE_DESC";
+export type PurchaseSort = "NEWEST" | "OLDEST" | "TOTAL_DESC";
+export type PayableSort = "NAME_ASC" | "OUTSTANDING_DESC" | "DUE_ASC";
+export interface SupplierQuery extends ProcurementPageQuery { search?: string; sort?: SupplierSort; }
+export interface PayablesQuery extends ProcurementPageQuery { search?: string; sort?: PayableSort; }
+export interface PurchaseFilters { from?: string; to?: string; supplierId?: Uuid; item?: string; paymentStatus?: PurchasePaymentStatus; }
+export interface PurchaseQuery extends ProcurementPageQuery, PurchaseFilters { sort?: PurchaseSort; }
+export interface ShoppingItemQuery extends ProcurementPageQuery { search?: string; suggestionsOnly?: boolean; sort?: ShoppingItemSort; }
 export interface ShoppingSheetQuery extends ProcurementPageQuery { from?: string; to?: string; }

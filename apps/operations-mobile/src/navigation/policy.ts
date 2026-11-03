@@ -5,7 +5,7 @@ export type OperationsRole = typeof OPERATIONS_ROLES[number];
 export type ScreenId = "dashboard" | "orders" | "menu" | "shopping" | "sales-history"
   | "accounting" | "reports" | "team" | "settings" | "deliveries" | "profile" | "tables" | "queue" | "notifications";
 export type OperationsPermission = "RESTAURANT_READ" | "ORDER_READ" | "MENU_READ"
-  | "REPORT_READ" | "FINANCE_READ" | "MEMBERS_MANAGE" | "SETTINGS_MANAGE" | "DELIVERY_READ" | "QUEUE_MANAGE";
+  | "FINANCE_READ" | "MEMBERS_MANAGE" | "SETTINGS_MANAGE" | "DELIVERY_READ" | "QUEUE_MANAGE";
 
 export interface NavigationItem {
   readonly id: ScreenId;
@@ -26,8 +26,8 @@ const financialRoles = ["OWNER", "MANAGER"] as const;
  * every endpoint. Future accounting permissions must be explicit backend grants.
  */
 const rolePermissions: Readonly<Record<OperationsRole, readonly OperationsPermission[]>> = {
-  OWNER: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "REPORT_READ", "FINANCE_READ", "MEMBERS_MANAGE", "SETTINGS_MANAGE", "DELIVERY_READ", "QUEUE_MANAGE"],
-  MANAGER: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "REPORT_READ", "FINANCE_READ", "SETTINGS_MANAGE", "DELIVERY_READ", "QUEUE_MANAGE"],
+  OWNER: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "FINANCE_READ", "MEMBERS_MANAGE", "SETTINGS_MANAGE", "DELIVERY_READ", "QUEUE_MANAGE"],
+  MANAGER: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "FINANCE_READ", "SETTINGS_MANAGE", "DELIVERY_READ", "QUEUE_MANAGE"],
   STAFF: ["RESTAURANT_READ", "ORDER_READ", "MENU_READ", "DELIVERY_READ", "QUEUE_MANAGE"],
   DELIVERY_DRIVER: ["RESTAURANT_READ", "DELIVERY_READ"]
 };
@@ -45,9 +45,9 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   { id: "sales-history", label: "Sales History", path: "/sales-history", status: "ready", roles: financialRoles,
     requiredPermission: "FINANCE_READ", description: "Historical sales ledger, filters, refunds and transaction details." },
   { id: "accounting", label: "Accounting", path: "/accounting", status: "ready", roles: financialRoles,
-    requiredPermission: "FINANCE_READ", description: "Operating expenses, recurring templates and daily cash reconciliation." },
+    requiredPermission: "FINANCE_READ", description: "Expenses, cashbook, daily cash closing and financial audit history." },
   { id: "reports", label: "Reports", path: "/reports", status: "ready", roles: financialRoles,
-    requiredPermission: "FINANCE_READ", description: "Sales dashboard and verifiable payment and expense summaries." },
+    requiredPermission: "FINANCE_READ", description: "Financial overview, sales reports, payment and expense summary, and private CSV export." },
   { id: "team", label: "Team", path: "/team", status: "ready", roles: ["OWNER"],
     requiredPermission: "MEMBERS_MANAGE", description: "Restaurant membership information." },
   { id: "settings", label: "Restaurant", path: "/settings", status: "ready", roles: ["OWNER", "MANAGER"],
