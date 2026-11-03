@@ -40,13 +40,14 @@ function DeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDto; reload(
   const role = state.status === "ready" ? state.membership.role : "";
   const userId = state.status === "ready" ? state.userId : "";
   const management = ["OWNER", "MANAGER"].includes(role);
+  const canAssign = management && ["WAITING_ASSIGNMENT", "ASSIGNED", "FAILED"].includes(delivery.status);
   const mutation = useApiMutation();
   const [expanded, setExpanded] = useState(false);
   const [driver, setDriver] = useState(delivery.driverUserId ?? "");
   const [failureReason, setFailureReason] = useState("");
   const [cash, setCash] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
-  const options = useApiQuery(signal => management && expanded ? getOperationsApi().listDeliveryAssignmentOptions({ signal }) : Promise.resolve([]), `assignment:${management}:${expanded}`);
+  const options = useApiQuery(signal => canAssign && expanded ? getOperationsApi().listDeliveryAssignmentOptions({ signal }) : Promise.resolve([]), `assignment:${canAssign}:${expanded}`);
   return <Card title={delivery.orderNumber}>
     <Body>{delivery.status.replaceAll("_", " ")} · Order {delivery.orderStatus}</Body>
     <Body>{delivery.customerName ?? "Name unavailable"} · {delivery.customerPhone ?? "Phone unavailable"}</Body>
@@ -60,18 +61,20 @@ function DeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDto; reload(
       {delivery.failureReason ? <Body>Failure: {delivery.failureReason}</Body> : null}
       {["OWNER", "MANAGER", "STAFF"].includes(role) ? <Link href={{ pathname: "/order/[orderId]", params: { orderId: delivery.orderId } }}>Open order and payments</Link> : null}
       <MutationFeedback {...mutation} />
-      {management && ["WAITING_ASSIGNMENT", "ASSIGNED", "FAILED"].includes(delivery.status) ? <QueryResult {...options}>{drivers => <>
-        <Body>Select an eligible restaurant delivery driver</Body>
-        {drivers.map(option => <Action key={option.userId} title={`${driver === option.userId ? "✓ " : ""}${option.fullName ?? option.email ?? option.userId}`} secondary onPress={() => setDriver(option.userId)} />)}
-        {!drivers.length ? <Body>No eligible drivers. Invite a Delivery Driver from Team.</Body> : null}
-        <Action title="Assign / reassign driver" disabled={mutation.busy || !driver} onPress={() => setPending("ASSIGN")} />
+      {canAssign ? <QueryResult {...options}>{members => <>
+        <Body>Select an eligible member of this restaurant</Body>
+        {members.map(option => <Action key={option.userId}
+          title={`${option.fullName ?? option.email ?? option.userId} · ${option.role.replaceAll("_", " ")}${option.userId === userId ? " · You" : ""}`}
+          selected={driver === option.userId} secondary={driver !== option.userId} disabled={mutation.busy} onPress={() => setDriver(option.userId)} />)}
+        {!members.length ? <Body>No eligible restaurant members were found.</Body> : null}
+        <Action title="Assign / reassign member" disabled={mutation.busy || !members.some(member => member.userId === driver)} onPress={() => setPending("ASSIGN")} />
       </>}</QueryResult> : null}
       {deliveryActions(delivery, role, userId).includes("FAILED") ? <FormField label="Failure reason (required when marking failed)" value={failureReason} onChangeText={setFailureReason} maxLength={500} /> : null}
       {deliveryActions(delivery, role, userId).includes("DELIVERED") ? <FormToggle label="I physically collected any cash due on delivery" value={cash} onChange={setCash} disabled={mutation.busy} /> : null}
       {deliveryActions(delivery, role, userId).map(action => <Action key={action} title={`Mark ${action.toLowerCase().replaceAll("_", " ")}`} disabled={mutation.busy || action === "FAILED" && !failureReason.trim()}
         onPress={() => setPending(action)} />)}
     </> : null}
-    <ConfirmDialog visible={pending !== null} title="Confirm delivery action" message={pending === "DELIVERED" ? `Complete delivery? Cash collection: ${cash ? "confirmed" : "not confirmed"}. Confirm you received any cash due before completing delivery.` : pending === "ASSIGN" ? "Assign this delivery to the selected restaurant driver?" : pending === "CANCELLED" ? "Cancel this delivery task? The order and its payment stay unchanged. Review the order separately." : `Change delivery status to ${pending ?? ""}?`} confirmLabel="Confirm" onCancel={() => setPending(null)} onConfirm={() => {
+    <ConfirmDialog visible={pending !== null} title="Confirm delivery action" message={pending === "DELIVERED" ? `Complete delivery? Cash collection: ${cash ? "confirmed" : "not confirmed"}. Confirm you received any cash due before completing delivery.` : pending === "ASSIGN" ? "Assign this delivery to the selected restaurant member?" : pending === "CANCELLED" ? "Cancel this delivery task? The order and its payment stay unchanged. Review the order separately." : `Change delivery status to ${pending ?? ""}?`} confirmLabel="Confirm" onCancel={() => setPending(null)} onConfirm={() => {
       const action = pending; setPending(null); if (!action) return;
       void mutation.run(() => action === "ASSIGN" ? getOperationsApi().assignDriver(delivery.id, { driverUserId: driver })
         : getOperationsApi().updateDeliveryStatus(delivery.id, { status: action, failureReason: failureReason.trim() || null, cashCollected: action === "DELIVERED" ? cash : null }), reload);
@@ -84,8 +87,8 @@ function DeliveryConfiguration() {
   const query = useApiQuery(async signal => {
     if (!open) return null;
     const api = getOperationsApi();
-    const [zones, drivers, defaultDriver] = await Promise.all([api.listDeliveryZones({ signal }), api.listDeliveryAssignmentOptions({ signal }), api.getDefaultDriver({ signal })]);
-    return { zones, drivers, defaultDriver };
+    const [zones, members, defaultDriver] = await Promise.all([api.listDeliveryZones({ signal }), api.listDeliveryAssignmentOptions({ signal }), api.getDefaultDriver({ signal })]);
+    return { zones, drivers: members.filter(member => member.role === "DELIVERY_DRIVER"), defaultDriver };
   }, `delivery-config:${open}`);
   const mutation = useApiMutation();
   const [pendingDriver, setPendingDriver] = useState<string | null>(null);

@@ -14,6 +14,15 @@ import java.util.List;
 
 /** Spring Data repository for restaurant_members. */
 public interface RestaurantMemberRepository extends JpaRepository<RestaurantMember, UUID> {
+    String ELIGIBLE_DELIVERY_MEMBERS = """
+            SELECT member.*
+            FROM public.restaurant_members member
+            JOIN auth.users account ON account.id = member.user_id
+            WHERE member.restaurant_id = :restaurantId
+              AND account.deleted_at IS NULL
+              AND (account.banned_until IS NULL OR account.banned_until <= CURRENT_TIMESTAMP)
+            """;
+
     long countByRestaurantId(UUID restaurantId);
     List<RestaurantMember> findByUserId(UUID userId);
 
@@ -23,6 +32,16 @@ public interface RestaurantMemberRepository extends JpaRepository<RestaurantMemb
             UUID restaurantId, RestaurantRole role);
 
     List<RestaurantMember> findByRestaurantIdOrderByCreatedAtAsc(UUID restaurantId);
+
+    @Query(value = ELIGIBLE_DELIVERY_MEMBERS + " ORDER BY member.created_at, member.id", nativeQuery = true)
+    List<RestaurantMember> findEligibleDeliveryMembers(@Param("restaurantId") UUID restaurantId);
+
+    @Query(value = ELIGIBLE_DELIVERY_MEMBERS + " AND member.role = 'DELIVERY_DRIVER' ORDER BY member.created_at, member.id", nativeQuery = true)
+    List<RestaurantMember> findEligibleDeliveryDrivers(@Param("restaurantId") UUID restaurantId);
+
+    @Query(value = ELIGIBLE_DELIVERY_MEMBERS + " AND member.user_id = :userId FOR UPDATE OF member", nativeQuery = true)
+    Optional<RestaurantMember> findEligibleDeliveryMemberForUpdate(
+            @Param("restaurantId") UUID restaurantId, @Param("userId") UUID userId);
 
     Optional<RestaurantMember> findByIdAndRestaurantId(UUID id, UUID restaurantId);
 

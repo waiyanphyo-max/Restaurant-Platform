@@ -48,12 +48,23 @@ describe("operations navigation policy", () => {
     }
   });
 
-  it("enables real accounting routes for Owner and Manager", () => {
+  it("gives Owner and Manager the same financial routes and rejects cross-restaurant deep links", () => {
+    const financeRoutes = ["reports", "sales-history", "shopping", "accounting"];
+    const financialNavigation = (role: string) => getNavigationItems(member(role), restaurantId)
+      .filter(item => item.requiredPermission === "FINANCE_READ");
+    expect(financialNavigation("MANAGER")).toEqual(financialNavigation("OWNER"));
     for (const role of ["OWNER", "MANAGER"]) {
       expect(getPlannedNavigationItems(member(role), restaurantId)).toEqual([]);
-      expect(canAccessScreen("shopping", member(role), restaurantId)).toBe(true);
-      expect(canAccessScreen("accounting", member(role), restaurantId)).toBe(true);
+      for (const route of financeRoutes) {
+        expect(canAccessScreen(route, member(role), restaurantId)).toBe(true);
+        expect(canAccessScreen(route, member(role), otherRestaurantId)).toBe(false);
+      }
       expect(getNavigationItems(member(role), restaurantId).every(item => item.status === "ready")).toBe(true);
     }
+  });
+
+  it("denies Manager deep links to Owner team administration", () => {
+    expect(canAccessScreen("team", member("OWNER"), restaurantId)).toBe(true);
+    expect(canAccessScreen("team", member("MANAGER"), restaurantId)).toBe(false);
   });
 });

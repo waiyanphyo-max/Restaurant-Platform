@@ -108,12 +108,14 @@ class AccountingHttpIntegrationTest {
                     .header("Idempotency-Key","refund").contentType("application/json").content(refund))
                     .andExpect(status().isForbidden());
         }
-        member(RestaurantRole.OWNER);
         var otherTenant=BASE.replace(RESTAURANT.toString(),UUID.randomUUID().toString());
-        mvc.perform(get(otherTenant+"/sales/ledger.csv").with(subject)).andExpect(status().isForbidden());
-        mvc.perform(post(otherTenant+"/sales/ledger/"+order+"/refunds").with(subject)
-                .header("Idempotency-Key","refund").contentType("application/json").content(refund))
-                .andExpect(status().isForbidden());
+        for (var role : List.of(RestaurantRole.OWNER, RestaurantRole.MANAGER)) {
+            member(role);
+            mvc.perform(get(otherTenant+"/sales/ledger.csv").with(subject)).andExpect(status().isForbidden());
+            mvc.perform(post(otherTenant+"/sales/ledger/"+order+"/refunds").with(subject)
+                    .header("Idempotency-Key","refund").contentType("application/json").content(refund))
+                    .andExpect(status().isForbidden());
+        }
         verifyNoInteractions(jdbc,named,settings);
     }
     @Test void serverRejectsFractionalWholeCurrencyAndInvalidQuantitiesBeforePosting() throws Exception {

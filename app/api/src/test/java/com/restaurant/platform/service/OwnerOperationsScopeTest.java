@@ -53,18 +53,25 @@ class OwnerOperationsScopeTest {
         assertEquals(HttpStatus.FORBIDDEN, assertThrows(ApiException.class, () -> options.list(otherRestaurantId)).getStatus());
         verifyNoInteractions(notifications, profiles);
     }
-    @Test void ownerAndManagerCanReadOnlyDedicatedDriverOptions() {
-        for (RestaurantRole role : List.of(RestaurantRole.OWNER, RestaurantRole.MANAGER)) {
-            member(role);
-            UUID driverId = UUID.randomUUID();
-            RestaurantMember driver = new RestaurantMember(); driver.setUserId(driverId); driver.setRole(RestaurantRole.DELIVERY_DRIVER);
-            driver.setRestaurantId(restaurantId);
-            Profile p = new Profile(); p.setId(driverId); p.setFullName("Driver"); p.setEmail("driver@example.test");
-            when(members.findByRestaurantIdAndRoleOrderByCreatedAtAsc(restaurantId, RestaurantRole.DELIVERY_DRIVER)).thenReturn(List.of(driver));
-            when(profiles.findAllById(List.of(driverId))).thenReturn(List.of(p));
+    @Test void ownerAndManagerCanReadEligibleOptionsAcrossAllRestaurantRoles() {
+        var eligible = Arrays.stream(RestaurantRole.values()).map(role -> {
+            var member = new RestaurantMember();
+            member.setUserId(role == RestaurantRole.MANAGER ? actorId : UUID.randomUUID());
+            member.setRole(role);
+            member.setRestaurantId(restaurantId);
+            return member;
+        }).toList();
+        var profile = new Profile();
+        profile.setId(actorId);
+        profile.setFullName("Shift manager");
+        when(members.findEligibleDeliveryMembers(restaurantId)).thenReturn(eligible);
+        when(profiles.findAllById(eligible.stream().map(RestaurantMember::getUserId).toList())).thenReturn(List.of(profile));
+        for (RestaurantRole callerRole : List.of(RestaurantRole.OWNER, RestaurantRole.MANAGER)) {
+            member(callerRole);
             var result = options.list(restaurantId);
-            assertEquals(driverId, result.getFirst().userId());
-            assertEquals(1, result.size());
+            assertEquals(Arrays.asList(RestaurantRole.values()), result.stream().map(option -> option.role()).toList());
+            var self = result.stream().filter(option -> actorId.equals(option.userId())).findFirst().orElseThrow();
+            assertEquals("Shift manager", self.fullName());
         }
         verify(members, never()).findByRestaurantIdOrderByCreatedAtAsc(any());
     }

@@ -11,6 +11,8 @@ import com.restaurant.platform.repository.RestaurantMemberRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -92,15 +94,16 @@ class RestaurantAuthorizationTest {
         assertFalse(authorization.canReadOrders(restaurantB));
     }
 
-    @Test
-    void driverCanReadOnlyDeliveryAssignedToTheirJwtUser() {
+    @ParameterizedTest
+    @EnumSource(value = RestaurantRole.class, names = {"STAFF", "DELIVERY_DRIVER"})
+    void operationalMemberCanReadOnlyDeliveryAssignedToTheirJwtUser(RestaurantRole role) {
         authenticate(userId);
         UUID assignedDeliveryId = UUID.randomUUID();
         UUID assignedOrderId = UUID.randomUUID();
         Delivery assignedDelivery = delivery(assignedOrderId);
 
         when(memberRepository.findByRestaurantIdAndUserId(restaurantA, userId))
-                .thenReturn(Optional.of(member(restaurantA, userId, RestaurantRole.DELIVERY_DRIVER)));
+                .thenReturn(Optional.of(member(restaurantA, userId, role)));
         when(deliveryRepository.findByIdAndDriverUserId(assignedDeliveryId, userId))
                 .thenReturn(Optional.of(assignedDelivery));
         when(orderRepository.findByIdAndRestaurantId(assignedOrderId, restaurantA))
@@ -111,17 +114,19 @@ class RestaurantAuthorizationTest {
         assertFalse(authorization.canAccessDelivery(restaurantA, UUID.randomUUID()));
     }
 
-    @Test
-    void driverCannotReadDeliveryAssignedToAnotherDriver() {
+    @ParameterizedTest
+    @EnumSource(value = RestaurantRole.class, names = {"STAFF", "DELIVERY_DRIVER"})
+    void operationalMemberCannotReadOrUpdateAnUnassignedDelivery(RestaurantRole role) {
         authenticate(userId);
         UUID otherDeliveryId = UUID.randomUUID();
 
         when(memberRepository.findByRestaurantIdAndUserId(restaurantA, userId))
-                .thenReturn(Optional.of(member(restaurantA, userId, RestaurantRole.DELIVERY_DRIVER)));
+                .thenReturn(Optional.of(member(restaurantA, userId, role)));
         when(deliveryRepository.findByIdAndDriverUserId(otherDeliveryId, userId))
                 .thenReturn(Optional.empty());
 
         assertFalse(authorization.canAccessDelivery(restaurantA, otherDeliveryId));
+        assertFalse(authorization.canUpdateDeliveryStatus(restaurantA, otherDeliveryId));
         ApiException exception = assertThrows(
                 ApiException.class,
                 () -> authorization.requireDeliveryAccess(restaurantA, otherDeliveryId));

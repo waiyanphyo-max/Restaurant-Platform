@@ -1,6 +1,7 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
+import com.restaurant.platform.dto.delivery.AssignDeliveryDriverRequest;
 import com.restaurant.platform.dto.delivery.UpdateDeliveryStatusRequest;
 import com.restaurant.platform.entity.AppNotification;
 import com.restaurant.platform.entity.Delivery;
@@ -19,10 +20,19 @@ import com.restaurant.platform.repository.PaymentRepository;
 import com.restaurant.platform.repository.RestaurantMemberRepository;
 import com.restaurant.platform.repository.RestaurantSettingsRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
+import com.restaurant.platform.security.RestaurantPermission;
 import com.restaurant.platform.security.RestaurantRole;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.util.List;
 import java.util.Optional;
@@ -63,7 +73,11 @@ class DeliveryServiceTest {
         memberRepository = mock(RestaurantMemberRepository.class);
         notificationRepository = mock(AppNotificationRepository.class);
         authorization = mock(RestaurantAuthorization.class);
-        service = new DeliveryService(
+        service = deliveryService(authorization);
+    }
+
+    private DeliveryService deliveryService(RestaurantAuthorization authorization) {
+        return new DeliveryService(
                 deliveryRepository,
                 deliveryHistoryRepository,
                 orderRepository,
@@ -75,14 +89,18 @@ class DeliveryServiceTest {
                 authorization);
     }
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void readyDeliveryOrderUsesAndPersistsEarliestDriverAsDefault() {
         RestaurantSettings settings = new RestaurantSettings();
         settings.setRestaurantId(restaurantId);
         when(settingsRepository.findById(restaurantId)).thenReturn(Optional.of(settings));
         when(deliveryRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
-        when(memberRepository.findByRestaurantIdAndRoleOrderByCreatedAtAsc(
-                restaurantId, RestaurantRole.DELIVERY_DRIVER))
+        when(memberRepository.findEligibleDeliveryDrivers(restaurantId))
                 .thenReturn(List.of(driver(driverId)));
         when(deliveryRepository.save(any(Delivery.class))).thenAnswer(invocation -> {
             Delivery saved = invocation.getArgument(0);
@@ -115,8 +133,7 @@ class DeliveryServiceTest {
         settings.setRestaurantId(restaurantId);
         when(settingsRepository.findById(restaurantId)).thenReturn(Optional.of(settings));
         when(deliveryRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
-        when(memberRepository.findByRestaurantIdAndRoleOrderByCreatedAtAsc(
-                restaurantId, RestaurantRole.DELIVERY_DRIVER))
+        when(memberRepository.findEligibleDeliveryDrivers(restaurantId))
                 .thenReturn(List.of());
         when(deliveryRepository.save(any(Delivery.class))).thenAnswer(invocation -> {
             Delivery saved = invocation.getArgument(0);
@@ -271,14 +288,99 @@ class DeliveryServiceTest {
 
     @Test
     void defaultDriverCannotBeSetToNonDriverMembership() {
-        when(memberRepository.findByRestaurantIdAndUserId(restaurantId, driverId))
-                .thenReturn(Optional.of(memberWithRole(driverId, RestaurantRole.STAFF)));
+        when(memberRepository.findEligibleDeliveryDrivers(restaurantId)).thenReturn(List.of());
 
         ApiException error = assertThrows(ApiException.class, () ->
                 service.setDefaultDriver(restaurantId, managerId, driverId));
 
         assertEquals("INVALID_DELIVERY_DRIVER", error.getCode());
         verify(settingsRepository, never()).save(any(RestaurantSettings.class));
+    }
+
+    @ParameterizedTest
+    @EnumSource(RestaurantRole.class)
+    void managerCanAssignEveryEligibleMembershipRoleIncludingSelf(RestaurantRole targetRole) {
+        Delivery delivery = delivery("WAITING_ASSIGNMENT");
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order("READY")));
+        UUID assignee = targetRole == RestaurantRole.MANAGER ? managerId : UUID.randomUUID();
+        when(memberRepository.findEligibleDeliveryMemberForUpdate(restaurantId, assignee))
+                .thenReturn(Optional.of(memberWithRole(assignee, targetRole)));
+
+        var result = authenticatedService(managerId, RestaurantRole.MANAGER).assignDriver(
+                restaurantId, deliveryId, managerId, new AssignDeliveryDriverRequest(assignee, null));
+
+        assertEquals(assignee, result.driverUserId());
+        assertEquals("ASSIGNED", result.status());
+        assertEquals(managerId, delivery.getAssignedByUserId());
+    }
+
+    @Test
+    void managerCannotAssignAnIneligibleOrForeignMember() {
+        Delivery delivery = delivery("WAITING_ASSIGNMENT");
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order("READY")));
+        var managerService = authenticatedService(managerId, RestaurantRole.MANAGER);
+
+        var error = assertThrows(ApiException.class, () -> managerService.assignDriver(
+                restaurantId, deliveryId, managerId, new AssignDeliveryDriverRequest(UUID.randomUUID(), null)));
+
+        assertEquals("INVALID_DELIVERY_DRIVER", error.getCode());
+        verify(deliveryRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(RestaurantRole.class)
+    void restaurantDeliveryListUsesAssignedScopeForOperationalRoles(RestaurantRole role) {
+        var scopedService = authenticatedService(managerId, role);
+        var pageable = PageRequest.of(0, 20);
+        when(deliveryRepository.findPageByRestaurantIdAndOptionalStatus(eq(restaurantId), isNull(), any()))
+                .thenReturn(Page.empty(pageable));
+        when(deliveryRepository.findPageByDriverAndRestaurantIdAndOptionalStatus(eq(restaurantId), eq(managerId), isNull(), any()))
+                .thenReturn(Page.empty(pageable));
+
+        scopedService.listRestaurantDeliveries(restaurantId, null, pageable);
+
+        if (role.allows(RestaurantPermission.DELIVERY_ASSIGN)) {
+            verify(deliveryRepository).findPageByRestaurantIdAndOptionalStatus(eq(restaurantId), isNull(), any());
+            verify(deliveryRepository, never()).findPageByDriverAndRestaurantIdAndOptionalStatus(any(), any(), any(), any());
+        } else {
+            verify(deliveryRepository).findPageByDriverAndRestaurantIdAndOptionalStatus(eq(restaurantId), eq(managerId), isNull(), any());
+            verify(deliveryRepository, never()).findPageByRestaurantIdAndOptionalStatus(any(), any(), any());
+        }
+    }
+
+    @Test
+    void staffCannotUseEitherStatusWorkflowForAnotherMembersDelivery() {
+        Delivery delivery = delivery("ASSIGNED");
+        Order order = order("READY");
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findByOrderId(orderId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+        var staffService = authenticatedService(managerId, RestaurantRole.STAFF);
+
+        var deliveryError = assertThrows(ApiException.class, () -> staffService.updateDeliveryStatus(
+                restaurantId, deliveryId, managerId, new UpdateDeliveryStatusRequest("PICKED_UP", null, null, null)));
+        var orderError = assertThrows(ApiException.class, () -> staffService.synchronizeManagerOrderStatus(
+                order, managerId, "OUT_FOR_DELIVERY"));
+
+        assertEquals("DELIVERY_NOT_FOUND", deliveryError.getCode());
+        assertEquals("DELIVERY_NOT_FOUND", orderError.getCode());
+        assertEquals("READY", order.getStatus());
+        assertEquals("ASSIGNED", delivery.getStatus());
+        verifyNoInteractions(deliveryHistoryRepository, orderHistoryRepository, paymentRepository);
+        verify(deliveryRepository, never()).save(any());
+    }
+
+    private DeliveryService authenticatedService(UUID subject, RestaurantRole role) {
+        var token = Jwt.withTokenValue("verified-delivery-test-token").header("alg", "ES256").subject(subject.toString()).build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(token, List.of()));
+        when(memberRepository.findByRestaurantIdAndUserId(restaurantId, subject))
+                .thenReturn(Optional.of(memberWithRole(subject, role)));
+        return deliveryService(new RestaurantAuthorization(memberRepository, deliveryRepository, orderRepository));
     }
 
     private RestaurantMember driver(UUID userId) {

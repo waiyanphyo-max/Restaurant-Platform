@@ -130,6 +130,11 @@ class PostgresMigrationSchemaTest {
     }
 
     @Test
+    void deliveryEligibilityUsesEnabledAccountsWithinTheRestaurant() {
+        DeliveryEligibilityDatabaseChecks.verify(dataSource, entityManagerFactoryBean.getObject());
+    }
+
+    @Test
     void allMigrationsCreateTheExpectedSecurityAndCheckoutSchema() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
@@ -394,6 +399,8 @@ class PostgresMigrationSchemaTest {
                     CREATE TABLE auth.users (
                         id uuid PRIMARY KEY,
                         email text,
+                        banned_until timestamptz,
+                        deleted_at timestamptz,
                         raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
                     )
                     """);

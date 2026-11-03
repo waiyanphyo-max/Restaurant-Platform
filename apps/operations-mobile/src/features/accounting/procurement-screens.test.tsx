@@ -65,7 +65,7 @@ describe("procurement screens", () => {
     response.data = {
       purchase: { id: "purchase-a", purchaseDate: "2026-11-02", purchasedAt, supplierId: null, supplierName: null, totalAmount: "200",
         amountPaid: "0", outstandingAmount: "0", paymentStatus: "UNPAID", status: "CANCELLED", dueDate: null,
-        invoiceReference: "INV-A", receiptId: null, correctionOfId: null, createdBy: "member-a", createdAt: "2026-11-02T03:01:00Z" },
+        invoiceReference: "INV-A", receiptId: "receipt-a", correctionOfId: null, createdBy: "member-a", createdAt: "2026-11-02T03:01:00Z" },
       lines: [{ id: "line-a", itemId: "item-a", itemName: "Historical rice", quantity: "2", unit: "kg", unitCost: "100", lineTotal: "200", supplierId: null }],
       payments: [], cancellations: [{ id: "cancel-a", reason: "Incorrect invoice", createdBy: "member-a", createdAt: "2026-11-03T03:01:00Z" }],
       corrections: []
@@ -76,6 +76,7 @@ describe("procurement screens", () => {
     expect(html).toContain(purchasedAt);
     expect(html).toContain("Historical rice");
     expect(html).toContain("Recorded unit cost 100");
+    expect(html).toContain("Private receipt reference receipt-a");
     expect(html).toContain("Incorrect invoice");
     expect(html).toContain("Start linked replacement purchase");
     expect(html).not.toContain("Record a payment");

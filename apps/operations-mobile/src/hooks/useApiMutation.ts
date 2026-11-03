@@ -15,7 +15,7 @@ export function useApiMutation() {
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const reset = () => { setError(null); setMessage(null); };
-  async function run<T>(action: () => Promise<T>, onSuccess?: (value: T) => void): Promise<void> {
+  async function run<T>(action: () => Promise<T>, onSuccess?: (value: T) => void, onFailure?: (failure: unknown) => void): Promise<void> {
     if (!identity || !gate.current.begin()) return;
     const started = identity;
     const valid = () => mounted.current && current.current === started;
@@ -26,6 +26,7 @@ export function useApiMutation() {
     } catch (failure) {
       if (valid()) {
         setError(mutationError(failure));
+        onFailure?.(failure);
         if (failure instanceof MissingAccessTokenError || failure instanceof ApiHttpError && failure.status === 401) void signOut().catch(() => undefined);
       }
     } finally { gate.current.end(); if (valid()) setBusy(false); }

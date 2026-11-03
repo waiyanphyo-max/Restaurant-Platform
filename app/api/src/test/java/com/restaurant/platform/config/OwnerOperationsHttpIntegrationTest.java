@@ -3,6 +3,7 @@ package com.restaurant.platform.config;
 import com.restaurant.platform.common.error.ApiSecurityErrorHandler;
 import com.restaurant.platform.common.error.GlobalExceptionHandler;
 import com.restaurant.platform.controller.DeliverySettingsController;
+import com.restaurant.platform.controller.RestaurantMemberController;
 import com.restaurant.platform.controller.RestaurantNotificationController;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.repository.*;
@@ -24,14 +25,16 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = {RestaurantNotificationController.class, DeliverySettingsController.class}, properties = {
+@WebMvcTest(controllers = {RestaurantNotificationController.class, DeliverySettingsController.class,
+        RestaurantMemberController.class}, properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.test/auth/v1",
         "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.example.test/auth/v1/.well-known/jwks.json",
         "app.security.jwt.required-audience=authenticated", "app.security.jwt.signing-algorithm=ES256",
         "app.cors.allowed-origins=http://localhost:3000"
 })
 @Import({SecurityConfig.class, ApiSecurityErrorHandler.class, GlobalExceptionHandler.class, LocaleConfig.class,
-        RestaurantAuthorization.class, RestaurantNotificationService.class, DeliveryAssignmentOptionsService.class})
+        RestaurantAuthorization.class, RestaurantNotificationService.class, DeliveryAssignmentOptionsService.class,
+        RestaurantMemberService.class})
 class OwnerOperationsHttpIntegrationTest {
     static final UUID RESTAURANT = UUID.randomUUID(), ACTOR = UUID.randomUUID();
     static final String BASE = "/api/v1/restaurants/" + RESTAURANT;
@@ -43,6 +46,8 @@ class OwnerOperationsHttpIntegrationTest {
     @MockitoBean ProfileRepository profiles;
     @MockitoBean AppNotificationRepository notifications;
     @MockitoBean DeliveryService deliveryService;
+    @MockitoBean RestaurantSettingsRepository settings;
+    @MockitoBean SupabaseAuthAdminClient authAdmin;
 
     void member(RestaurantRole role) {
         RestaurantMember member = new RestaurantMember(); member.setRestaurantId(RESTAURANT); member.setUserId(ACTOR); member.setRole(role);
@@ -60,12 +65,21 @@ class OwnerOperationsHttpIntegrationTest {
         mvc.perform(get(BASE + "/delivery-settings/assignment-options").with(forged)).andExpect(status().isForbidden());
         verifyNoInteractions(notifications, profiles);
     }
-    @Test void managerGetsNarrowDriverOptionsWithoutMemberAdministration() throws Exception {
+    @Test void managerGetsNarrowAssignmentOptionsWithoutMemberAdministration() throws Exception {
         member(RestaurantRole.MANAGER);
-        when(members.findByRestaurantIdAndRoleOrderByCreatedAtAsc(RESTAURANT, RestaurantRole.DELIVERY_DRIVER)).thenReturn(List.of());
-        mvc.perform(get(BASE + "/delivery-settings/assignment-options").with(jwt().jwt(token -> token.subject(ACTOR.toString()))))
-                .andExpect(status().isOk()).andExpect(content().json("[]"));
+        var manager = members.findByRestaurantIdAndUserId(RESTAURANT, ACTOR).orElseThrow();
+        when(members.findEligibleDeliveryMembers(RESTAURANT)).thenReturn(List.of(manager));
+        var subject = jwt().jwt(token -> token.subject(ACTOR.toString()).claim("role", "OWNER"));
+        mvc.perform(get(BASE + "/delivery-settings/assignment-options").with(subject))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].userId").value(ACTOR.toString()))
+                .andExpect(jsonPath("$[0].role").value("MANAGER"));
+        mvc.perform(get(BASE + "/members").with(subject)).andExpect(status().isForbidden());
+        mvc.perform(post(BASE + "/members/transfer-ownership").with(subject).contentType("application/json")
+                        .content("{\"newOwnerUserId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isForbidden());
         verify(members, never()).findByRestaurantIdOrderByCreatedAtAsc(any());
+        verify(members, never()).findByRestaurantIdAndUserIdForUpdate(any(), any());
+        verifyNoInteractions(authAdmin);
     }
     @Test void staffCannotEnumerateDrivers() throws Exception {
         member(RestaurantRole.STAFF);

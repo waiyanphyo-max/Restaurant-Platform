@@ -73,6 +73,20 @@ describe("M8-A owner operation contracts", () => {
     ].map(path => `/api/v1/restaurants/${tenant}/${path}`));
   });
 
+  it("uses tenant-scoped staff order options and posts a counter order once on a network failure", async () => {
+    const options = { dineInEnabled: true, takeawayEnabled: false, tables: [{ id, tableLabel: "T1" }] };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(response(options)).mockRejectedValue(new TypeError("network disconnected"));
+    const api = create(fetchImpl);
+    await expect(api.getStaffOrderOptions()).resolves.toEqual(options);
+    const order = { orderType: "DINE_IN" as const, tableId: id, items: [{ productId: child, quantity: 2 }] };
+    await expect(api.createStaffOrder(order)).rejects.toBeInstanceOf(ApiNetworkError);
+    expect(fetchImpl.mock.calls.map(([url, init]) => [new URL(String(url)).pathname, init?.method])).toEqual([
+      [`/api/v1/restaurants/${tenant}/orders/staff/options`, "GET"], [`/api/v1/restaurants/${tenant}/orders/staff`, "POST"]
+    ]);
+    expect(JSON.parse(String(fetchImpl.mock.calls[1][1]?.body))).toEqual(order);
+    for (const [, init] of fetchImpl.mock.calls) expect((init?.headers as Headers).get("Authorization")).toBe("Bearer verified-token");
+  });
+
   it("preserves native multipart body, fetch boundary and full upload response", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ id, imageUrl: "https://media.example.test/image.png" }))
       .mockResolvedValueOnce(response({ id: child, productId: id, imageUrl: "https://media.example.test/variant.png" }))

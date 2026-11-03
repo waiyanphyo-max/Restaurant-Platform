@@ -1,5 +1,6 @@
 package com.restaurant.platform.accounting;
 
+import com.restaurant.platform.integration.DeliveryEligibilityDatabaseChecks;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -21,15 +22,18 @@ class AccountingLocalPostgresTest {
     @Test void realExpenseCorrectionsAndCashHistory() { AccountingDatabaseChecks.expenseCorrectionsAndCashHistory(disposableSource()); }
     @Test void concurrentRetriesAndTenantConstraints() throws Exception { AccountingDatabaseChecks.concurrentRetriesAndTenantConstraints(disposableSource()); }
     @Test void clientAccessAndImmutableHistory() { AccountingDatabaseChecks.clientDatabaseAccessAndImmutableHistory(disposableSource()); }
-    @Test void hibernateStillValidatesAllEntityMappings() {
+    @Test void sharedManagerAccounting() { AccountingDatabaseChecks.sharedManagerAccounting(disposableSource()); }
+    @Test void hibernateValidatesEntityMappingsAndDeliveryEligibility() {
         var factory = new LocalContainerEntityManagerFactoryBean();
-        factory.setDataSource(new DriverManagerDataSource(System.getenv("ACCOUNTING_TEST_DATABASE_URL"), "postgres", ""));
+        var source = disposableSource();
+        factory.setDataSource(source);
         factory.setPackagesToScan("com.restaurant.platform.entity");
         factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         var properties = new Properties(); properties.setProperty("hibernate.hbm2ddl.auto", "validate");
         properties.setProperty("hibernate.jdbc.time_zone", "UTC"); factory.setJpaProperties(properties);
         try {
             factory.afterPropertiesSet(); assertNotNull(factory.getObject()); assertTrue(factory.getObject().isOpen());
+            DeliveryEligibilityDatabaseChecks.verify(source, factory.getObject());
         } finally { factory.destroy(); }
     }
 }

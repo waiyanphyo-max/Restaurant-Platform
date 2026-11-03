@@ -1,4 +1,4 @@
-import { createRestaurantMemberApiClient, createFinancialReportsApiClient, createProcurementApiClient, createExpenseCashApiClient } from "@restaurant-platform/api-client";
+import { createPublicRestaurantApiClient, createRestaurantMemberApiClient, createFinancialReportsApiClient, createProcurementApiClient, createExpenseCashApiClient } from "@restaurant-platform/api-client";
 import { getOperationsAuth } from "./auth/native";
 import { readEmbeddedTenant } from "./tenant";
 
@@ -12,5 +12,6 @@ export function getOperationsApi() {
     getAccessToken: () => auth.getAccessToken()
   };
   return { ...createRestaurantMemberApiClient(options), ...createFinancialReportsApiClient(options),
-    ...createProcurementApiClient(options), ...createExpenseCashApiClient(options) };
+    ...createProcurementApiClient(options), ...createExpenseCashApiClient(options),
+    getPublicMenu: createPublicRestaurantApiClient({ baseUrl: tenant.apiBaseUrl, restaurantId: tenant.restaurantId }).getPublicMenu };
 }

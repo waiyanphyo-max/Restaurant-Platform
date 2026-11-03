@@ -4,7 +4,7 @@ import type {
   CustomerAddressRequest, CustomerAddressResponse, CustomerProfileRequest,
   CustomerProfileResponse, DeliveryTaskDto, DeliveryZoneDto, ManagerOrderDetailDto,
   CategoryResponse, DailyOperationsReportResponse, PaymentResponse, ProductManagementResponse,
-  RestaurantMemberResponse, RestaurantSettingsResponse,
+  RestaurantMemberResponse, RestaurantSettingsResponse, StaffOrderOptions,
   MyRestaurantResponse, NotificationResponse, OrderSummaryDto, PlatformOverviewResponse,
   PlatformRestaurantSummaryResponse, PlatformRestaurantDetailResponse,
   PlatformRestaurantProvisionRequest, PlatformRestaurantProvisionResponse,
@@ -243,6 +243,7 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
       await read<ManagerOrderDetailDto>(transport, orderPath(id), o), restaurantId, "restaurantId"),
     updateOrderStatus: (id: string, body: UpdateOrderStatusRequest, o?: ApiRequestOptions): Promise<OrderSummaryDto> =>
       transport.request({ method: "PATCH", path: `${orderPath(id)}/status`, body, options: o }),
+    getStaffOrderOptions: (o?: ApiRequestOptions) => read<StaffOrderOptions>(transport, `${prefix}/orders/staff/options`, o),
     createStaffOrder: (body: CreateStaffOrderRequest, o?: ApiRequestOptions): Promise<CreateStaffOrderResponse> =>
       transport.request({ method: "POST", path: `${prefix}/orders/staff`, body, options: o }),
     listQueue: (status?: string, o?: ApiRequestOptions) => read<QueueTicketManagerDto[]>(transport, `${prefix}/queue-tickets`, o, { status }),

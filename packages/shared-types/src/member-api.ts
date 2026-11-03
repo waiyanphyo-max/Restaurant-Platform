@@ -147,6 +147,12 @@ export interface CreateStaffOrderRequest {
   note?: string | null;
 }
 
+export interface StaffOrderOptions {
+  dineInEnabled: boolean;
+  takeawayEnabled: boolean;
+  tables: { id: Uuid; tableLabel: string }[];
+}
+
 export interface CreateStaffOrderResponse {
   orderId: Uuid;
   orderNumber: string;
@@ -251,4 +257,7 @@ export interface DeliveryZoneRequest {
 }
 export interface DeliveryZoneResponse extends DeliveryZoneRequest { id: Uuid; restaurantId: Uuid; active: boolean; coverageCity: string | null; coverageTownship: string | null; }
 export interface DefaultDeliveryDriverResponse { restaurantId: Uuid; defaultDriverUserId: Uuid | null; }
-export interface DeliveryAssignmentOption { userId: Uuid; fullName: string | null; email: string | null; }
+export interface DeliveryAssignmentOption {
+  userId: Uuid; fullName: string | null; email: string | null;
+  role: "OWNER" | "MANAGER" | "STAFF" | "DELIVERY_DRIVER";
+}

@@ -1,6 +1,6 @@
-# Backend authorization matrix (M2)
+# Backend authorization matrix
 
-This is a map of the **current Spring Boot enforcement**, not a grant implemented by a client. Source: [`RestaurantRole`](../app/api/src/main/java/com/restaurant/platform/security/RestaurantRole.java), [`RestaurantPermission`](../app/api/src/main/java/com/restaurant/platform/security/RestaurantPermission.java), [`RestaurantAuthorization`](../app/api/src/main/java/com/restaurant/platform/security/RestaurantAuthorization.java), [`PlatformAdminAuthorization`](../app/api/src/main/java/com/restaurant/platform/security/PlatformAdminAuthorization.java), and [`SecurityConfig`](../app/api/src/main/java/com/restaurant/platform/config/SecurityConfig.java). Source audit date: 2026-10-30; M2 implementation review: 2026-10-31.
+This matrix describes the Spring Boot rules reviewed for M9 on 2026-11-03. The Android app uses a single embedded restaurant ID and verifies its membership before displaying protected screens. Spring independently checks the requested restaurant and resource on each call. See [`RestaurantRole`](../app/api/src/main/java/com/restaurant/platform/security/RestaurantRole.java), [`RestaurantPermission`](../app/api/src/main/java/com/restaurant/platform/security/RestaurantPermission.java), [`RestaurantAuthorization`](../app/api/src/main/java/com/restaurant/platform/security/RestaurantAuthorization.java), [`PlatformAdminAuthorization`](../app/api/src/main/java/com/restaurant/platform/security/PlatformAdminAuthorization.java), and [`SecurityConfig`](../app/api/src/main/java/com/restaurant/platform/config/SecurityConfig.java).
 
 Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID subject. Restaurant permissions are looked up from the membership table for the **requested restaurant ID**; JWT role text, a branded hostname, and a client-selected restaurant ID confer no permission. A missing/invalid bearer token normally yields 401; a valid user without the required membership/permission normally yields 403. Resource-specific denials can return 404 to avoid revealing another tenant's record.
 
@@ -16,12 +16,12 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 | `MENU_READ` | ✓ | ✓ | ✓ | — | Private catalog reads |
 | `MENU_MANAGE` | ✓ | ✓ | — | — | Catalog writes and image uploads |
 | `ORDER_READ` | ✓ | ✓ | ✓ | — | Restaurant order list/detail |
-| `ORDER_CREATE` | ✓ | ✓ | ✓ | — | Staff-entered orders |
+| `ORDER_CREATE` | ✓ | ✓ | ✓ | — | Staff-entered orders and their active table and order-type options |
 | `ORDER_STATUS_UPDATE` | ✓ | ✓ | ✓ | — | Order status transitions |
 | `ORDER_CANCEL` | ✓ | ✓ | — | — | Cancel through restaurant status route |
 | `QUEUE_MANAGE` | ✓ | ✓ | ✓ | — | Queue list/call and queue-changing order transitions |
-| `DELIVERY_READ` | ✓ | ✓ | ✓ | ✓ | Delivery list/detail; driver gets assigned-only scope |
-| `DELIVERY_ASSIGN` | ✓ | ✓ | — | — | Assign/reassign driver; cancel delivery |
+| `DELIVERY_READ` | ✓ | ✓ | ✓ | ✓ | Restaurant delivery list/detail for Owner and Manager, own assignments for Staff and Driver |
+| `DELIVERY_ASSIGN` | ✓ | ✓ | — | — | Eligible assignee lookup, assign, reassign and cancel delivery |
 | `DELIVERY_STATUS_UPDATE` | ✓ | ✓ | ✓ | ✓ | Delivery state transitions and some order transitions |
 | `PAYMENT_READ` | ✓ | ✓ | ✓ | — | Restaurant order payment list |
 | `PAYMENT_COLLECT` | ✓ | ✓ | ✓ | — | Collect cash-at-counter payment |
@@ -44,27 +44,28 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 - `POST /api/v1/restaurants` allows any authenticated UUID to create a restaurant and become OWNER. This is separate from allowlisted Platform Admin provisioning at `POST /api/v1/platform/restaurants`.
 - `POST /api/v1/restaurants/{restaurantId}/logo` requires the actual OWNER member role, even though both Owner and Manager have `SETTINGS_MANAGE`.
 - Ownership transfer requires the current OWNER and an existing member as target. Adding/updating a member cannot assign `OWNER`; transfer uses its dedicated route.
-- Driver list/detail/status is restricted to deliveries assigned to the authenticated driver and to the restaurant-scoped order. Other roles with `DELIVERY_READ` currently see the restaurant-wide queue. Assignment targets must currently have `DELIVERY_DRIVER` role.
-- Order status writes require `ORDER_STATUS_UPDATE`; cancellation also requires `ORDER_CANCEL`, delivery transitions require `DELIVERY_STATUS_UPDATE`, and queue-changing transitions require `QUEUE_MANAGE`.
-- A Staff member currently has restaurant-wide delivery read/status permission, and the order-status route does not uniformly enforce assigned-only Staff delivery work. This is a **backend policy gap** if the product requires Staff to deliver only assigned tasks. A frontend filter is insufficient; propose and test server-side assigned-user checks in `DeliveryService` and `ManagerOrderService` before exposing that workflow.
+- Order status writes require `ORDER_STATUS_UPDATE`. Cancellation also requires `ORDER_CANCEL`, delivery transitions require `DELIVERY_STATUS_UPDATE`, and queue-changing transitions require `QUEUE_MANAGE`.
 - `GET /api/v1/restaurants/{restaurantId}/settings` requires `SETTINGS_MANAGE`, so Staff and Driver cannot read this management response. Public menu/branding must come from public endpoints and approved tenant config instead.
-- M8-A adds `GET /api/v1/restaurants/{restaurantId}/delivery-settings/assignment-options` under existing `DELIVERY_ASSIGN`: OWNER/MANAGER receive only current same-restaurant DELIVERY_DRIVER user IDs, display names and email labels. Manager still cannot enumerate/administer `/members`. This preserves current dedicated-driver eligibility rather than implementing the broader target below.
-- M8-A adds restaurant-scoped GET/PATCH-read `/api/v1/restaurants/{restaurantId}/notifications`. Existing `RESTAURANT_READ` plus addressed-user ownership and associated order/queue tenant scope apply. This is a view of the user's current inbox, not access to other members' notifications or an Owner-wide activity feed. The personal `/api/v1/notifications` contract remains unchanged and is not called by the branded app.
+- `GET /api/v1/restaurants/{restaurantId}/orders/staff/options` uses `ORDER_CREATE` and returns allowed order types and active table IDs and labels. Table management and QR credentials require `SETTINGS_MANAGE`.
+- Restaurant-scoped notification reads and read acknowledgements require `RESTAURANT_READ`, the JWT subject as the addressee, and an order or queue ticket in the same restaurant.
 
 See [API coverage and gaps](api-coverage-gap-report.md) for exact implemented route groups and missing phone/identity contracts.
 
-## Delivery behavior: current source versus approved target
+## Delivery scope
 
-| Capability | Current source behavior | Required target |
-| --- | --- | --- |
-| Manual assignment | Owner/Manager with `DELIVERY_ASSIGN` may assign only a same-restaurant `DELIVERY_DRIVER`. | Owner/Manager may assign or reassign to any eligible active Owner, Manager, Staff, or Driver in that restaurant, including self. |
-| Default driver | Automatic selection uses a dedicated `DELIVERY_DRIVER`; otherwise the task waits. | Keep dedicated-driver default unless separately decided; broaden only authorized manual assignment. |
-| Restaurant list | `DELIVERY_READ` members list restaurant deliveries; only `DELIVERY_DRIVER` is filtered to own assignments. | Owner/Manager get the management list; Staff/Driver see assigned-to-self tasks only. |
-| Detail and status | Driver detail/status checks assignment; other `DELIVERY_READ` members can access the task, and Staff can update an unassigned task. Order status may also mutate delivery state. | Staff/Driver detail and transitions require assignment to the JWT UUID; close the order-status bypass. Owner/Manager access remains permissioned. |
-| Assignment options | `/members` requires `MEMBERS_MANAGE` (Owner only); no narrow Manager picker endpoint exists. | Add a same-restaurant assignment-options API for Owner/Manager without granting Manager member administration. |
-| Active state | `restaurant_members` has no active/suspended flag; removal deletes membership. | Initially eligible means a current membership plus enabled Auth account. Add suspension state only if later needed, through a new migration. |
+| Capability | Backend rule |
+| --- | --- |
+| Manual assignment | Owner and Manager can assign or reassign to any eligible current Owner, Manager, Staff or Driver in the restaurant, including themselves. The backend revalidates membership and account eligibility on assignment. |
+| Default driver | Automatic selection and default-driver settings use eligible `DELIVERY_DRIVER` members. A task waits for assignment when no eligible Driver is available. |
+| List, detail and status | Owner and Manager can access the restaurant-wide queue. Staff and Driver can access and update only deliveries assigned to their JWT subject. The order-status route enforces the same assignment check for Staff delivery transitions. |
+| Assignment options | `GET /delivery-settings/assignment-options` requires `DELIVERY_ASSIGN` and returns the eligible users' IDs, roles, names and email labels. Member administration remains gated by `MEMBERS_MANAGE`. |
+| Eligibility | A user must have a current membership in the target restaurant and a Supabase Auth account without a deletion timestamp or active ban. A restricted Spring database role needs schema `auth` usage and read access to the `id`, `deleted_at` and `banned_until` columns of `auth.users`. See the [Supabase Auth user model](https://github.com/supabase/auth/blob/master/internal/models/user.go). |
 
-Assignment is stored in `driver_user_id` referencing a profile UUID, without a database role constraint. A later schema revision may rename it to a role-neutral assignee or add audit/status data if warranted. Preserve history, actor UUID, tenant/order scope, and cash-on-delivery invariants.
+The existing `driver_user_id` field stores the assignee's profile UUID for every eligible role. Cash-on-delivery completion still requires explicit cash confirmation, and the delivery, order and payment updates share one transaction.
+
+## Shared finance policy
+
+Owner and Manager have the same reporting and posting permissions for a restaurant under the current configuration. `FINANCE_READ` covers the shared ledger, shopping and purchase history, supplier/payable reports, expenses, cashbook, private receipts and exports. `FINANCE_MANAGE` covers financial posting, audited corrections and closing, including closing reversal subject to the reconciliation rules. The configured role map has no separate Owner approval for these actions. Finalized history is append-only and corrections preserve the actor, reason and original record. Staff and Driver operational order or payment permissions do not confer accounting access. See [shared accounting rules](accounting.md) and [M9 verification](m9-acceptance.md).
 
 ## Phone onboarding and identity target
 
@@ -76,12 +77,3 @@ Assignment is stored in `driver_user_id` referencing a profile UUID, without a d
 6. If Supabase returns a different UUID or unexpected linked identity, fail closed and use explicit verified support handling. Test stale phone-change requests and actual provider behavior before rollout.
 
 The [phone authentication design](phone-auth-design.md) records the closed provider gate and exact proposed invitation/claim routes before any backend implementation.
-
-## Authorization tests needed before delivery-policy rollout
-
-- Owner/Manager assign to each eligible role and self; reject cross-restaurant, removed, or disabled members.
-- Staff/Driver list, read, and update only tasks assigned to their JWT subject, including through order-status routes.
-- Management and driver cash-on-delivery transitions preserve payment/order atomicity and history.
-- Assignment options are restaurant-scoped and do not expose member administration.
-- Customer profile/order ownership is self-scoped; non-admin users are denied platform endpoints.
-- Common QR/Table QR remain anonymous without bearer auth.

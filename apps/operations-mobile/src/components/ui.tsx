@@ -64,17 +64,20 @@ export function ConfirmDialog({ visible, title, message, confirmLabel, onConfirm
   </Modal>;
 }
 
-/** Small count chart. Monetary calculations belong to server contracts, not this primitive. */
-export function BarChart({ label, points }: { label: string; points: readonly { label: string; value: number }[] }) {
+/** The caller can supply exact display text for values scaled for chart geometry. */
+export function BarChart({ label, points }: { label: string; points: readonly { label: string; value: number; displayValue?: string }[] }) {
   const values = points.map(point => Number.isFinite(point.value) ? Math.max(0, point.value) : 0);
   const maximum = Math.max(1, ...values);
   const brand = resolveBrandTokens(readEmbeddedTenant().branding);
   return <View accessibilityLabel={label} style={styles.chart}>
     <Text accessibilityRole="header" style={styles.cardTitle}>{label}</Text>
-    {points.map((point, index) => <View key={point.label} accessible accessibilityLabel={`${point.label}: ${values[index]}`}>
-      <Text style={styles.body}>{point.label}: {values[index]}</Text>
-      <View style={styles.track}><View style={[styles.bar, { width: `${values[index] / maximum * 100}%`, backgroundColor: brand.primaryColor }]} /></View>
-    </View>)}
+    {points.map((point, index) => {
+      const label = `${point.label}: ${point.displayValue ?? values[index]}`;
+      return <View key={point.label} accessible accessibilityLabel={label}>
+        <Text style={styles.body}>{label}</Text>
+        <View style={styles.track}><View style={[styles.bar, { width: `${values[index] / maximum * 100}%`, backgroundColor: brand.primaryColor }]} /></View>
+      </View>;
+    })}
   </View>;
 }
 

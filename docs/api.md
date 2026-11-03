@@ -119,6 +119,8 @@ Cancellation requires `ORDER_CANCEL`. Queue-ticket lifecycle changes require `QU
 
 ### Create an order entered by staff
 
+`GET /api/v1/restaurants/{restaurantId}/orders/staff/options` uses `ORDER_CREATE` and returns `{ dineInEnabled, takeawayEnabled, tables: [{ id, tableLabel }] }`. It reports which order types are currently available and lists active tables in the requested restaurant. QR credentials are available only through their separate management routes.
+
 `POST /api/v1/restaurants/{restaurantId}/orders/staff`
 
 Requires `ORDER_CREATE`. This route is intended for staff entering orders for customers who are not placing the order through their own phone.
@@ -150,7 +152,6 @@ All routes below require a valid Supabase bearer token.
 
 - `GET /api/v1/restaurants/{restaurantId}/delivery-settings/default-driver`
 - `PATCH /api/v1/restaurants/{restaurantId}/delivery-settings/default-driver`
-- `GET /api/v1/restaurants/{restaurantId}/delivery-settings/assignment-options` — M8-A narrow picker, requires `DELIVERY_ASSIGN` (OWNER/MANAGER); returns `{userId, fullName, email}[]` for current same-restaurant `DELIVERY_DRIVER` members only. It does not grant member administration or broaden assignment eligibility. Assignment/default-driver writes still revalidate the target membership server-side.
 
 Required permission: `SETTINGS_MANAGE`.
 
@@ -162,16 +163,17 @@ Request body for the PATCH route:
 }
 ```
 
-The selected user must be a `DELIVERY_DRIVER` member of the same restaurant. At the first transition of a delivery order to `READY`, the backend uses the configured default. If no default is configured, it selects the earliest-added `DELIVERY_DRIVER` member and persists that user as the default. If there is no delivery driver yet, the delivery remains `WAITING_ASSIGNMENT`. The UUID shown above is only an example; use a real user UUID from that restaurant's membership data.
+The selected user must be an eligible `DELIVERY_DRIVER` member of the same restaurant. At the first transition of a delivery order to `READY`, the backend uses the eligible configured default. Otherwise it selects the earliest-added eligible `DELIVERY_DRIVER` member and persists that user as the default. If there is no eligible Driver, the delivery remains `WAITING_ASSIGNMENT`.
 
 ### Delivery queue and individual task
 
 | Method | Route | Required permission / behavior |
 |---|---|---|
-| GET | `/api/v1/restaurants/{restaurantId}/deliveries?status=ASSIGNED&page=0&size=20` | `DELIVERY_READ`; paginated restaurant queue, except drivers see only their own assigned tasks |
+| GET | `/api/v1/restaurants/{restaurantId}/delivery-settings/assignment-options` | `DELIVERY_ASSIGN`; returns `{userId, role, fullName, email}[]` for eligible current members of the restaurant |
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries?status=ASSIGNED&page=0&size=20` | `DELIVERY_READ`; restaurant queue for Owner and Manager, own assignments for Staff and Driver |
 | GET | `/api/v1/restaurants/{restaurantId}/deliveries/mine` | `DELIVERY_READ`; returns tasks assigned to the authenticated user in this restaurant |
-| GET | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}` | Delivery must belong to the restaurant; drivers must be the assigned driver |
-| PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/assign` | `DELIVERY_ASSIGN`; assigns or reassigns to a same-restaurant driver |
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}` | `DELIVERY_READ`; requires the target restaurant and, for Staff and Driver, assignment to the JWT subject |
+| PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/assign` | `DELIVERY_ASSIGN`; assigns or reassigns to an eligible member, including self |
 | PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/status` | `DELIVERY_STATUS_UPDATE`; updates delivery and linked order state in one transaction |
 
 Assignment request:
@@ -212,7 +214,9 @@ For `DELIVERED`, include `"cashCollected": true` when a pending `CASH_ON_DELIVER
 
 If a COD payment is pending and `cashCollected` is missing or false, delivery completion returns `409 CASH_COLLECTION_REQUIRED` and the order, delivery, and payment remain unchanged. The legacy manager order-status endpoint cannot bypass this check.
 
-The supported delivery lifecycle is `WAITING_ASSIGNMENT → ASSIGNED → PICKED_UP → DELIVERED`, with `FAILED` and pre-pickup `CANCELLED` branches. Failed deliveries can be reassigned by a manager; if the order was `OUT_FOR_DELIVERY`, reassignment returns the order to `READY`. A driver can change only deliveries assigned to their authenticated user. Managers can override delivery transitions through the manager order status endpoint, and both paths write delivery/order status history.
+Manual assignees can have any of the four restaurant roles. The server revalidates the target restaurant membership and excludes deleted or currently banned Auth accounts. The request keeps `driverUserId` as the assignee field for compatibility. Staff and Driver can change only their own assigned deliveries, including Staff transitions through the order-status route.
+
+The supported delivery lifecycle is `WAITING_ASSIGNMENT → ASSIGNED → PICKED_UP → DELIVERED`, with `FAILED` and pre-pickup `CANCELLED` branches. Failed deliveries can be reassigned by a manager. If the order was `OUT_FOR_DELIVERY`, reassignment returns the order to `READY`. The delivery and order-status routes both write status history and enforce the cash-on-delivery check.
 
 Picking up a task changes the linked order from `READY` to `OUT_FOR_DELIVERY`; confirming delivery changes it to `COMPLETED`. If the customer has an account, status updates create in-app notification records. External push notifications and actual browser/mobile sound playback are not wired in the backend.
 

@@ -44,6 +44,8 @@ export function PurchaseHistory({ today, requests, onReplace }: {
         supplierId: supplier?.id, paymentStatus: status === "ALL" ? undefined : status });
       setPage(0);
       setError(null);
+      query.reload();
+      report.reload();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Check the purchase history filters.");
     }
@@ -68,9 +70,9 @@ export function PurchaseHistory({ today, requests, onReplace }: {
         <Body>Cancelled purchases {money(result.cancelledTotal)}</Body>
         {result.monthlyTotals.map(month => <Body key={month.month}>{month.month.slice(0, 7)} · {money(month.confirmedTotal)} across {month.purchaseCount} purchases</Body>)}
         <Body>Purchase totals reflect recorded obligations.</Body>
+        <AccountingCsvAction report="purchase-history" title="Export applied purchase filters as CSV"
+          fetchCsv={signal => getOperationsApi().getPurchaseCsv({ ...filter, from: result.from, to: result.to }, { signal })} />
       </>}</QueryResult>
-      <AccountingCsvAction report="purchase-history" fetchCsv={signal => getOperationsApi().getPurchaseCsv(filter, { signal })}
-        title="Export applied purchase filters as CSV" />
     </Card>
     <Card title="Historical purchases">
       <Choices label="Sort purchases" value={sort} values={["NEWEST", "OLDEST", "TOTAL_DESC"]} labels={purchaseSortLabels}
@@ -156,7 +158,7 @@ function PurchaseDetailContent({ detail, requests, onChanged, onSelectPurchase, 
     <Body>Invoice {purchase.invoiceReference ?? "None"} · Due {purchase.dueDate ?? "Unspecified"}</Body>
     <Body>Total {money(purchase.totalAmount)} · Paid {money(purchase.amountPaid)} · Outstanding {money(purchase.outstandingAmount)}</Body>
     <Body>{purchase.status === "CANCELLED" ? "Cancelled" : "Confirmed"} · {statusLabels[purchase.paymentStatus]}</Body>
-    {purchase.receiptId ? <Body>Private receipt attached.</Body> : null}
+    {purchase.receiptId ? <Body>Private receipt reference {purchase.receiptId}</Body> : null}
     <Card title="Historical purchase items">
       {detail.lines.length ? null : <Body>No purchase lines recorded.</Body>}
       {detail.lines.map(line => <Card key={line.id} title={line.itemName}>

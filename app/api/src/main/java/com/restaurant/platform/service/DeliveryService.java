@@ -24,7 +24,6 @@ import com.restaurant.platform.repository.RestaurantMemberRepository;
 import com.restaurant.platform.repository.RestaurantSettingsRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.security.RestaurantPermission;
-import com.restaurant.platform.security.RestaurantRole;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -95,16 +94,11 @@ public class DeliveryService {
         String normalizedStatus = normalizeStatusFilter(status);
         Pageable safePageable = safePageable(pageable);
 
-        // Drivers may list only their own assigned deliveries, never the restaurant-wide queue.
-        boolean driverOnly = memberRepository
-                .findByRestaurantIdAndUserId(restaurantId, currentUserId)
-                .map(member -> member.getRole() == RestaurantRole.DELIVERY_DRIVER)
-                .orElse(false);
-        Page<Delivery> deliveries = driverOnly
-                ? deliveryRepository.findPageByDriverAndRestaurantIdAndOptionalStatus(
-                        restaurantId, currentUserId, normalizedStatus, safePageable)
-                : deliveryRepository.findPageByRestaurantIdAndOptionalStatus(
-                        restaurantId, normalizedStatus, safePageable);
+        Page<Delivery> deliveries = authorization.hasPermission(restaurantId, RestaurantPermission.DELIVERY_ASSIGN)
+                ? deliveryRepository.findPageByRestaurantIdAndOptionalStatus(
+                        restaurantId, normalizedStatus, safePageable)
+                : deliveryRepository.findPageByDriverAndRestaurantIdAndOptionalStatus(
+                        restaurantId, currentUserId, normalizedStatus, safePageable);
         return deliveries.map(delivery -> toTask(delivery, requireOrder(delivery, restaurantId)));
     }
 
@@ -155,13 +149,12 @@ public class DeliveryService {
         requireDeliveryOrder(order);
         requireAssignableStatus(delivery.getStatus());
 
-        RestaurantMember driver = memberRepository
-                .findByRestaurantIdAndUserId(restaurantId, request.driverUserId())
-                .filter(member -> member.getRole() == RestaurantRole.DELIVERY_DRIVER)
+        RestaurantMember assignee = memberRepository
+                .findEligibleDeliveryMemberForUpdate(restaurantId, request.driverUserId())
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.BAD_REQUEST,
                         "INVALID_DELIVERY_DRIVER",
-                        "error.delivery.driver-not-member"));
+                        "error.delivery.ineligible-assignee"));
 
         if ("FAILED".equals(delivery.getStatus())
                 && "OUT_FOR_DELIVERY".equals(order.getStatus())) {
@@ -171,7 +164,7 @@ public class DeliveryService {
                     "Delivery reassigned after a failed attempt.");
         }
 
-        delivery.setDriverUserId(driver.getUserId());
+        delivery.setDriverUserId(assignee.getUserId());
         delivery.setAssignedByUserId(actorUserId);
         delivery.setAssignedAt(OffsetDateTime.now(ZoneOffset.UTC));
         delivery.setPickedUpAt(null);
@@ -181,9 +174,9 @@ public class DeliveryService {
         deliveryRepository.save(delivery);
         recordDeliveryStatus(delivery, actorUserId, "ASSIGNED",
                 request.note() == null || request.note().isBlank()
-                        ? "Driver assigned by restaurant staff."
+                        ? "Delivery assigned by restaurant management."
                         : request.note().trim());
-        createNotification(driver.getUserId(), order, "DELIVERY_ASSIGNED",
+        createNotification(assignee.getUserId(), order, "DELIVERY_ASSIGNED",
                 "New delivery assigned",
                 "Order " + order.getOrderNumber() + " is ready for delivery.");
         return toTask(delivery, order);
@@ -310,12 +303,13 @@ public class DeliveryService {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "DELIVERY_DRIVER_REQUIRED", "error.delivery.driver-required");
         }
-        memberRepository.findByRestaurantIdAndUserId(restaurantId, driverUserId)
-                .filter(member -> member.getRole() == RestaurantRole.DELIVERY_DRIVER)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.BAD_REQUEST,
-                        "INVALID_DELIVERY_DRIVER",
-                        "error.delivery.driver-not-member"));
+        if (memberRepository.findEligibleDeliveryDrivers(restaurantId).stream()
+                .noneMatch(member -> driverUserId.equals(member.getUserId()))) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_DELIVERY_DRIVER",
+                    "error.delivery.driver-not-member");
+        }
 
         RestaurantSettings settings = requireSettings(restaurantId);
         settings.setDefaultDeliveryDriverUserId(driverUserId);
@@ -325,8 +319,8 @@ public class DeliveryService {
 
     /**
      * Called when a delivery order becomes READY. If no default is configured,
-     * the earliest-added DELIVERY_DRIVER member is selected and saved as the
-     * restaurant's default. With no registered driver, the delivery remains
+     * the earliest-added eligible DELIVERY_DRIVER is selected and saved as the
+     * restaurant's default. With no eligible driver, the delivery remains
      * waiting for assignment rather than being assigned to an arbitrary user.
      */
     @Transactional
@@ -339,21 +333,14 @@ public class DeliveryService {
         }
 
         RestaurantSettings settings = requireSettings(order.getRestaurantId());
-        UUID driverUserId = validConfiguredDriver(
-                order.getRestaurantId(), settings.getDefaultDeliveryDriverUserId());
-
-        if (driverUserId == null) {
-            List<RestaurantMember> drivers =
-                    memberRepository.findByRestaurantIdAndRoleOrderByCreatedAtAsc(
-                            order.getRestaurantId(), RestaurantRole.DELIVERY_DRIVER);
-            if (!drivers.isEmpty()) {
-                driverUserId = drivers.getFirst().getUserId();
-            }
-            if (!java.util.Objects.equals(
-                    settings.getDefaultDeliveryDriverUserId(), driverUserId)) {
-                settings.setDefaultDeliveryDriverUserId(driverUserId);
-                settingsRepository.save(settings);
-            }
+        UUID configuredDriver = settings.getDefaultDeliveryDriverUserId();
+        List<RestaurantMember> drivers = memberRepository.findEligibleDeliveryDrivers(order.getRestaurantId());
+        UUID driverUserId = drivers.stream().map(RestaurantMember::getUserId)
+                .filter(id -> id.equals(configuredDriver)).findFirst()
+                .orElseGet(() -> drivers.isEmpty() ? null : drivers.getFirst().getUserId());
+        if (!java.util.Objects.equals(configuredDriver, driverUserId)) {
+            settings.setDefaultDeliveryDriverUserId(driverUserId);
+            settingsRepository.save(settings);
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -367,7 +354,7 @@ public class DeliveryService {
 
         recordDeliveryStatus(delivery, actorUserId, delivery.getStatus(),
                 driverUserId == null
-                        ? "Delivery created; no delivery driver is registered yet."
+                        ? "Delivery created; no eligible delivery driver is available."
                         : "Automatically assigned to the restaurant default driver.");
 
         if (driverUserId != null) {
@@ -401,6 +388,7 @@ public class DeliveryService {
                         "error.delivery.assignment-required"));
         Delivery delivery = deliveryRepository.findByIdForUpdate(probe.getId())
                 .orElseThrow(this::deliveryNotFound);
+        authorization.requireDeliveryAccess(order.getRestaurantId(), delivery.getId());
 
         if (pickup) {
             requireTransition("ASSIGNED".equals(delivery.getStatus()),
@@ -464,17 +452,6 @@ public class DeliveryService {
                     "CASH_COLLECTION_REQUIRED",
                     "error.delivery.cash-collection-required");
         }
-    }
-
-    private UUID validConfiguredDriver(UUID restaurantId, UUID configuredDriverId) {
-        if (configuredDriverId == null) {
-            return null;
-        }
-        return memberRepository.findByRestaurantIdAndUserId(
-                        restaurantId, configuredDriverId)
-                .filter(member -> member.getRole() == RestaurantRole.DELIVERY_DRIVER)
-                .map(RestaurantMember::getUserId)
-                .orElse(null);
     }
 
     private String normalizeStatusFilter(String status) {
