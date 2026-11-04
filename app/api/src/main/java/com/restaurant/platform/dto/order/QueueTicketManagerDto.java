@@ -11,6 +11,7 @@ public record QueueTicketManagerDto(
         OffsetDateTime createdAt,
         OffsetDateTime readyAt,
         OffsetDateTime calledAt,
-        OffsetDateTime completedAt
+        OffsetDateTime completedAt,
+        UUID orderId
 ) {
 }

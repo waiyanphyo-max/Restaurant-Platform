@@ -19,6 +19,8 @@ import com.restaurant.platform.security.RestaurantPermission;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -192,6 +194,51 @@ class ManagerOrderServiceTest {
         verifyNoInteractions(orderItemRepository, orderItemModifierRepository, historyRepository);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void orderDetailReturnsPreparationDataAndScopesPrivateDeliveryFields(boolean canViewDeliveryDetails) {
+        Order order = order("PREPARING", "DELIVERY");
+        order.setCustomerId(UUID.randomUUID());
+        order.setCreatedByUserId(order.getCustomerId());
+        order.setDeliveryZoneId(UUID.randomUUID());
+        order.setDeliveryName("Recipient");
+        order.setDeliveryPhone("0000");
+        order.setDeliveryAddress("Saved order destination");
+        order.setDeliveryNote("Use side entrance");
+        when(orderRepository.findByIdAndRestaurantId(orderId, restaurantId)).thenReturn(Optional.of(order));
+        when(deliveryService.canViewOrderDeliveryDetails(order)).thenReturn(canViewDeliveryDetails);
+
+        var item = new OrderItem();
+        item.setId(UUID.randomUUID());
+        item.setProductName("Tea");
+        item.setUnitPrice(1000L);
+        item.setQuantity(1);
+        item.setSubtotal(1000L);
+        when(orderItemRepository.findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(orderId, restaurantId))
+                .thenReturn(List.of(item));
+
+        var event = new OrderStatusHistory();
+        event.setStatus("PENDING");
+        event.setChangedByUserId(order.getCustomerId());
+        event.setNote("Private delivery instruction");
+        when(historyRepository.findByOrderIdOrderByCreatedAtAsc(orderId)).thenReturn(List.of(event));
+
+        var detail = service.getOrderDetail(restaurantId, orderId);
+
+        assertEquals("Tea", detail.items().getFirst().productName());
+        assertEquals("PENDING", detail.statusHistory().getFirst().status());
+        assertEquals(canViewDeliveryDetails ? order.getCustomerId() : null, detail.customerId());
+        assertEquals(canViewDeliveryDetails ? order.getCreatedByUserId() : null, detail.createdByUserId());
+        assertEquals(canViewDeliveryDetails ? event.getChangedByUserId() : null,
+                detail.statusHistory().getFirst().changedByUserId());
+        assertEquals(canViewDeliveryDetails ? order.getDeliveryZoneId() : null, detail.deliveryZoneId());
+        assertEquals(canViewDeliveryDetails ? order.getDeliveryName() : null, detail.deliveryName());
+        assertEquals(canViewDeliveryDetails ? order.getDeliveryPhone() : null, detail.deliveryPhone());
+        assertEquals(canViewDeliveryDetails ? order.getDeliveryAddress() : null, detail.deliveryAddress());
+        assertEquals(canViewDeliveryDetails ? order.getDeliveryNote() : null, detail.deliveryNote());
+        assertEquals(canViewDeliveryDetails ? event.getNote() : null, detail.statusHistory().getFirst().note());
+    }
+
     @Test
     void updateStatusLocksRestaurantScopedOrderAndRecordsAuthenticatedActor() {
         Order order = order("PENDING", "DINE_IN");
@@ -231,7 +278,7 @@ class ManagerOrderServiceTest {
 
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
                 .thenReturn(Optional.of(order));
-        when(queueTicketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+        when(queueTicketRepository.findByIdAndRestaurantIdForUpdate(ticketId, restaurantId)).thenReturn(Optional.of(ticket));
 
         OrderSummaryDto response = service.updateStatus(
                 restaurantId, orderId, userId,

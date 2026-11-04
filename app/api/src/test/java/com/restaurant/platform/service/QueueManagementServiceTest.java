@@ -72,14 +72,21 @@ class QueueManagementServiceTest {
         when(ticketRepository.findByDailyCounterIdOrderByQueueNumberAsc(counter.getId()))
                 .thenReturn(List.of(
                         ticket(UUID.randomUUID(), "WAITING", 1),
-                        ticket(UUID.randomUUID(), "READY", 2),
+                        ticket(ticketId, "READY", 2),
                         ticket(UUID.randomUUID(), "CALLED", 3),
                         ticket(UUID.randomUUID(), "COMPLETED", 4)));
+        OrderRepository.QueueOrderLink link = mock(OrderRepository.QueueOrderLink.class);
+        when(link.getQueueTicketId()).thenReturn(ticketId);
+        when(link.getId()).thenReturn(orderId);
+        when(orderRepository.findByRestaurantIdAndQueueTicketIdIn(eq(restaurantId), anyList()))
+                .thenReturn(List.of(link));
 
         List<QueueTicketManagerDto> response = service.listQueue(restaurantId, null);
 
         assertEquals(List.of("WAITING", "READY", "CALLED"),
                 response.stream().map(QueueTicketManagerDto::status).toList());
+        assertNull(response.get(0).orderId());
+        assertEquals(orderId, response.get(1).orderId());
         verify(authorization).requirePermission(restaurantId, RestaurantPermission.QUEUE_MANAGE);
         verify(counterRepository).findByRestaurantIdAndQueueDate(restaurantId, today);
     }
@@ -111,14 +118,17 @@ class QueueManagementServiceTest {
         order.setId(orderId);
         UUID customerId = UUID.randomUUID();
         order.setCustomerId(customerId);
-        when(orderRepository.findByQueueTicketId(ticketId)).thenReturn(Optional.of(order));
+        when(orderRepository.findByQueueTicketIdAndRestaurantIdForUpdate(ticketId, restaurantId)).thenReturn(Optional.of(order));
 
         QueueTicketManagerDto response = service.callTicket(restaurantId, ticketId);
 
         assertEquals("CALLED", response.status());
         assertNotNull(response.calledAt());
+        assertEquals(orderId, response.orderId());
         verify(authorization).requirePermission(restaurantId, RestaurantPermission.QUEUE_MANAGE);
-        verify(ticketRepository).findByIdAndRestaurantIdForUpdate(ticketId, restaurantId);
+        var locks = inOrder(orderRepository, ticketRepository);
+        locks.verify(orderRepository).findByQueueTicketIdAndRestaurantIdForUpdate(ticketId, restaurantId);
+        locks.verify(ticketRepository).findByIdAndRestaurantIdForUpdate(ticketId, restaurantId);
         ArgumentCaptor<AppNotification> notification = ArgumentCaptor.forClass(AppNotification.class);
         verify(notificationRepository).save(notification.capture());
         assertEquals(ticketId, notification.getValue().getQueueTicketId());

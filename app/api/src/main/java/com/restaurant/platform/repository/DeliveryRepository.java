@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,14 +16,38 @@ import java.util.UUID;
 public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
     Optional<Delivery> findByOrderId(UUID orderId);
 
-    Optional<Delivery> findByIdAndDriverUserId(UUID id, UUID driverUserId);
+    boolean existsByOrderIdAndDriverUserId(UUID orderId, UUID driverUserId);
 
-    List<Delivery> findByDriverUserIdAndStatusOrderByCreatedAtDesc(
-            UUID driverUserId, String status);
+    @Query("""
+            select d from Delivery d, Order o
+            where d.orderId = o.id and d.id = :deliveryId and o.restaurantId = :restaurantId
+            """)
+    Optional<Delivery> findByIdAndRestaurantId(
+            @Param("deliveryId") UUID deliveryId, @Param("restaurantId") UUID restaurantId);
+
+    @Query("""
+            select d from Delivery d, Order o
+            where d.orderId = o.id and d.id = :deliveryId and o.restaurantId = :restaurantId
+              and d.driverUserId = :driverUserId
+            """)
+    Optional<Delivery> findByIdAndRestaurantIdAndDriverUserId(
+            @Param("deliveryId") UUID deliveryId, @Param("restaurantId") UUID restaurantId,
+            @Param("driverUserId") UUID driverUserId);
+
+    @Query("""
+            select o.id from Delivery d, Order o
+            where d.orderId = o.id and d.id = :deliveryId and o.restaurantId = :restaurantId
+            """)
+    Optional<UUID> findOrderIdByDeliveryIdAndRestaurantId(
+            @Param("deliveryId") UUID deliveryId, @Param("restaurantId") UUID restaurantId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Delivery d where d.id = :deliveryId")
     Optional<Delivery> findByIdForUpdate(@Param("deliveryId") UUID deliveryId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Delivery d where d.orderId = :orderId")
+    Optional<Delivery> findByOrderIdForUpdate(@Param("orderId") UUID orderId);
 
     @Query(value = """
             select d from Delivery d, Order o

@@ -18,40 +18,85 @@ export function DeliveriesScreen() {
   const [status, setStatus] = useState("ALL");
   // Use the assigned-to-self endpoint for Staff as well as dedicated Drivers.
   const management = state.status === "ready" && ["OWNER", "MANAGER"].includes(state.membership.role);
-  const query = useApiQuery(signal => management
-    ? getOperationsApi().listDeliveries({ page, size: 20, status: status === "ALL" ? undefined : status }, { signal })
-    : getOperationsApi().listMyDeliveries({ page, size: 20, status: status === "ALL" ? undefined : status }, { signal }), `deliveries:${management}:${page}:${status}`);
+  const userId = state.status === "ready" ? state.userId : "";
+  const query = useApiQuery(async signal => {
+    const api = getOperationsApi();
+    const filters = { page, size: 20, status: status === "ALL" ? undefined : status };
+    if (management) return { kind: "management" as const, page: await api.listDeliveries(filters, { signal }) };
+    const result = await api.listMyDeliveries(filters, { signal });
+    const content = result.content.filter(delivery => delivery.driverUserId === userId)
+      .map(({ id, orderNumber, orderStatus, status, assignedAt }) => ({ id, orderNumber, orderStatus, status, assignedAt }));
+    return { kind: "assigned" as const, page: { ...result, content } };
+  }, `deliveries:${management}:${page}:${status}`);
   return <Page title="Deliveries" subtitle={management ? "Restaurant delivery activity" : "Deliveries assigned to you"} onRefresh={query.reload} refreshing={query.state.status === "loading"}>
     <Choices label="Delivery status" value={status} values={["ALL", ...DELIVERY_STATUSES]} onChange={value => { setStatus(value); setPage(0); }} />
     <QueryResult {...query}>{data => <>
-      {data.content.map(delivery => <DeliveryCard key={`${delivery.id}:${delivery.updatedAt}`} delivery={delivery} reload={query.reload} />)}
-      {!data.content.length ? <Card><Body>No deliveries match this filter.</Body></Card> : null}
-      <Body>Page {data.number + 1} of {Math.max(1, data.totalPages)} · {data.totalElements} deliveries</Body>
-      <Action title="Previous page" secondary disabled={data.first} onPress={() => setPage(value => Math.max(0, value - 1))} />
-      <Action title="Next page" secondary disabled={data.last} onPress={() => setPage(value => value + 1)} />
+      {data.kind === "management"
+        ? data.page.content.map(delivery => <ManagementDeliveryCard key={`${delivery.id}:${delivery.updatedAt}`} delivery={delivery} reload={query.reload} />)
+        : data.page.content.map(delivery => <AssignedDeliverySummary key={delivery.id} delivery={delivery} />)}
+      {!data.page.content.length ? <Card><Body>{data.kind === "assigned" && status === "ALL" ? "You have no deliveries assigned to you." : "No deliveries match this filter."}</Body></Card> : null}
+      <Body>Page {data.page.number + 1} of {Math.max(1, data.page.totalPages)} · {data.page.totalElements} deliveries</Body>
+      <Action title="Previous page" secondary disabled={data.page.first} onPress={() => setPage(value => Math.max(0, value - 1))} />
+      <Action title="Next page" secondary disabled={data.page.last} onPress={() => setPage(value => value + 1)} />
       <Action title="Refresh deliveries" secondary onPress={query.reload} />
     </>}</QueryResult>
     {management ? <DeliveryConfiguration /> : null}
   </Page>;
 }
 
-function DeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDto; reload(): void }) {
+function AssignedDeliverySummary({ delivery }: {
+  delivery: Pick<DeliveryTaskDto, "id" | "orderNumber" | "orderStatus" | "status" | "assignedAt">;
+}) {
+  return <Card title={delivery.orderNumber}>
+    <Body>{delivery.status.replaceAll("_", " ")} · Order {delivery.orderStatus.replaceAll("_", " ")}</Body>
+    {delivery.assignedAt ? <Body>Assigned {exactTimestamp(delivery.assignedAt)}</Body> : null}
+    <AssignedDeliveryLink deliveryId={delivery.id} />
+  </Card>;
+}
+
+function AssignedDeliveryLink({ deliveryId }: { deliveryId: string }) {
+  return <Link href={{ pathname: "/delivery/[deliveryId]", params: { deliveryId } }}>Open assigned delivery</Link>;
+}
+
+function canAssignDelivery(delivery: DeliveryTaskDto) {
+  return ["READY", "OUT_FOR_DELIVERY"].includes(delivery.orderStatus) && ["WAITING_ASSIGNMENT", "ASSIGNED", "FAILED"].includes(delivery.status);
+}
+
+function ManagementDeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDto; reload(): void }) {
   const { state } = useOperationsAuth();
   const role = state.status === "ready" ? state.membership.role : "";
   const userId = state.status === "ready" ? state.userId : "";
-  const management = ["OWNER", "MANAGER"].includes(role);
-  const canAssign = management && ["WAITING_ASSIGNMENT", "ASSIGNED", "FAILED"].includes(delivery.status);
+  const canAssign = canAssignDelivery(delivery);
   const mutation = useApiMutation();
   const [expanded, setExpanded] = useState(false);
   const [driver, setDriver] = useState(delivery.driverUserId ?? "");
   const [failureReason, setFailureReason] = useState("");
+  const [note, setNote] = useState("");
   const [cash, setCash] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const options = useApiQuery(signal => canAssign && expanded ? getOperationsApi().listDeliveryAssignmentOptions({ signal }) : Promise.resolve([]), `assignment:${canAssign}:${expanded}`);
+  const actions = deliveryActions(delivery, role, userId);
+  async function applyDeliveryAction(action: string) {
+    const api = getOperationsApi();
+    const fresh = await api.getDelivery(delivery.id);
+    if (fresh.updatedAt !== delivery.updatedAt || fresh.orderStatus !== delivery.orderStatus) {
+      throw new FormValidationError("The delivery changed. Refresh before applying an update.");
+    }
+    if (action === "ASSIGN" && canAssignDelivery(fresh)) {
+      return api.assignDriver(delivery.id, { driverUserId: driver, expectedUpdatedAt: fresh.updatedAt });
+    }
+    if (!deliveryActions(fresh, role, userId).includes(action)) {
+      throw new FormValidationError("This action is unavailable for the current delivery status.");
+    }
+    return api.updateDeliveryStatus(delivery.id, { status: action, note: note.trim() || null,
+      failureReason: action === "FAILED" ? failureReason.trim() : null, cashCollected: action === "DELIVERED" ? cash : null,
+      expectedUpdatedAt: fresh.updatedAt });
+  }
   return <Card title={delivery.orderNumber}>
     <Body>{delivery.status.replaceAll("_", " ")} · Order {delivery.orderStatus}</Body>
     <Body>{delivery.customerName ?? "Name unavailable"} · {delivery.customerPhone ?? "Phone unavailable"}</Body>
     <Body>{delivery.deliveryAddress ?? "Address unavailable"}</Body>
+    {delivery.driverUserId === userId ? <AssignedDeliveryLink deliveryId={delivery.id} /> : null}
     <Action title={expanded ? "Hide delivery details" : "Delivery details and actions"} secondary onPress={() => setExpanded(value => !value)} />
     {expanded ? <>
       <Body>{delivery.deliveryNote ?? "No delivery note"}</Body><Body>Order amount: {operationalAmount(delivery.totalAmount)} (payment state must be verified separately)</Body>
@@ -59,7 +104,7 @@ function DeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDto; reload(
       {delivery.pickedUpAt ? <Body>Picked up: {exactTimestamp(delivery.pickedUpAt)}</Body> : null}
       {delivery.deliveredAt ? <Body>Delivered: {exactTimestamp(delivery.deliveredAt)}</Body> : null}
       {delivery.failureReason ? <Body>Failure: {delivery.failureReason}</Body> : null}
-      {["OWNER", "MANAGER", "STAFF"].includes(role) ? <Link href={{ pathname: "/order/[orderId]", params: { orderId: delivery.orderId } }}>Open order and payments</Link> : null}
+      <Link href={{ pathname: "/order/[orderId]", params: { orderId: delivery.orderId } }}>Open order and payments</Link>
       <MutationFeedback {...mutation} />
       {canAssign ? <QueryResult {...options}>{members => <>
         <Body>Select an eligible member of this restaurant</Body>
@@ -67,17 +112,19 @@ function DeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDto; reload(
           title={`${option.fullName ?? option.email ?? option.userId} · ${option.role.replaceAll("_", " ")}${option.userId === userId ? " · You" : ""}`}
           selected={driver === option.userId} secondary={driver !== option.userId} disabled={mutation.busy} onPress={() => setDriver(option.userId)} />)}
         {!members.length ? <Body>No eligible restaurant members were found.</Body> : null}
-        <Action title="Assign / reassign member" disabled={mutation.busy || !members.some(member => member.userId === driver)} onPress={() => setPending("ASSIGN")} />
+        <Action title="Assign / reassign member" disabled={mutation.busy || delivery.status === "ASSIGNED" && delivery.driverUserId === driver
+          || !members.some(member => member.userId === driver)} onPress={() => setPending("ASSIGN")} />
       </>}</QueryResult> : null}
-      {deliveryActions(delivery, role, userId).includes("FAILED") ? <FormField label="Failure reason (required when marking failed)" value={failureReason} onChangeText={setFailureReason} maxLength={500} /> : null}
-      {deliveryActions(delivery, role, userId).includes("DELIVERED") ? <FormToggle label="I physically collected any cash due on delivery" value={cash} onChange={setCash} disabled={mutation.busy} /> : null}
-      {deliveryActions(delivery, role, userId).map(action => <Action key={action} title={`Mark ${action.toLowerCase().replaceAll("_", " ")}`} disabled={mutation.busy || action === "FAILED" && !failureReason.trim()}
+      {actions.length ? <FormField label="Delivery note for this update (optional)" value={note} onChangeText={setNote} maxLength={2000} editable={!mutation.busy} /> : null}
+      {actions.includes("FAILED") ? <FormField label="Failure reason (required when marking failed)" value={failureReason}
+        onChangeText={setFailureReason} maxLength={1000} editable={!mutation.busy} /> : null}
+      {actions.includes("DELIVERED") ? <FormToggle label="I physically collected any cash due on delivery" value={cash} onChange={setCash} disabled={mutation.busy} /> : null}
+      {actions.map(action => <Action key={action} title={`Mark ${action.toLowerCase().replaceAll("_", " ")}`} disabled={mutation.busy || action === "FAILED" && !failureReason.trim()}
         onPress={() => setPending(action)} />)}
     </> : null}
     <ConfirmDialog visible={pending !== null} title="Confirm delivery action" message={pending === "DELIVERED" ? `Complete delivery? Cash collection: ${cash ? "confirmed" : "not confirmed"}. Confirm you received any cash due before completing delivery.` : pending === "ASSIGN" ? "Assign this delivery to the selected restaurant member?" : pending === "CANCELLED" ? "Cancel this delivery task? The order and its payment stay unchanged. Review the order separately." : `Change delivery status to ${pending ?? ""}?`} confirmLabel="Confirm" onCancel={() => setPending(null)} onConfirm={() => {
       const action = pending; setPending(null); if (!action) return;
-      void mutation.run(() => action === "ASSIGN" ? getOperationsApi().assignDriver(delivery.id, { driverUserId: driver })
-        : getOperationsApi().updateDeliveryStatus(delivery.id, { status: action, failureReason: failureReason.trim() || null, cashCollected: action === "DELIVERED" ? cash : null }), reload);
+      void mutation.run(() => applyDeliveryAction(action), reload);
     }} />
   </Card>;
 }

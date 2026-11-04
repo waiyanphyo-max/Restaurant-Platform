@@ -11,11 +11,13 @@ export function orderActions(order: Pick<ManagerOrderDetailDto, "status" | "orde
 export function deliveryActions(delivery: DeliveryTaskDto, role: string, userId: string): string[] {
   const management = ["OWNER", "MANAGER"].includes(role);
   if (!management && (!["STAFF", "DELIVERY_DRIVER"].includes(role) || delivery.driverUserId !== userId)) return [];
+  const readyForPickup = delivery.status === "ASSIGNED" && delivery.orderStatus === "READY";
+  const outForDelivery = delivery.status === "PICKED_UP" && delivery.orderStatus === "OUT_FOR_DELIVERY";
   const actions: string[] = [];
-  if (delivery.status === "ASSIGNED" && delivery.orderStatus === "READY") actions.push("PICKED_UP");
-  if (delivery.status === "PICKED_UP" && delivery.orderStatus === "OUT_FOR_DELIVERY") actions.push("DELIVERED");
-  if (["ASSIGNED", "PICKED_UP"].includes(delivery.status)) actions.push("FAILED");
-  if (management && ["WAITING_ASSIGNMENT", "ASSIGNED"].includes(delivery.status)) actions.push("CANCELLED");
+  if (readyForPickup) actions.push("PICKED_UP");
+  if (outForDelivery) actions.push("DELIVERED");
+  if (readyForPickup || outForDelivery) actions.push("FAILED");
+  if (management && delivery.orderStatus === "READY" && ["WAITING_ASSIGNMENT", "ASSIGNED"].includes(delivery.status)) actions.push("CANCELLED");
   return actions;
 }
 export function searchOrders(orders: readonly OrderSummaryDto[], text: string, channel: string): OrderSummaryDto[] {

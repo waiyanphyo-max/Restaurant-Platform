@@ -59,7 +59,7 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   { id: "notifications", label: "Updates", path: "/notifications", status: "ready", roles: allRoles,
     requiredPermission: "RESTAURANT_READ", description: "Your notifications for the configured restaurant." },
   { id: "deliveries", label: "Deliveries", path: "/deliveries", status: "ready", roles: allRoles,
-    requiredPermission: "DELIVERY_READ", description: "Delivery operations; drivers see only their assigned tasks." },
+    requiredPermission: "DELIVERY_READ", description: "Restaurant delivery management and your assigned tasks." },
   { id: "profile", label: "Profile", path: "/profile", status: "ready", roles: allRoles,
     requiredPermission: "RESTAURANT_READ", description: "Your signed-in account, restaurant membership and sign out." }
 ];

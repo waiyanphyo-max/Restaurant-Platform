@@ -135,6 +135,11 @@ class PostgresMigrationSchemaTest {
     }
 
     @Test
+    void orderDeliveryCoordinatesAreImmutableAndAssignedReadsAreScoped() {
+        DeliveryLocationDatabaseChecks.verify(dataSource, entityManagerFactoryBean.getObject());
+    }
+
+    @Test
     void allMigrationsCreateTheExpectedSecurityAndCheckoutSchema() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 

@@ -2,10 +2,8 @@ package com.restaurant.platform.security;
 
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.entity.Delivery;
-import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.repository.DeliveryRepository;
-import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.repository.RestaurantMemberRepository;
 
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +29,6 @@ class RestaurantAuthorizationTest {
 
     private RestaurantMemberRepository memberRepository;
     private DeliveryRepository deliveryRepository;
-    private OrderRepository orderRepository;
     private RestaurantAuthorization authorization;
 
     private final UUID userId = UUID.randomUUID();
@@ -42,9 +39,8 @@ class RestaurantAuthorizationTest {
     void setUp() {
         memberRepository = mock(RestaurantMemberRepository.class);
         deliveryRepository = mock(DeliveryRepository.class);
-        orderRepository = mock(OrderRepository.class);
         authorization = new RestaurantAuthorization(
-                memberRepository, deliveryRepository, orderRepository);
+                memberRepository, deliveryRepository);
     }
 
     @AfterEach
@@ -104,10 +100,8 @@ class RestaurantAuthorizationTest {
 
         when(memberRepository.findByRestaurantIdAndUserId(restaurantA, userId))
                 .thenReturn(Optional.of(member(restaurantA, userId, role)));
-        when(deliveryRepository.findByIdAndDriverUserId(assignedDeliveryId, userId))
+        when(deliveryRepository.findByIdAndRestaurantIdAndDriverUserId(assignedDeliveryId, restaurantA, userId))
                 .thenReturn(Optional.of(assignedDelivery));
-        when(orderRepository.findByIdAndRestaurantId(assignedOrderId, restaurantA))
-                .thenReturn(Optional.of(new Order()));
 
         assertTrue(authorization.canAccessDelivery(restaurantA, assignedDeliveryId));
         assertTrue(authorization.canUpdateDeliveryStatus(restaurantA, assignedDeliveryId));
@@ -122,7 +116,7 @@ class RestaurantAuthorizationTest {
 
         when(memberRepository.findByRestaurantIdAndUserId(restaurantA, userId))
                 .thenReturn(Optional.of(member(restaurantA, userId, role)));
-        when(deliveryRepository.findByIdAndDriverUserId(otherDeliveryId, userId))
+        when(deliveryRepository.findByIdAndRestaurantIdAndDriverUserId(otherDeliveryId, restaurantA, userId))
                 .thenReturn(Optional.empty());
 
         assertFalse(authorization.canAccessDelivery(restaurantA, otherDeliveryId));
@@ -138,13 +132,10 @@ class RestaurantAuthorizationTest {
     void restaurantManagerCannotAccessDeliveryWhoseOrderBelongsToAnotherRestaurant() {
         authenticate(userId);
         UUID deliveryId = UUID.randomUUID();
-        UUID foreignOrderId = UUID.randomUUID();
 
         when(memberRepository.findByRestaurantIdAndUserId(restaurantA, userId))
                 .thenReturn(Optional.of(member(restaurantA, userId, RestaurantRole.MANAGER)));
-        when(deliveryRepository.findById(deliveryId))
-                .thenReturn(Optional.of(delivery(foreignOrderId)));
-        when(orderRepository.findByIdAndRestaurantId(foreignOrderId, restaurantA))
+        when(deliveryRepository.findByIdAndRestaurantId(deliveryId, restaurantA))
                 .thenReturn(Optional.empty());
 
         assertFalse(authorization.canAccessDelivery(restaurantA, deliveryId));

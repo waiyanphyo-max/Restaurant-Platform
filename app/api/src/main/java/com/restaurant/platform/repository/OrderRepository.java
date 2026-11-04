@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,6 +37,18 @@ public interface OrderRepository
     Optional<Order> findByQueueTicketId(
             UUID queueTicketId
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o where o.queueTicketId = :ticketId and o.restaurantId = :restaurantId")
+    Optional<Order> findByQueueTicketIdAndRestaurantIdForUpdate(
+            @Param("ticketId") UUID ticketId, @Param("restaurantId") UUID restaurantId);
+
+    List<QueueOrderLink> findByRestaurantIdAndQueueTicketIdIn(UUID restaurantId, Collection<UUID> ticketIds);
+
+    interface QueueOrderLink {
+        UUID getId();
+        UUID getQueueTicketId();
+    }
 
     Page<Order> findByRestaurantId(
             UUID restaurantId,

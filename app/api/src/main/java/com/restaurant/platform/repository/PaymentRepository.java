@@ -12,6 +12,8 @@ import java.util.List;
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     List<Payment> findByOrderIdOrderByCreatedAtDesc(UUID orderId);
 
+    boolean existsByOrderIdAndMethodAndStatus(UUID orderId, String method, String status);
+
     java.util.Optional<Payment> findByIdAndOrderId(UUID paymentId, UUID orderId);
 
     @Query(value = """

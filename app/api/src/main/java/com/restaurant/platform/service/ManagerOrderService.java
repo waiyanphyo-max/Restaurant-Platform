@@ -205,26 +205,34 @@ public class ManagerOrderService {
                                 .toList()))
                 .toList();
 
-        List<OrderStatusHistoryDto> historyDtos = orderStatusHistoryRepository
-                .findByOrderIdOrderByCreatedAtAsc(orderId)
+        var history = orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(orderId);
+        boolean showDeliveryDetails = !"DELIVERY".equals(order.getOrderType())
+                || deliveryService.canViewOrderDeliveryDetails(order);
+
+        List<OrderStatusHistoryDto> historyDtos = history
                 .stream()
-                .map(history -> new OrderStatusHistoryDto(
-                        history.getId(),
-                        history.getStatus(),
-                        history.getChangedByUserId(),
-                        history.getNote(),
-                        history.getCreatedAt()))
+                .map(historyEntry -> {
+                    UUID changedBy = historyEntry.getChangedByUserId();
+                    boolean hideCustomerActor = !showDeliveryDetails && changedBy != null
+                            && changedBy.equals(order.getCustomerId());
+                    return new OrderStatusHistoryDto(
+                            historyEntry.getId(),
+                            historyEntry.getStatus(),
+                            hideCustomerActor ? null : changedBy,
+                            showDeliveryDetails ? historyEntry.getNote() : null,
+                            historyEntry.getCreatedAt());
+                })
                 .toList();
 
         return new ManagerOrderDetailDto(
                 order.getId(),
                 order.getRestaurantId(),
                 order.getOrderNumber(),
-                order.getCustomerId(),
-                order.getCreatedByUserId(),
+                showDeliveryDetails ? order.getCustomerId() : null,
+                showDeliveryDetails ? order.getCreatedByUserId() : null,
                 order.getTableId(),
                 order.getQueueTicketId(),
-                order.getDeliveryZoneId(),
+                showDeliveryDetails ? order.getDeliveryZoneId() : null,
                 order.getOrderType(),
                 order.getOrderChannel(),
                 order.getStatus(),
@@ -232,10 +240,10 @@ public class ManagerOrderService {
                 order.getDeliveryFee(),
                 order.getDiscountAmount(),
                 order.getTotalAmount(),
-                order.getDeliveryName(),
-                order.getDeliveryPhone(),
-                order.getDeliveryAddress(),
-                order.getDeliveryNote(),
+                showDeliveryDetails ? order.getDeliveryName() : null,
+                showDeliveryDetails ? order.getDeliveryPhone() : null,
+                showDeliveryDetails ? order.getDeliveryAddress() : null,
+                showDeliveryDetails ? order.getDeliveryNote() : null,
                 order.getCreatedAt(),
                 order.getUpdatedAt(),
                 itemDtos,
@@ -369,7 +377,7 @@ public class ManagerOrderService {
         // 11. Synchronize queue status and create notifications.
         if (queueStatusWillChange) {
             QueueTicket ticket = queueTicketRepository
-                    .findById(order.getQueueTicketId())
+                    .findByIdAndRestaurantIdForUpdate(order.getQueueTicketId(), restaurantId)
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.CONFLICT,
                             "Queue ticket not found"

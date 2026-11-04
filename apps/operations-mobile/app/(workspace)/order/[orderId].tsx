@@ -4,5 +4,5 @@ import { OrderDetailScreen } from "../../../src/features/operations/OrderDetailS
 
 export default function OrderDetailRoute() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
-  return <ScreenGuard screenId="orders"><OrderDetailScreen orderId={orderId} /></ScreenGuard>;
+  return <ScreenGuard screenId="orders"><OrderDetailScreen key={orderId} orderId={orderId} /></ScreenGuard>;
 }

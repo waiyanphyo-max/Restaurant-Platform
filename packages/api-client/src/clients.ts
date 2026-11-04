@@ -1,5 +1,5 @@
 import type {
-  AssignDeliveryDriverRequest, CreateDeliveryOrderRequest, CreateOrderResponse,
+  AssignedDeliveryDetailDto, AssignDeliveryDriverRequest, CreateDeliveryOrderRequest, CreateOrderResponse,
   CreateQrOrderRequest, CreateStaffOrderRequest, CreateStaffOrderResponse,
   CustomerAddressRequest, CustomerAddressResponse, CustomerProfileRequest,
   CustomerProfileResponse, DeliveryTaskDto, DeliveryZoneDto, ManagerOrderDetailDto,
@@ -251,6 +251,8 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
       transport.request({ method: "PATCH", path: `${prefix}/queue-tickets/${requireUuid(id, "ticketId")}/call`, options: o }),
     listDeliveries: (q: PageQuery = {}, o?: ApiRequestOptions) => read<SpringPage<DeliveryTaskDto>>(transport, `${prefix}/deliveries`, o, pageQuery(q)),
     listMyDeliveries: (q: PageQuery = {}, o?: ApiRequestOptions) => read<SpringPage<DeliveryTaskDto>>(transport, `${prefix}/deliveries/mine`, o, pageQuery(q)),
+    getMyDelivery: (id: string, o?: ApiRequestOptions) => read<AssignedDeliveryDetailDto>(
+      transport, `${prefix}/deliveries/mine/${requireUuid(id, "deliveryId")}`, o),
     getDelivery: (id: string, o?: ApiRequestOptions) => read<DeliveryTaskDto>(transport, deliveryPath(id), o),
     assignDriver: (id: string, body: AssignDeliveryDriverRequest, o?: ApiRequestOptions): Promise<DeliveryTaskDto> =>
       transport.request({ method: "PATCH", path: `${deliveryPath(id)}/assign`, body, options: o }),

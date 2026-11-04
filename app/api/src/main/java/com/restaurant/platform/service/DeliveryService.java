@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -117,11 +118,15 @@ public class DeliveryService {
 
     @Transactional(readOnly = true)
     public DeliveryTaskDto getDelivery(UUID restaurantId, UUID deliveryId) {
-        authorization.requireDeliveryAccess(restaurantId, deliveryId);
-        Delivery delivery = deliveryRepository.findById(deliveryId)
-                .orElseThrow(this::deliveryNotFound);
+        Delivery delivery = authorization.requireDeliveryAccess(restaurantId, deliveryId);
         Order order = requireOrder(delivery, restaurantId);
         return toTask(delivery, order);
+    }
+
+    boolean canViewOrderDeliveryDetails(Order order) {
+        UUID actorUserId = authorization.requireAuthenticatedUserId();
+        return authorization.hasPermission(order.getRestaurantId(), RestaurantPermission.DELIVERY_ASSIGN)
+                || deliveryRepository.existsByOrderIdAndDriverUserId(order.getId(), actorUserId);
     }
 
     @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).DELIVERY_ASSIGN)")
@@ -138,16 +143,18 @@ public class DeliveryService {
                     "DELIVERY_DRIVER_REQUIRED", "error.delivery.driver-required");
         }
 
-        // Lock order first, then delivery. All workflow writes use this lock order.
-        Delivery probe = deliveryRepository.findById(deliveryId)
-                .orElseThrow(this::deliveryNotFound);
-        Order order = orderRepository.findByIdAndRestaurantIdForUpdate(
-                        probe.getOrderId(), restaurantId)
-                .orElseThrow(this::deliveryNotFound);
+        Order order = lockOrderForDelivery(restaurantId, deliveryId);
         Delivery delivery = deliveryRepository.findByIdForUpdate(deliveryId)
                 .orElseThrow(this::deliveryNotFound);
         requireDeliveryOrder(order);
+        requireCurrentRevision(delivery, request.expectedUpdatedAt());
         requireAssignableStatus(delivery.getStatus());
+        boolean retryAfterPickup = "FAILED".equals(delivery.getStatus())
+                && "OUT_FOR_DELIVERY".equals(order.getStatus());
+        if (!"READY".equals(order.getStatus()) && !retryAfterPickup) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "DELIVERY_CANNOT_BE_REASSIGNED", "error.delivery.cannot-reassign");
+        }
 
         RestaurantMember assignee = memberRepository
                 .findEligibleDeliveryMemberForUpdate(restaurantId, request.driverUserId())
@@ -156,8 +163,12 @@ public class DeliveryService {
                         "INVALID_DELIVERY_DRIVER",
                         "error.delivery.ineligible-assignee"));
 
-        if ("FAILED".equals(delivery.getStatus())
-                && "OUT_FOR_DELIVERY".equals(order.getStatus())) {
+        UUID previousAssignee = delivery.getDriverUserId();
+        if (assignee.getUserId().equals(previousAssignee) && "ASSIGNED".equals(delivery.getStatus())) {
+            return toTask(delivery, order);
+        }
+
+        if (retryAfterPickup) {
             order.setStatus("READY");
             orderRepository.save(order);
             recordOrderStatus(order, actorUserId, "READY",
@@ -171,14 +182,19 @@ public class DeliveryService {
         delivery.setDeliveredAt(null);
         delivery.setFailureReason(null);
         delivery.setStatus("ASSIGNED");
-        deliveryRepository.save(delivery);
-        recordDeliveryStatus(delivery, actorUserId, "ASSIGNED",
-                request.note() == null || request.note().isBlank()
-                        ? "Delivery assigned by restaurant management."
-                        : request.note().trim());
+        deliveryRepository.saveAndFlush(delivery);
+        String assignment = previousAssignee == null
+                ? "Assigned to " + assignee.getUserId() + "."
+                : "Assignment changed from " + previousAssignee + " to " + assignee.getUserId() + ".";
+        recordDeliveryStatus(delivery, actorUserId, "ASSIGNED", appendNote(assignment, request.note()));
         createNotification(assignee.getUserId(), order, "DELIVERY_ASSIGNED",
                 "New delivery assigned",
                 "Order " + order.getOrderNumber() + " is ready for delivery.");
+        if (previousAssignee != null && !previousAssignee.equals(assignee.getUserId())) {
+            createNotification(previousAssignee, order, "DELIVERY_REASSIGNED",
+                    "Delivery reassigned",
+                    "You are no longer assigned to order " + order.getOrderNumber() + ".");
+        }
         return toTask(delivery, order);
     }
 
@@ -206,16 +222,12 @@ public class DeliveryService {
                     "INVALID_DELIVERY_STATUS", "error.delivery.invalid-status");
         }
 
-        // Lock order first, then delivery so the order and delivery statuses stay consistent.
-        Delivery probe = deliveryRepository.findById(deliveryId)
-                .orElseThrow(this::deliveryNotFound);
-        Order order = orderRepository.findByIdAndRestaurantIdForUpdate(
-                        probe.getOrderId(), restaurantId)
-                .orElseThrow(this::deliveryNotFound);
+        Order order = lockOrderForDelivery(restaurantId, deliveryId);
         Delivery delivery = deliveryRepository.findByIdForUpdate(deliveryId)
                 .orElseThrow(this::deliveryNotFound);
-        authorization.requireDeliveryAccess(restaurantId, deliveryId);
+        requireLockedDeliveryAccess(order, delivery, actorUserId);
         requireDeliveryOrder(order);
+        requireCurrentRevision(delivery, request.expectedUpdatedAt());
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         String currentStatus = delivery.getStatus();
@@ -252,7 +264,8 @@ public class DeliveryService {
             }
             case "FAILED" -> {
                 requireTransition(
-                        "ASSIGNED".equals(currentStatus) || "PICKED_UP".equals(currentStatus),
+                        ("ASSIGNED".equals(currentStatus) && "READY".equals(order.getStatus()))
+                                || ("PICKED_UP".equals(currentStatus) && "OUT_FOR_DELIVERY".equals(order.getStatus())),
                         currentStatus, nextStatus);
                 if (request.failureReason() == null || request.failureReason().isBlank()) {
                     throw new ApiException(HttpStatus.BAD_REQUEST,
@@ -269,8 +282,8 @@ public class DeliveryService {
                 authorization.requirePermission(
                         restaurantId, RestaurantPermission.DELIVERY_ASSIGN);
                 requireTransition(
-                        "WAITING_ASSIGNMENT".equals(currentStatus)
-                                || "ASSIGNED".equals(currentStatus),
+                        "READY".equals(order.getStatus()) && ("WAITING_ASSIGNMENT".equals(currentStatus)
+                                || "ASSIGNED".equals(currentStatus)),
                         currentStatus, nextStatus);
                 delivery.setStatus("CANCELLED");
             }
@@ -278,10 +291,10 @@ public class DeliveryService {
                     "INVALID_DELIVERY_STATUS", "error.delivery.invalid-status");
         }
 
-        deliveryRepository.save(delivery);
-        String note = request.note() == null || request.note().isBlank()
-                ? request.failureReason()
-                : request.note().trim();
+        deliveryRepository.saveAndFlush(delivery);
+        String note = "FAILED".equals(nextStatus)
+                ? appendNote("Failure reason: " + delivery.getFailureReason(), request.note())
+                : (request.note() == null || request.note().isBlank() ? null : request.note().trim());
         recordDeliveryStatus(delivery, actorUserId, nextStatus, note);
         return toTask(delivery, order);
     }
@@ -355,7 +368,7 @@ public class DeliveryService {
         recordDeliveryStatus(delivery, actorUserId, delivery.getStatus(),
                 driverUserId == null
                         ? "Delivery created; no eligible delivery driver is available."
-                        : "Automatically assigned to the restaurant default driver.");
+                        : "Automatically assigned to the restaurant default driver " + driverUserId + ".");
 
         if (driverUserId != null) {
             createNotification(driverUserId, order, "DELIVERY_ASSIGNED",
@@ -381,14 +394,14 @@ public class DeliveryService {
             return;
         }
 
-        Delivery probe = deliveryRepository.findByOrderId(order.getId())
+        authorization.requireAuthenticatedUserMatches(actorUserId);
+        authorization.requirePermission(order.getRestaurantId(), RestaurantPermission.DELIVERY_STATUS_UPDATE);
+        Delivery delivery = deliveryRepository.findByOrderIdForUpdate(order.getId())
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.CONFLICT,
                         "DELIVERY_NOT_READY_FOR_STATUS_CHANGE",
                         "error.delivery.assignment-required"));
-        Delivery delivery = deliveryRepository.findByIdForUpdate(probe.getId())
-                .orElseThrow(this::deliveryNotFound);
-        authorization.requireDeliveryAccess(order.getRestaurantId(), delivery.getId());
+        requireLockedDeliveryAccess(order, delivery, actorUserId);
 
         if (pickup) {
             requireTransition("ASSIGNED".equals(delivery.getStatus()),
@@ -487,6 +500,33 @@ public class DeliveryService {
                 .orElseThrow(this::deliveryNotFound);
     }
 
+    private Order lockOrderForDelivery(UUID restaurantId, UUID deliveryId) {
+        // Read only the ID here so Hibernate loads the delivery state for the first time under the write lock.
+        UUID orderId = deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId)
+                .orElseThrow(this::deliveryNotFound);
+        return orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)
+                .orElseThrow(this::deliveryNotFound);
+    }
+
+    private void requireLockedDeliveryAccess(Order order, Delivery delivery, UUID actorUserId) {
+        if (!order.getId().equals(delivery.getOrderId())
+                || (!actorUserId.equals(delivery.getDriverUserId())
+                && !authorization.hasPermission(order.getRestaurantId(), RestaurantPermission.DELIVERY_ASSIGN))) {
+            throw deliveryNotFound();
+        }
+    }
+
+    private void requireCurrentRevision(Delivery delivery, OffsetDateTime expectedUpdatedAt) {
+        if (expectedUpdatedAt != null && (delivery.getUpdatedAt() == null
+                || !expectedUpdatedAt.isEqual(delivery.getUpdatedAt()))) {
+            throw new ApiException(HttpStatus.CONFLICT, "STALE_DELIVERY", "error.delivery.stale");
+        }
+    }
+
+    private String appendNote(String message, String note) {
+        return note == null || note.isBlank() ? message : message + "\n" + note.trim();
+    }
+
     private RestaurantSettings requireSettings(UUID restaurantId) {
         return settingsRepository.findById(restaurantId)
                 .orElseThrow(() -> new ApiException(
@@ -561,7 +601,7 @@ public class DeliveryService {
         notificationRepository.save(notification);
     }
 
-    private DeliveryTaskDto toTask(Delivery delivery, Order order) {
+    static DeliveryTaskDto toTask(Delivery delivery, Order order) {
         return new DeliveryTaskDto(
                 delivery.getId(),
                 order.getId(),

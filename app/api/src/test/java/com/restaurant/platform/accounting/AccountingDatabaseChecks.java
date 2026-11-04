@@ -4,7 +4,6 @@ import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.entity.RestaurantSettings;
 import com.restaurant.platform.repository.DeliveryRepository;
-import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.repository.RestaurantMemberRepository;
 import com.restaurant.platform.repository.RestaurantSettingsRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
@@ -52,7 +51,7 @@ public final class AccountingDatabaseChecks {
         record.setTimezone("Asia/Yangon");
         record.setCurrency("MMK");
         when(settings.findById(f.restaurant)).thenReturn(Optional.of(record));
-        var auth = new RestaurantAuthorization(members, mock(DeliveryRepository.class), mock(OrderRepository.class));
+        var auth = new RestaurantAuthorization(members, mock(DeliveryRepository.class));
         var support = new AccountingSupport(f.jdbc, auth, settings);
         var jdbc = new NamedParameterJdbcTemplate(f.jdbc);
         var sales = new SalesAccountingService(jdbc, support);

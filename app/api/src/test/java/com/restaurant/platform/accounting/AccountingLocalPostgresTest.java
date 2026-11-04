@@ -1,6 +1,7 @@
 package com.restaurant.platform.accounting;
 
 import com.restaurant.platform.integration.DeliveryEligibilityDatabaseChecks;
+import com.restaurant.platform.integration.DeliveryLocationDatabaseChecks;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -23,7 +24,7 @@ class AccountingLocalPostgresTest {
     @Test void concurrentRetriesAndTenantConstraints() throws Exception { AccountingDatabaseChecks.concurrentRetriesAndTenantConstraints(disposableSource()); }
     @Test void clientAccessAndImmutableHistory() { AccountingDatabaseChecks.clientDatabaseAccessAndImmutableHistory(disposableSource()); }
     @Test void sharedManagerAccounting() { AccountingDatabaseChecks.sharedManagerAccounting(disposableSource()); }
-    @Test void hibernateValidatesEntityMappingsAndDeliveryEligibility() {
+    @Test void hibernateValidatesEntityMappingsAndDeliveryQueries() {
         var factory = new LocalContainerEntityManagerFactoryBean();
         var source = disposableSource();
         factory.setDataSource(source);
@@ -34,6 +35,7 @@ class AccountingLocalPostgresTest {
         try {
             factory.afterPropertiesSet(); assertNotNull(factory.getObject()); assertTrue(factory.getObject().isOpen());
             DeliveryEligibilityDatabaseChecks.verify(source, factory.getObject());
+            DeliveryLocationDatabaseChecks.verify(source, factory.getObject());
         } finally { factory.destroy(); }
     }
 }

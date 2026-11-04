@@ -195,7 +195,7 @@ class PlatformAdminEndpointsHttpIntegrationTest {
         RestaurantAuthorization restaurantAuthorization() {
             // This method reads the authenticated JwtAuthenticationToken subject only;
             // repository collaborators are unnecessary for platform allowlist checks.
-            return new RestaurantAuthorization(null, null, null);
+            return new RestaurantAuthorization(null, null);
         }
 
         @Bean

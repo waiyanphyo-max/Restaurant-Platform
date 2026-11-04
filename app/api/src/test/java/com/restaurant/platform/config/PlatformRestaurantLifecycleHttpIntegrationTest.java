@@ -164,7 +164,7 @@ class PlatformRestaurantLifecycleHttpIntegrationTest {
     static class TestBeans {
         @Bean("restaurantAuthorization")
         RestaurantAuthorization restaurantAuthorization() {
-            return new RestaurantAuthorization(null, null, null);
+            return new RestaurantAuthorization(null, null);
         }
 
         @Bean("platformAdminAuthorization")

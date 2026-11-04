@@ -27,8 +27,10 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -90,13 +92,23 @@ public class QueueManagementService {
             return List.of();
         }
 
-        return queueTicketRepository
+        List<QueueTicket> tickets = queueTicketRepository
                 .findByDailyCounterIdOrderByQueueNumberAsc(counter.getId())
                 .stream()
                 .filter(ticket -> normalizedStatus == null
                         ? ACTIVE_STATUSES.contains(ticket.getStatus())
                         : normalizedStatus.equals(ticket.getStatus()))
-                .map(this::toDto)
+                .toList();
+        if (tickets.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, UUID> orderIds = orderRepository.findByRestaurantIdAndQueueTicketIdIn(
+                        restaurantId, tickets.stream().map(QueueTicket::getId).toList())
+                .stream().collect(Collectors.toMap(OrderRepository.QueueOrderLink::getQueueTicketId,
+                        OrderRepository.QueueOrderLink::getId));
+        return tickets.stream()
+                .map(ticket -> toDto(ticket, orderIds.get(ticket.getId())))
                 .toList();
     }
 
@@ -105,6 +117,8 @@ public class QueueManagementService {
     public QueueTicketManagerDto callTicket(UUID restaurantId, UUID ticketId) {
         restaurantAuthorization.requirePermission(restaurantId, RestaurantPermission.QUEUE_MANAGE);
 
+        // Match order status updates: lock the linked order before the queue ticket.
+        Order order = orderRepository.findByQueueTicketIdAndRestaurantIdForUpdate(ticketId, restaurantId).orElse(null);
         QueueTicket ticket = queueTicketRepository
                 .findByIdAndRestaurantIdForUpdate(ticketId, restaurantId)
                 .orElseThrow(() -> new ApiException(
@@ -127,7 +141,6 @@ public class QueueManagementService {
 
         AppNotification notification = new AppNotification();
         notification.setQueueTicketId(saved.getId());
-        Order order = orderRepository.findByQueueTicketId(saved.getId()).orElse(null);
         if (order != null) {
             notification.setOrderId(order.getId());
             if (order.getCustomerId() != null) {
@@ -142,10 +155,10 @@ public class QueueManagementService {
         notification.setStatus("PENDING");
         notificationRepository.save(notification);
 
-        return toDto(saved);
+        return toDto(saved, order == null ? null : order.getId());
     }
 
-    private QueueTicketManagerDto toDto(QueueTicket ticket) {
+    private QueueTicketManagerDto toDto(QueueTicket ticket, UUID orderId) {
         return new QueueTicketManagerDto(
                 ticket.getId(),
                 ticket.getQueueNumber(),
@@ -154,6 +167,7 @@ public class QueueManagementService {
                 ticket.getCreatedAt(),
                 ticket.getReadyAt(),
                 ticket.getCalledAt(),
-                ticket.getCompletedAt());
+                ticket.getCompletedAt(),
+                orderId);
     }
 }

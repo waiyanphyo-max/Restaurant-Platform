@@ -9,9 +9,12 @@ import com.restaurant.platform.repository.*;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -178,8 +181,10 @@ class CustomerDeliveryCheckoutTest {
         verifyNoInteractions(productRepository, orderRepository, paymentRepository);
     }
 
-    @Test
-    void successfulCheckoutUsesDatabasePricesAndCreatesPendingCodPayment() {
+    @ParameterizedTest
+    @CsvSource({"0, 96.125, 0, 96.125", "16, , , ", "91, 96, , ", ", , , "})
+    void successfulCheckoutSnapshotsSelectedAddressAndCreatesPendingCodPayment(
+            BigDecimal latitude, BigDecimal longitude, BigDecimal expectedLatitude, BigDecimal expectedLongitude) {
         Restaurant restaurant = new Restaurant();
         when(restaurantRepository.findByIdAndIsActiveTrue(restaurantId))
                 .thenReturn(Optional.of(restaurant));
@@ -199,6 +204,8 @@ class CustomerDeliveryCheckoutTest {
         address.setStreet("Main Road");
         address.setTownship("Township");
         address.setCity("City");
+        address.setLatitude(latitude);
+        address.setLongitude(longitude);
         when(addressRepository.findByIdAndUserId(addressId, userId))
                 .thenReturn(Optional.of(address));
 
@@ -271,6 +278,10 @@ class CustomerDeliveryCheckoutTest {
                 com.restaurant.platform.entity.Order.class);
         verify(orderRepository).saveAndFlush(orderCaptor.capture());
         var savedOrder = orderCaptor.getValue();
+        address.setLatitude(BigDecimal.TEN);
+        address.setLongitude(BigDecimal.TEN);
+        assertEquals(expectedLatitude, savedOrder.getDeliveryLatitude());
+        assertEquals(expectedLongitude, savedOrder.getDeliveryLongitude());
         assertEquals(userId, savedOrder.getCustomerId());
         assertEquals(userId, savedOrder.getCreatedByUserId());
         assertEquals(zoneId, savedOrder.getDeliveryZoneId());

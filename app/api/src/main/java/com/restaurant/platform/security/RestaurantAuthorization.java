@@ -1,5 +1,6 @@
 package com.restaurant.platform.security;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -13,7 +14,6 @@ import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.entity.Delivery;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.repository.DeliveryRepository;
-import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.repository.RestaurantMemberRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,6 @@ public class RestaurantAuthorization {
 
     private final RestaurantMemberRepository memberRepository;
     private final DeliveryRepository deliveryRepository;
-    private final OrderRepository orderRepository;
 
     /**
      * Returns false if the current user is not authenticated or lacks the
@@ -94,9 +93,13 @@ public class RestaurantAuthorization {
      * delivery read access must be assigned to the restaurant-scoped task.
      */
     public boolean canAccessDelivery(UUID restaurantId, UUID deliveryId) {
+        return findAccessibleDelivery(restaurantId, deliveryId).isPresent();
+    }
+
+    private Optional<Delivery> findAccessibleDelivery(UUID restaurantId, UUID deliveryId) {
         UUID userId = getCurrentUserIdOrNull();
         if (restaurantId == null || deliveryId == null || userId == null) {
-            return false;
+            return Optional.empty();
         }
 
         RestaurantMember member = memberRepository
@@ -105,34 +108,26 @@ public class RestaurantAuthorization {
 
         if (member == null || member.getRole() == null
                 || !member.getRole().allows(RestaurantPermission.DELIVERY_READ)) {
-            return false;
+            return Optional.empty();
         }
 
         if (!member.getRole().allows(RestaurantPermission.DELIVERY_ASSIGN)) {
-            return deliveryRepository
-                    .findByIdAndDriverUserId(deliveryId, userId)
-                    .map(delivery -> orderBelongsToRestaurant(delivery, restaurantId))
-                    .orElse(false);
+            return deliveryRepository.findByIdAndRestaurantIdAndDriverUserId(deliveryId, restaurantId, userId);
         }
 
-        return deliveryRepository.findById(deliveryId)
-                .map(delivery -> orderBelongsToRestaurant(delivery, restaurantId))
-                .orElse(false);
+        return deliveryRepository.findByIdAndRestaurantId(deliveryId, restaurantId);
     }
 
     /**
      * Use for delivery detail/status operations that must not reveal whether a
      * delivery exists outside the caller's permitted scope.
      */
-    public void requireDeliveryAccess(UUID restaurantId, UUID deliveryId) {
+    public Delivery requireDeliveryAccess(UUID restaurantId, UUID deliveryId) {
         requireAuthenticatedUserId();
 
-        if (!canAccessDelivery(restaurantId, deliveryId)) {
-            throw new ApiException(
-                    HttpStatus.NOT_FOUND,
-                    "DELIVERY_NOT_FOUND",
-                    "error.delivery.not-found");
-        }
+        return findAccessibleDelivery(restaurantId, deliveryId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "DELIVERY_NOT_FOUND", "error.delivery.not-found"));
     }
 
     public boolean canUpdateDeliveryStatus(UUID restaurantId, UUID deliveryId) {
@@ -148,15 +143,7 @@ public class RestaurantAuthorization {
                 && deliveryId != null
                 && userId != null
                 && hasPermission(restaurantId, userId, RestaurantPermission.DELIVERY_ASSIGN)
-                && deliveryRepository.findById(deliveryId)
-                        .map(delivery -> orderBelongsToRestaurant(delivery, restaurantId))
-                        .orElse(false);
-    }
-
-    private boolean orderBelongsToRestaurant(Delivery delivery, UUID restaurantId) {
-        return delivery.getOrderId() != null
-                && orderRepository.findByIdAndRestaurantId(
-                        delivery.getOrderId(), restaurantId).isPresent();
+                && deliveryRepository.findByIdAndRestaurantId(deliveryId, restaurantId).isPresent();
     }
 
     private boolean hasPermission(
