@@ -34,6 +34,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -154,7 +155,8 @@ class DeliveryServiceTest {
     void driverPickupUpdatesDeliveryAndLinkedOrderInSameWorkflow() {
         Delivery delivery = delivery("ASSIGNED");
         Order order = order("READY");
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
+                .thenReturn(Optional.of(orderId));
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
                 .thenReturn(Optional.of(order));
         when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
@@ -169,15 +171,13 @@ class DeliveryServiceTest {
         assertNotNull(delivery.getPickedUpAt());
         verify(orderRepository).save(order);
         verify(orderHistoryRepository).save(any(OrderStatusHistory.class));
+        verify(deliveryRepository).saveAndFlush(delivery);
         verify(deliveryHistoryRepository).save(any(DeliveryStatusHistory.class));
-        verify(authorization).requireDeliveryAccess(restaurantId, deliveryId);
     }
 
     @Test
     void deliveryCannotBeUpdatedThroughAnotherRestaurantsRoute() {
-        Delivery delivery = delivery("ASSIGNED");
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
-        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
                 .thenReturn(Optional.empty());
 
         ApiException error = assertThrows(ApiException.class, () ->
@@ -186,15 +186,17 @@ class DeliveryServiceTest {
                         new UpdateDeliveryStatusRequest("PICKED_UP", null, null, null)));
 
         assertEquals("DELIVERY_NOT_FOUND", error.getCode());
+        verifyNoInteractions(orderRepository);
         verify(deliveryRepository, never()).findByIdForUpdate(any(UUID.class));
-        verify(deliveryRepository, never()).save(any(Delivery.class));
+        verify(deliveryRepository, never()).saveAndFlush(any(Delivery.class));
     }
 
     @Test
     void failedDeliveryRequiresAReasonAndDoesNotChangeStateWithoutOne() {
         Delivery delivery = delivery("ASSIGNED");
         Order order = order("READY");
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
+                .thenReturn(Optional.of(orderId));
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
                 .thenReturn(Optional.of(order));
         when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
@@ -206,7 +208,7 @@ class DeliveryServiceTest {
 
         assertEquals("DELIVERY_FAILURE_REASON_REQUIRED", error.getCode());
         assertEquals("ASSIGNED", delivery.getStatus());
-        verify(deliveryRepository, never()).save(any(Delivery.class));
+        verify(deliveryRepository, never()).saveAndFlush(any(Delivery.class));
     }
 
     @Test
@@ -214,7 +216,8 @@ class DeliveryServiceTest {
         Delivery delivery = delivery("PICKED_UP");
         Order order = order("OUT_FOR_DELIVERY");
         Payment payment = cashOnDeliveryPayment();
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
+                .thenReturn(Optional.of(orderId));
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
                 .thenReturn(Optional.of(order));
         when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
@@ -229,7 +232,7 @@ class DeliveryServiceTest {
         assertEquals("PICKED_UP", delivery.getStatus());
         assertEquals("OUT_FOR_DELIVERY", order.getStatus());
         assertEquals("PENDING", payment.getStatus());
-        verify(deliveryRepository, never()).save(any(Delivery.class));
+        verify(deliveryRepository, never()).saveAndFlush(any(Delivery.class));
         verify(paymentRepository, never()).save(any(Payment.class));
     }
 
@@ -238,7 +241,8 @@ class DeliveryServiceTest {
         Delivery delivery = delivery("PICKED_UP");
         Order order = order("OUT_FOR_DELIVERY");
         Payment payment = cashOnDeliveryPayment();
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
+                .thenReturn(Optional.of(orderId));
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
                 .thenReturn(Optional.of(order));
         when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
@@ -263,17 +267,17 @@ class DeliveryServiceTest {
     void managerCannotBypassPendingCashOnDeliveryConfirmation() {
         Order order = order("OUT_FOR_DELIVERY");
         Delivery delivery = delivery("PICKED_UP");
-        when(deliveryRepository.findByOrderId(orderId)).thenReturn(Optional.of(delivery));
-        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(delivery));
         when(paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId))
                 .thenReturn(List.of(cashOnDeliveryPayment()));
+        var managerService = authenticatedService(managerId, RestaurantRole.MANAGER);
 
         ApiException error = assertThrows(ApiException.class, () ->
-                service.synchronizeManagerOrderStatus(order, managerId, "COMPLETED"));
+                managerService.synchronizeManagerOrderStatus(order, managerId, "COMPLETED"));
 
         assertEquals("CASH_COLLECTION_REQUIRED", error.getCode());
         assertEquals("PICKED_UP", delivery.getStatus());
-        verify(deliveryRepository, never()).save(any(Delivery.class));
+        verify(deliveryRepository, never()).saveAndFlush(any(Delivery.class));
     }
 
     private Payment cashOnDeliveryPayment() {
@@ -301,7 +305,8 @@ class DeliveryServiceTest {
     @EnumSource(RestaurantRole.class)
     void managerCanAssignEveryEligibleMembershipRoleIncludingSelf(RestaurantRole targetRole) {
         Delivery delivery = delivery("WAITING_ASSIGNMENT");
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
+                .thenReturn(Optional.of(orderId));
         when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order("READY")));
         UUID assignee = targetRole == RestaurantRole.MANAGER ? managerId : UUID.randomUUID();
@@ -319,7 +324,8 @@ class DeliveryServiceTest {
     @Test
     void managerCannotAssignAnIneligibleOrForeignMember() {
         Delivery delivery = delivery("WAITING_ASSIGNMENT");
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
+                .thenReturn(Optional.of(orderId));
         when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order("READY")));
         var managerService = authenticatedService(managerId, RestaurantRole.MANAGER);
@@ -328,7 +334,7 @@ class DeliveryServiceTest {
                 restaurantId, deliveryId, managerId, new AssignDeliveryDriverRequest(UUID.randomUUID(), null)));
 
         assertEquals("INVALID_DELIVERY_DRIVER", error.getCode());
-        verify(deliveryRepository, never()).save(any());
+        verify(deliveryRepository, never()).saveAndFlush(any());
     }
 
     @ParameterizedTest
@@ -356,8 +362,9 @@ class DeliveryServiceTest {
     void staffCannotUseEitherStatusWorkflowForAnotherMembersDelivery() {
         Delivery delivery = delivery("ASSIGNED");
         Order order = order("READY");
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
-        when(deliveryRepository.findByOrderId(orderId)).thenReturn(Optional.of(delivery));
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
+                .thenReturn(Optional.of(orderId));
+        when(deliveryRepository.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(delivery));
         when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
         var staffService = authenticatedService(managerId, RestaurantRole.STAFF);
@@ -372,7 +379,90 @@ class DeliveryServiceTest {
         assertEquals("READY", order.getStatus());
         assertEquals("ASSIGNED", delivery.getStatus());
         verifyNoInteractions(deliveryHistoryRepository, orderHistoryRepository, paymentRepository);
-        verify(deliveryRepository, never()).save(any());
+        verify(deliveryRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void ownerCanSelfAssignAndAnExactAssignmentReplayKeepsOneAuditEvent() {
+        Delivery delivery = delivery("WAITING_ASSIGNMENT");
+        delivery.setDriverUserId(null);
+        lockedDelivery(delivery, order("READY"));
+        when(memberRepository.findEligibleDeliveryMemberForUpdate(restaurantId, managerId))
+                .thenReturn(Optional.of(memberWithRole(managerId, RestaurantRole.OWNER)));
+        var ownerService = authenticatedService(managerId, RestaurantRole.OWNER);
+        var request = new AssignDeliveryDriverRequest(managerId, "Owner is delivering");
+
+        assertEquals(managerId, ownerService.assignDriver(restaurantId, deliveryId, managerId, request).driverUserId());
+        var assignedAt = delivery.getAssignedAt();
+        assertEquals(assignedAt, ownerService.assignDriver(restaurantId, deliveryId, managerId, request).assignedAt());
+
+        verify(deliveryRepository, times(1)).saveAndFlush(delivery);
+        verify(deliveryHistoryRepository, times(1)).save(any());
+        verify(notificationRepository, times(1)).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = RestaurantRole.class, names = {"STAFF", "DELIVERY_DRIVER"})
+    void assignedWorkerCanPickUpOnceAndCannotUpdateUsingAnOlderRevision(RestaurantRole role) {
+        Delivery delivery = delivery("ASSIGNED");
+        var revision = OffsetDateTime.parse("2026-11-04T09:15:42.321879+07:00");
+        delivery.setUpdatedAt(revision);
+        Order order = order("READY");
+        lockedDelivery(delivery, order);
+        var workerService = authenticatedService(driverId, role);
+
+        ApiException stale = assertThrows(ApiException.class, () -> workerService.updateDeliveryStatus(
+                restaurantId, deliveryId, driverId,
+                new UpdateDeliveryStatusRequest("PICKED_UP", null, null, null, revision.minusSeconds(1))));
+        assertEquals("STALE_DELIVERY", stale.getCode());
+
+        var request = new UpdateDeliveryStatusRequest("PICKED_UP", null, "Packed upright", null,
+                revision.withOffsetSameInstant(java.time.ZoneOffset.UTC));
+        assertEquals("PICKED_UP", workerService.updateDeliveryStatus(restaurantId, deliveryId, driverId, request).status());
+        ApiException repeat = assertThrows(ApiException.class, () -> workerService.updateDeliveryStatus(
+                restaurantId, deliveryId, driverId, request));
+        assertEquals("INVALID_DELIVERY_STATUS_TRANSITION", repeat.getCode());
+
+        verify(deliveryRepository, times(1)).saveAndFlush(delivery);
+        verify(deliveryHistoryRepository, times(1)).save(argThat(history -> "Packed upright".equals(history.getNote())));
+    }
+
+    @Test
+    void reassignmentRetainsFailureReasonAndNoteInHistoryAndRevokesPriorAccess() {
+        Delivery delivery = delivery("PICKED_UP");
+        Order order = order("OUT_FOR_DELIVERY");
+        lockedDelivery(delivery, order);
+        var workerService = authenticatedService(driverId, RestaurantRole.DELIVERY_DRIVER);
+        workerService.updateDeliveryStatus(restaurantId, deliveryId, driverId,
+                new UpdateDeliveryStatusRequest("FAILED", "Customer unavailable", "Called twice", null));
+
+        UUID replacement = UUID.randomUUID();
+        when(memberRepository.findEligibleDeliveryMemberForUpdate(restaurantId, replacement))
+                .thenReturn(Optional.of(memberWithRole(replacement, RestaurantRole.STAFF)));
+        var managerService = authenticatedService(managerId, RestaurantRole.MANAGER);
+        managerService.assignDriver(restaurantId, deliveryId, managerId, new AssignDeliveryDriverRequest(replacement, null));
+        assertEquals("READY", order.getStatus());
+        assertNull(delivery.getFailureReason());
+
+        authenticatedService(driverId, RestaurantRole.DELIVERY_DRIVER);
+        ApiException revoked = assertThrows(ApiException.class, () -> workerService.updateDeliveryStatus(
+                restaurantId, deliveryId, driverId, new UpdateDeliveryStatusRequest("PICKED_UP", null, null, null)));
+        assertEquals("DELIVERY_NOT_FOUND", revoked.getCode());
+
+        var history = org.mockito.ArgumentCaptor.forClass(DeliveryStatusHistory.class);
+        verify(deliveryHistoryRepository, times(2)).save(history.capture());
+        assertEquals("Failure reason: Customer unavailable\nCalled twice", history.getAllValues().getFirst().getNote());
+        assertTrue(history.getAllValues().getLast().getNote().contains(driverId.toString()));
+        assertTrue(history.getAllValues().getLast().getNote().contains(replacement.toString()));
+        verify(notificationRepository).save(argThat(notification -> driverId.equals(notification.getUserId())
+                && "DELIVERY_REASSIGNED".equals(notification.getNotificationType())));
+    }
+
+    private void lockedDelivery(Delivery delivery, Order order) {
+        when(deliveryRepository.findOrderIdByDeliveryIdAndRestaurantId(deliveryId, restaurantId))
+                .thenReturn(Optional.of(orderId));
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
     }
 
     private DeliveryService authenticatedService(UUID subject, RestaurantRole role) {
@@ -380,7 +470,7 @@ class DeliveryServiceTest {
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(token, List.of()));
         when(memberRepository.findByRestaurantIdAndUserId(restaurantId, subject))
                 .thenReturn(Optional.of(memberWithRole(subject, role)));
-        return deliveryService(new RestaurantAuthorization(memberRepository, deliveryRepository, orderRepository));
+        return deliveryService(new RestaurantAuthorization(memberRepository, deliveryRepository));
     }
 
     private RestaurantMember driver(UUID userId) {

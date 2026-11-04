@@ -28,7 +28,7 @@ class OwnerOperationsScopeTest {
         members = mock(RestaurantMemberRepository.class);
         profiles = mock(ProfileRepository.class);
         notifications = mock(AppNotificationRepository.class);
-        var auth = new RestaurantAuthorization(members, mock(DeliveryRepository.class), mock(OrderRepository.class));
+        var auth = new RestaurantAuthorization(members, mock(DeliveryRepository.class));
         inbox = new RestaurantNotificationService(notifications, auth);
         options = new DeliveryAssignmentOptionsService(members, profiles, auth);
         Jwt token = Jwt.withTokenValue("verified-test-token").header("alg", "RS256").subject(actorId.toString()).build();

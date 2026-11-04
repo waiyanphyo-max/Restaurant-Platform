@@ -20,8 +20,8 @@ export function NotificationsScreen() {
     <MutationFeedback {...mutation} />
     <QueryResult {...query}>{notifications => notifications.length ? notifications.map(item => <Card key={item.id} title={item.title}>
       <Body>{item.body}</Body><Body>{item.status === "READ" ? "Read" : "Unread"} · {exactTimestamp(item.createdAt)}</Body>
-      {item.orderId && ["OWNER", "MANAGER", "STAFF"].includes(role) ? <Link href={{ pathname: "/order/[orderId]", params: { orderId: item.orderId } }}>Open order</Link>
-        : item.notificationType.startsWith("DELIVERY") ? <Link href="/deliveries">Open deliveries</Link> : null}
+      {item.notificationType.startsWith("DELIVERY") ? <Link href="/deliveries">Open deliveries</Link>
+        : item.orderId && ["OWNER", "MANAGER", "STAFF"].includes(role) ? <Link href={{ pathname: "/order/[orderId]", params: { orderId: item.orderId } }}>Open order</Link> : null}
       {item.status !== "READ" ? <Action title="Mark as read" secondary disabled={mutation.busy} onPress={() => { void mutation.run(() => getOperationsApi().markNotificationRead(item.id), query.reload); }} /> : null}
     </Card>) : <Card><Body>No notifications match this filter.</Body></Card>}</QueryResult>
     <Action title="Refresh notifications" secondary onPress={query.reload} />

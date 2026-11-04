@@ -7,6 +7,7 @@ import com.restaurant.platform.repository.*;
 import com.restaurant.platform.security.TokenUtils;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.security.RestaurantPermission;
+import com.restaurant.platform.common.GeoCoordinates;
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.accounting.AccountingSupport;
 
@@ -460,6 +461,9 @@ public class OrderService {
         order.setDeliveryName(recipientName);
         order.setDeliveryPhone(recipientPhone);
         order.setDeliveryAddress(formatAddress(address));
+        GeoCoordinates destination = new GeoCoordinates(address.getLatitude(), address.getLongitude());
+        order.setDeliveryLatitude(destination.latitude());
+        order.setDeliveryLongitude(destination.longitude());
         order.setDeliveryNote(firstNonBlank(
                 request.deliveryNote(), address.getDeliveryNote()));
         order = orderRepository.saveAndFlush(order);

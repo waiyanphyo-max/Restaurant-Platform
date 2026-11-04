@@ -83,6 +83,8 @@ Required permission: `ORDER_READ`.
 
 Returns a `ManagerOrderDetailDto` containing order fields, the item snapshots, each item's selected modifier snapshots, and status history. The order is found by both `orderId` and `restaurantId` before related records are read. A missing order or one outside the given restaurant returns `404 ORDER_NOT_FOUND`.
 
+Staff can use delivery orders for preparation. For a delivery assigned to another user or awaiting assignment, the response clears the customer and creator IDs, delivery zone, recipient, phone, address, delivery note and status-history notes. Status history also hides the actor ID when it identifies the customer. The authorized order and its item snapshots remain available.
+
 ### Update order status
 
 `PATCH /api/v1/restaurants/{restaurantId}/orders/{orderId}/status`
@@ -115,7 +117,7 @@ Current supported transitions:
 | `READY` for non-delivery | `COMPLETED` |
 | `OUT_FOR_DELIVERY` | `COMPLETED` |
 
-Cancellation requires `ORDER_CANCEL`. Queue-ticket lifecycle changes require `QUEUE_MANAGE`. Delivery transitions require `DELIVERY_STATUS_UPDATE`. Repeating a current status or attempting an invalid transition returns a conflict.
+Cancellation requires `ORDER_CANCEL`. Queue-ticket lifecycle changes require `QUEUE_MANAGE`. Delivery transitions require `DELIVERY_STATUS_UPDATE` and check the current delivery assignment for Staff inside the write transaction. Repeating a current status or attempting an invalid transition returns a conflict.
 
 ### Create an order entered by staff
 
@@ -172,6 +174,7 @@ The selected user must be an eligible `DELIVERY_DRIVER` member of the same resta
 | GET | `/api/v1/restaurants/{restaurantId}/delivery-settings/assignment-options` | `DELIVERY_ASSIGN`; returns `{userId, role, fullName, email}[]` for eligible current members of the restaurant |
 | GET | `/api/v1/restaurants/{restaurantId}/deliveries?status=ASSIGNED&page=0&size=20` | `DELIVERY_READ`; restaurant queue for Owner and Manager, own assignments for Staff and Driver |
 | GET | `/api/v1/restaurants/{restaurantId}/deliveries/mine` | `DELIVERY_READ`; returns tasks assigned to the authenticated user in this restaurant |
+| GET | `/api/v1/restaurants/{restaurantId}/deliveries/mine/{deliveryId}` | `DELIVERY_READ`; assignment-scoped detail for every role, including Owner and Manager acting as their own assignee |
 | GET | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}` | `DELIVERY_READ`; requires the target restaurant and, for Staff and Driver, assignment to the JWT subject |
 | PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/assign` | `DELIVERY_ASSIGN`; assigns or reassigns to an eligible member, including self |
 | PATCH | `/api/v1/restaurants/{restaurantId}/deliveries/{deliveryId}/status` | `DELIVERY_STATUS_UPDATE`; updates delivery and linked order state in one transaction |
@@ -216,9 +219,27 @@ If a COD payment is pending and `cashCollected` is missing or false, delivery co
 
 Manual assignees can have any of the four restaurant roles. The server revalidates the target restaurant membership and excludes deleted or currently banned Auth accounts. The request keeps `driverUserId` as the assignee field for compatibility. Staff and Driver can change only their own assigned deliveries, including Staff transitions through the order-status route.
 
+Assignment and status requests accept optional `expectedUpdatedAt`, an ISO 8601 offset timestamp copied from the current task's `updatedAt`. The service checks it after locking the order and delivery. A changed revision yields `409 STALE_DELIVERY`; a revoked assignment yields `404 DELIVERY_NOT_FOUND` for the former Staff or Driver assignee. Clients should refresh before offering another action. A repeated assignment to the same eligible user on an `ASSIGNED` task is a no-op when its revision is current or omitted. Repeated status transitions are conflicts and produce no duplicate payment, history or notification records.
+
 The supported delivery lifecycle is `WAITING_ASSIGNMENT → ASSIGNED → PICKED_UP → DELIVERED`, with `FAILED` and pre-pickup `CANCELLED` branches. Failed deliveries can be reassigned by a manager. If the order was `OUT_FOR_DELIVERY`, reassignment returns the order to `READY`. The delivery and order-status routes both write status history and enforce the cash-on-delivery check.
 
-Picking up a task changes the linked order from `READY` to `OUT_FOR_DELIVERY`; confirming delivery changes it to `COMPLETED`. If the customer has an account, status updates create in-app notification records. External push notifications and actual browser/mobile sound playback are not wired in the backend.
+Picking up a task changes the linked order from `READY` to `OUT_FOR_DELIVERY`. Confirming delivery changes it to `COMPLETED`. Status changes retain the actor, time and notes, including the failure reason for a failed delivery. Assignment history preserves the previous and new assignee IDs on reassignment. Assignment and reassignment produce addressed in-app notifications for the new and former assignees respectively. If the customer has an account, applicable status updates create in-app notification records for the customer.
+
+### Assigned delivery locations
+
+`GET /api/v1/restaurants/{restaurantId}/deliveries/mine/{deliveryId}` verifies current membership and matches the task by restaurant ID, delivery ID and JWT subject. A valid member without that assignment receives `404 DELIVERY_NOT_FOUND`. Responses use `Cache-Control: no-store`.
+
+| Field | Contents |
+|---|---|
+| `task` | Existing `DeliveryTaskDto` with status, revision, authorized recipient name/phone, checkout address and delivery note |
+| `pickup` | Restaurant `name`, `address`, `latitude` and `longitude` |
+| `destination` | `latitude` and `longitude` from the immutable order snapshot |
+| `items` | Item `id`, `productName`, `variantName`, `quantity` and `specialInstruction` |
+| `cashCollectionRequired` | Whether the order has a pending cash-on-delivery payment |
+
+Coordinates are JSON numbers or null. The server returns a complete pair only when both values are in range, including zero. Restaurant pickup uses the stored restaurant point. A customer delivery checkout copies the chosen, customer-owned address point into `orders.delivery_latitude` and `orders.delivery_longitude`. Earlier orders have textual snapshots only. The server never derives their point from the customer's current address.
+
+Apply the forward migration `20261104100000_add_order_delivery_coordinates.sql` before deploying the corresponding backend. Future temporary checkout destinations should populate the same fields with the confirmed point when inserting the order, alongside its textual recipient and address snapshots.
 
 ## Error response shape
 
@@ -270,13 +291,13 @@ Also requires the tracking token. The notification lookup is scoped by both noti
 
 `GET /api/v1/restaurants/{restaurantId}/queue-tickets?status=READY`
 
-Requires `QUEUE_MANAGE`. Lists the current queue date using the restaurant's configured timezone. Without a status filter, it returns active tickets (`WAITING`, `READY`, `CALLED`). Valid filters are `WAITING`, `READY`, `CALLED`, `COMPLETED`, and `CANCELLED`.
+Requires `QUEUE_MANAGE`. Lists the current queue date using the restaurant's configured timezone. Without a status filter, it returns active tickets (`WAITING`, `READY`, `CALLED`). Valid filters are `WAITING`, `READY`, `CALLED`, `COMPLETED`, and `CANCELLED`. List and call responses include the linked restaurant order's `orderId` when available.
 
 `PATCH /api/v1/restaurants/{restaurantId}/queue-tickets/{ticketId}/call`
 
-Requires `QUEUE_MANAGE`. A ticket must belong to the route's restaurant and be in `READY` status. The service locks the ticket row, changes it to `CALLED`, stamps `calledAt`, and creates a `QUEUE_CALLED` in-app notification in the same transaction. Tickets in any other state are rejected with `409 INVALID_QUEUE_TRANSITION`.
+Requires `QUEUE_MANAGE`. A ticket must belong to the route's restaurant and be in `READY` status. The service locks the linked order when present, then the ticket. It changes the ticket to `CALLED`, stamps `calledAt` and creates a `QUEUE_CALLED` in-app notification in the same transaction. Tickets in any other state are rejected with `409 INVALID_QUEUE_TRANSITION`.
 
-An order status update to `READY` already moves a linked queue ticket to `READY` and creates a `QUEUE_READY` in-app notification. A subsequent manager call records `QUEUE_CALLED`.
+An order status update to `READY` moves a linked queue ticket to `READY` and creates a `QUEUE_READY` in-app notification. A subsequent authorized pickup call records `QUEUE_CALLED`.
 
 ### Authenticated notification inbox
 
@@ -539,7 +560,7 @@ Requires a valid bearer token. The current JWT subject becomes both `customerId`
 }
 ```
 
-The UUIDs above are placeholders; use IDs returned by the actual restaurant APIs. The address must belong to the authenticated customer, and the delivery zone must be active and belong to the route's restaurant. Product, category, variant, modifier, availability, and stock rules are validated server-side. Prices are read from the database; client-submitted prices and totals are not accepted. The computed subtotal must meet both the restaurant-wide and delivery-zone minimums. The saved address and recipient details are snapshotted onto the order to preserve the destination used at checkout.
+The UUIDs above are placeholders; use IDs returned by the actual restaurant APIs. The address must belong to the authenticated customer, and the delivery zone must be active and belong to the route's restaurant. Product, category, variant, modifier, availability, and stock rules are validated server-side. Prices are read from the database; client-submitted prices and totals are not accepted. The computed subtotal must meet both the restaurant-wide and delivery-zone minimums. The saved address, its valid coordinate pair and recipient details are snapshotted onto the order to preserve the destination used at checkout.
 
 For now, only `CASH_ON_DELIVERY` is supported. An order and pending payment record are created in one database transaction. Online payment and refunds are not implemented. The selected zone is checked by restaurant, but the current schema does not contain geographic boundaries to automatically determine whether a street/township falls inside a zone; the customer chooses from the configured zones.
 

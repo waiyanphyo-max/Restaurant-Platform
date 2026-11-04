@@ -31,7 +31,10 @@ describe("Owner order actions against ManagerOrderService transitions", () => {
 
   it("does not offer cancellation to Staff or order mutations to Drivers or unknown roles", () => {
     expect(orderActions({ status: "PENDING", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["ACCEPTED"]);
+    expect(orderActions({ status: "ACCEPTED", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["PREPARING"]);
     expect(orderActions({ status: "PREPARING", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["READY"]);
+    expect(orderActions({ status: "READY", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["COMPLETED"]);
+    expect(orderActions({ status: "READY", orderType: "DELIVERY" }, "STAFF")).toEqual([]);
     for (const role of ["DELIVERY_DRIVER", "PLATFORM_ADMIN", "CUSTOMER", "", "owner"]) {
       expect(orderActions({ status: "PENDING", orderType: "DINE_IN" }, role)).toEqual([]);
     }
@@ -52,9 +55,9 @@ describe("delivery actions and assignment boundaries", () => {
     }
   });
 
-  it("rejects pickup and completion when the linked order state does not agree", () => {
-    expect(deliveryActions({ ...delivery, orderStatus: "PREPARING" }, "OWNER", "owner")).not.toContain("PICKED_UP");
-    expect(deliveryActions({ ...delivery, status: "PICKED_UP", orderStatus: "READY" }, "OWNER", "owner")).not.toContain("DELIVERED");
+  it("rejects actions when the linked order state does not agree", () => {
+    expect(deliveryActions({ ...delivery, orderStatus: "PREPARING" }, "OWNER", "owner")).toEqual([]);
+    expect(deliveryActions({ ...delivery, status: "PICKED_UP", orderStatus: "READY" }, "OWNER", "owner")).toEqual([]);
   });
 
   it("only offers Driver actions for the verified assigned user", () => {

@@ -175,6 +175,7 @@ export interface UpdateOrderStatusRequest {
 
 export interface QueueTicketManagerDto {
   ticketId: Uuid;
+  orderId?: Uuid | null;
   queueNumber: number;
   displayCode: string;
   status: string;
@@ -204,9 +205,23 @@ export interface DeliveryTaskDto {
   updatedAt: IsoDateTime;
 }
 
+export interface DeliveryCoordinatesDto {
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface AssignedDeliveryDetailDto {
+  task: DeliveryTaskDto;
+  pickup: DeliveryCoordinatesDto & { name: string; address: string | null };
+  destination: DeliveryCoordinatesDto;
+  items: { id: Uuid; productName: string; variantName: string | null; quantity: number; specialInstruction: string | null }[];
+  cashCollectionRequired: boolean;
+}
+
 export interface AssignDeliveryDriverRequest {
   driverUserId: Uuid;
   note?: string | null;
+  expectedUpdatedAt?: IsoDateTime;
 }
 
 export interface UpdateDeliveryStatusRequest {
@@ -214,6 +229,7 @@ export interface UpdateDeliveryStatusRequest {
   failureReason?: string | null;
   note?: string | null;
   cashCollected?: boolean | null;
+  expectedUpdatedAt?: IsoDateTime;
 }
 
 /** M8-A operational writes mirror existing Spring records; no accounting contracts. */

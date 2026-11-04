@@ -32,14 +32,17 @@ export function DashboardScreen() {
       restaurant: restaurant.status === "fulfilled" ? restaurant.value : null,
       orders: orders.status === "fulfilled" ? orders.value : null,
       queue: queue.status === "fulfilled" ? queue.value : null,
-      deliveries: deliveries.status === "fulfilled" ? deliveries.value : null,
+      deliveries: deliveries.status === "fulfilled" ? {
+        totalElements: deliveries.value.totalElements,
+        content: deliveries.value.content.map(({ id, orderNumber, status }) => ({ id, orderNumber, status }))
+      } : null,
       notifications: notifications.status === "fulfilled" ? notifications.value : null,
       daily: daily.status === "fulfilled" ? daily.value : null
     };
   }, `dashboard:${role}`);
   if (state.status !== "ready") return null;
   const navigation = getNavigationItems(state.membership, readEmbeddedTenant().restaurantId);
-  return <Page title={state.membership.name} subtitle="Restaurant operations" onRefresh={query.reload} refreshing={query.state.status === "loading"}>
+  return <Page title={state.membership.name} subtitle={role === "DELIVERY_DRIVER" ? "Your delivery workspace" : "Restaurant operations"} onRefresh={query.reload} refreshing={query.state.status === "loading"}>
     <QueryResult {...query}>{data => <>
       <Card title="Restaurant">
         {data.restaurant?.logoUrl ? <Image source={{ uri: data.restaurant.logoUrl }} accessibilityLabel="Restaurant logo" style={{ width: 72, height: 72, borderRadius: 12 }} /> : null}

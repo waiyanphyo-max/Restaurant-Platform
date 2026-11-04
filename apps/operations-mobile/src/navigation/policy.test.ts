@@ -18,6 +18,10 @@ describe("operations navigation policy", () => {
   it("restricts staff and drivers to operational screens", () => {
     expect(ids("STAFF")).toEqual(["dashboard", "orders", "menu", "queue", "notifications", "deliveries", "profile"]);
     expect(ids("DELIVERY_DRIVER")).toEqual(["dashboard", "notifications", "deliveries", "profile"]);
+    for (const screen of ["orders", "queue", "menu"]) {
+      expect(canAccessScreen(screen, member("STAFF"), restaurantId)).toBe(true);
+      expect(canAccessScreen(screen, member("DELIVERY_DRIVER"), restaurantId)).toBe(false);
+    }
     for (const role of ["STAFF", "DELIVERY_DRIVER"]) {
       for (const screen of ["reports", "sales-history", "accounting", "shopping", "team", "settings", "tables"]) {
         expect(canAccessScreen(screen, member(role), restaurantId)).toBe(false);

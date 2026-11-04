@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -79,6 +80,12 @@ public class Order {
 
     @Column(name = "delivery_address", columnDefinition = "text")
     private String deliveryAddress;
+
+    @Column(name = "delivery_latitude", precision = 10, scale = 7, updatable = false)
+    private BigDecimal deliveryLatitude;
+
+    @Column(name = "delivery_longitude", precision = 10, scale = 7, updatable = false)
+    private BigDecimal deliveryLongitude;
 
     @Column(name = "delivery_note", columnDefinition = "text")
     private String deliveryNote;
