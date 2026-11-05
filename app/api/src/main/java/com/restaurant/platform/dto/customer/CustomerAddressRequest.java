@@ -2,6 +2,7 @@ package com.restaurant.platform.dto.customer;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -20,4 +21,9 @@ public record CustomerAddressRequest(
         @Size(max = 2000) String deliveryNote,
         boolean makeDefault
 ) {
+    /** Legacy manual addresses may omit a point; a saved point must contain both axes. */
+    @AssertTrue(message = "Latitude and longitude must be supplied together")
+    public boolean isCoordinatePairComplete() {
+        return (latitude == null) == (longitude == null);
+    }
 }

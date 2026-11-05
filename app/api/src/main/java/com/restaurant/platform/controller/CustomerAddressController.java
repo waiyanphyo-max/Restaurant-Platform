@@ -7,6 +7,8 @@ import com.restaurant.platform.service.CustomerAddressService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,37 +23,37 @@ public class CustomerAddressController {
     private final RestaurantAuthorization authorization;
 
     @GetMapping
-    public List<CustomerAddressResponse> listMyAddresses() {
-        return addressService.list(authorization.requireAuthenticatedUserId());
+    public ResponseEntity<List<CustomerAddressResponse>> listMyAddresses() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(addressService.list(authorization.requireAuthenticatedUserId()));
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public CustomerAddressResponse createAddress(
+    public ResponseEntity<CustomerAddressResponse> createAddress(
             @Valid @RequestBody CustomerAddressRequest request) {
-        return addressService.create(
-                authorization.requireAuthenticatedUserId(), request);
+        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
+                .body(addressService.create(authorization.requireAuthenticatedUserId(), request));
     }
 
     @PutMapping("/{addressId}")
-    public CustomerAddressResponse updateAddress(
+    public ResponseEntity<CustomerAddressResponse> updateAddress(
             @PathVariable UUID addressId,
             @Valid @RequestBody CustomerAddressRequest request) {
-        return addressService.update(
-                authorization.requireAuthenticatedUserId(), addressId, request);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(addressService.update(authorization.requireAuthenticatedUserId(), addressId, request));
     }
 
     @PatchMapping("/{addressId}/default")
-    public CustomerAddressResponse setDefaultAddress(
+    public ResponseEntity<CustomerAddressResponse> setDefaultAddress(
             @PathVariable UUID addressId) {
-        return addressService.setDefault(
-                authorization.requireAuthenticatedUserId(), addressId);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(addressService.setDefault(authorization.requireAuthenticatedUserId(), addressId));
     }
 
     @DeleteMapping("/{addressId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteAddress(@PathVariable UUID addressId) {
+    public ResponseEntity<Void> deleteAddress(@PathVariable UUID addressId) {
         addressService.delete(
                 authorization.requireAuthenticatedUserId(), addressId);
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 }

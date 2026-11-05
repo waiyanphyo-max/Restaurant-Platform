@@ -146,6 +146,8 @@ The new frontend must use the existing API contracts in [`docs/api.md`](docs/api
 
 M2 adds separate public and authenticated [typed API clients](packages/api-client/README.md), Next.js cookie-based and Android SecureStore-backed Supabase Auth adapters, and an Admin access check against Spring. See [M2 acceptance](docs/m2-acceptance.md), the [API coverage and gap report](docs/api-coverage-gap-report.md), the [actual role-permission matrix](docs/role-permission-matrix.md), and the [disabled phone-auth design](docs/phone-auth-design.md). Live Auth, device storage, and production URL migration still require staging verification.
 
+M11 extends the separate [Customer Android app](apps/customer-mobile/README.md) with restaurant-locked navigation, customer registration/sign-in, profile management and optional Home Address onboarding through Google Maps, one-shot foreground GPS or manual entry. Existing Spring address storage remains authoritative. See [M11 acceptance and M12 dependencies](docs/m11-acceptance.md) for configuration, ownership tests and the native-device/provider verification limits; delivery checkout remains outside M11.
+
 M5 adds restaurant-branded public menu browsing through the real Spring menu endpoint, server-side tenant/response checks and English/Burmese UI localization. Local development supports reviewed restaurant slugs; production requires exact configured domains. See the [Guest Website setup and production domain runbook](docs/m5-guest-web-foundation.md). QR entry stays public; checkout and migration of an old shared QR origin remain separate readiness gates.
 
 ## External push notification delivery

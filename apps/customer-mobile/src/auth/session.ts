@@ -2,12 +2,16 @@
 export interface NativeSession {
   access_token: string;
   expires_at?: number;
-  user: { id: string };
+  user: { id: string; phone?: string; phone_confirmed_at?: string };
 }
 
 export interface NativeAuthPort {
   getSession(): Promise<NativeSession | null>;
   signInWithPassword(email: string, password: string): Promise<NativeSession>;
+  signUpWithPassword?(email: string, password: string): Promise<NativeSession | null>;
+  phoneOtpEnabled?(): Promise<boolean>;
+  requestPhoneOtp?(phone: string): Promise<void>;
+  verifyPhoneOtp?(phone: string, token: string): Promise<NativeSession>;
   signOut(): Promise<void>;
   refreshSession(): Promise<NativeSession | null>;
   onSessionChange(listener: (session: NativeSession | null) => void): () => void;
@@ -46,7 +50,7 @@ function checkedSession(session: NativeSession): NativeSession {
 
 /**
  * Credentials never enter snapshots or listeners. A restored session is only an
- * identity hint; the API verifies its JWT, tenant membership, and permissions.
+ * identity hint; the API verifies its JWT and customer resource ownership.
  */
 export function createNativeSessionController(
   auth: NativeAuthPort,
@@ -62,6 +66,9 @@ export function createNativeSessionController(
   let expectedIdentity: string | null = null;
   let identityChanged = false;
   let refreshPromise: Promise<string | null> | null = null;
+  let refreshGeneration = -1;
+  let requestedPhone: string | null = null;
+  let requestedPhoneAt = 0;
   const listeners = new Set<(value: AuthSnapshot) => void>();
 
   function publish(session: NativeSession | null): AuthSnapshot {
@@ -103,8 +110,9 @@ export function createNativeSessionController(
   });
 
   async function refresh(expectedUserId: string): Promise<string | null> {
-    if (refreshPromise) return refreshPromise;
+    if (refreshPromise && refreshGeneration === generation) return refreshPromise;
     const startedAt = generation;
+    refreshGeneration = startedAt;
     refreshPromise = (async () => {
       const result = await auth.refreshSession();
       if (startedAt !== generation || disposed || !acceptSessionEvents) return null;
@@ -124,12 +132,13 @@ export function createNativeSessionController(
       publish(next);
       return next.access_token;
     })().finally(() => {
-      refreshPromise = null;
+      if (refreshGeneration === startedAt) refreshPromise = null;
     });
     return refreshPromise;
   }
 
   return {
+    getSnapshot(): AuthSnapshot { return snapshot; },
     subscribe(listener: (value: AuthSnapshot) => void): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -146,8 +155,76 @@ export function createNativeSessionController(
           throw new NativeAuthError("identity_changed");
         }
         expectedIdentity = identity;
+        if (session.expires_at === undefined || session.expires_at * 1000 <= now() + refreshMarginMs) {
+          await refresh(session.user.id);
+          return snapshot;
+        }
       }
       return publish(session);
+    },
+    async signUpWithPassword(email: string, password: string): Promise<{ authenticated: boolean }> {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || password.length < 8) {
+        throw new NativeAuthError("invalid_input");
+      }
+      if (disposed || snapshot.status === "signed_in" || !auth.signUpWithPassword) throw new NativeAuthError("invalid_session");
+      const startedAt = ++generation;
+      signingIn = true;
+      acceptSessionEvents = true;
+      try {
+        const result = await auth.signUpWithPassword(email.trim(), password);
+        if (startedAt !== generation) return { authenticated: false };
+        if (!result) { publish(null); return { authenticated: false }; }
+        const session = checkedSession(result);
+        expectedIdentity = session.user.id.toLowerCase();
+        identityChanged = false;
+        publish(session);
+        return { authenticated: true };
+      } finally { signingIn = false; }
+    },
+    async phoneOtpEnabled(): Promise<boolean> {
+      return !disposed && !!auth.phoneOtpEnabled && await auth.phoneOtpEnabled();
+    },
+    async requestPhoneOtp(phone: string): Promise<void> {
+      if (disposed || snapshot.status === "signed_in" || !auth.requestPhoneOtp || !auth.phoneOtpEnabled || !await auth.phoneOtpEnabled()) {
+        throw new Error("Phone sign-in is unavailable");
+      }
+      if (!/^\+[1-9]\d{7,14}$/.test(phone)) throw new NativeAuthError("invalid_input");
+      if (requestedPhoneAt && now() - requestedPhoneAt < 60_000) throw new Error("Wait one minute before requesting another code");
+      requestedPhone = null;
+      await auth.requestPhoneOtp(phone);
+      requestedPhone = phone;
+      requestedPhoneAt = now();
+    },
+    async verifyPhoneOtp(phone: string, token: string): Promise<AuthSnapshot> {
+      if (disposed || snapshot.status === "signed_in" || !auth.verifyPhoneOtp || !auth.phoneOtpEnabled || !await auth.phoneOtpEnabled()) {
+        throw new Error("Phone sign-in is unavailable");
+      }
+      if (phone !== requestedPhone || !/^\d{6,10}$/.test(token) || now() - requestedPhoneAt > 10 * 60_000) {
+        throw new NativeAuthError("invalid_input");
+      }
+      const startedAt = ++generation;
+      signingIn = true;
+      acceptSessionEvents = true;
+      try {
+        const session = checkedSession(await auth.verifyPhoneOtp(phone, token));
+        requestedPhone = null;
+        if (startedAt !== generation) return snapshot;
+        const providerStillEnabled = await auth.phoneOtpEnabled();
+        if (startedAt !== generation || disposed || !acceptSessionEvents) return snapshot;
+        if (!providerStillEnabled || !session.user.phone_confirmed_at || session.user.phone?.replace(/^\+/, "") !== phone.slice(1)) {
+          throw new NativeAuthError("invalid_session");
+        }
+        expectedIdentity = session.user.id.toLowerCase();
+        identityChanged = false;
+        return publish(session);
+      } catch (error) {
+        if (startedAt === generation) {
+          acceptSessionEvents = false;
+          expectedIdentity = null;
+          try { await auth.signOut(); } finally { publish(null); }
+        }
+        throw error;
+      } finally { signingIn = false; }
     },
     async signInWithPassword(email: string, password: string): Promise<AuthSnapshot> {
       if (!email.trim() || !password) throw new NativeAuthError("invalid_input");
@@ -167,6 +244,7 @@ export function createNativeSessionController(
     },
     async signOut(): Promise<void> {
       generation++;
+      requestedPhone = null;
       acceptSessionEvents = false;
       expectedIdentity = null;
       identityChanged = false;

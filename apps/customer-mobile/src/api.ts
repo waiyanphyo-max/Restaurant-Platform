@@ -1,4 +1,4 @@
-import { createCustomerApiClient } from "@restaurant-platform/api-client";
+import { createCustomerApiClient, createPublicRestaurantApiClient } from "@restaurant-platform/api-client";
 import { getCustomerAuth } from "./auth/native";
 import { readEmbeddedTenant } from "./tenant";
 
@@ -11,4 +11,9 @@ export function getCustomerApi() {
     restaurantId: tenant.restaurantId,
     getAccessToken: () => auth.getAccessToken()
   });
+}
+
+export function getCustomerPublicApi() {
+  const tenant = readEmbeddedTenant();
+  return createPublicRestaurantApiClient({ baseUrl: tenant.apiBaseUrl, restaurantId: tenant.restaurantId });
 }

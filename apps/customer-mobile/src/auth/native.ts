@@ -4,7 +4,8 @@ import { createClient, processLock } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 import { AppState, Platform } from "react-native";
 import { readEmbeddedTenant } from "../tenant";
-import { createSecureSessionStorage } from "./storage";
+import { createLogoutProtectedSessionStorage } from "./storage";
+import { phoneProviderAvailable } from "./phone";
 import {
   createNativeSessionController,
   type AppLifecyclePort,
@@ -49,9 +50,15 @@ export function getCustomerAuth(): NativeSessionController {
   const publishableKey = checkedPublishableKey(process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const projectUrl = new URL(supabaseUrl);
   const projectScope = `${projectUrl.hostname}.${projectUrl.port || (projectUrl.protocol === "https:" ? "443" : "80")}`;
+  // Keep the SDK's original default key so existing M2 secure sessions remain readable.
+  const sessionKey = `sb-${projectUrl.hostname.split(".")[0]}-auth-token`;
+  const storage = createLogoutProtectedSessionStorage(
+    `rp.customer.${tenant.environment}.${tenant.restaurantId}.${projectScope}`, SecureStore, sessionKey
+  );
   const client = createClient(supabaseUrl, publishableKey, {
     auth: {
-      storage: createSecureSessionStorage(`rp.customer.${tenant.environment}.${tenant.restaurantId}.${projectScope}`, SecureStore),
+      storage,
+      storageKey: sessionKey,
       lock: processLock,
       autoRefreshToken: false,
       persistSession: true,
@@ -67,14 +74,43 @@ export function getCustomerAuth(): NativeSessionController {
       return data.session;
     },
     async signInWithPassword(email, password) {
+      await storage.prepareSignIn();
       const { data, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.session) throw new Error("Supabase did not return a session");
       return data.session;
     },
-    async signOut() {
-      const { error } = await client.auth.signOut({ scope: "local" });
+    async signUpWithPassword(email, password) {
+      await storage.prepareSignIn();
+      const { data, error } = await client.auth.signUp({ email, password });
       if (error) throw error;
+      return data.session;
+    },
+    phoneOtpEnabled() {
+      return phoneProviderAvailable(tenant.phoneOtpRequested, supabaseUrl, publishableKey);
+    },
+    async requestPhoneOtp(phone) {
+      const { error } = await client.auth.signInWithOtp({ phone, options: { shouldCreateUser: false, channel: "sms" } });
+      if (error) throw error;
+    },
+    async verifyPhoneOtp(phone, token) {
+      await storage.prepareSignIn();
+      const { data, error } = await client.auth.verifyOtp({ phone, token, type: "sms" });
+      if (error) throw error;
+      if (!data.session) throw new Error("No verified phone session was returned");
+      // Re-fetch trusted Auth identity rather than treating a profile phone as verified.
+      const verified = await client.auth.getUser(data.session.access_token);
+      if (verified.error || !verified.data.user || verified.data.user.id !== data.session.user.id) {
+        await storage.signOut(async () => { await client.auth.signOut({ scope: "local" }); });
+        throw new Error("Phone identity verification failed");
+      }
+      return { ...data.session, user: verified.data.user };
+    },
+    async signOut() {
+      await storage.signOut(async () => {
+        const { error } = await client.auth.signOut({ scope: "local" });
+        if (error) throw error;
+      });
     },
     async refreshSession() {
       const { data, error } = await client.auth.refreshSession();
