@@ -57,7 +57,7 @@ public class CatalogImageService {
         return new ProductManagementResponse(
                 saved.getId(), saved.getCategoryId(), saved.getName(), saved.getDescription(),
                 saved.getPrice(), saved.getImageUrl(), Boolean.TRUE.equals(saved.getTrackStock()),
-                saved.getStockQuantity(), Boolean.TRUE.equals(saved.getIsAvailable()),
+                saved.getVisibleStockQuantity(), Boolean.TRUE.equals(saved.getIsAvailable()),
                 saved.getCreatedAt(), saved.getUpdatedAt());
     }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DeliveryTaskDto, OrderSummaryDto } from "@restaurant-platform/shared-types";
-import { canCollectPayment, deliveryActions, orderActions, searchOrders } from "./workflows";
+import { canAssignDelivery, canCollectPayment, deliveryActions, orderActions, searchOrders } from "./workflows";
 
 const delivery: DeliveryTaskDto = {
   id: "delivery", orderId: "order", orderNumber: "R-012", orderStatus: "READY", status: "ASSIGNED", driverUserId: "driver-a",
@@ -42,6 +42,13 @@ describe("Owner order actions against ManagerOrderService transitions", () => {
 });
 
 describe("delivery actions and assignment boundaries", () => {
+  it("allows reassignment of a cancelled delivery only while its order is ready", () => {
+    expect(canAssignDelivery({ status: "CANCELLED", orderStatus: "READY" })).toBe(true);
+    expect(canAssignDelivery({ status: "CANCELLED", orderStatus: "OUT_FOR_DELIVERY" })).toBe(false);
+    expect(canAssignDelivery({ status: "CANCELLED", orderStatus: "CANCELLED" })).toBe(false);
+    expect(canAssignDelivery({ status: "FAILED", orderStatus: "OUT_FOR_DELIVERY" })).toBe(true);
+  });
+
   it.each([
     ["WAITING_ASSIGNMENT", "READY", ["CANCELLED"]],
     ["ASSIGNED", "READY", ["PICKED_UP", "FAILED", "CANCELLED"]],

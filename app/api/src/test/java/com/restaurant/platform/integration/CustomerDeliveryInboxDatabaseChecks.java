@@ -74,13 +74,25 @@ public final class CustomerDeliveryInboxDatabaseChecks {
         UUID queuedBeforeUpgrade = jdbc.queryForObject("""
                 SELECT id FROM public.push_notification_outbox WHERE notification_id = ? AND device_id = ?
                 """, UUID.class, secondNotice, legacyDevice);
-        jdbc.update("UPDATE public.user_devices SET customer_restaurant_id = ? WHERE id = ?", firstTenant, legacyDevice);
         PushNotificationOutboxRepository outbox = new PushNotificationOutboxRepository(new NamedParameterJdbcTemplate(source));
+        assertTrue(outbox.findPayload(queuedBeforeUpgrade).orElseThrow().customerDelivery());
+        UUID staffOutbox = jdbc.queryForObject("""
+                SELECT id FROM public.push_notification_outbox WHERE notification_id = ? AND device_id = ?
+                """, UUID.class, staffNotice, legacyDevice);
+        var staffPayload = outbox.findPayload(staffOutbox).orElseThrow();
+        assertFalse(staffPayload.customerDelivery());
+        assertEquals("Test order update", staffPayload.body());
+
+        jdbc.update("UPDATE public.user_devices SET customer_restaurant_id = ? WHERE id = ?", firstTenant, legacyDevice);
         assertTrue(outbox.findPayload(queuedBeforeUpgrade).isEmpty());
         UUID matching = jdbc.queryForObject("""
                 SELECT id FROM public.push_notification_outbox WHERE notification_id = ? AND device_id = ?
                 """, UUID.class, firstNotice, firstDevice);
-        assertEquals(firstNotice, outbox.findPayload(matching).orElseThrow().notificationId());
+        var customerPayload = outbox.findPayload(matching).orElseThrow();
+        assertEquals(firstNotice, customerPayload.notificationId());
+        assertTrue(customerPayload.customerDelivery());
+        assertNull(customerPayload.title());
+        assertNull(customerPayload.body());
 
         var repositories = new JpaRepositoryFactory(entityManager);
         OrderRepository orders = repositories.getRepository(OrderRepository.class);

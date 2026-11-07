@@ -297,6 +297,9 @@ export function createCustomerApiClient(options: CustomerApiClientOptions) {
     getCheckoutReceipt: (idempotencyKey: string, o?: ApiRequestOptions): Promise<CreateOrderResponse> =>
       transport.request({ method: "GET", path: `${checkout}/checkout`, options: o,
         headers: { "Idempotency-Key": requireUuid(idempotencyKey, "Idempotency-Key") }, retryTransient: true }),
+    abandonCheckout: (idempotencyKey: string, o?: ApiRequestOptions): Promise<CreateOrderResponse | undefined> =>
+      transport.request({ method: "DELETE", path: `${checkout}/checkout`, options: o,
+        headers: { "Idempotency-Key": requireUuid(idempotencyKey, "Idempotency-Key") } }),
     async listOrders(query: PageQuery = {}, o?: ApiRequestOptions) {
       const page = await read<SpringPage<CustomerOrderSummaryDto>>(transport, `${restaurant}/orders`, o, pageQuery(query));
       if (!Array.isArray(page?.content)) throw new ApiProtocolError();

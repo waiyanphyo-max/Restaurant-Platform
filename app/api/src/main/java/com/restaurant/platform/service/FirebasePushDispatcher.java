@@ -76,24 +76,32 @@ public class FirebasePushDispatcher {
                 return;
             }
 
-            Message message = Message.builder()
-                    .setToken(payload.pushToken())
-                    .setNotification(Notification.builder()
-                            .setTitle(payload.title())
-                            .setBody(payload.body())
-                            .build())
-                    .putData("notificationId", payload.notificationId().toString())
-                    .putData("notificationType", payload.notificationType())
-                    .build();
-
             // The token is intentionally never logged.
-            firebaseMessaging.send(message);
+            firebaseMessaging.send(messageFor(payload));
             outbox.markSent(item.id());
         } catch (FirebaseMessagingException exception) {
             handleFirebaseFailure(item, exception);
         } catch (RuntimeException exception) {
             handleRetry(item, "PUSH_WORKER_" + exception.getClass().getSimpleName());
         }
+    }
+
+    private static Message messageFor(PushPayload payload) {
+        Message.Builder message = Message.builder().setToken(payload.pushToken());
+        if (payload.customerDelivery()) {
+            // Android can display a notification even after an offline logout.
+            return message.setNotification(Notification.builder()
+                    .setTitle("Updates available")
+                    .setBody("Open the app to check for updates.")
+                    .build()).build();
+        }
+        return message.setNotification(Notification.builder()
+                        .setTitle(payload.title())
+                        .setBody(payload.body())
+                        .build())
+                .putData("notificationId", payload.notificationId().toString())
+                .putData("notificationType", payload.notificationType())
+                .build();
     }
 
     private void handleFirebaseFailure(OutboxItem item, FirebaseMessagingException exception) {

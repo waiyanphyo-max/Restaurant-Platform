@@ -14,7 +14,8 @@ import { suggestCurrentLocation } from "../addresses/native-location";
 import { useCustomerCart } from "../cart/CartProvider";
 import type { CustomerAccount } from "../profile/AccountProvider";
 import { useCustomerCheckout, type CheckoutAttempt } from "./CheckoutProvider";
-import { addressText, checkoutError, defaultAddress, quoteRequest, type DestinationDetails } from "./destination";
+import { addressText, checkoutError, defaultAddress, invalidRecipientPhoneMessage, normalizeRecipientPhone,
+  quoteRequest, type DestinationDetails } from "./destination";
 
 export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   account: CustomerAccount;
@@ -112,7 +113,9 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
     const destination = temporary ? { pin } : saved ? { saved } : null;
     const request = destination && quoteRequest(destination, details, cart.items);
     if (!request) {
-      setError(t("Confirm a valid pin and fill in the delivery address, recipient name and phone.", "မှန်ကန်သော နေရာကို အတည်ပြုပြီး ပို့ဆောင်ရန်လိပ်စာ၊ လက်ခံသူအမည်နှင့် ဖုန်းနံပါတ် ဖြည့်ပါ။"));
+      setError(details.recipientPhone.trim() && !normalizeRecipientPhone(details.recipientPhone)
+        ? invalidRecipientPhoneMessage(t)
+        : t("Confirm a valid pin and fill in the delivery address, recipient name and phone.", "မှန်ကန်သော နေရာကို အတည်ပြုပြီး ပို့ဆောင်ရန်လိပ်စာ၊ လက်ခံသူအမည်နှင့် ဖုန်းနံပါတ် ဖြည့်ပါ။"));
       return;
     }
     const controller = new AbortController();
@@ -148,10 +151,13 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
         <Action title={t("Check again", "ပြန်စစ်ရန်")} onPress={() => void checkout.recover()} />
       </> : null}
       {status === "unrecorded" ? <>
-        <Body>{t("The server found no order for the previous checkout. Review your order history before starting a new checkout.",
-          "ယခင်ငွေရှင်းမှုအတွက် ဆာဗာတွင် မှာယူမှုမတွေ့ပါ။ အသစ်မမှာယူမီ မှာယူမှုမှတ်တမ်းကို စစ်ဆေးပါ။")}</Body>
+        <Body>{t("The server found no order yet. Starting again asks it to close the previous checkout or return its receipt.",
+          "ဆာဗာတွင် မှာယူမှု မတွေ့သေးပါ။ အသစ်စတင်ပါက ယခင်ငွေရှင်းမှုကို ပိတ်ရန် သို့မဟုတ် ပြေစာပြန်ပေးရန် ဆာဗာသို့ တောင်းဆိုပါမည်။")}</Body>
         <Action title={t("Check again", "ပြန်စစ်ရန်")} onPress={() => void checkout.recover()} secondary />
-        <Action title={t("Start a new checkout", "အသစ်မှာယူရန်")} onPress={() => void checkout.clearUnrecorded()} />
+        <Action title={t("Start a new checkout", "အသစ်မှာယူရန်")} onPress={() => {
+          resetReview();
+          void checkout.abandonPrevious();
+        }} />
       </> : null}
       {status !== "recovering" ? <Action title={ordersLabel} secondary onPress={onOrders} /> : null}
     </Card></Page>;

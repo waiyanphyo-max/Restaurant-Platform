@@ -44,6 +44,9 @@ public class OrderItem {
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
 
+    @Column(name = "reserved_stock_quantity", updatable = false)
+    private Integer reservedStockQuantity;
+
     @Column(name = "subtotal", nullable = false)
     private Long subtotal;
 

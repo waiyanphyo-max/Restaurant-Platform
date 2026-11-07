@@ -545,7 +545,7 @@ public class DeliveryService {
     }
 
     private void requireAssignableStatus(String status) {
-        if (!List.of("WAITING_ASSIGNMENT", "ASSIGNED", "FAILED").contains(status)) {
+        if (!List.of("WAITING_ASSIGNMENT", "ASSIGNED", "FAILED", "CANCELLED").contains(status)) {
             throw new ApiException(HttpStatus.CONFLICT,
                     "DELIVERY_CANNOT_BE_REASSIGNED",
                     "error.delivery.cannot-reassign");

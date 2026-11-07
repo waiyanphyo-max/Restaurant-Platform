@@ -19,6 +19,7 @@ import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.security.TokenUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
@@ -48,11 +49,22 @@ public class CustomerDeliveryCheckoutService {
     private final AccountingSupport accounting;
     private final CustomerOrderNotifications notifications;
     private final JsonMapper json;
+    private final JdbcTemplate jdbc;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public CustomerDeliveryQuote quote(UUID restaurantId, UUID userId, CustomerDeliveryCheckoutRequest request) {
         authorization.requireAuthenticatedUserMatches(userId);
-        return review(restaurantId, userId, UUID.randomUUID(), request).quote();
+        accounting.lock(restaurantId);
+        Optional<UUID> active = activeKey(restaurantId, userId);
+        UUID key = active.orElseGet(UUID::randomUUID);
+        var quote = review(restaurantId, userId, key, request).quote();
+        if (active.isEmpty()) {
+            jdbc.update("""
+                    INSERT INTO public.customer_delivery_checkout_keys (restaurant_id, customer_id, checkout_key)
+                    VALUES (?, ?, ?)
+                    """, restaurantId, userId, key);
+        }
+        return quote;
     }
 
     @Transactional
@@ -75,6 +87,9 @@ public class CustomerDeliveryCheckoutService {
             }
             return receipt(order);
         }
+        if (activeKey(restaurantId, userId).filter(key::equals).isEmpty()) {
+            throw quoteChanged();
+        }
 
         Review current = review(restaurantId, userId, key, request);
         if (!current.quote().confirmationToken().equals(request.confirmationToken())) {
@@ -83,6 +98,7 @@ public class CustomerDeliveryCheckoutService {
         Order order = orders.saveDeliveryOrder(restaurantId, userId, current.plan(),
                 current.quote().destination(), key, requestHash);
         notifications.orderCreated(order);
+        retireKey(restaurantId, userId, key);
         return receipt(order);
     }
 
@@ -92,6 +108,34 @@ public class CustomerDeliveryCheckoutService {
         UUID key = checkoutKey(rawKey);
         accounting.lock(restaurantId);
         return findOrder(restaurantId, userId, key).map(CustomerDeliveryCheckoutService::receipt);
+    }
+
+    @Transactional
+    public Optional<CreateOrderResponse> abandon(UUID restaurantId, UUID userId, String rawKey) {
+        authorization.requireAuthenticatedUserMatches(userId);
+        UUID key = checkoutKey(rawKey);
+        accounting.lock(restaurantId);
+        var existing = findOrder(restaurantId, userId, key);
+        if (existing.isPresent()) {
+            return existing.map(CustomerDeliveryCheckoutService::receipt);
+        }
+        // A late POST can no longer commit this key, including a key issued before the upgrade.
+        retireKey(restaurantId, userId, key);
+        return Optional.empty();
+    }
+
+    private Optional<UUID> activeKey(UUID restaurantId, UUID userId) {
+        return jdbc.query("""
+                SELECT checkout_key FROM public.customer_delivery_checkout_keys
+                WHERE restaurant_id = ? AND customer_id = ?
+                """, (row, index) -> row.getObject(1, UUID.class), restaurantId, userId).stream().findFirst();
+    }
+
+    private void retireKey(UUID restaurantId, UUID userId, UUID key) {
+        jdbc.update("""
+                DELETE FROM public.customer_delivery_checkout_keys
+                WHERE restaurant_id = ? AND customer_id = ? AND checkout_key = ?
+                """, restaurantId, userId, key);
     }
 
     private Optional<Order> findOrder(UUID restaurantId, UUID userId, UUID key) {
@@ -165,14 +209,18 @@ public class CustomerDeliveryCheckoutService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DELIVERY_ADDRESS_LOCATION_REQUIRED",
                     "error.delivery.destination-address-required");
         }
-        if (name == null || phone == null || name.length() > 150 || phone.length() > 30) {
+        if (name == null || phone == null || name.length() > 150) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DELIVERY_CONTACT_REQUIRED", "error.delivery.contact-required");
+        }
+        String normalizedPhone = DeliveryRecipientPhone.normalize(phone);
+        if (normalizedPhone == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DELIVERY_PHONE", "error.delivery.invalid-phone");
         }
 
         String fullAddress = addressId == null
                 ? String.join(", ", address.trim(), township.trim(), city.trim()) : address.trim();
         return new CustomerDeliveryQuote.Destination(source, addressId, fullAddress, city.trim(), township.trim(),
-                storedCoordinate(point.latitude()), storedCoordinate(point.longitude()), name, phone, firstNonBlank(note));
+                storedCoordinate(point.latitude()), storedCoordinate(point.longitude()), name, normalizedPhone, firstNonBlank(note));
     }
 
     private static BigDecimal storedCoordinate(BigDecimal coordinate) {

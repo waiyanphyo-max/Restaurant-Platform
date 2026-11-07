@@ -70,6 +70,7 @@ public class ManagerOrderService {
     private final RestaurantAuthorization restaurantAuthorization;
     private final DeliveryService deliveryService;
     private final CustomerOrderNotifications customerNotifications;
+    private final OrderCancellationService cancellation;
     private AccountingSupport accounting;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -84,7 +85,8 @@ public class ManagerOrderService {
             AppNotificationRepository appNotificationRepository,
             RestaurantAuthorization restaurantAuthorization,
             DeliveryService deliveryService,
-            CustomerOrderNotifications customerNotifications
+            CustomerOrderNotifications customerNotifications,
+            OrderCancellationService cancellation
     ) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
@@ -95,6 +97,7 @@ public class ManagerOrderService {
         this.restaurantAuthorization = restaurantAuthorization;
         this.deliveryService = deliveryService;
         this.customerNotifications = customerNotifications;
+        this.cancellation = cancellation;
     }
 
     @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
@@ -359,6 +362,13 @@ public class ManagerOrderService {
             deliveryService.synchronizeManagerOrderStatus(order, userId, nextStatus);
         }
 
+        String historyNote = request.note();
+        if ("CANCELLED".equals(nextStatus) && "DELIVERY".equals(orderType)
+                && "CUSTOMER_APP".equals(order.getOrderChannel())) {
+            String disposition = cancellation.settleUnpaidOrder(order);
+            historyNote = historyNote == null || historyNote.isBlank() ? disposition : historyNote + "\n" + disposition;
+        }
+
         // 9. Update and save the order.
         order.setStatus(nextStatus);
         orderRepository.save(order);
@@ -368,7 +378,7 @@ public class ManagerOrderService {
         history.setOrderId(order.getId());
         history.setChangedByUserId(userId);
         history.setStatus(nextStatus);
-        history.setNote(request.note());
+        history.setNote(historyNote);
 
         orderStatusHistoryRepository.save(history);
         customerNotifications.orderStatusChanged(order);

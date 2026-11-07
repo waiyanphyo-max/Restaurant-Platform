@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
 import { getCustomerAuth } from "./native";
-import { cleanupCustomerDevice } from "../notifications/native";
+import { cleanupCustomerDevice, watchCustomerNotificationConnectivity } from "../notifications/native";
 import { createCustomerAuthFlow, type CustomerAuthFlow, type CustomerAuthState, type CustomerAuthView } from "./flow";
 
 export type { CustomerAuthState } from "./flow";
@@ -22,13 +22,15 @@ export function CustomerAuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let controller: CustomerAuthFlow | null = null;
     let stop: (() => void) | undefined;
+    let stopNotifications: (() => void) | undefined;
     try {
       controller = createCustomerAuthFlow(getCustomerAuth(), cleanupCustomerDevice);
       flow.current = controller;
       stop = controller.subscribe(setView);
+      stopNotifications = watchCustomerNotificationConnectivity();
       void controller.start();
     } catch { setView({ state: { status: "unconfigured" }, phoneEnabled: false }); }
-    return () => { stop?.(); controller?.dispose(); flow.current = null; };
+    return () => { stop?.(); stopNotifications?.(); controller?.dispose(); flow.current = null; };
   }, []);
   const current = useCallback(() => {
     if (!flow.current) throw new Error("Customer authentication is unavailable");

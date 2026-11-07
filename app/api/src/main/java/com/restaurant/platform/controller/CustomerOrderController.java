@@ -71,4 +71,14 @@ public class CustomerOrderController {
                 .map(receipt -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(receipt))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(CacheControl.noStore()).build());
     }
+
+    @DeleteMapping("/orders/delivery/checkout")
+    public ResponseEntity<CreateOrderResponse> abandonDeliveryCheckout(
+            @PathVariable UUID restaurantId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String key) {
+        UUID userId = authorization.requireAuthenticatedUserId();
+        return checkoutService.abandon(restaurantId, userId, key)
+                .map(receipt -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(receipt))
+                .orElseGet(() -> ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build());
+    }
 }

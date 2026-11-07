@@ -511,6 +511,8 @@ public class OrderService {
             item.setVariantName(line.variant() == null ? null : line.variant().getName());
             item.setUnitPrice(line.unitPrice());
             item.setQuantity(line.quantity());
+            item.setReservedStockQuantity(plan.cart().trackedQuantities().containsKey(item.getProductId())
+                    ? line.quantity() : 0);
             item.setSubtotal(line.subtotal());
             item.setSpecialInstruction(line.specialInstruction());
             item = orderItemRepository.saveAndFlush(item);

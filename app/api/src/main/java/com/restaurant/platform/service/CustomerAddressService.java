@@ -29,6 +29,7 @@ public class CustomerAddressService {
 
     @Transactional
     public CustomerAddressResponse create(UUID userId, CustomerAddressRequest request) {
+        addressRepository.lockOwner(userId);
         CustomerAddress address = new CustomerAddress();
         apply(address, request);
         boolean makeDefault = request.makeDefault()
@@ -44,6 +45,7 @@ public class CustomerAddressService {
     @Transactional
     public CustomerAddressResponse update(
             UUID userId, UUID addressId, CustomerAddressRequest request) {
+        addressRepository.lockOwner(userId);
         CustomerAddress address = addressRepository.findByIdAndUserId(addressId, userId)
                 .orElseThrow(this::addressNotFound);
         boolean wasDefault = Boolean.TRUE.equals(address.getIsDefault());
@@ -59,6 +61,7 @@ public class CustomerAddressService {
 
     @Transactional
     public CustomerAddressResponse setDefault(UUID userId, UUID addressId) {
+        addressRepository.lockOwner(userId);
         CustomerAddress address = addressRepository.findByIdAndUserId(addressId, userId)
                 .orElseThrow(this::addressNotFound);
         addressRepository.clearDefaultForUser(userId);
@@ -68,6 +71,7 @@ public class CustomerAddressService {
 
     @Transactional
     public void delete(UUID userId, UUID addressId) {
+        addressRepository.lockOwner(userId);
         CustomerAddress address = addressRepository.findByIdAndUserId(addressId, userId)
                 .orElseThrow(this::addressNotFound);
         boolean wasDefault = Boolean.TRUE.equals(address.getIsDefault());

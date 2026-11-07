@@ -60,6 +60,8 @@ class CustomerDeliveryCheckoutControllerHttpTest {
                 .andExpect(status().isUnauthorized());
         mvc.perform(get(base + "/checkout").header("Idempotency-Key", key))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(delete(base + "/checkout").header("Idempotency-Key", key))
+                .andExpect(status().isUnauthorized());
         verifyNoInteractions(checkout);
     }
 
@@ -103,6 +105,25 @@ class CustomerDeliveryCheckoutControllerHttpTest {
         var other = jwt().jwt(token -> token.subject(UUID.randomUUID().toString()));
         mvc.perform(get(base + "/checkout").with(other).header("Idempotency-Key", key))
                 .andExpect(status().isNotFound()).andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+    }
+
+    @Test
+    void abandonmentConfirmsRetirementOrReturnsTheReceiptPrivately() throws Exception {
+        var receipt = new CreateOrderResponse(UUID.randomUUID(), "ORD-TEST", "DELIVERY", "CUSTOMER_APP", "PENDING",
+                "MMK", 1000, 250, 0, 1250, null);
+        when(checkout.abandon(restaurant, customer, key.toString())).thenReturn(Optional.of(receipt));
+        mvc.perform(delete(base + "/checkout").with(jwt().jwt(token -> token.subject(customer.toString())))
+                        .header("Idempotency-Key", key))
+                .andExpect(status().isOk()).andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(jsonPath("$.orderId").value(receipt.orderId().toString()));
+        UUID other = UUID.randomUUID();
+        when(checkout.abandon(restaurant, other, key.toString())).thenReturn(Optional.empty());
+        mvc.perform(delete(base + "/checkout").with(jwt().jwt(token -> token.subject(other.toString())))
+                        .header("Idempotency-Key", key))
+                .andExpect(status().isNoContent()).andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(content().string(""));
+        verify(checkout).abandon(restaurant, customer, key.toString());
+        verify(checkout).abandon(restaurant, other, key.toString());
     }
 
     private String body() {

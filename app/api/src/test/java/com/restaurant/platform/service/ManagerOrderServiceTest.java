@@ -8,11 +8,14 @@ import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.OrderItem;
 import com.restaurant.platform.entity.OrderItemModifier;
 import com.restaurant.platform.entity.OrderStatusHistory;
+import com.restaurant.platform.entity.Payment;
 import com.restaurant.platform.repository.AppNotificationRepository;
 import com.restaurant.platform.repository.OrderItemModifierRepository;
 import com.restaurant.platform.repository.OrderItemRepository;
 import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.repository.OrderStatusHistoryRepository;
+import com.restaurant.platform.repository.PaymentRepository;
+import com.restaurant.platform.repository.ProductRepository;
 import com.restaurant.platform.repository.QueueTicketRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.security.RestaurantPermission;
@@ -44,6 +47,8 @@ class ManagerOrderServiceTest {
     private OrderStatusHistoryRepository historyRepository;
     private QueueTicketRepository queueTicketRepository;
     private AppNotificationRepository notificationRepository;
+    private PaymentRepository payments;
+    private ProductRepository products;
     private RestaurantAuthorization authorization;
     private DeliveryService deliveryService;
     private ManagerOrderService service;
@@ -60,6 +65,8 @@ class ManagerOrderServiceTest {
         historyRepository = mock(OrderStatusHistoryRepository.class);
         queueTicketRepository = mock(QueueTicketRepository.class);
         notificationRepository = mock(AppNotificationRepository.class);
+        payments = mock(PaymentRepository.class);
+        products = mock(ProductRepository.class);
         authorization = mock(RestaurantAuthorization.class);
         deliveryService = mock(DeliveryService.class);
         service = new ManagerOrderService(
@@ -71,7 +78,8 @@ class ManagerOrderServiceTest {
                 notificationRepository,
                 authorization,
                 deliveryService,
-                new CustomerOrderNotifications(notificationRepository));
+                new CustomerOrderNotifications(notificationRepository),
+                new OrderCancellationService(orderItemRepository, payments, products));
     }
 
     @Test
@@ -324,6 +332,80 @@ class ManagerOrderServiceTest {
                 new UpdateOrderStatusRequest("CANCELLED", "Customer cancelled"));
 
         verify(authorization).requirePermission(restaurantId, RestaurantPermission.ORDER_CANCEL);
+        verifyNoInteractions(payments, products);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PENDING", "ACCEPTED", "PREPARING"})
+    void managerCancellationClosesCodAndReleasesStockOnlyBeforePreparation(String state) {
+        Order order = order(state, "DELIVERY");
+        order.setOrderChannel("CUSTOMER_APP");
+        UUID productId = UUID.randomUUID();
+        OrderItem item = new OrderItem();
+        item.setProductId(productId);
+        item.setReservedStockQuantity(2);
+        Payment cod = new Payment();
+        cod.setMethod("CASH_ON_DELIVERY");
+        cod.setStatus("PENDING");
+        Payment failed = new Payment();
+        failed.setMethod("CASH_ON_DELIVERY");
+        failed.setStatus("FAILED");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(orderId, restaurantId))
+                .thenReturn(List.of(item));
+        when(payments.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(cod, failed));
+        when(products.releaseStock(productId, restaurantId, 2)).thenReturn(1);
+
+        service.updateStatus(restaurantId, orderId, userId, new UpdateOrderStatusRequest("CANCELLED", "Customer called"));
+
+        boolean preparing = "PREPARING".equals(state);
+        assertEquals("CANCELLED", order.getStatus());
+        assertEquals("CANCELLED", cod.getStatus());
+        assertEquals("FAILED", failed.getStatus());
+        verify(payments).save(cod);
+        verify(payments, never()).save(failed);
+        verify(products, times(preparing ? 0 : 1)).releaseStock(productId, restaurantId, 2);
+        verify(historyRepository).save(argThat(history -> userId.equals(history.getChangedByUserId())
+                && "CANCELLED".equals(history.getStatus())
+                && history.getNote().startsWith("Customer called\n")
+                && history.getNote().contains(preparing ? "preparation had started" : "stock units released (2)")));
+    }
+
+    @Test
+    void managerCannotCancelDeliveryWithCollectedPayment() {
+        Order order = order("PENDING", "DELIVERY");
+        order.setOrderChannel("CUSTOMER_APP");
+        Payment cod = new Payment();
+        cod.setMethod("CASH_ON_DELIVERY");
+        cod.setStatus("PAID");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+        when(payments.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(cod));
+
+        var error = assertThrows(ApiException.class, () -> service.updateStatus(restaurantId, orderId, userId,
+                new UpdateOrderStatusRequest("CANCELLED", null)));
+
+        assertEquals("REFUND_REQUIRED", error.getCode());
+        assertEquals("PENDING", order.getStatus());
+        assertEquals("PAID", cod.getStatus());
+        verify(orderRepository, never()).save(any());
+        verify(payments, never()).save(any());
+        verifyNoInteractions(historyRepository, orderItemRepository, products, notificationRepository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"READY", "OUT_FOR_DELIVERY", "COMPLETED", "CANCELLED"})
+    void managerOrderCancellationRejectsReadyAndLaterDeliveryStates(String state) {
+        Order order = order(state, "DELIVERY");
+        order.setOrderChannel("CUSTOMER_APP");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+
+        var error = assertThrows(ApiException.class, () -> service.updateStatus(restaurantId, orderId, userId,
+                new UpdateOrderStatusRequest("CANCELLED", null)));
+
+        assertEquals("INVALID_ORDER_STATUS_TRANSITION", error.getCode());
+        assertEquals(state, order.getStatus());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(payments, historyRepository, orderItemRepository, products, notificationRepository);
     }
 
     @Test

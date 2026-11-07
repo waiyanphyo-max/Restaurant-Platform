@@ -20,6 +20,12 @@ export function deliveryActions(delivery: DeliveryTaskDto, role: string, userId:
   if (management && delivery.orderStatus === "READY" && ["WAITING_ASSIGNMENT", "ASSIGNED"].includes(delivery.status)) actions.push("CANCELLED");
   return actions;
 }
+export function canAssignDelivery(delivery: Pick<DeliveryTaskDto, "orderStatus" | "status">): boolean {
+  if (delivery.orderStatus === "READY") {
+    return ["WAITING_ASSIGNMENT", "ASSIGNED", "FAILED", "CANCELLED"].includes(delivery.status);
+  }
+  return delivery.orderStatus === "OUT_FOR_DELIVERY" && delivery.status === "FAILED";
+}
 export function searchOrders(orders: readonly OrderSummaryDto[], text: string, channel: string): OrderSummaryDto[] {
   const term = text.trim().toLowerCase();
   return orders.filter(order => (!term || `${order.orderNumber} ${order.id} ${order.orderType}`.toLowerCase().includes(term)) && (!channel || order.orderChannel === channel));
