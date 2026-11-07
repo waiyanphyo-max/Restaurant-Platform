@@ -1,5 +1,6 @@
 package com.restaurant.platform.accounting;
 
+import com.restaurant.platform.integration.CustomerDeliveryInboxDatabaseChecks;
 import com.restaurant.platform.integration.DeliveryEligibilityDatabaseChecks;
 import com.restaurant.platform.integration.DeliveryLocationDatabaseChecks;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,7 @@ class AccountingLocalPostgresTest {
             factory.afterPropertiesSet(); assertNotNull(factory.getObject()); assertTrue(factory.getObject().isOpen());
             DeliveryEligibilityDatabaseChecks.verify(source, factory.getObject());
             DeliveryLocationDatabaseChecks.verify(source, factory.getObject());
+            CustomerDeliveryInboxDatabaseChecks.verify(factory.getObject());
         } finally { factory.destroy(); }
     }
 }

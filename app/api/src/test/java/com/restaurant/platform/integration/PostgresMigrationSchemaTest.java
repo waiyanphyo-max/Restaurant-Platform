@@ -246,6 +246,11 @@ class PostgresMigrationSchemaTest {
     }
 
     @Test
+    void customerDeliveryInboxAndPushRespectTenantAndOwnership() {
+        CustomerDeliveryInboxDatabaseChecks.verify(entityManagerFactoryBean.getObject());
+    }
+
+    @Test
     void notificationTriggerQueuesOneOutboxItemForEachActiveDevice() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         UUID userId = UUID.randomUUID();

@@ -90,6 +90,27 @@ public class Order {
     @Column(name = "delivery_note", columnDefinition = "text")
     private String deliveryNote;
 
+    @Column(name = "delivery_address_id", updatable = false)
+    private UUID deliveryAddressId;
+
+    @Column(name = "delivery_city", length = 100, updatable = false)
+    private String deliveryCity;
+
+    @Column(name = "delivery_township", length = 100, updatable = false)
+    private String deliveryTownship;
+
+    @Column(name = "delivery_location_source", length = 20, updatable = false)
+    private String deliveryLocationSource;
+
+    @Column(name = "delivery_checkout_key", updatable = false)
+    private UUID deliveryCheckoutKey;
+
+    @Column(name = "delivery_checkout_request_hash", length = 64, updatable = false)
+    private String deliveryCheckoutRequestHash;
+
+    @Column(name = "delivery_checkout_currency", length = 10, updatable = false)
+    private String deliveryCheckoutCurrency;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

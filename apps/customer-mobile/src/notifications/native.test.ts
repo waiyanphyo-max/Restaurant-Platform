@@ -37,14 +37,14 @@ vi.mock("../auth/native", () => ({ getCustomerAuth: () => ({ getSnapshot: () => 
     native.authListener = callback;
     return native.authRemove;
   } }) }));
-vi.mock("@restaurant-platform/api-client", () => ({ createDeviceApiClient: (options: { getAccessToken(): Promise<string | null> }) => ({
+vi.mock("@restaurant-platform/api-client", () => ({ createCustomerDeviceApiClient: (options: { restaurantId: string; getAccessToken(): Promise<string | null> }) => ({
   async registerDevice(token: string, requestOptions: unknown) {
     const bearer = await options.getAccessToken();
-    return native.register(token, requestOptions, bearer);
+    return native.register(token, requestOptions, bearer, options.restaurantId);
   },
   async deactivateDevice(id: string, requestOptions: unknown) {
     const bearer = await options.getAccessToken();
-    return native.deactivate(id, requestOptions, bearer);
+    return native.deactivate(id, requestOptions, bearer, options.restaurantId);
   }
 }) }));
 
@@ -106,7 +106,7 @@ describe("customer native notification registration", () => {
     const notifications = await import("./native");
     expect(await notifications.enableCustomerNotifications()).toContain("registered");
     expect(native.channel).toHaveBeenCalledWith("default", { name: "Order updates", importance: 3, lockscreenVisibility: 0 });
-    expect(native.register).toHaveBeenCalledWith("native-fcm-token", { timeoutMs: 3000 }, "alice-access-token");
+    expect(native.register).toHaveBeenCalledWith("native-fcm-token", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
     expect(savedState()).toEqual({ optedInUser: "alice", activeDeviceId: "device-one", associations: [{ userId: "alice", deviceId: "device-one" }] });
     expect(native.raw).not.toContain("native-fcm-token");
     expect(native.save.mock.calls[0]?.[0]).toBe("rp.customer.devices.development.restaurant");
@@ -124,12 +124,12 @@ describe("customer native notification registration", () => {
     const notifications = await import("./native");
     await notifications.resumeCustomerNotifications();
     expect(native.request).not.toHaveBeenCalled();
-    expect(native.deactivate).toHaveBeenCalledWith("old-device", { timeoutMs: 3000 }, "alice-access-token");
+    expect(native.deactivate).toHaveBeenCalledWith("old-device", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
     native.register.mockResolvedValue({ id: "device-two" });
     native.token.mockResolvedValue({ type: "android", data: "rotated-fcm-token" });
     native.foreground?.("active");
     await flush();
-    expect(native.register).toHaveBeenLastCalledWith("rotated-fcm-token", { timeoutMs: 3000 }, "alice-access-token");
+    expect(native.register).toHaveBeenLastCalledWith("rotated-fcm-token", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
     expect(savedState().activeDeviceId).toBe("device-two");
   });
 
@@ -152,7 +152,7 @@ describe("customer native notification registration", () => {
     expect(savedState().associations).toEqual([{ userId: "alice", deviceId: "device-two" }]);
     const rotationSaves = native.save.mock.calls.slice(1).map(call => JSON.parse(String(call[1])));
     expect(rotationSaves.every(state => state.associations.some((row: { deviceId: string }) => row.deviceId === "device-two"))).toBe(true);
-    expect(native.deactivate).toHaveBeenCalledWith("device-one", { timeoutMs: 3000 }, "alice-access-token");
+    expect(native.deactivate).toHaveBeenCalledWith("device-one", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
   });
 
   it("cleans an earlier opt-in if Android notification permission was revoked", async () => {

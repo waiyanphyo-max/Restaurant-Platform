@@ -30,10 +30,12 @@ export function FormField({ label, error, ...props }: TextInputProps & { label: 
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
   </View>;
 }
-export function StateView({ kind, title, message, onRetry }: { kind: "loading" | "offline" | "error" | "denied"; title?: string; message?: string; onRetry?: () => void }) {
+export function StateView({ kind, title, message, onRetry, retryLabel = "Try again" }: {
+  kind: "loading" | "offline" | "error" | "denied"; title?: string; message?: string; onRetry?: () => void; retryLabel?: string;
+}) {
   const titles = { loading: "Loading", offline: "You are offline", error: "Unable to load", denied: "Please sign in again" };
-  return <Card title={title ?? titles[kind]}>{kind === "loading" ? <ActivityIndicator accessibilityLabel="Loading" /> : null}
-    {message ? <Body>{message}</Body> : null}{onRetry ? <Action title="Try again" onPress={onRetry} /> : null}</Card>;
+  return <Card title={title ?? titles[kind]}>{kind === "loading" ? <ActivityIndicator accessibilityLabel={title ?? titles.loading} /> : null}
+    {message ? <Body>{message}</Body> : null}{onRetry ? <Action title={retryLabel} onPress={onRetry} /> : null}</Card>;
 }
 const styles = StyleSheet.create({
   page: { padding: 20, gap: 16, paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },

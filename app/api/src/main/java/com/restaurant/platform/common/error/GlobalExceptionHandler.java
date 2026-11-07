@@ -237,6 +237,9 @@ public class GlobalExceptionHandler {
         if (isAccountingRequest(request)) {
             // Database exception messages and causes can include stored financial values.
             log.error("Unhandled accounting API error ({})", exception.getClass().getSimpleName());
+        } else if (isCustomerRequest(request)) {
+            // Database exception messages can include stored customer delivery values.
+            log.error("Unhandled customer API error ({})", exception.getClass().getSimpleName());
         } else {
             log.error("Unhandled API error at {}", request.getRequestURI(), exception);
         }
@@ -250,6 +253,10 @@ public class GlobalExceptionHandler {
 
     private boolean isAccountingRequest(HttpServletRequest request) {
         return request.getRequestURI().contains("/accounting/");
+    }
+
+    private boolean isCustomerRequest(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/api/v1/customer/");
     }
 
     private ResponseEntity<ApiErrorResponse> response(
@@ -270,6 +277,8 @@ public class GlobalExceptionHandler {
         if (isAccountingRequest(request)) {
             // CSV and receipt downloads still return structured errors on failure.
             response.contentType(MediaType.APPLICATION_JSON).cacheControl(CacheControl.noStore());
+        } else if (isCustomerRequest(request)) {
+            response.cacheControl(CacheControl.noStore());
         }
         return response.body(body);
     }

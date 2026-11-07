@@ -162,7 +162,7 @@ public class OrderService {
         return new StaffOrderOptions(!tables.isEmpty(), Boolean.TRUE.equals(settings.getAllowTakeaway()), tables);
     }
 
-    private Restaurant requireActiveRestaurant(UUID restaurantId) {
+    Restaurant requireActiveRestaurant(UUID restaurantId) {
         return restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
                         "RESTAURANT_NOT_FOUND", "error.restaurant.not-found"));
@@ -333,23 +333,8 @@ public class OrderService {
                     "error.delivery.order-fields-required");
         }
 
-        Restaurant restaurant = restaurantRepository
-                .findByIdAndIsActiveTrue(restaurantId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        "RESTAURANT_NOT_FOUND",
-                        "error.restaurant.not-found"));
-        RestaurantSettings settings = settingsRepository
-                .findById(restaurantId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.CONFLICT,
-                        "RESTAURANT_SETTINGS_MISSING",
-                        "error.restaurant.settings-missing"));
-        if (!Boolean.TRUE.equals(settings.getAcceptsOrders())
-                || !Boolean.TRUE.equals(settings.getAllowDelivery())) {
-            throw new ApiException(HttpStatus.CONFLICT,
-                    "DELIVERY_UNAVAILABLE", "error.delivery.unavailable");
-        }
+        requireActiveRestaurant(restaurantId);
+        RestaurantSettings settings = requireDeliverySettings(restaurantId);
 
         CustomerAddress address = customerAddressRepository
                 .findByIdAndUserId(request.addressId(), userId)
@@ -381,41 +366,7 @@ public class OrderService {
                     "error.delivery.contact-required");
         }
 
-        List<PreparedLine> lines;
-        long subtotal = 0L;
-        try {
-            lines = request.items().stream()
-                    .map(item -> prepareLine(restaurantId, item))
-                    .toList();
-            for (PreparedLine line : lines) {
-                subtotal = Math.addExact(subtotal, line.subtotal());
-            }
-        } catch (ArithmeticException exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "ORDER_AMOUNT_TOO_LARGE", "error.order.amount-too-large");
-        }
-
-        long requiredMinimum = Math.max(
-                settings.getMinimumOrder() == null ? 0L : settings.getMinimumOrder(),
-                zone.getMinimumOrder() == null ? 0L : zone.getMinimumOrder());
-        if (subtotal < requiredMinimum) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "MINIMUM_ORDER_NOT_MET", "error.order.minimum-not-met");
-        }
-
-        for (PreparedLine line : lines) {
-            if (Boolean.TRUE.equals(line.product().getTrackStock())) {
-                int changedRows = productRepository.reserveStock(
-                        line.product().getId(), restaurantId, line.quantity());
-                if (changedRows != 1) {
-                    throw new ApiException(HttpStatus.CONFLICT,
-                            "INSUFFICIENT_STOCK",
-                            "error.product.insufficient-stock-name",
-                            line.product().getName());
-                }
-            }
-        }
-
+        DeliveryPlan plan = prepareDelivery(settings, zone, prepareDeliveryCart(restaurantId, request.items()));
         String paymentMethod = request.paymentMethod() == null
                 || request.paymentMethod().isBlank()
                 ? "CASH_ON_DELIVERY"
@@ -428,17 +379,92 @@ public class OrderService {
                     "error.delivery.payment-method-not-available");
         }
 
-        long deliveryFee = zone.getDeliveryFee() == null ? 0L : zone.getDeliveryFee();
-        long totalAmount;
+        GeoCoordinates coordinates = new GeoCoordinates(address.getLatitude(), address.getLongitude());
+        var destination = new CustomerDeliveryQuote.Destination(null, null, formatAddress(address),
+                null, null, coordinates.latitude(), coordinates.longitude(), recipientName, recipientPhone,
+                firstNonBlank(request.deliveryNote(), address.getDeliveryNote()));
+        Order order = saveDeliveryOrder(restaurantId, userId, plan, destination, null, null);
+        return deliveryReceipt(order, settings.getCurrency());
+    }
+
+    RestaurantSettings requireDeliverySettings(UUID restaurantId) {
+        RestaurantSettings settings = settingsRepository.findById(restaurantId)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
+                        "RESTAURANT_SETTINGS_MISSING", "error.restaurant.settings-missing"));
+        if (!Boolean.TRUE.equals(settings.getAcceptsOrders())
+                || !Boolean.TRUE.equals(settings.getAllowDelivery())) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "DELIVERY_UNAVAILABLE", "error.delivery.unavailable");
+        }
+        return settings;
+    }
+
+    DeliveryCart prepareDeliveryCart(UUID restaurantId, List<CreateOrderItemRequest> items) {
+        List<PreparedLine> lines;
+        long subtotal = 0L;
         try {
-            totalAmount = Math.addExact(subtotal, deliveryFee);
+            lines = items.stream()
+                    .map(item -> prepareLine(restaurantId, item))
+                    .toList();
+            for (PreparedLine line : lines) {
+                subtotal = Math.addExact(subtotal, line.subtotal());
+            }
         } catch (ArithmeticException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "ORDER_AMOUNT_TOO_LARGE", "error.order.amount-too-large");
         }
 
-        ZoneId zoneId = ZoneId.of(
-                settings.getTimezone() == null ? "Asia/Yangon" : settings.getTimezone());
+        Map<UUID, Integer> trackedQuantities = new TreeMap<>();
+        for (PreparedLine line : lines) {
+            Product product = line.product();
+            if (Boolean.TRUE.equals(product.getTrackStock())) {
+                int quantity = trackedQuantities.merge(product.getId(), line.quantity(), Integer::sum);
+                if (quantity > product.getStockQuantity()) {
+                    throw insufficientDeliveryStock(product);
+                }
+            }
+        }
+        return new DeliveryCart(lines, subtotal, trackedQuantities);
+    }
+
+    DeliveryPlan prepareDelivery(RestaurantSettings settings, DeliveryZone zone, DeliveryCart cart) {
+        long requiredMinimum = Math.max(
+                settings.getMinimumOrder() == null ? 0L : settings.getMinimumOrder(),
+                zone.getMinimumOrder() == null ? 0L : zone.getMinimumOrder());
+        if (cart.subtotal() < requiredMinimum) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "MINIMUM_ORDER_NOT_MET", "error.order.minimum-not-met");
+        }
+
+        long deliveryFee = zone.getDeliveryFee() == null ? 0L : zone.getDeliveryFee();
+        long totalAmount;
+        try {
+            totalAmount = Math.addExact(cart.subtotal(), deliveryFee);
+        } catch (ArithmeticException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "ORDER_AMOUNT_TOO_LARGE", "error.order.amount-too-large");
+        }
+
+        return new DeliveryPlan(settings, zone, cart, deliveryFee, totalAmount);
+    }
+
+    private static ApiException insufficientDeliveryStock(Product product) {
+        return new ApiException(HttpStatus.CONFLICT, "INSUFFICIENT_STOCK",
+                "error.product.insufficient-stock-name", product.getName());
+    }
+
+    Order saveDeliveryOrder(UUID restaurantId, UUID userId, DeliveryPlan plan,
+                            CustomerDeliveryQuote.Destination destination, UUID checkoutKey, String requestHash) {
+        for (var stock : plan.cart().trackedQuantities().entrySet()) {
+            if (productRepository.reserveStock(stock.getKey(), restaurantId, stock.getValue()) != 1) {
+                Product product = plan.cart().lines().stream().map(PreparedLine::product)
+                        .filter(lineProduct -> lineProduct.getId().equals(stock.getKey())).findFirst().orElseThrow();
+                throw insufficientDeliveryStock(product);
+            }
+        }
+
+        String timezone = plan.settings().getTimezone();
+        ZoneId zoneId = ZoneId.of(timezone == null ? "Asia/Yangon" : timezone);
         String orderNumber = "ORD-"
                 + LocalDate.now(zoneId).format(DateTimeFormatter.BASIC_ISO_DATE)
                 + "-"
@@ -450,25 +476,32 @@ public class OrderService {
         order.setOrderNumber(orderNumber);
         order.setCustomerId(userId);
         order.setCreatedByUserId(userId);
-        order.setDeliveryZoneId(zone.getId());
+        order.setDeliveryZoneId(plan.zone().getId());
         order.setOrderType("DELIVERY");
         order.setOrderChannel("CUSTOMER_APP");
         order.setStatus("PENDING");
-        order.setSubtotal(subtotal);
-        order.setDeliveryFee(deliveryFee);
+        order.setSubtotal(plan.subtotal());
+        order.setDeliveryFee(plan.deliveryFee());
         order.setDiscountAmount(0L);
-        order.setTotalAmount(totalAmount);
-        order.setDeliveryName(recipientName);
-        order.setDeliveryPhone(recipientPhone);
-        order.setDeliveryAddress(formatAddress(address));
-        GeoCoordinates destination = new GeoCoordinates(address.getLatitude(), address.getLongitude());
+        order.setTotalAmount(plan.totalAmount());
+        order.setDeliveryName(destination.recipientName());
+        order.setDeliveryPhone(destination.recipientPhone());
+        order.setDeliveryAddress(destination.address());
         order.setDeliveryLatitude(destination.latitude());
         order.setDeliveryLongitude(destination.longitude());
-        order.setDeliveryNote(firstNonBlank(
-                request.deliveryNote(), address.getDeliveryNote()));
+        order.setDeliveryNote(destination.deliveryNote());
+        if (checkoutKey != null) {
+            order.setDeliveryAddressId(destination.addressId());
+            order.setDeliveryCity(destination.city());
+            order.setDeliveryTownship(destination.township());
+            order.setDeliveryLocationSource(destination.source());
+            order.setDeliveryCheckoutKey(checkoutKey);
+            order.setDeliveryCheckoutRequestHash(requestHash);
+            order.setDeliveryCheckoutCurrency(plan.settings().getCurrency());
+        }
         order = orderRepository.saveAndFlush(order);
 
-        for (PreparedLine line : lines) {
+        for (PreparedLine line : plan.cart().lines()) {
             OrderItem item = new OrderItem();
             item.setRestaurantId(restaurantId);
             item.setOrderId(order.getId());
@@ -503,15 +536,37 @@ public class OrderService {
 
         Payment payment = new Payment();
         payment.setOrderId(order.getId());
-        payment.setMethod(paymentMethod);
+        payment.setMethod("CASH_ON_DELIVERY");
         payment.setStatus("PENDING");
-        payment.setAmount(totalAmount);
+        payment.setAmount(plan.totalAmount());
         paymentRepository.save(payment);
+        return order;
+    }
 
+    static CreateOrderResponse deliveryReceipt(Order order, String currency) {
         return new CreateOrderResponse(
                 order.getId(), order.getOrderNumber(), order.getOrderType(),
-                order.getOrderChannel(), order.getStatus(), settings.getCurrency(),
-                subtotal, deliveryFee, 0L, totalAmount, null);
+                order.getOrderChannel(), "PENDING", currency,
+                order.getSubtotal(), order.getDeliveryFee(), order.getDiscountAmount(), order.getTotalAmount(), null);
+    }
+
+    record DeliveryCart(List<PreparedLine> lines, long subtotal, Map<UUID, Integer> trackedQuantities) {}
+
+    record DeliveryPlan(RestaurantSettings settings, DeliveryZone zone, DeliveryCart cart,
+                        long deliveryFee, long totalAmount) {
+        long subtotal() {
+            return cart.subtotal();
+        }
+
+        List<CustomerDeliveryQuote.Line> quoteLines() {
+            return cart.lines().stream().map(line -> new CustomerDeliveryQuote.Line(
+                    line.product().getId(), line.variant() == null ? null : line.variant().getId(),
+                    line.product().getName(), line.variant() == null ? null : line.variant().getName(),
+                    line.quantity(), line.unitPrice(), line.subtotal(), line.modifiers().stream()
+                        .map(modifier -> new CustomerDeliveryQuote.Modifier(modifier.option().getId(),
+                                modifier.option().getName(), modifier.quantity(), modifier.option().getAdditionalPrice()))
+                        .toList())).toList();
+        }
     }
 
     private void validateDeliveryZoneCoverage(CustomerAddress address, DeliveryZone zone) {
@@ -529,18 +584,23 @@ public class OrderService {
                     "error.delivery.address-location-required");
         }
 
-        boolean cityMatches = requiredCity != null
-                && address.getCity().trim().equalsIgnoreCase(requiredCity.trim());
-        boolean townshipMatches = requiredTownship != null
-                && address.getTownship().trim().equalsIgnoreCase(requiredTownship.trim());
-        if (!cityMatches || !townshipMatches) {
+        if (!deliveryZoneCovers(zone, address.getCity(), address.getTownship())) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "DELIVERY_ADDRESS_OUTSIDE_ZONE",
                     "error.delivery.address-outside-zone");
         }
     }
 
-    private String firstNonBlank(String... values) {
+    static boolean deliveryZoneCovers(DeliveryZone zone, String city, String township) {
+        String requiredCity = zone.getCoverageCity();
+        String requiredTownship = zone.getCoverageTownship();
+        return (requiredCity == null && requiredTownship == null)
+                || (requiredCity != null && requiredTownship != null
+                && requiredCity.trim().equalsIgnoreCase(city.trim())
+                && requiredTownship.trim().equalsIgnoreCase(township.trim()));
+    }
+
+    static String firstNonBlank(String... values) {
         if (values == null) {
             return null;
         }
@@ -552,7 +612,7 @@ public class OrderService {
         return null;
     }
 
-    private String formatAddress(CustomerAddress address) {
+    static String formatAddress(CustomerAddress address) {
         return java.util.stream.Stream.of(
                         address.getHouseNo(), address.getStreet(), address.getWard(),
                         address.getTownship(), address.getCity())

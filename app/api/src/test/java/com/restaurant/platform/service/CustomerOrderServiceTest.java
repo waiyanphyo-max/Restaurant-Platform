@@ -8,6 +8,7 @@ import com.restaurant.platform.dto.order.CreateOrderItemRequest;
 import com.restaurant.platform.dto.order.CreateOrderResponse;
 import com.restaurant.platform.dto.order.ModifierSelectionRequest;
 import com.restaurant.platform.entity.Delivery;
+import com.restaurant.platform.entity.DeliveryStatusHistory;
 import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.OrderStatusHistory;
 import com.restaurant.platform.entity.Payment;
@@ -15,6 +16,7 @@ import com.restaurant.platform.entity.OrderItem;
 import com.restaurant.platform.entity.OrderItemModifier;
 import com.restaurant.platform.entity.Product;
 import com.restaurant.platform.repository.DeliveryRepository;
+import com.restaurant.platform.repository.DeliveryStatusHistoryRepository;
 import com.restaurant.platform.repository.OrderItemModifierRepository;
 import com.restaurant.platform.repository.OrderItemRepository;
 import com.restaurant.platform.repository.OrderRepository;
@@ -28,6 +30,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +47,8 @@ class CustomerOrderServiceTest {
     private OrderStatusHistoryRepository historyRepository;
     private PaymentRepository paymentRepository;
     private DeliveryRepository deliveryRepository;
+    private DeliveryStatusHistoryRepository deliveryHistoryRepository;
+    private CustomerOrderNotifications notifications;
     private RestaurantAuthorization authorization;
     private OrderService orderService;
     private CustomerOrderService service;
@@ -60,11 +65,13 @@ class CustomerOrderServiceTest {
         historyRepository = mock(OrderStatusHistoryRepository.class);
         paymentRepository = mock(PaymentRepository.class);
         deliveryRepository = mock(DeliveryRepository.class);
+        deliveryHistoryRepository = mock(DeliveryStatusHistoryRepository.class);
+        notifications = mock(CustomerOrderNotifications.class);
         authorization = mock(RestaurantAuthorization.class);
         orderService = mock(OrderService.class);
         service = new CustomerOrderService(orderRepository, orderItemRepository,
                 productRepository, modifierRepository, historyRepository, paymentRepository,
-                deliveryRepository, authorization, orderService);
+                deliveryRepository, deliveryHistoryRepository, notifications, authorization, orderService);
     }
 
     @Test
@@ -108,9 +115,7 @@ class CustomerOrderServiceTest {
     @Test
     void cancellingPendingOrderReleasesStockAndCancelsUnpaidCodPayment() {
         Order order = order("PENDING");
-        when(orderRepository.findByIdAndCustomerIdForUpdate(orderId, userId))
-                .thenReturn(Optional.of(order));
-        when(orderRepository.findByIdAndCustomerId(orderId, userId))
+        when(orderRepository.findCustomerDeliveryOrderForUpdate(restaurantId, userId, orderId))
                 .thenReturn(Optional.of(order));
 
         OrderItem item = new OrderItem();
@@ -143,17 +148,39 @@ class CustomerOrderServiceTest {
         when(paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId))
                 .thenReturn(List.of(payment));
 
-        var response = service.cancelMyOrder(userId, orderId);
+        var response = service.cancelMyDeliveryOrder(restaurantId, userId, orderId);
 
         assertEquals("CANCELLED", order.getStatus());
         assertEquals("CANCELLED", payment.getStatus());
         assertEquals("CANCELLED", response.status());
+        assertFalse(response.canCancel());
         verify(productRepository).releaseStock(productId, restaurantId, 2);
         verify(paymentRepository).save(payment);
         verify(orderRepository).save(order);
         verify(historyRepository).save(argThat(history ->
                 "CANCELLED".equals(history.getStatus())
                         && userId.equals(history.getChangedByUserId())));
+        verify(notifications).orderStatusChanged(order);
+    }
+
+    @Test
+    void paidPendingDeliveryCannotBeCancelledByTheCustomer() {
+        Order order = order("PENDING");
+        Payment paid = new Payment();
+        paid.setStatus("PAID");
+        paid.setAmount(order.getTotalAmount());
+        when(orderRepository.findCustomerDeliveryOrder(restaurantId, userId, orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.findCustomerDeliveryOrderForUpdate(restaurantId, userId, orderId)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(paid));
+
+        assertFalse(service.getMyDeliveryOrder(restaurantId, userId, orderId).canCancel());
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.cancelMyDeliveryOrder(restaurantId, userId, orderId));
+        assertEquals("REFUND_REQUIRED", error.getCode());
+        assertEquals("PENDING", order.getStatus());
+        verify(orderRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
+        verifyNoInteractions(productRepository, notifications);
     }
 
     @Test
@@ -197,7 +224,12 @@ class CustomerOrderServiceTest {
         order.setDeliveryName("Customer");
         order.setDeliveryPhone("0912345678");
         order.setDeliveryAddress("12 Main Road, City");
-        when(orderRepository.findByIdAndCustomerId(orderId, userId)).thenReturn(Optional.of(order));
+        order.setDeliveryLatitude(new BigDecimal("16.8123456"));
+        order.setDeliveryLongitude(new BigDecimal("96.1234567"));
+        order.setDeliveryTownship("Kamayut");
+        order.setDeliveryLocationSource("MANUAL_MAP");
+        order.setDeliveryCheckoutCurrency("MMK");
+        when(orderRepository.findCustomerDeliveryOrder(restaurantId, userId, orderId)).thenReturn(Optional.of(order));
         when(orderItemRepository.findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(orderId, restaurantId))
                 .thenReturn(List.of());
         when(historyRepository.findByOrderIdOrderByCreatedAtAsc(orderId))
@@ -215,8 +247,13 @@ class CustomerOrderServiceTest {
         delivery.setStatus("PICKED_UP");
         delivery.setPickedUpAt(OffsetDateTime.now());
         when(deliveryRepository.findByOrderId(orderId)).thenReturn(Optional.of(delivery));
+        DeliveryStatusHistory pickedUp = new DeliveryStatusHistory();
+        pickedUp.setStatus("PICKED_UP");
+        pickedUp.setCreatedAt(delivery.getPickedUpAt());
+        when(deliveryHistoryRepository.findByDeliveryIdOrderByCreatedAtAsc(delivery.getId()))
+                .thenReturn(List.of(pickedUp));
 
-        var response = service.getMyOrder(userId, orderId);
+        var response = service.getMyDeliveryOrder(restaurantId, userId, orderId);
         assertEquals(orderId, response.id());
         assertEquals("OUT_FOR_DELIVERY", response.status());
         assertEquals("12 Main Road, City", response.deliveryAddress());
@@ -224,6 +261,32 @@ class CustomerOrderServiceTest {
                 response.statusHistory().stream().map(x -> x.status()).toList());
         assertEquals("CASH_ON_DELIVERY", response.payments().getFirst().method());
         assertEquals("PICKED_UP", response.delivery().status());
+        assertEquals(pickedUp.getCreatedAt(), response.delivery().statusHistory().getFirst().changedAt());
+        assertEquals(order.getDeliveryLatitude(), response.deliveryLatitude());
+        assertEquals(order.getDeliveryLongitude(), response.deliveryLongitude());
+        assertEquals("Kamayut", response.deliveryTownship());
+        assertEquals("MANUAL_MAP", response.deliveryLocationSource());
+        assertEquals(order.getCreatedAt(), response.destinationConfirmedAt());
+        assertNull(response.deliveryAddressId());
+        assertEquals("MMK", response.currency());
+    }
+
+    @Test
+    void deliveryLookupAndCancelNeverFallBackToAnUnscopedOrder() {
+        UUID otherRestaurant = UUID.randomUUID();
+        UUID otherCustomer = UUID.randomUUID();
+        for (var scope : List.of(new UUID[]{otherRestaurant, userId}, new UUID[]{restaurantId, otherCustomer})) {
+            ApiException read = assertThrows(ApiException.class,
+                    () -> service.getMyDeliveryOrder(scope[0], scope[1], orderId));
+            ApiException cancel = assertThrows(ApiException.class,
+                    () -> service.cancelMyDeliveryOrder(scope[0], scope[1], orderId));
+            assertEquals(HttpStatus.NOT_FOUND, read.getStatus());
+            assertEquals(HttpStatus.NOT_FOUND, cancel.getStatus());
+            verify(orderRepository).findCustomerDeliveryOrder(scope[0], scope[1], orderId);
+            verify(orderRepository).findCustomerDeliveryOrderForUpdate(scope[0], scope[1], orderId);
+        }
+        verifyNoMoreInteractions(orderRepository);
+        verifyNoInteractions(orderItemRepository, paymentRepository, notifications);
     }
 
     @Test

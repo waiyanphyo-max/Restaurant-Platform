@@ -2,7 +2,7 @@ import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import * as Device from "expo-device";
 import { AppState } from "react-native";
-import { createDeviceApiClient } from "@restaurant-platform/api-client";
+import { createCustomerDeviceApiClient } from "@restaurant-platform/api-client";
 import { getCustomerAuth } from "../auth/native";
 import { readEmbeddedTenant } from "../tenant";
 import { createDeviceLifecycle, type DeviceState } from "./lifecycle";
@@ -30,7 +30,8 @@ async function readState(): Promise<DeviceState> {
 }
 /** Bind the bearer lookup to its original owner, including an asynchronous refresh. */
 function ownedApi(owner: string) {
-  return createDeviceApiClient({ baseUrl: readEmbeddedTenant().apiBaseUrl, async getAccessToken() {
+  const { apiBaseUrl, restaurantId } = readEmbeddedTenant();
+  return createCustomerDeviceApiClient({ baseUrl: apiBaseUrl, restaurantId, async getAccessToken() {
     if (userId() !== owner) throw new Error("Device account changed");
     const token = await getCustomerAuth().getAccessToken();
     if (userId() !== owner) throw new Error("Device account changed");
@@ -83,19 +84,21 @@ async function registerCurrentToken(owner: string, started: number, optIn: boole
   await controller().register(token.data, owner, optIn);
   listen(owner, started);
 }
-export async function enableCustomerNotifications(): Promise<string> {
-  if (!readEmbeddedTenant().notificationsEnabled) return "Notifications are not configured in this build.";
+export async function enableCustomerNotifications(t: (english: string, burmese: string) => string = english => english): Promise<string> {
+  if (!readEmbeddedTenant().notificationsEnabled) return t("Notifications are not configured in this build.", "ဤအက်ပ်တွင် အသိပေးချက်ပို့ခြင်းကို မသတ်မှတ်ရသေးပါ။");
   const owner = userId();
-  if (!owner) return "Sign in before enabling notifications.";
-  if (!Device.isDevice) return "Use a physical Android device to register for notifications.";
+  if (!owner) return t("Sign in before enabling notifications.", "အသိပေးချက်များ မဖွင့်မီ အကောင့်ဝင်ပါ။");
+  if (!Device.isDevice) return t("Use a physical Android device to register for notifications.", "အသိပေးချက်များအတွက် Android စက်အစစ်ကို အသုံးပြုပါ။");
   const started = generation;
-  await Notifications.setNotificationChannelAsync("default", { name: "Order updates", importance: Notifications.AndroidImportance.DEFAULT, lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE });
+  await Notifications.setNotificationChannelAsync("default", { name: t("Order updates", "အမှာစာ အခြေအနေများ"), importance: Notifications.AndroidImportance.DEFAULT, lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE });
   requireCurrent(owner, started);
   const permission = await Notifications.requestPermissionsAsync();
   requireCurrent(owner, started);
-  if (!permission.granted) return "Notification permission was not granted. You can enable it later in Android settings.";
+  if (!permission.granted) return t("Notification permission was not granted. You can enable it later in Android settings.",
+    "အသိပေးချက်များအတွက် ခွင့်ပြုချက် မရပါ။ Android ဆက်တင်တွင် နောက်မှ ဖွင့်နိုင်ပါသည်။");
   await registerCurrentToken(owner, started, true);
-  return "This device is registered for updates. Delivery depends on the notification provider.";
+  return t("This device is registered for updates. Delivery depends on the notification provider.",
+    "ဤစက်ကို အသိပေးချက်များအတွက် မှတ်ပုံတင်ထားပါသည်။ အသိပေးချက် ရောက်ရှိမှုသည် ဝန်ဆောင်မှုပေးသူအပေါ် မူတည်ပါသည်။");
 }
 /** Restoration and foreground checks use existing consent and never prompt for permission. */
 export async function resumeCustomerNotifications() {

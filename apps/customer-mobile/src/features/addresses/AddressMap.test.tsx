@@ -26,6 +26,7 @@ vi.mock("react-native", () => ({ ActivityIndicator: "ActivityIndicator", Modal: 
 vi.mock("react-native-maps", () => ({ default: "MapView", Marker: "Marker", PROVIDER_GOOGLE: "google" }));
 vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body" }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => harness.tenant }));
+vi.mock("../../i18n", () => ({ localize: (language: string, english: string, my: string) => language === "my-MM" ? my : english }));
 
 import { AddressMap } from "./AddressMap";
 import { emptyPin, selectPin, type PinSelection } from "./location";
