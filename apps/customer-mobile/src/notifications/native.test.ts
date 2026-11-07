@@ -7,14 +7,18 @@ const native = vi.hoisted(() => ({
   raw: null as string | null,
   tokenListener: undefined as undefined | ((token: { type: string; data: string }) => void),
   foreground: undefined as undefined | ((state: string) => void),
+  network: undefined as undefined | ((state: { isConnected?: boolean; isInternetReachable?: boolean }) => void),
   authListener: undefined as undefined | ((state: { status: string; userId?: string }) => void),
   channel: vi.fn(), request: vi.fn(), permission: vi.fn(), token: vi.fn(),
   unregister: vi.fn(), dismiss: vi.fn(), cancel: vi.fn(), save: vi.fn(),
   register: vi.fn(), deactivate: vi.fn(), bearer: vi.fn(),
-  tokenRemove: vi.fn(), foregroundRemove: vi.fn(), authRemove: vi.fn()
+  tokenRemove: vi.fn(), foregroundRemove: vi.fn(), networkRemove: vi.fn(), authRemove: vi.fn()
 }));
 
 vi.mock("expo-device", () => ({ get isDevice() { return native.physical; } }));
+vi.mock("expo-network", () => ({ addNetworkStateListener(callback: typeof native.network) {
+  native.network = callback; return { remove: native.networkRemove };
+} }));
 vi.mock("expo-secure-store", () => ({
   getItemAsync: vi.fn(async () => native.raw),
   setItemAsync: async (key: string, value: string) => { native.raw = value; native.save(key, value); }
@@ -61,7 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   native.enabled = true; native.physical = true;
   native.snapshot = { status: "signed_in", userId: "alice" };
-  native.raw = null; native.tokenListener = undefined; native.foreground = undefined; native.authListener = undefined;
+  native.raw = null; native.tokenListener = undefined; native.foreground = undefined; native.network = undefined; native.authListener = undefined;
   native.channel.mockResolvedValue(undefined);
   native.request.mockResolvedValue({ granted: true });
   native.permission.mockResolvedValue({ granted: true });
@@ -107,7 +111,7 @@ describe("customer native notification registration", () => {
     expect(await notifications.enableCustomerNotifications()).toContain("registered");
     expect(native.channel).toHaveBeenCalledWith("default", { name: "Order updates", importance: 3, lockscreenVisibility: 0 });
     expect(native.register).toHaveBeenCalledWith("native-fcm-token", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
-    expect(savedState()).toEqual({ optedInUser: "alice", activeDeviceId: "device-one", associations: [{ userId: "alice", deviceId: "device-one" }] });
+    expect(savedState()).toEqual({ optedInUser: "alice", activeDeviceId: "device-one", tokenCleanupPending: false, associations: [{ userId: "alice", deviceId: "device-one" }] });
     expect(native.raw).not.toContain("native-fcm-token");
     expect(native.save.mock.calls[0]?.[0]).toBe("rp.customer.devices.development.restaurant");
   });
@@ -122,15 +126,19 @@ describe("customer native notification registration", () => {
   it("restores an earlier opt-in without prompting and refreshes a rotated token on foreground", async () => {
     native.raw = JSON.stringify({ optedInUser: "alice", associations: [{ userId: "alice", deviceId: "old-device" }] });
     const notifications = await import("./native");
+    const stop = notifications.watchCustomerNotificationConnectivity();
     await notifications.resumeCustomerNotifications();
     expect(native.request).not.toHaveBeenCalled();
     expect(native.deactivate).toHaveBeenCalledWith("old-device", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
     native.register.mockResolvedValue({ id: "device-two" });
     native.token.mockResolvedValue({ type: "android", data: "rotated-fcm-token" });
     native.foreground?.("active");
-    await flush();
+    await notifications.resumeCustomerNotifications();
     expect(native.register).toHaveBeenLastCalledWith("rotated-fcm-token", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
     expect(savedState().activeDeviceId).toBe("device-two");
+    stop();
+    expect(native.foregroundRemove).toHaveBeenCalledOnce();
+    expect(native.networkRemove).toHaveBeenCalledOnce();
   });
 
   it("ignores restore for another account and for accounts without prior consent", async () => {
@@ -146,11 +154,12 @@ describe("customer native notification registration", () => {
   it("processes native token rotation and preserves the new row while retiring the previous row", async () => {
     const notifications = await import("./native");
     await notifications.enableCustomerNotifications();
+    const savedBeforeRotation = native.save.mock.calls.length;
     native.register.mockResolvedValue({ id: "device-two" });
     native.tokenListener?.({ type: "android", data: "rotated-native-token" });
     await flush();
     expect(savedState().associations).toEqual([{ userId: "alice", deviceId: "device-two" }]);
-    const rotationSaves = native.save.mock.calls.slice(1).map(call => JSON.parse(String(call[1])));
+    const rotationSaves = native.save.mock.calls.slice(savedBeforeRotation).map(call => JSON.parse(String(call[1])));
     expect(rotationSaves.every(state => state.associations.some((row: { deviceId: string }) => row.deviceId === "device-two"))).toBe(true);
     expect(native.deactivate).toHaveBeenCalledWith("device-one", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
   });
@@ -160,7 +169,7 @@ describe("customer native notification registration", () => {
     await notifications.enableCustomerNotifications();
     native.permission.mockResolvedValue({ granted: false });
     await notifications.resumeCustomerNotifications();
-    expect(savedState()).toEqual({ optedInUser: null, activeDeviceId: null, associations: [] });
+    expect(savedState()).toEqual({ optedInUser: null, activeDeviceId: null, tokenCleanupPending: false, associations: [] });
     expect(native.unregister).toHaveBeenCalledOnce();
     expect(native.request).toHaveBeenCalledOnce();
   });
@@ -197,16 +206,91 @@ describe("customer native notification registration", () => {
     await notifications.enableCustomerNotifications();
     const oldListener = native.tokenListener;
     native.deactivate.mockRejectedValue(new Error("offline"));
+    native.unregister.mockRejectedValue(new Error("offline"));
     await notifications.cleanupCustomerDevice();
-    expect(savedState()).toEqual({ optedInUser: null, activeDeviceId: null, associations: [{ userId: "alice", deviceId: "device-one" }] });
+    expect(savedState()).toEqual({ optedInUser: null, activeDeviceId: null, tokenCleanupPending: true, associations: [{ userId: "alice", deviceId: "device-one" }] });
+    expect(native.dismiss).toHaveBeenCalled();
     expect(native.tokenRemove).toHaveBeenCalledOnce();
     expect(native.authRemove).toHaveBeenCalledOnce();
     oldListener?.({ type: "android", data: "late-token" });
-    await notifications.resumeCustomerNotifications();
+    await expect(notifications.resumeCustomerNotifications()).rejects.toThrow("offline");
     expect(native.register).toHaveBeenCalledOnce();
     native.deactivate.mockResolvedValue(undefined);
+    native.unregister.mockResolvedValue(undefined);
     await notifications.retryCustomerDeviceCleanup();
     expect(savedState().associations).toEqual([]);
+  });
+
+  it("retries native revocation on signed-out reconnect and permits a new account to opt in safely", async () => {
+    const notifications = await import("./native");
+    await notifications.enableCustomerNotifications();
+    const stop = notifications.watchCustomerNotificationConnectivity();
+    await notifications.resumeCustomerNotifications();
+    native.unregister.mockRejectedValue(new Error("offline"));
+    native.deactivate.mockRejectedValue(new Error("offline"));
+    await notifications.cleanupCustomerDevice();
+    native.snapshot = { status: "signed_in", userId: "bob" };
+    await expect(notifications.enableCustomerNotifications()).rejects.toThrow("offline");
+    expect(native.register).toHaveBeenCalledTimes(2);
+
+    native.snapshot = { status: "signed_out" };
+    native.unregister.mockResolvedValue(undefined);
+    native.network?.({ isConnected: true, isInternetReachable: true });
+    await notifications.resumeCustomerNotifications();
+    expect(savedState().tokenCleanupPending).toBe(false);
+    expect(savedState().associations).toEqual([{ userId: "alice", deviceId: "device-one" }]);
+
+    native.snapshot = { status: "signed_in", userId: "bob" };
+    native.bearer.mockResolvedValue("bob-access-token");
+    native.token.mockResolvedValue({ type: "android", data: "new-native-fcm-token" });
+    native.register.mockResolvedValue({ id: "bob-device" });
+    await notifications.resumeCustomerNotifications();
+    expect(native.register).toHaveBeenCalledTimes(2);
+    await notifications.enableCustomerNotifications();
+    expect(native.register).toHaveBeenLastCalledWith("new-native-fcm-token", { timeoutMs: 3000 }, "bob-access-token", "restaurant");
+    expect(native.deactivate.mock.calls.every(call => call[2] === "alice-access-token")).toBe(true);
+    expect(savedState().optedInUser).toBe("bob");
+    stop();
+  });
+
+  it("keeps account switching blocked while a timed-out native deletion can still revoke the token", async () => {
+    vi.useFakeTimers();
+    const deletion = deferred<void>();
+    const notifications = await import("./native");
+    await notifications.enableCustomerNotifications();
+    native.unregister.mockReturnValue(deletion.promise);
+    const cleanup = notifications.cleanupCustomerDevice();
+    await vi.advanceTimersByTimeAsync(1500);
+    await cleanup;
+    native.snapshot = { status: "signed_in", userId: "bob" };
+    const enabling = notifications.enableCustomerNotifications();
+    const blocked = expect(enabling).rejects.toThrow("token cleanup is pending");
+    await vi.advanceTimersByTimeAsync(1500);
+    await blocked;
+    expect(native.token).toHaveBeenCalledOnce();
+    expect(native.unregister).toHaveBeenCalledOnce();
+    expect(savedState().tokenCleanupPending).toBe(true);
+
+    deletion.resolve();
+    native.bearer.mockResolvedValue("bob-access-token");
+    await notifications.enableCustomerNotifications();
+    expect(native.token).toHaveBeenCalledTimes(2);
+    expect(native.unregister).toHaveBeenCalledOnce();
+    expect(savedState().tokenCleanupPending).toBe(false);
+  });
+
+  it("resumes legacy offline logout cleanup on a signed-out process restart", async () => {
+    native.snapshot = { status: "signed_out" };
+    native.raw = JSON.stringify({ optedInUser: null, activeDeviceId: null, associations: [{ userId: "alice", deviceId: "device-one" }] });
+    const notifications = await import("./native");
+
+    await notifications.resumeCustomerNotifications();
+
+    expect(native.unregister).toHaveBeenCalledOnce();
+    expect(native.deactivate).not.toHaveBeenCalled();
+    expect(native.token).not.toHaveBeenCalled();
+    expect(savedState().tokenCleanupPending).toBe(false);
+    expect(savedState().associations).toEqual([{ userId: "alice", deviceId: "device-one" }]);
   });
 
   it("bounds logout to seven seconds and safely retains an HTTP registration that resolves later", async () => {
@@ -221,13 +305,14 @@ describe("customer native notification registration", () => {
     await vi.advanceTimersByTimeAsync(7000);
     await cleanup;
     native.snapshot = { status: "signed_out" };
+    native.unregister.mockRejectedValue(new Error("offline"));
     response.resolve({ id: "late-device" });
     await rejection;
     await flush();
-    expect(savedState()).toEqual({ optedInUser: null, activeDeviceId: null, associations: [{ userId: "alice", deviceId: "late-device" }] });
+    expect(savedState()).toEqual({ optedInUser: null, activeDeviceId: null, tokenCleanupPending: true, associations: [{ userId: "alice", deviceId: "late-device" }] });
     expect(native.deactivate).not.toHaveBeenCalled();
     native.snapshot = { status: "signed_in", userId: "bob" };
-    await expect(notifications.enableCustomerNotifications()).rejects.toThrow("previous account");
+    await expect(notifications.enableCustomerNotifications()).rejects.toThrow("offline");
     expect(native.register).toHaveBeenCalledOnce();
   });
 

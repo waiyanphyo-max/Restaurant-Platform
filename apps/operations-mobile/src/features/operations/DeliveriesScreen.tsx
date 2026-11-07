@@ -9,7 +9,7 @@ import { Choices, FormToggle, MutationFeedback } from "../../components/forms";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { FormValidationError } from "../../hooks/mutation";
-import { DELIVERY_STATUSES, deliveryActions } from "./workflows";
+import { canAssignDelivery, DELIVERY_STATUSES, deliveryActions } from "./workflows";
 import { exactTimestamp, operationalAmount } from "./format";
 
 export function DeliveriesScreen() {
@@ -56,10 +56,6 @@ function AssignedDeliverySummary({ delivery }: {
 
 function AssignedDeliveryLink({ deliveryId }: { deliveryId: string }) {
   return <Link href={{ pathname: "/delivery/[deliveryId]", params: { deliveryId } }}>Open assigned delivery</Link>;
-}
-
-function canAssignDelivery(delivery: DeliveryTaskDto) {
-  return ["READY", "OUT_FOR_DELIVERY"].includes(delivery.orderStatus) && ["WAITING_ASSIGNMENT", "ASSIGNED", "FAILED"].includes(delivery.status);
 }
 
 function ManagementDeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDto; reload(): void }) {

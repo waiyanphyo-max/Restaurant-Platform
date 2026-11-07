@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiHttpError, ApiNetworkError } from "@restaurant-platform/api-client";
+import { ApiHttpError, ApiNetworkError, ApiTimeoutError } from "@restaurant-platform/api-client";
 import type { CreateOrderResponse, DeliveryQuoteResponse } from "@restaurant-platform/shared-types";
 import type { CheckoutAttempt } from "./CheckoutProvider";
 
 const mocks = vi.hoisted(() => ({
   data: [] as unknown[], refs: [] as { current: unknown }[], state: 0, ref: 0, mounted: false, cleanup: undefined as undefined | (() => void),
-  get: vi.fn(), put: vi.fn(), remove: vi.fn(), submit: vi.fn(), receipt: vi.fn(), clear: vi.fn(),
+  get: vi.fn(), put: vi.fn(), remove: vi.fn(), submit: vi.fn(), receipt: vi.fn(), abandon: vi.fn(), clear: vi.fn(),
   items: [{ productId: "product", quantity: 1 }]
 }));
 vi.mock("react", async load => ({
@@ -25,7 +25,8 @@ vi.mock("react", async load => ({
 }));
 vi.mock("expo-secure-store", () => ({ getItemAsync: mocks.get, setItemAsync: mocks.put, deleteItemAsync: mocks.remove }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => ({ restaurantId: "restaurant", environment: "development" }) }));
-vi.mock("../../api", () => ({ getCustomerApi: () => ({ checkoutDelivery: mocks.submit, getCheckoutReceipt: mocks.receipt }) }));
+vi.mock("../../api", () => ({ getCustomerApi: () => ({ checkoutDelivery: mocks.submit, getCheckoutReceipt: mocks.receipt,
+  abandonCheckout: mocks.abandon }) }));
 vi.mock("../cart/CartProvider", () => ({ useCustomerCart: () => ({ items: mocks.items, clear: mocks.clear }) }));
 
 import { CustomerCheckoutProvider } from "./CheckoutProvider";
@@ -55,6 +56,7 @@ describe("COD checkout and receipt recovery", () => {
     mocks.put.mockResolvedValue(undefined);
     mocks.remove.mockResolvedValue(undefined);
     mocks.submit.mockResolvedValue(order);
+    mocks.abandon.mockResolvedValue(undefined);
   });
 
   it("writes only the opaque key before creating a pending COD order and suppresses duplicate taps", async () => {
@@ -89,6 +91,7 @@ describe("COD checkout and receipt recovery", () => {
     await render().submit(attempt);
     expect(render().state).toEqual({ status: "rejected", error });
     expect(mocks.remove).toHaveBeenCalledWith(storage);
+    expect(mocks.abandon).toHaveBeenCalledBefore(mocks.remove);
     expect(mocks.clear).not.toHaveBeenCalled();
   });
 
@@ -102,7 +105,7 @@ describe("COD checkout and receipt recovery", () => {
     expect(render().state).toEqual({ status: "created", order });
   });
 
-  it("keeps the recovery key on a network or authorization failure and allows a receipt recheck", async () => {
+  it("keeps the recovery key until the server confirms abandonment", async () => {
     mocks.get.mockResolvedValue("opaque-attempt-key");
     mocks.receipt.mockRejectedValueOnce(new ApiHttpError(401, "EXPIRED")).mockRejectedValueOnce(new ApiHttpError(404, "HTTP_404"));
     render(); await tick();
@@ -110,7 +113,47 @@ describe("COD checkout and receipt recovery", () => {
     expect(mocks.remove).not.toHaveBeenCalled();
     await render().recover();
     expect(render().state.status).toBe("unrecorded");
-    await render().clearUnrecorded();
+    const { abandonPrevious } = render();
+    await Promise.all([abandonPrevious(), abandonPrevious()]);
+    expect(mocks.abandon).toHaveBeenCalledExactlyOnceWith("opaque-attempt-key", { signal: expect.any(AbortSignal) });
+    expect(mocks.abandon).toHaveBeenCalledBefore(mocks.remove);
     expect(render().state.status).toBe("idle");
+  });
+
+  it("recovers a delayed committed checkout even after an earlier receipt lookup returned 404", async () => {
+    mocks.get.mockResolvedValue("opaque-attempt-key");
+    mocks.receipt.mockRejectedValueOnce(new ApiHttpError(404, "HTTP_404"));
+    mocks.abandon.mockResolvedValue(order);
+    render(); await tick();
+    expect(render().state.status).toBe("unrecorded");
+    await render().abandonPrevious();
+    expect(render().state).toEqual({ status: "created", order });
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.submit).not.toHaveBeenCalled();
+  });
+
+  it("keeps the key after abandonment times out and allows the server operation to be retried", async () => {
+    mocks.get.mockResolvedValue("opaque-attempt-key");
+    mocks.receipt.mockRejectedValue(new ApiHttpError(404, "HTTP_404"));
+    mocks.abandon.mockRejectedValueOnce(new ApiTimeoutError());
+    render(); await tick();
+    await render().abandonPrevious();
+    expect(render().state.status).toBe("recovery_pending");
+    expect(mocks.remove).not.toHaveBeenCalled();
+    await render().recover();
+    await render().abandonPrevious();
+    expect(render().state.status).toBe("idle");
+    expect(mocks.remove).toHaveBeenCalledOnce();
+  });
+
+  it("recovers the winning receipt when a concurrently confirmed body conflicts on the same key", async () => {
+    mocks.submit.mockRejectedValueOnce(new ApiHttpError(409, "IDEMPOTENCY_KEY_REUSED"));
+    render(); await tick();
+    mocks.get.mockResolvedValue("opaque-attempt-key");
+    mocks.receipt.mockResolvedValue(order);
+    await render().submit(attempt);
+    expect(render().state).toEqual({ status: "created", order });
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.clear).not.toHaveBeenCalled();
   });
 });

@@ -16,10 +16,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -105,9 +108,22 @@ class CustomerDeliveryCheckoutTest {
                 qrOrderIdempotencyService);
         notifications = mock(CustomerOrderNotifications.class);
         accounting = mock(AccountingSupport.class);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        var activeKeys = new HashMap<List<UUID>, UUID>();
+        when(jdbc.query(contains("SELECT checkout_key"), org.mockito.ArgumentMatchers.<RowMapper<UUID>>any(),
+                any(UUID.class), any(UUID.class))).thenAnswer(invocation -> Optional.ofNullable(activeKeys.get(
+                        List.of(invocation.getArgument(2), invocation.getArgument(3)))).stream().toList());
+        when(jdbc.update(contains("INSERT INTO public.customer_delivery_checkout_keys"), any(UUID.class),
+                any(UUID.class), any(UUID.class))).thenAnswer(invocation -> {
+                    activeKeys.put(List.of(invocation.getArgument(1), invocation.getArgument(2)), invocation.getArgument(3));
+                    return 1;
+                });
+        when(jdbc.update(contains("DELETE FROM public.customer_delivery_checkout_keys"), any(UUID.class),
+                any(UUID.class), any(UUID.class))).thenAnswer(invocation -> activeKeys.remove(
+                        List.of(invocation.getArgument(1), invocation.getArgument(2)), invocation.getArgument(3)) ? 1 : 0);
         checkout = new CustomerDeliveryCheckoutService(authorization, service, orderRepository,
                 addressRepository, profileRepository, zoneRepository, accounting, notifications,
-                JsonMapper.builder().build());
+                JsonMapper.builder().build(), jdbc);
     }
 
     @ParameterizedTest
@@ -147,6 +163,7 @@ class CustomerDeliveryCheckoutTest {
         order.getValue().setStatus("ACCEPTED");
         assertEquals(original, checkout.checkout(restaurantId, userId, quote.idempotencyKey().toString(), confirmed));
         assertEquals(original, checkout.getReceipt(restaurantId, userId, quote.idempotencyKey().toString()).orElseThrow());
+        assertEquals(original, checkout.abandon(restaurantId, userId, quote.idempotencyKey().toString()).orElseThrow());
         assertTrue(checkout.getReceipt(restaurantId, UUID.randomUUID(), quote.idempotencyKey().toString()).isEmpty());
         assertTrue(checkout.getReceipt(UUID.randomUUID(), userId, quote.idempotencyKey().toString()).isEmpty());
         var changed = confirm(temporaryRequest(source, "Different township", BigDecimal.ZERO, product), quote);
@@ -154,6 +171,21 @@ class CustomerDeliveryCheckoutTest {
         verify(orderRepository, times(1)).saveAndFlush(any());
         verify(notifications).orderCreated(order.getValue());
         verifyNoInteractions(addressRepository);
+    }
+
+    @Test
+    void quoteRejectsInvalidRecipientPhoneAndSnapshotsTheNormalizedNumber() {
+        var draft = temporaryRequest(TemporarySource.MANUAL_MAP, "Tamwe", BigDecimal.ZERO, givenOrderableProduct());
+        var invalid = new CustomerDeliveryCheckoutRequest(null, draft.temporaryDestination(), draft.recipientName(),
+                "call-me", draft.deliveryNote(), draft.items(), null);
+        assertQuoteError("INVALID_DELIVERY_PHONE", invalid);
+
+        var formatted = new CustomerDeliveryCheckoutRequest(null, draft.temporaryDestination(), draft.recipientName(),
+                "၀၉ ၉၄၂-၁၂၃-၄၅၆", draft.deliveryNote(), draft.items(), null);
+        var quote = checkout.quote(restaurantId, userId, formatted);
+        assertEquals("+959942123456", quote.destination().recipientPhone());
+        checkout.checkout(restaurantId, userId, quote.idempotencyKey().toString(), confirm(formatted, quote));
+        verify(orderRepository).saveAndFlush(argThat(order -> "+959942123456".equals(order.getDeliveryPhone())));
     }
 
     @Test
@@ -291,17 +323,31 @@ class CustomerDeliveryCheckoutTest {
         var request = temporaryRequest(TemporarySource.MANUAL_MAP, "Tamwe", BigDecimal.ZERO, product);
         var quote = checkout.quote(restaurantId, userId, request);
         UUID otherRestaurant = UUID.randomUUID();
-        when(restaurantRepository.findByIdAndIsActiveTrue(otherRestaurant)).thenReturn(Optional.of(new Restaurant()));
-        when(settingsRepository.findById(otherRestaurant)).thenReturn(Optional.of(new RestaurantSettings()));
-        when(zoneRepository.findByRestaurantIdAndIsActiveTrue(otherRestaurant))
-                .thenReturn(List.of(new DeliveryZone()));
         var error = assertThrows(ApiException.class, () -> checkout.checkout(otherRestaurant, userId,
                 quote.idempotencyKey().toString(), confirm(request, quote)));
-        assertEquals("INVALID_PRODUCT", error.getCode());
+        assertEquals("DELIVERY_QUOTE_CHANGED", error.getCode());
         var wrongCustomer = assertThrows(ApiException.class, () -> checkout.checkout(restaurantId, UUID.randomUUID(),
                 quote.idempotencyKey().toString(), confirm(request, quote)));
         assertEquals("DELIVERY_QUOTE_CHANGED", wrongCustomer.getCode());
         verify(orderRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void retiringAnUnrecordedKeyPreventsLateSubmitAfterAnotherQuote() {
+        Product product = givenOrderableProduct();
+        var request = temporaryRequest(TemporarySource.MANUAL_MAP, "Tamwe", BigDecimal.ZERO, product);
+        var first = checkout.quote(restaurantId, userId, request);
+        assertEquals(first.idempotencyKey(), checkout.quote(restaurantId, userId, request).idempotencyKey());
+
+        String retired = first.idempotencyKey().toString();
+        assertTrue(checkout.abandon(restaurantId, userId, retired).isEmpty());
+        var replacement = checkout.quote(restaurantId, userId, request);
+        assertNotEquals(first.idempotencyKey(), replacement.idempotencyKey());
+        assertTrue(checkout.abandon(restaurantId, userId, retired).isEmpty());
+        assertCheckoutError("DELIVERY_QUOTE_CHANGED", first, confirm(request, first));
+
+        checkout.checkout(restaurantId, userId, replacement.idempotencyKey().toString(), confirm(request, replacement));
+        verify(orderRepository, times(1)).saveAndFlush(any());
     }
 
     private Product givenOrderableProduct() {

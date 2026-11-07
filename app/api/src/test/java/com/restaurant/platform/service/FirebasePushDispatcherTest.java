@@ -6,11 +6,16 @@ import com.restaurant.platform.service.PushNotificationOutboxRepository.OutboxIt
 import com.restaurant.platform.service.PushNotificationOutboxRepository.PushPayload;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -37,9 +42,36 @@ class FirebasePushDispatcherTest {
 
         dispatcher.dispatchPending();
 
-        verify(firebaseMessaging).send(any(Message.class));
+        var message = ArgumentCaptor.forClass(Message.class);
+        verify(firebaseMessaging).send(message.capture());
+        assertEquals(Map.of("notificationId", payload.notificationId().toString(), "notificationType", "DELIVERY_ASSIGNED"),
+                ReflectionTestUtils.getField(message.getValue(), "data"));
+        var notification = ReflectionTestUtils.getField(message.getValue(), "notification");
+        assertEquals("Delivery assigned", ReflectionTestUtils.getField(notification, "title"));
+        assertEquals("Order 123 is ready for delivery.", ReflectionTestUtils.getField(notification, "body"));
         verify(outbox).markSent(item.id());
         verify(outbox, never()).markRetry(any(), any(), anyLong(), anyBoolean());
+    }
+
+    @Test
+    void customerDeliverySendExposesOnlyGenericTextEvenIfQueuedWithPrivateContent() throws Exception {
+        OutboxItem item = item(1);
+        var payload = new PushPayload(item.id(), item.notificationId(), item.userId(), item.deviceId(),
+                "ORDER_READY", "Your order is ready", "Order 123 is ready at Restaurant A.",
+                "do-not-log-this-token", "ANDROID", true, true);
+        when(outbox.claimBatch(20, 8)).thenReturn(List.of(item));
+        when(outbox.findPayload(item.id())).thenReturn(Optional.of(payload));
+
+        dispatcher.dispatchPending();
+
+        var message = ArgumentCaptor.forClass(Message.class);
+        verify(firebaseMessaging).send(message.capture());
+        var notification = ReflectionTestUtils.getField(message.getValue(), "notification");
+        assertEquals("Updates available", ReflectionTestUtils.getField(notification, "title"));
+        assertEquals("Open the app to check for updates.", ReflectionTestUtils.getField(notification, "body"));
+        Object data = ReflectionTestUtils.getField(message.getValue(), "data");
+        assertTrue(data == null || Map.of().equals(data));
+        verify(outbox).markSent(item.id());
     }
 
     @Test
@@ -78,7 +110,7 @@ class FirebasePushDispatcherTest {
     private PushPayload payload(boolean active) {
         return new PushPayload(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), "ORDER_READY", "Order ready", "Your order is ready.",
-                "do-not-log-this-token", "ANDROID", active);
+                UUID.randomUUID(), "DELIVERY_ASSIGNED", "Delivery assigned", "Order 123 is ready for delivery.",
+                "do-not-log-this-token", "ANDROID", active, false);
     }
 }

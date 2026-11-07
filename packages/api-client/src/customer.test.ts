@@ -52,6 +52,22 @@ describe("restaurant- and identity-scoped customer delivery transport", () => {
     expect(new Headers(request?.headers).get("Idempotency-Key")).toBe(key);
   });
 
+  it("asks the scoped server to abandon a key or return an already committed receipt", async () => {
+    const { api, fetchImpl } = setup();
+    fetchImpl.mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({ orderId }));
+    await expect(api.abandonCheckout(key)).resolves.toBeUndefined();
+    await expect(api.abandonCheckout(key)).resolves.toMatchObject({ orderId });
+    for (const [url, request] of fetchImpl.mock.calls) {
+      expect(String(url)).toBe(`https://api.example.test${prefix}/orders/delivery/checkout`);
+      expect(request?.method).toBe("DELETE");
+      expect(request?.body).toBeUndefined();
+      const headers = new Headers(request?.headers);
+      expect(headers.get("Authorization")).toBe("Bearer customer-jwt");
+      expect(headers.get("Idempotency-Key")).toBe(key);
+    }
+  });
+
   it("routes detail, cancellation, notifications, and pagination through the locked restaurant", async () => {
     const { api, fetchImpl } = setup();
     fetchImpl.mockResolvedValueOnce(Response.json({ content: [{ restaurantId }] }));

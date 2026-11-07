@@ -19,8 +19,12 @@ public interface CustomerAddressRepository extends JpaRepository<CustomerAddress
 
     Optional<CustomerAddress> findByIdAndUserId(UUID id, UUID userId);
 
+    // Lock the owner even when the address book is empty.
+    @Query(value = "select id from public.profiles where id = :userId for no key update", nativeQuery = true)
+    UUID lockOwner(@Param("userId") UUID userId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
-    @Query("update CustomerAddress a set a.isDefault = false where a.userId = :userId")
+    @Query("update CustomerAddress a set a.isDefault = false where a.userId = :userId and a.isDefault = true")
     int clearDefaultForUser(@Param("userId") UUID userId);
 }

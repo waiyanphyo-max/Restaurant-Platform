@@ -14,7 +14,6 @@ import com.restaurant.platform.entity.OrderStatusHistory;
 import com.restaurant.platform.entity.Payment;
 import com.restaurant.platform.entity.OrderItem;
 import com.restaurant.platform.entity.OrderItemModifier;
-import com.restaurant.platform.entity.Product;
 import com.restaurant.platform.repository.DeliveryRepository;
 import com.restaurant.platform.repository.DeliveryStatusHistoryRepository;
 import com.restaurant.platform.repository.OrderItemModifierRepository;
@@ -70,8 +69,9 @@ class CustomerOrderServiceTest {
         authorization = mock(RestaurantAuthorization.class);
         orderService = mock(OrderService.class);
         service = new CustomerOrderService(orderRepository, orderItemRepository,
-                productRepository, modifierRepository, historyRepository, paymentRepository,
-                deliveryRepository, deliveryHistoryRepository, notifications, authorization, orderService);
+                modifierRepository, historyRepository, paymentRepository, deliveryRepository,
+                deliveryHistoryRepository, notifications, authorization, orderService,
+                new OrderCancellationService(orderItemRepository, paymentRepository, productRepository));
     }
 
     @Test
@@ -125,18 +125,13 @@ class CustomerOrderServiceTest {
         UUID productId = UUID.randomUUID();
         item.setProductId(productId);
         item.setQuantity(2);
+        item.setReservedStockQuantity(2);
         item.setProductName("Tea");
         item.setUnitPrice(1000L);
         item.setSubtotal(2000L);
         when(orderItemRepository.findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(orderId, restaurantId))
                 .thenReturn(List.of(item));
 
-        Product product = new Product();
-        product.setId(productId);
-        product.setRestaurantId(restaurantId);
-        product.setTrackStock(true);
-        when(productRepository.findByIdAndRestaurantId(productId, restaurantId))
-                .thenReturn(Optional.of(product));
         when(productRepository.releaseStock(productId, restaurantId, 2)).thenReturn(1);
 
         Payment payment = new Payment();
@@ -155,6 +150,7 @@ class CustomerOrderServiceTest {
         assertEquals("CANCELLED", response.status());
         assertFalse(response.canCancel());
         verify(productRepository).releaseStock(productId, restaurantId, 2);
+        verifyNoMoreInteractions(productRepository);
         verify(paymentRepository).save(payment);
         verify(orderRepository).save(order);
         verify(historyRepository).save(argThat(history ->

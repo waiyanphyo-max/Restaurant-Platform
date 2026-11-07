@@ -337,6 +337,43 @@ class DeliveryServiceTest {
         verify(deliveryRepository, never()).saveAndFlush(any());
     }
 
+    @Test
+    void managerCanReassignCancelledDeliveryWhileItsOrderIsReady() {
+        Delivery delivery = delivery("ASSIGNED");
+        Order order = order("READY");
+        lockedDelivery(delivery, order);
+        var managerService = authenticatedService(managerId, RestaurantRole.MANAGER);
+        assertEquals("CANCELLED", managerService.updateDeliveryStatus(restaurantId, deliveryId, managerId,
+                new UpdateDeliveryStatusRequest("CANCELLED", null, null, null)).status());
+
+        when(memberRepository.findEligibleDeliveryMemberForUpdate(restaurantId, managerId))
+                .thenReturn(Optional.of(memberWithRole(managerId, RestaurantRole.MANAGER)));
+        var reassigned = managerService.assignDriver(restaurantId, deliveryId, managerId,
+                new AssignDeliveryDriverRequest(managerId, null));
+
+        assertEquals("ASSIGNED", reassigned.status());
+        assertEquals(managerId, reassigned.driverUserId());
+        assertEquals("READY", order.getStatus());
+        verify(deliveryHistoryRepository).save(argThat(history -> "CANCELLED".equals(history.getStatus())));
+        verify(deliveryHistoryRepository).save(argThat(history -> "ASSIGNED".equals(history.getStatus())
+                && history.getNote().contains(driverId.toString()) && history.getNote().contains(managerId.toString())));
+        verifyNoInteractions(paymentRepository, orderHistoryRepository);
+    }
+
+    @Test
+    void managerCannotReassignCancelledDeliveryWhenItsOrderIsNoLongerReady() {
+        Delivery delivery = delivery("CANCELLED");
+        lockedDelivery(delivery, order("CANCELLED"));
+        var managerService = authenticatedService(managerId, RestaurantRole.MANAGER);
+
+        var error = assertThrows(ApiException.class, () -> managerService.assignDriver(
+                restaurantId, deliveryId, managerId, new AssignDeliveryDriverRequest(managerId, null)));
+
+        assertEquals("DELIVERY_CANNOT_BE_REASSIGNED", error.getCode());
+        verify(deliveryRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(deliveryHistoryRepository, paymentRepository);
+    }
+
     @ParameterizedTest
     @EnumSource(RestaurantRole.class)
     void restaurantDeliveryListUsesAssignedScopeForOperationalRoles(RestaurantRole role) {

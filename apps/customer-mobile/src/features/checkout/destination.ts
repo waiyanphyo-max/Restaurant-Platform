@@ -20,10 +20,27 @@ export interface DestinationDetails {
 
 export type Destination = { saved: CustomerAddressResponse } | { pin: PinSelection };
 
+/** Structural validation of a dialable checkout contact. Keep in sync with Spring. */
+export function normalizeRecipientPhone(input: string): string | null {
+  if (input.length > 30) return null;
+  const ascii = input.trim().replace(/[\u1040-\u1049]/g, digit => String(digit.charCodeAt(0) - 0x1040));
+  if (!/^\+?(?:[0-9. \u00a0\u202f-]|\([0-9]+\))+$/.test(ascii)) return null;
+
+  let number = ascii.replace(/[. ()\u00a0\u202f-]/g, "");
+  if (number.startsWith("00")) {
+    number = `+${number.slice(2)}`;
+  } else if (number.startsWith("0")) {
+    number = `+95${number.slice(1)}`;
+  }
+  const format = number.startsWith("+95") ? /^\+95(?:9[0-9]{6,9}|[1-8][0-9]{5,8})$/ : /^\+[1-9][0-9]{6,14}$/;
+  return format.test(number) ? number : null;
+}
+
 export function quoteRequest(destination: Destination, details: DestinationDetails, items: CreateOrderItemRequest[]): DeliveryQuoteRequest | null {
   const { recipientName, recipientPhone, deliveryNote, address, township, city } = details;
-  if (!items.length || !recipientName.trim() || !recipientPhone.trim()) return null;
-  const fields = { recipientName: recipientName.trim(), recipientPhone: recipientPhone.trim(), deliveryNote: deliveryNote.trim(), items };
+  const phone = normalizeRecipientPhone(recipientPhone);
+  if (!items.length || !recipientName.trim() || !phone) return null;
+  const fields = { recipientName: recipientName.trim(), recipientPhone: phone, deliveryNote: deliveryNote.trim(), items };
   if ("saved" in destination) {
     return savedPin(destination.saved).coordinates ? { ...fields, addressId: destination.saved.id } : null;
   }
@@ -37,6 +54,11 @@ export function quoteRequest(destination: Destination, details: DestinationDetai
 }
 
 type Text = (en: string, my: string) => string;
+
+export function invalidRecipientPhoneMessage(t: Text): string {
+  return t("Enter a Myanmar phone number starting with 0 or an international number with its country code.",
+    "၀ ဖြင့် စသော မြန်မာဖုန်းနံပါတ် သို့မဟုတ် နိုင်ငံကုဒ်ပါသော နိုင်ငံတကာဖုန်းနံပါတ်ကို ဖြည့်ပါ။");
+}
 
 export function checkoutError(error: unknown, t: Text): string {
   if (error instanceof MissingAccessTokenError || error instanceof ApiHttpError && (error.status === 401 || error.status === 403)) {
@@ -68,6 +90,8 @@ export function checkoutError(error: unknown, t: Text): string {
         return t("Choose a valid saved address or confirm a pin and complete the delivery address.", "မှန်ကန်သော သိမ်းထားသည့်လိပ်စာကို ရွေးပါ သို့မဟုတ် မြေပုံနေရာကို အတည်ပြုပြီး လိပ်စာဖြည့်ပါ။");
       case "DELIVERY_CONTACT_REQUIRED":
         return t("Check the recipient name and contact phone.", "လက်ခံသူအမည်နှင့် ဆက်သွယ်ရန် ဖုန်းနံပါတ်ကို စစ်ဆေးပါ။");
+      case "INVALID_DELIVERY_PHONE":
+        return invalidRecipientPhoneMessage(t);
     }
   }
   return t("The delivery quote could not be confirmed. Check your connection and details, then try again.", "ပို့ဆောင်ခကို အတည်မပြုနိုင်ပါ။ အင်တာနက်နှင့် အချက်အလက်များ စစ်ဆေးပြီး ထပ်ကြိုးစားပါ။");

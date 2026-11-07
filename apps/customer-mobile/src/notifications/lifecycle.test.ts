@@ -6,7 +6,8 @@ function deferred<T>() {
   const promise = new Promise<T>(accept => { resolve = accept; });
   return { promise, resolve };
 }
-function fixture(initial: DeviceState = { optedInUser: null, activeDeviceId: null, associations: [] }) {
+const disabled = (): DeviceState => ({ optedInUser: null, activeDeviceId: null, associations: [], tokenCleanupPending: false });
+function fixture(initial: DeviceState = disabled()) {
   let owner: string | null = "alice";
   let state = structuredClone(initial);
   const saved: DeviceState[] = [];
@@ -20,7 +21,7 @@ function fixture(initial: DeviceState = { optedInUser: null, activeDeviceId: nul
   };
   return { port, saved, lifecycle: createDeviceLifecycle(port), state: () => state, owner: (value: string | null) => { owner = value; } };
 }
-const enabled = (): DeviceState => ({ optedInUser: "alice", activeDeviceId: "old-device", associations: [{ userId: "alice", deviceId: "old-device" }] });
+const enabled = (): DeviceState => ({ ...disabled(), optedInUser: "alice", activeDeviceId: "old-device", associations: [{ userId: "alice", deviceId: "old-device" }] });
 
 describe("customer device lifecycle", () => {
   it("requires opt-in and the current authenticated owner", async () => {
@@ -30,7 +31,7 @@ describe("customer device lifecycle", () => {
     expect(f.port.register).not.toHaveBeenCalled();
     await f.lifecycle.register("native-token", "alice", true);
     expect(f.port.register).toHaveBeenCalledWith("native-token", "alice");
-    expect(f.state()).toEqual({ optedInUser: "alice", activeDeviceId: "new-device", associations: [{ userId: "alice", deviceId: "new-device" }] });
+    expect(f.state()).toEqual({ ...enabled(), activeDeviceId: "new-device", associations: [{ userId: "alice", deviceId: "new-device" }] });
     expect(JSON.stringify(f.saved)).not.toContain("native-token");
   });
 
@@ -57,7 +58,7 @@ describe("customer device lifecycle", () => {
     const f = fixture(enabled());
     vi.mocked(f.port.deactivate).mockRejectedValue(new Error("offline"));
     await f.lifecycle.cleanup();
-    expect(f.saved[0]).toEqual({ optedInUser: null, activeDeviceId: null, associations: enabled().associations });
+    expect(f.saved[0]).toEqual({ ...disabled(), associations: enabled().associations, tokenCleanupPending: true });
     expect(f.state().associations).toEqual(enabled().associations);
     expect(f.port.unregister).toHaveBeenCalledOnce();
     vi.mocked(f.port.deactivate).mockResolvedValue(undefined);
@@ -66,13 +67,15 @@ describe("customer device lifecycle", () => {
   });
 
   it("never cleans a foreign owner's pending device with a new account", async () => {
-    const f = fixture({ ...enabled(), optedInUser: null, activeDeviceId: null });
+    const f = fixture({ ...disabled(), associations: enabled().associations, tokenCleanupPending: true });
     f.owner("bob");
-    await expect(f.lifecycle.register("bob-token", "bob", true)).rejects.toThrow("previous account");
+    await expect(f.lifecycle.register("bob-token", "bob", true)).rejects.toThrow("token cleanup is pending");
     await f.lifecycle.retryCleanup();
-    expect(f.port.register).not.toHaveBeenCalled();
     expect(f.port.deactivate).not.toHaveBeenCalled();
     expect(f.state().associations).toEqual(enabled().associations);
+    await f.lifecycle.register("bob-token", "bob", true);
+    expect(f.state().optedInUser).toBe("bob");
+    expect(f.state().associations).toEqual([...enabled().associations, { userId: "bob", deviceId: "new-device" }]);
   });
 
   it("serializes logout behind an in-flight registration and cleans its late result", async () => {
@@ -87,7 +90,7 @@ describe("customer device lifecycle", () => {
     response.resolve({ id: "late-device" });
     await rejection;
     await logout;
-    expect(f.state()).toEqual({ optedInUser: null, activeDeviceId: null, associations: [] });
+    expect(f.state()).toEqual(disabled());
     expect(f.port.deactivate).toHaveBeenCalledWith("late-device", "alice");
     await expect(f.lifecycle.register("late-rotation", "alice")).rejects.toThrow("stopped");
   });
@@ -105,7 +108,7 @@ describe("customer device lifecycle", () => {
     response.resolve({ id: "late-device" });
     await rejection;
     await cleanup;
-    expect(f.state()).toEqual({ optedInUser: null, activeDeviceId: null, associations: [{ userId: "alice", deviceId: "late-device" }] });
+    expect(f.state()).toEqual({ ...disabled(), associations: [{ userId: "alice", deviceId: "late-device" }] });
     expect(f.port.deactivate).not.toHaveBeenCalled();
     f.owner("alice");
     await f.lifecycle.retryCleanup();
@@ -134,9 +137,23 @@ describe("customer device lifecycle", () => {
 
   it("deactivates a new remote row if secure metadata cannot be saved", async () => {
     const f = fixture();
-    vi.mocked(f.port.save).mockRejectedValue(new Error("secure storage unavailable"));
+    vi.mocked(f.port.save).mockRejectedValueOnce(new Error("secure storage unavailable"));
+    await expect(f.lifecycle.register("native-token", "alice", true)).rejects.toThrow("secure storage");
+    expect(f.port.register).not.toHaveBeenCalled();
+
+    vi.mocked(f.port.save).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("secure storage unavailable"));
     await expect(f.lifecycle.register("native-token", "alice", true)).rejects.toThrow("secure storage");
     expect(f.port.deactivate).toHaveBeenCalledWith("new-device", "alice");
     expect(f.port.unregister).toHaveBeenCalledOnce();
+  });
+
+  it("retains revocation intent when a registration timed out before returning its row ID", async () => {
+    const f = fixture();
+    vi.mocked(f.port.register).mockRejectedValue(new Error("timed out"));
+    await expect(f.lifecycle.register("native-token", "alice", true)).rejects.toThrow("timed out");
+    expect(f.state()).toEqual({ ...disabled(), optedInUser: "alice" });
+    vi.mocked(f.port.unregister).mockRejectedValue(new Error("offline"));
+    await expect(f.lifecycle.cleanup()).rejects.toThrow("offline");
+    expect(f.state()).toEqual({ ...disabled(), tokenCleanupPending: true });
   });
 });

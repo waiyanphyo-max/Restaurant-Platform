@@ -39,6 +39,7 @@ vi.mock("./CheckoutProvider", () => ({ useCustomerCheckout: () => ({ state: { st
 
 import { LocationSelectionError, type Coordinates, type PinSelection } from "../addresses/location";
 import { CheckoutScreen } from "./CheckoutScreen";
+import { normalizeRecipientPhone } from "./destination";
 
 const home = Object.freeze<CustomerAddressResponse>({ id: "home", label: "Home", recipientName: "Customer", houseNo: "12",
   street: "Main Rd", ward: "Ward 1", township: "Tamwe", city: "Yangon", latitude: 16.8, longitude: 96.1, deliveryNote: "Home gate",
@@ -97,7 +98,7 @@ describe("customer checkout destination selection", () => {
     press("Check delivery and review total");
     await tick();
     expect(harness.quote.mock.calls[0][0]).toMatchObject({ addressId: "home", recipientName: "Customer",
-      recipientPhone: "09123456789", deliveryNote: "Home gate" });
+      recipientPhone: "+959123456789", deliveryNote: "Home gate" });
     expect(harness.submit).not.toHaveBeenCalled();
     const review = elements(render()).find(el => el.props.quote);
     (review!.props.onSubmit as () => void)();
@@ -111,6 +112,14 @@ describe("customer checkout destination selection", () => {
     press("Check delivery and review total");
     await tick();
     expect(harness.quote.mock.calls[0][0]).toMatchObject({ addressId: "work", deliveryNote: "Office" });
+  });
+
+  it("explains an invalid recipient phone before requesting a quote", () => {
+    field("Contact phone", "call-me");
+    press("Check delivery and review total");
+    expect(harness.quote).not.toHaveBeenCalled();
+    expect(elements(render()).find(element => element.props.accessibilityRole === "alert")?.props.children)
+      .toContain("Enter a Myanmar phone number");
   });
 
   it("prevents confirmation if the server total cannot be represented accurately", async () => {
@@ -174,5 +183,25 @@ describe("customer checkout destination selection", () => {
     press("ပို့ဆောင်နိုင်မှုနှင့် စုစုပေါင်းငွေ စစ်ရန်");
     await tick();
     expect(harness.quote.mock.calls[0][0]).toMatchObject({ addressId: "home" });
+  });
+});
+
+describe("delivery recipient phone format", () => {
+  it.each([
+    ["09123456", "+959123456"],
+    ["09 942-123-456", "+959942123456"],
+    ["၀၉ ၉၄၂-၁၂၃-၄၅၆", "+959942123456"],
+    ["0095 9 942 123 456", "+959942123456"],
+    ["(01) 234567", "+951234567"],
+    ["+1 (415) 555-0132", "+14155550132"],
+    ["+39 02 1234 5678", "+390212345678"],
+    ["+123456789012345", "+123456789012345"]
+  ])("normalizes %s without guessing an international trunk prefix", (input, expected) => {
+    expect(normalizeRecipientPhone(input)).toBe(expected);
+  });
+
+  it.each(["", "abc", "123456789", "09 12345", "091234567890", "+950942123456", "+1 (415 555-0132",
+    "+1 415 555 0132 x2", "+1234567890123456", "00 0000000"])("rejects %s", input => {
+    expect(normalizeRecipientPhone(input)).toBeNull();
   });
 });

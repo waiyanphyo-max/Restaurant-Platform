@@ -296,7 +296,7 @@ public class PublicMenuService {
                 product.getImageUrl(),
                 availableForOrdering,
                 product.getTrackStock(),
-                product.getStockQuantity(),
+                product.getVisibleStockQuantity(),
                 variantDtos,
                 modifierGroups
         );

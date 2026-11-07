@@ -113,7 +113,7 @@ public class CatalogManagementService {
             UUID restaurantId, UUID userId, UUID productId, ProductRequest request) {
         requirePermission(restaurantId, userId, RestaurantPermission.MENU_MANAGE);
         validateProductRequest(request);
-        Product product = productRepository.findByIdAndRestaurantId(productId, restaurantId)
+        Product product = productRepository.findByIdAndRestaurantIdForUpdate(productId, restaurantId)
                 .orElseThrow(() -> notFound("PRODUCT_NOT_FOUND", "error.catalog.product-not-found"));
         requireActiveCategory(restaurantId, request.categoryId());
         applyProduct(product, request);
@@ -356,7 +356,7 @@ public class CatalogManagementService {
         return new ProductManagementResponse(
                 product.getId(), product.getCategoryId(), product.getName(),
                 product.getDescription(), product.getPrice(), product.getImageUrl(),
-                Boolean.TRUE.equals(product.getTrackStock()), product.getStockQuantity(),
+                Boolean.TRUE.equals(product.getTrackStock()), product.getVisibleStockQuantity(),
                 Boolean.TRUE.equals(product.getIsAvailable()),
                 product.getCreatedAt(), product.getUpdatedAt());
     }
@@ -429,8 +429,10 @@ public class CatalogManagementService {
         product.setPrice(request.price());
         product.setImageUrl(clean(request.imageUrl()));
         product.setTrackStock(request.trackStock());
-        product.setStockQuantity(Boolean.TRUE.equals(request.trackStock())
-                ? request.stockQuantity() : null);
+        // A pending reservation may still be released while tracking is paused.
+        if (Boolean.TRUE.equals(request.trackStock())) {
+            product.setStockQuantity(request.stockQuantity());
+        }
         product.setIsAvailable(request.available());
     }
 

@@ -75,8 +75,9 @@ public class PushNotificationOutboxRepository {
                        outbox.user_id,
                        outbox.device_id,
                        notification.notification_type,
-                       notification.title,
-                       notification.body,
+                       CASE WHEN customer_order.id IS NULL THEN notification.title END AS title,
+                       CASE WHEN customer_order.id IS NULL THEN notification.body END AS body,
+                       customer_order.id IS NOT NULL AS customer_delivery,
                        device.push_token,
                        device.platform,
                        device.is_active
@@ -172,7 +173,8 @@ public class PushNotificationOutboxRepository {
                 rs.getString("body"),
                 rs.getString("push_token"),
                 rs.getString("platform"),
-                rs.getBoolean("is_active"));
+                rs.getBoolean("is_active"),
+                rs.getBoolean("customer_delivery"));
     }
 
     private String safeCode(String value) {
@@ -201,6 +203,7 @@ public class PushNotificationOutboxRepository {
             String body,
             String pushToken,
             String platform,
-            boolean active) {
+            boolean active,
+            boolean customerDelivery) {
     }
 }

@@ -4,6 +4,7 @@ export interface DeviceState {
   /** Other rows are retained only for owner-authorized cleanup. */
   activeDeviceId: string | null;
   associations: DeviceAssociation[];
+  tokenCleanupPending: boolean;
 }
 export interface DevicePort {
   currentUser(): string | null;
@@ -38,6 +39,18 @@ export function createDeviceLifecycle(port: DevicePort) {
       } catch { /* Failed owned rows remain retry metadata. */ }
     }
   }
+  async function clearOptIn(state: DeviceState) {
+    state.tokenCleanupPending ||= state.optedInUser !== null || state.activeDeviceId !== null;
+    state.optedInUser = null;
+    state.activeDeviceId = null;
+    await port.save(state);
+  }
+  async function cleanupToken(state: DeviceState) {
+    if (!state.tokenCleanupPending) return;
+    await port.unregister();
+    state.tokenCleanupPending = false;
+    await port.save(state);
+  }
   return {
     register(token: string, userId: string, optIn = false) {
       const requestedEpoch = epoch;
@@ -47,13 +60,24 @@ export function createDeviceLifecycle(port: DevicePort) {
         const state = await port.load();
         requireOwner(userId, requestedEpoch);
         if (!optIn && state.optedInUser !== userId) throw new Error("Notification opt-in is required");
-        if (state.associations.some(row => row.userId !== userId)) throw new Error("A previous account has pending device cleanup");
-        if (optIn) stopped = false;
+        if (state.tokenCleanupPending || state.optedInUser && state.optedInUser !== userId) {
+          throw new Error("Previous device token cleanup is pending");
+        }
+        if (optIn) {
+          stopped = false;
+          // Persist consent before a request that can commit even if its response is lost.
+          if (!state.optedInUser) {
+            state.optedInUser = userId;
+            await port.save(state);
+            requireOwner(userId, requestedEpoch);
+          }
+        }
         const device = await port.register(token, userId);
         state.associations = [...state.associations.filter(row => row.deviceId !== device.id), { userId, deviceId: device.id }];
         const stillCurrent = !stopped && requestedEpoch === epoch && port.currentUser() === userId;
         state.optedInUser = stillCurrent ? userId : null;
         state.activeDeviceId = stillCurrent ? device.id : null;
+        state.tokenCleanupPending = !stillCurrent;
         try { await port.save(state); }
         catch (error) {
           if (port.currentUser() === userId) await port.deactivate(device.id, userId).catch(() => undefined);
@@ -71,22 +95,26 @@ export function createDeviceLifecycle(port: DevicePort) {
       epoch++;
       const owner = port.currentUser();
       return enqueue(async () => {
+        let state: DeviceState | undefined;
         try {
-          const state = await port.load();
-          state.optedInUser = null;
-          state.activeDeviceId = null;
-          await port.save(state);
+          state = await port.load();
+          await clearOptIn(state);
           await cleanupOwned(state, owner, null);
-        } finally { await port.unregister(); }
+        } finally {
+          if (state) await cleanupToken(state);
+          else await port.unregister();
+        }
       });
     },
     retryCleanup() {
-      const owner = port.currentUser();
       return enqueue(async () => {
+        const owner = port.currentUser();
         const state = await port.load();
+        if (owner && state.optedInUser && state.optedInUser !== owner) await clearOptIn(state);
         const active = state.optedInUser === owner ? state.activeDeviceId : null;
         await cleanupOwned(state, owner, active);
-        if (!state.optedInUser) await port.unregister();
+        await cleanupToken(state);
+        return state.optedInUser;
       });
     }
   };

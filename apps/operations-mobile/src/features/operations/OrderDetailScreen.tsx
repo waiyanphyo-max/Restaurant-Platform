@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "expo-router";
-import type { UpdateOrderStatusRequest } from "@restaurant-platform/shared-types";
+import type { ManagerOrderDetailDto, UpdateOrderStatusRequest } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
 import { QueryResult } from "../../components/QueryResult";
@@ -24,6 +24,16 @@ type OrderConfirmation = (
   | { kind: "status"; status: UpdateOrderStatusRequest["status"]; note: string | null }
   | { kind: "payment"; paymentId: string }
 ) & { orderStatus: string; message: string };
+
+function cancellationMessage(order: Pick<ManagerOrderDetailDto, "orderChannel" | "orderType" | "status">): string {
+  if (order.orderType !== "DELIVERY" || order.orderChannel !== "CUSTOMER_APP") {
+    return "Cancel this order? Historical records remain. Review tracked stock and pending payments separately after cancellation. Collected cash is not refunded by this action.";
+  }
+  const stock = order.status === "PREPARING"
+    ? "Stock is retained because preparation has started."
+    : "Recorded stock reservations will be released. Review any historical items without reservation records separately.";
+  return `Cancel this delivery order? Pending cash on delivery will be cancelled. ${stock}`;
+}
 
 export function OrderDetailScreen({ orderId }: { orderId: string }) {
   const { state } = useOperationsAuth();
@@ -66,7 +76,7 @@ export function OrderDetailScreen({ orderId }: { orderId: string }) {
         {orderActions(order, role).map(status => <Action key={status} title={statusLabels[status]} disabled={mutation.busy}
           onPress={() => setConfirmation({
             kind: "status", status, note: note.trim() || null, orderStatus: order.status,
-            message: status === "CANCELLED" ? "Cancel this order? Historical records remain. Review tracked stock and pending payments separately after cancellation. Collected cash is not refunded by this action." : `Change this order from ${order.status} to ${status}?`
+            message: status === "CANCELLED" ? cancellationMessage(order) : `Change this order from ${order.status} to ${status}?`
           })} />)}
       </Card>
       {order.items.map(item => <Card key={item.id} title={item.productName}>

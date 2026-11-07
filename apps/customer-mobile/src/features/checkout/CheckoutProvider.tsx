@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
-import { ApiHttpError, ApiProtocolError, MissingAccessTokenError } from "@restaurant-platform/api-client";
+import { ApiHttpError, ApiProtocolError } from "@restaurant-platform/api-client";
 import type { CreateOrderResponse, DeliveryCheckoutRequest, DeliveryQuoteResponse } from "@restaurant-platform/shared-types";
 import * as SecureStore from "expo-secure-store";
 import { getCustomerApi } from "../../api";
@@ -13,7 +13,8 @@ export interface CheckoutAttempt {
 
 type AttemptState =
   | { status: "idle" }
-  | { status: "recovering" | "recovery_pending" | "unrecorded" }
+  | { status: "recovering" | "recovery_pending" }
+  | { status: "unrecorded"; key: string }
   | { status: "submitting" | "uncertain"; attempt: CheckoutAttempt }
   | { status: "rejected"; error: unknown }
   | { status: "created"; order: CreateOrderResponse };
@@ -22,7 +23,7 @@ interface CheckoutContext {
   state: AttemptState;
   submit(attempt: CheckoutAttempt): Promise<void>;
   recover(): Promise<void>;
-  clearUnrecorded(): Promise<void>;
+  abandonPrevious(): Promise<void>;
   reset(): void;
 }
 
@@ -60,11 +61,30 @@ export function CustomerCheckoutProvider({ owner, children }: PropsWithChildren<
     finally { request.current = null; }
   }
 
-  async function clearUnrecorded() {
-    if (current.current.status !== "unrecorded") return;
+  async function settlePrevious(key: string, controller: AbortController, next: AttemptState) {
+    const { signal } = controller;
+    try {
+      const order = await getCustomerApi(owner).abandonCheckout(key, { signal });
+      if (signal.aborted) return;
+      if (order !== undefined) {
+        update({ status: "created", order: checkedOrder(order) });
+        return;
+      }
+      await SecureStore.deleteItemAsync(storageKey);
+      if (!signal.aborted) update(next);
+    } catch {
+      if (!signal.aborted) update({ status: "recovery_pending" });
+    }
+  }
+
+  async function abandonPrevious() {
+    const previous = current.current;
+    if (request.current || previous.status !== "unrecorded") return;
+    const controller = new AbortController();
+    request.current = controller;
     update({ status: "recovering" });
-    try { await SecureStore.deleteItemAsync(storageKey); update({ status: "idle" }); }
-    catch { update({ status: "recovery_pending" }); }
+    try { await settlePrevious(previous.key, controller, { status: "idle" }); }
+    finally { request.current = null; }
   }
 
   async function submit(attempt: CheckoutAttempt) {
@@ -86,13 +106,16 @@ export function CustomerCheckoutProvider({ owner, children }: PropsWithChildren<
       if (controller.signal.aborted) return;
       order = checkedOrder(await getCustomerApi(owner).checkoutDelivery(attempt.body, attempt.quote.idempotencyKey, { signal: controller.signal }));
     } catch (error) {
-      if (!controller.signal.aborted) {
-        const rejected = error instanceof ApiHttpError && error.status >= 400 && error.status < 500 &&
-          ![401, 403, 408, 429].includes(error.status) && error.code !== "IDEMPOTENCY_KEY_REUSED";
-        const unauthorized = previous.status !== "uncertain" && (error instanceof MissingAccessTokenError ||
-          error instanceof ApiHttpError && [401, 403].includes(error.status));
-        if (rejected || unauthorized) await forgetKey();
-        if (!controller.signal.aborted) update(rejected || unauthorized ? { status: "rejected", error } : { status: "uncertain", attempt });
+      if (controller.signal.aborted) return;
+      if (error instanceof ApiHttpError && error.code === "IDEMPOTENCY_KEY_REUSED") {
+        update({ status: "recovering" });
+        await restore(controller, storageKey, owner, update);
+      } else if (error instanceof ApiHttpError && error.status >= 400 && error.status < 500 &&
+        ![401, 403, 408, 429].includes(error.status)) {
+        // Even a definitive rejection can follow an earlier transport retry whose result was lost.
+        await settlePrevious(attempt.quote.idempotencyKey, controller, { status: "rejected", error });
+      } else {
+        update({ status: "uncertain", attempt });
       }
       return;
     } finally {
@@ -104,7 +127,7 @@ export function CustomerCheckoutProvider({ owner, children }: PropsWithChildren<
     }
   }
 
-  return <Context.Provider value={{ state, submit, recover, clearUnrecorded, reset() {
+  return <Context.Provider value={{ state, submit, recover, abandonPrevious, reset() {
     if (current.current.status === "created") {
       update({ status: "recovering" });
       void forgetKey().then(() => update({ status: "idle" }));
@@ -120,14 +143,16 @@ function checkedOrder(order: CreateOrderResponse) {
 
 async function restore(controller: AbortController, storageKey: string, owner: string, update: (state: AttemptState) => void) {
   const { signal } = controller;
+  let key: string | null = null;
   try {
-    const key = await SecureStore.getItemAsync(storageKey);
+    key = await SecureStore.getItemAsync(storageKey);
     if (signal.aborted) return;
     if (!key) { update({ status: "idle" }); return; }
     const order = checkedOrder(await getCustomerApi(owner).getCheckoutReceipt(key, { signal }));
     if (!signal.aborted) update({ status: "created", order });
   } catch (error) {
-    if (!signal.aborted) update({ status: error instanceof ApiHttpError && error.status === 404 ? "unrecorded" : "recovery_pending" });
+    if (!signal.aborted) update(key && error instanceof ApiHttpError && error.status === 404
+      ? { status: "unrecorded", key } : { status: "recovery_pending" });
   }
 }
 

@@ -1,9 +1,11 @@
 package com.restaurant.platform.repository;
 
 import com.restaurant.platform.entity.Product;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -42,13 +44,14 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("quantity") int quantity
     );
 
+    // A recorded reservation can be returned while tracking is paused. A missing balance needs reconciliation.
     @Modifying(flushAutomatically = true)
     @Query("""
     update Product p
        set p.stockQuantity = p.stockQuantity + :quantity
      where p.id = :productId
        and p.restaurantId = :restaurantId
-       and p.trackStock = true
+       and p.stockQuantity is not null
     """)
     int releaseStock(
             @Param("productId") UUID productId,
@@ -58,4 +61,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findByIdAndRestaurantId(
             UUID productId, UUID restaurantId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Product p where p.id = :productId and p.restaurantId = :restaurantId")
+    Optional<Product> findByIdAndRestaurantIdForUpdate(
+            @Param("productId") UUID productId, @Param("restaurantId") UUID restaurantId);
 }
