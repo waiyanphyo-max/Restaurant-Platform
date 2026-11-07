@@ -23,6 +23,9 @@ public class UserDevice {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    @Column(name = "customer_restaurant_id")
+    private UUID customerRestaurantId;
+
     @Column(name = "push_token", nullable = false, unique = true, columnDefinition = "text")
     private String pushToken;
 

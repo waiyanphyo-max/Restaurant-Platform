@@ -70,7 +70,8 @@ class ManagerOrderServiceTest {
                 queueTicketRepository,
                 notificationRepository,
                 authorization,
-                deliveryService);
+                deliveryService,
+                new CustomerOrderNotifications(notificationRepository));
     }
 
     @Test
@@ -259,6 +260,21 @@ class ManagerOrderServiceTest {
         assertEquals(userId, history.getValue().getChangedByUserId());
         assertEquals("ACCEPTED", history.getValue().getStatus());
         assertEquals("Accepted by staff", history.getValue().getNote());
+    }
+
+    @Test
+    void restaurantAcceptanceNotifiesOnlyTheDeliveryCustomerWithoutLocationData() {
+        Order order = order("PENDING", "DELIVERY");
+        UUID customer = UUID.randomUUID();
+        order.setCustomerId(customer);
+        order.setDeliveryAddress("Private street and building");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+
+        service.updateStatus(restaurantId, orderId, userId, new UpdateOrderStatusRequest("ACCEPTED", null));
+
+        verify(notificationRepository).save(argThat(notice -> customer.equals(notice.getUserId())
+                && orderId.equals(notice.getOrderId()) && "ORDER_ACCEPTED".equals(notice.getNotificationType())
+                && "IN_APP".equals(notice.getChannel()) && !notice.getBody().contains(order.getDeliveryAddress())));
     }
 
     @Test

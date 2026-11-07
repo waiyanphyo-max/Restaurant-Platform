@@ -11,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,9 +37,10 @@ public class CustomerOrderHistoryController {
     }
 
     @GetMapping("/{orderId}")
-    public CustomerOrderDetailDto getMyOrder(@PathVariable UUID orderId) {
+    public ResponseEntity<CustomerOrderDetailDto> getMyOrder(@PathVariable UUID orderId) {
         UUID userId = authorization.requireAuthenticatedUserId();
-        return customerOrderService.getMyOrder(userId, orderId);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(customerOrderService.getMyOrder(userId, orderId));
     }
 
     @PostMapping("/{orderId}/reorder")
@@ -50,8 +53,9 @@ public class CustomerOrderHistoryController {
     }
 
     @PostMapping("/{orderId}/cancel")
-    public CustomerOrderDetailDto cancelMyOrder(@PathVariable UUID orderId) {
+    public ResponseEntity<CustomerOrderDetailDto> cancelMyOrder(@PathVariable UUID orderId) {
         UUID userId = authorization.requireAuthenticatedUserId();
-        return customerOrderService.cancelMyOrder(userId, orderId);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(customerOrderService.cancelMyOrder(userId, orderId));
     }
 }

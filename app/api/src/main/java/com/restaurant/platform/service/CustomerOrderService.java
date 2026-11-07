@@ -22,6 +22,7 @@ import com.restaurant.platform.entity.OrderStatusHistory;
 import com.restaurant.platform.entity.Payment;
 import com.restaurant.platform.entity.Product;
 import com.restaurant.platform.repository.DeliveryRepository;
+import com.restaurant.platform.repository.DeliveryStatusHistoryRepository;
 import com.restaurant.platform.repository.OrderItemModifierRepository;
 import com.restaurant.platform.repository.OrderItemRepository;
 import com.restaurant.platform.repository.OrderRepository;
@@ -61,6 +62,8 @@ public class CustomerOrderService {
     private final OrderStatusHistoryRepository historyRepository;
     private final PaymentRepository paymentRepository;
     private final DeliveryRepository deliveryRepository;
+    private final DeliveryStatusHistoryRepository deliveryHistoryRepository;
+    private final CustomerOrderNotifications notifications;
     private final RestaurantAuthorization authorization;
     private final OrderService orderService;
     private AccountingSupport accounting;
@@ -76,6 +79,8 @@ public class CustomerOrderService {
             OrderStatusHistoryRepository historyRepository,
             PaymentRepository paymentRepository,
             DeliveryRepository deliveryRepository,
+            DeliveryStatusHistoryRepository deliveryHistoryRepository,
+            CustomerOrderNotifications notifications,
             RestaurantAuthorization authorization,
             OrderService orderService) {
         this.orderRepository = orderRepository;
@@ -85,6 +90,8 @@ public class CustomerOrderService {
         this.historyRepository = historyRepository;
         this.paymentRepository = paymentRepository;
         this.deliveryRepository = deliveryRepository;
+        this.deliveryHistoryRepository = deliveryHistoryRepository;
+        this.notifications = notifications;
         this.authorization = authorization;
         this.orderService = orderService;
     }
@@ -104,14 +111,29 @@ public class CustomerOrderService {
     }
 
     @Transactional(readOnly = true)
+    public Page<CustomerOrderSummaryDto> listMyDeliveryOrders(
+            UUID restaurantId, UUID userId, String status, Pageable pageable) {
+        authorization.requireAuthenticatedUserMatches(userId);
+        return orderRepository.findCustomerDeliveryOrders(
+                        restaurantId, userId, normalizeStatus(status), safePageable(pageable))
+                .map(this::toSummary);
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerOrderDetailDto getMyDeliveryOrder(UUID restaurantId, UUID userId, UUID orderId) {
+        authorization.requireAuthenticatedUserMatches(userId);
+        return toDetail(orderRepository.findCustomerDeliveryOrder(restaurantId, userId, orderId)
+                .orElseThrow(this::orderNotFound));
+    }
+
+    @Transactional(readOnly = true)
     public CustomerOrderDetailDto getMyOrder(UUID userId, UUID orderId) {
         authorization.requireAuthenticatedUserMatches(userId);
-        Order order = orderRepository.findByIdAndCustomerId(orderId, userId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        "CUSTOMER_ORDER_NOT_FOUND",
-                        "error.customer-order.not-found"));
+        return toDetail(orderRepository.findByIdAndCustomerId(orderId, userId)
+                .orElseThrow(this::orderNotFound));
+    }
 
+    private CustomerOrderDetailDto toDetail(Order order) {
         List<OrderItem> items = orderItemRepository
                 .findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(
                         order.getId(), order.getRestaurantId());
@@ -161,7 +183,12 @@ public class CustomerOrderService {
                 order.getSubtotal(), order.getDeliveryFee(), order.getDiscountAmount(),
                 order.getTotalAmount(), order.getDeliveryName(), order.getDeliveryPhone(),
                 order.getDeliveryAddress(), order.getDeliveryNote(), order.getCreatedAt(),
-                order.getUpdatedAt(), itemDtos, statusHistory, payments, delivery);
+                order.getUpdatedAt(), itemDtos, statusHistory, payments, delivery,
+                order.getDeliveryLatitude(), order.getDeliveryLongitude(),
+                order.getDeliveryTownship(), order.getDeliveryCity(), order.getDeliveryLocationSource(),
+                order.getDeliveryAddressId(), order.getDeliveryLocationSource() == null ? null : order.getCreatedAt(),
+                "PENDING".equals(order.getStatus()) && payments.stream().noneMatch(payment -> "PAID".equals(payment.status())),
+                order.getDeliveryCheckoutCurrency());
     }
 
     /**
@@ -181,10 +208,7 @@ public class CustomerOrderService {
         }
 
         Order sourceOrder = orderRepository.findByIdAndCustomerId(sourceOrderId, userId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        "CUSTOMER_ORDER_NOT_FOUND",
-                        "error.customer-order.not-found"));
+                .orElseThrow(this::orderNotFound);
         if (!"DELIVERY".equals(sourceOrder.getOrderType())
                 || (!"COMPLETED".equals(sourceOrder.getStatus())
                 && !"CANCELLED".equals(sourceOrder.getStatus()))) {
@@ -239,25 +263,38 @@ public class CustomerOrderService {
     }
 
     @Transactional
+    public CustomerOrderDetailDto cancelMyDeliveryOrder(UUID restaurantId, UUID userId, UUID orderId) {
+        authorization.requireAuthenticatedUserMatches(userId);
+        if (accounting != null) {
+            accounting.lock(restaurantId);
+        }
+        return cancelOrder(orderRepository.findCustomerDeliveryOrderForUpdate(restaurantId, userId, orderId)
+                .orElseThrow(this::orderNotFound), userId);
+    }
+
+    @Transactional
     public CustomerOrderDetailDto cancelMyOrder(UUID userId, UUID orderId) {
         authorization.requireAuthenticatedUserMatches(userId);
         if (accounting != null) {
             // A scalar projection avoids caching stale order status while awaiting the tenant lock.
             UUID restaurantId = orderRepository.findRestaurantIdByIdAndCustomerId(orderId, userId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                            "CUSTOMER_ORDER_NOT_FOUND", "error.customer-order.not-found"));
+                    .orElseThrow(this::orderNotFound);
             accounting.lock(restaurantId);
         }
-        Order order = orderRepository.findByIdAndCustomerIdForUpdate(orderId, userId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        "CUSTOMER_ORDER_NOT_FOUND",
-                        "error.customer-order.not-found"));
+        return cancelOrder(orderRepository.findByIdAndCustomerIdForUpdate(orderId, userId)
+                .orElseThrow(this::orderNotFound), userId);
+    }
 
+    private CustomerOrderDetailDto cancelOrder(Order order, UUID userId) {
         if (!"PENDING".equals(order.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT,
                     "CUSTOMER_ORDER_CANNOT_BE_CANCELLED",
                     "error.customer-order.cancel-not-allowed");
+        }
+
+        List<Payment> payments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
+        if (payments.stream().anyMatch(payment -> "PAID".equals(payment.getStatus()))) {
+            throw new ApiException(HttpStatus.CONFLICT, "REFUND_REQUIRED", "error.customer-order.refund-required");
         }
 
         List<OrderItem> items = orderItemRepository
@@ -282,13 +319,7 @@ public class CustomerOrderService {
             }
         }
 
-        for (Payment payment : paymentRepository
-                .findByOrderIdOrderByCreatedAtDesc(order.getId())) {
-            if ("PAID".equals(payment.getStatus())) {
-                throw new ApiException(HttpStatus.CONFLICT,
-                        "REFUND_REQUIRED",
-                        "error.customer-order.refund-required");
-            }
+        for (Payment payment : payments) {
             if ("PENDING".equals(payment.getStatus())) {
                 payment.setStatus("CANCELLED");
                 paymentRepository.save(payment);
@@ -305,7 +336,13 @@ public class CustomerOrderService {
         history.setNote("Cancelled by customer before restaurant acceptance.");
         historyRepository.save(history);
 
-        return getMyOrder(userId, orderId);
+        notifications.orderStatusChanged(order);
+        return toDetail(order);
+    }
+
+    private ApiException orderNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND,
+                "CUSTOMER_ORDER_NOT_FOUND", "error.customer-order.not-found");
     }
 
     private CustomerOrderSummaryDto toSummary(Order order) {
@@ -313,7 +350,7 @@ public class CustomerOrderService {
                 order.getId(), order.getRestaurantId(), order.getOrderNumber(),
                 order.getOrderType(), order.getOrderChannel(), order.getStatus(),
                 order.getSubtotal(), order.getDeliveryFee(), order.getDiscountAmount(),
-                order.getTotalAmount(), order.getCreatedAt());
+                order.getTotalAmount(), order.getCreatedAt(), order.getDeliveryCheckoutCurrency());
     }
 
     private CustomerPaymentDto toPayment(Payment payment) {
@@ -323,9 +360,13 @@ public class CustomerOrderService {
     }
 
     private CustomerDeliveryStatusDto toDelivery(Delivery delivery) {
+        List<CustomerOrderStatusDto> history = deliveryHistoryRepository
+                .findByDeliveryIdOrderByCreatedAtAsc(delivery.getId()).stream()
+                .map(event -> new CustomerOrderStatusDto(event.getStatus(), event.getCreatedAt()))
+                .toList();
         return new CustomerDeliveryStatusDto(
                 delivery.getId(), delivery.getStatus(), delivery.getAssignedAt(),
-                delivery.getPickedUpAt(), delivery.getDeliveredAt());
+                delivery.getPickedUpAt(), delivery.getDeliveredAt(), history);
     }
 
     private String normalizeStatus(String status) {

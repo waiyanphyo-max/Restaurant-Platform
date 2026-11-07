@@ -1,6 +1,6 @@
-# Customer Android foundation (M11)
+# Customer Android
 
-Separate Expo SDK 58 / React Native / TypeScript / Expo Router app for one restaurant's customers. The build selects the restaurant, package ID, branding and splash color. Home and Menu use that restaurant's real public API. Cart and Orders provide navigation foundations for M12; M11 does not create orders or process payments. Customer accounts need no staff role or restaurant membership.
+Separate Expo SDK 58 / React Native / TypeScript / Expo Router app for one restaurant's customers. The build selects the restaurant, package ID, branding and splash color. Customers can browse the restaurant's menu, configure products and place cash-on-delivery orders after reviewing Spring's delivery quote. Checkout can use an owned saved address or a confirmed map or GPS pin for the current order. Orders shows tracking, payment status, cancellation when allowed, reorder and notifications. Customer accounts use the same Supabase authentication as address onboarding. [M12 acceptance](../../docs/m12-acceptance.md)
 
 ## Local development
 
@@ -16,7 +16,7 @@ npm run build:starter -w @restaurant-platform/customer-mobile
 npm run android -w @restaurant-platform/customer-mobile
 ```
 
-The starter export uses an explicit development fixture and produces an Android Hermes JavaScript bundle. `android` generates and builds a development client with the installed Android SDK/JDK and an emulator or device. `npm run start:customer` starts Metro for that client. Maps, notification and package configuration changes require a rebuilt native binary; Expo Go is not this app's acceptance target. EAS development produces an internal APK, staging an internal APK, and production an AAB. Build/publish services and Play upload are manual release steps outside M11.
+The starter export uses an explicit development fixture and produces an Android Hermes JavaScript bundle. `android` generates and builds a development client with the installed Android SDK/JDK and an emulator or device. `npm run start:customer` starts Metro for that client. Maps, notification and package configuration changes require a rebuilt native binary. Use the development client for device acceptance. EAS development produces an internal APK, staging an internal APK, and production an AAB. Build/publish services and Play upload are manual release steps.
 
 The inspected SDK 58 native template resolves Gradle 9.4.1, Android compile SDK 37, target SDK 36, build-tools 37.0.0 and NDK 27.1.12297006 (minimum Android API 24). Local native assembly needs those SDK components and JDK 21; a machine with only Android 36.1 installed cannot validate this build without obtaining the missing components. Keep the restaurant/API environment values set during both prebuild and Gradle assembly. Do not lower native dependency versions merely to match an older local SDK.
 
@@ -48,4 +48,4 @@ The immutable embedded restaurant constrains this app's routes/API factories. Sp
 
 Leave `CUSTOMER_NOTIFICATIONS_ENABLED=false` unless client and server Firebase configuration is ready. Supply `CUSTOMER_GOOGLE_SERVICES_FILE` as the local path to that restaurant package's Android `google-services.json` client configuration and rebuild. Configuration rejects service-account JSON, missing project metadata and a mismatched Android package. Server FCM credentials remain server-only, with existing `APP_PUSH_FIREBASE_ENABLED`/outbox configuration. The mobile Firebase project must match the backend provider.
 
-Permission is requested only through Profile's opt-in action. Registration uses a native FCM token with the existing JWT-owned `/api/v1/devices` API, not an Expo push token. Restoration never prompts; token updates and logout cleanup preserve account association. Pending cleanup metadata contains only owner/device IDs and is retried under the same authorized account. Offline/provider failures do not establish notification delivery. See [the acceptance record](../../docs/m11-acceptance.md) for remaining device/provider checks and M12 address eligibility/snapshot dependencies.
+Profile's opt-in action requests permission and registers a native FCM token through `/api/v1/customer/restaurants/{restaurantId}/devices`. The server scopes delivery updates to the authenticated account and the build's restaurant. Restoration uses existing permission. Token rotation and logout cleanup preserve that scope, and pending cleanup stores only owner and device IDs. The Orders inbox reads customer delivery updates from Spring regardless of push availability. [M12 acceptance](../../docs/m12-acceptance.md)

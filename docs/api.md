@@ -237,9 +237,9 @@ Picking up a task changes the linked order from `READY` to `OUT_FOR_DELIVERY`. C
 | `items` | Item `id`, `productName`, `variantName`, `quantity` and `specialInstruction` |
 | `cashCollectionRequired` | Whether the order has a pending cash-on-delivery payment |
 
-Coordinates are JSON numbers or null. The server returns a complete pair only when both values are in range, including zero. Restaurant pickup uses the stored restaurant point. A customer delivery checkout copies the chosen, customer-owned address point into `orders.delivery_latitude` and `orders.delivery_longitude`. Earlier orders have textual snapshots only. The server never derives their point from the customer's current address.
+Coordinates are JSON numbers or null. The server returns a complete pair only when both values are in range, including zero. Restaurant pickup uses the stored restaurant point. Customer checkout copies the confirmed saved or temporary point into `orders.delivery_latitude` and `orders.delivery_longitude`. Earlier orders may have textual snapshots only. The server uses the order snapshot for navigation.
 
-Apply the forward migration `20261104100000_add_order_delivery_coordinates.sql` before deploying the corresponding backend. Future temporary checkout destinations should populate the same fields with the confirmed point when inserting the order, alongside its textual recipient and address snapshots.
+The order coordinate fields were introduced in `20261104100000_add_order_delivery_coordinates.sql`. M12 uses the same fields for both saved and temporary destinations and adds snapshot provenance in `20261107100000_add_customer_delivery_checkout_snapshot.sql`.
 
 ## Error response shape
 
@@ -312,7 +312,7 @@ Both require `RESTAURANT_READ` for the path restaurant and use only the JWT subj
 - `GET /api/v1/notifications?status=PENDING` — optional status filter; valid values are `PENDING`, `SENT`, `FAILED`, and `READ`.
 - `PATCH /api/v1/notifications/{notificationId}/read` — marks only a notification owned by the authenticated user as read.
 
-These APIs store and return in-app notification records. They do not integrate an external push provider and cannot by themselves make a browser/mobile device play a sound. For QR customers, the client can periodically call the queue status/notifications APIs with the tracking token and react when it sees a new `QUEUE_READY` or `QUEUE_CALLED` notification.
+These APIs return in-app notification records. Firebase push is separately configured through device registration and the outbox. QR customers use the queue status and notification APIs with their tracking token, and the QR page reacts to `QUEUE_READY` and `QUEUE_CALLED`.
 
 ## Dine-in table and Table QR management
 
@@ -566,6 +566,26 @@ For now, only `CASH_ON_DELIVERY` is supported. An order and pending payment reco
 
 When the order later reaches `READY`, the Milestone 5 workflow creates its delivery task and attempts to assign the configured default driver.
 
+### Customer Android delivery quote and checkout
+
+All three routes require the customer JWT and use its subject for address, receipt and order ownership. Responses use `Cache-Control: no-store`.
+
+| Method | Route | Purpose |
+|---|---|---|
+| POST | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery/quote` | Revalidate the cart and destination, calculate totals and return the confirmation token and checkout key |
+| POST | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery/checkout` | Revalidate and place the reviewed COD order, or replay its receipt on a retry |
+| GET | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery/checkout` | Recover the original receipt with the `Idempotency-Key` header or return 404 |
+
+The quote body uses the same `items` array as legacy delivery checkout and exactly one destination. For a saved location, send `addressId`. The owned address must have a complete address, city, township and valid map point. For a temporary location, send `temporaryDestination` with `source` (`MANUAL_MAP` or `GPS_CONFIRMED`), `address` (building, street and locality), `city`, `township`, `latitude` and `longitude`. The server combines the address and area into the display address. Both choices support `recipientName`, `recipientPhone` and `deliveryNote` at the top level. If contact fields are omitted, the server uses the saved recipient or customer profile where available and requires the resolved name and phone. Temporary checkout leaves the address book untouched.
+
+The quote returns `restaurantId`, `restaurantName`, `currency`, `subtotal`, `deliveryFee`, `discountAmount`, `totalAmount`, `paymentMethod`, `destination`, `lines`, `confirmationToken` and `idempotencyKey`. `destination` includes the normalized coordinates (seven decimal places of storage precision), address, city, township, contact, note, source and nullable `addressId`. A quoted line carries product and variant IDs and names, quantity, base `unitPrice`, `subtotal` including modifiers, and the quoted `modifiers` with IDs, names, quantities and additional prices.
+
+The restaurant must accept delivery orders. Coverage matches the declared city and township against active configured zones after trimming and ignoring case. Among specific matches, the server uses the lowest-fee zone that meets the cart minimum. An unrestricted legacy zone can cover a destination with no specific match. `DELIVERY_ADDRESS_OUTSIDE_ZONE` means there is no matching zone. `MINIMUM_ORDER_NOT_MET` means the cart fails the applicable restaurant or zone minimum. `DELIVERY_COORDINATES_REQUIRED` means the destination needs a valid coordinate pair.
+
+After the customer reviews the destination and totals, submit the same quote body with its `confirmationToken` and put its `idempotencyKey` in the `Idempotency-Key` header. The server recalculates the quote before reserving stock. A changed destination or amount returns `409 DELIVERY_QUOTE_CHANGED`; item, stock, coverage and restaurant availability errors can also require changes before a fresh quote. Retrying the same request with the same key returns the original receipt without a second order, stock reservation or notification. Reusing a committed key with a different body returns `409 IDEMPOTENCY_KEY_REUSED`. The receipt describes order creation, including its initial `PENDING` state. Fetch order details for current delivery and cash-collection status.
+
+M12 uses the existing restaurant, customer, payment and delivery relationships. The checkout transaction inserts a pending COD payment and stores the confirmed destination on the order. The order's creation timestamp records confirmation. A saved-address identifier is retained as historical provenance after edits or deletion. `20261107100000_add_customer_delivery_checkout_snapshot.sql` adds snapshot provenance and checkout receipt metadata while preserving legacy orders and their existing routes.
+
 ## Customer order history
 
 These endpoints require a valid bearer token and always scope by the authenticated JWT subject.
@@ -585,6 +605,22 @@ The optional status filter accepts `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, 
 
 `POST /api/v1/customer/orders/{orderId}/reorder` accepts `addressId`, `deliveryZoneId`, and optional recipient/contact/note/payment fields. It is available only for the authenticated customer's own completed or cancelled `DELIVERY` orders. The server rebuilds the item list from saved product/variant/modifier IDs and quantities, then calls the normal delivery checkout path, which revalidates current product availability, catalogue relationships, modifiers, stock, minimum order, delivery zone, and price. Historical prices and totals are never copied. The customer must choose a current saved address and active zone again. A successful reorder returns a new `CreateOrderResponse` and creates a new pending COD payment; it does not change the original order.
 
+### Restaurant-scoped Customer Android order history and notifications
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/v1/customer/restaurants/{restaurantId}/orders` | Paginated delivery orders for this customer and restaurant, with the same pagination and optional status filter |
+| GET | `/api/v1/customer/restaurants/{restaurantId}/orders/{orderId}` | Own delivery receipt with the historical destination, items and modifiers, payment, and status timelines |
+| POST | `/api/v1/customer/restaurants/{restaurantId}/orders/{orderId}/cancel` | Cancel an unpaid pending delivery order and return its updated receipt |
+| GET | `/api/v1/customer/restaurants/{restaurantId}/notifications` | Personal delivery notification history for this restaurant, with optional status filter |
+| PATCH | `/api/v1/customer/restaurants/{restaurantId}/notifications/{notificationId}/read` | Mark one scoped notification as read and preserve its first read time |
+
+Spring uses the JWT subject and the path restaurant for each lookup. Orders and notifications outside that scope return 404 on individual requests. Successful responses use `Cache-Control: no-store`. The scoped history contains delivery orders. The personal history and reorder routes above remain available to their existing callers.
+
+The delivery receipt exposes the snapshot fields `deliveryLatitude`, `deliveryLongitude`, `deliveryAddressId`, `deliveryTownship`, `deliveryCity`, `deliveryLocationSource` and `destinationConfirmedAt` alongside the existing address, recipient and delivery instructions. Orders from before M12 can have missing snapshot metadata. `currency` is the stored checkout currency when available. Both `statusHistory` and `delivery.statusHistory` use `status` and `changedAt`. `canCancel` reflects whether the order is pending and has no paid payment. Spring checks both again during cancellation.
+
+Customer Android rebuilds a new cart from the historical item identifiers and current menu, then uses a fresh quote, destination confirmation and checkout key. The inbox returns the existing `NotificationResponse` shape and includes order placement, restaurant acceptance, preparation, readiness, delivery progress and cancellation notices. Notification text excludes recipient and location data.
+
 ## Push-device registration
 
 These routes require authentication and always use the validated JWT subject as the device owner.
@@ -594,6 +630,8 @@ These routes require authentication and always use the validated JWT subject as 
 | GET | `/api/v1/devices` | List the current user's device metadata |
 | POST | `/api/v1/devices` | Register or reactivate a push token for ANDROID, IOS, or WEB |
 | DELETE | `/api/v1/devices/{deviceId}` | Deactivate an owned device |
+| POST | `/api/v1/customer/restaurants/{restaurantId}/devices` | Register or reactivate a native Android push token for one active restaurant |
+| DELETE | `/api/v1/customer/restaurants/{restaurantId}/devices/{deviceId}` | Deactivate the customer's Android device for this restaurant |
 
 Request example:
 
@@ -606,16 +644,18 @@ Request example:
 
 The response intentionally never exposes the raw push token. A token already associated with another account is rejected; callers cannot transfer token ownership by registering it again. Deactivation is soft (inactive flag) and only works for the authenticated owner.
 
+Customer Android registration scopes the token on its first restaurant-scoped registration. An owned legacy token can upgrade in place. Later registrations preserve the scope and reject a different restaurant. Cleanup accepts owned legacy Android registrations saved by the previous app version.
+
 ### Firebase Cloud Messaging setup
 
-The backend includes an optional Firebase Admin sender and a durable per-device outbox. Apply migration `20261024100000_add_push_notification_outbox.sql` before deploying the new backend. To enable external delivery:
+The backend includes an optional Firebase Admin sender and a durable per-device outbox. The M12 backend expects both `20261024100000_add_push_notification_outbox.sql` and `20261107110000_scope_customer_delivery_push_devices.sql`.
 
-1. Configure a Firebase project with Cloud Messaging enabled and configure the mobile/web client to register that project's device token through `POST /api/v1/devices`.
+1. Configure a Firebase project with Cloud Messaging enabled and configure the client to register that project's device token through its device route.
 2. Set `APP_PUSH_FIREBASE_ENABLED=true` in the API environment.
 3. Provide `APP_PUSH_FIREBASE_SERVICE_ACCOUNT_JSON` as a server-only secret containing Firebase service-account JSON, or configure Google Application Default Credentials in the hosting environment.
 4. Keep credentials out of Git, browser variables, logs, and API responses.
 
-The sender is disabled by default. When enabled, an insert into `public.notifications` for a signed-in user with channel `IN_APP` creates one outbox row per active device. Delivery status is tracked per device; transient failures retry with bounded backoff, and FCM `UNREGISTERED` errors deactivate the stale device. Tokens are never copied into outbox rows or logged. Public queue-ticket notifications without a user ID do not enter this outbox and continue to use the queue-token polling flow.
+The sender is disabled by default. An addressed `IN_APP` notification queues one outbox row per eligible active device. A restaurant-scoped Android device accepts customer delivery events for that restaurant and account. M12 checkout events require a matching scoped device. The dispatcher checks this scope again before sending, including for rows queued before a device upgraded. The outbox tracks delivery per device and retries transient failures with bounded backoff. FCM `UNREGISTERED` errors deactivate the stale device. Tokens stay in device records. Public queue tickets use their existing polling flow.
 
 If Firebase is disabled, in-app notifications continue to work, but no external push message is sent. Outbox rows are retained for dispatch when enabled and should be monitored until Firebase is configured. Client-side sound playback remains a separate client feature.
 

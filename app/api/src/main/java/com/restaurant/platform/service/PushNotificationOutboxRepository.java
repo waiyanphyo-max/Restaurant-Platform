@@ -87,8 +87,17 @@ public class PushNotificationOutboxRepository {
                 JOIN public.user_devices AS device
                   ON device.id = outbox.device_id
                  AND device.user_id = outbox.user_id
+                LEFT JOIN public.orders AS customer_order
+                  ON customer_order.id = notification.order_id
+                 AND customer_order.customer_id = notification.user_id
+                 AND customer_order.order_type = 'DELIVERY'
+                 AND notification.queue_ticket_id IS NULL
+                 AND notification.notification_type IN (:customerTypes)
                 WHERE outbox.id = :outboxId
-                """, new MapSqlParameterSource("outboxId", outboxId),
+                  AND ((device.customer_restaurant_id IS NULL AND customer_order.delivery_location_source IS NULL)
+                      OR device.customer_restaurant_id = customer_order.restaurant_id)
+                """, new MapSqlParameterSource("outboxId", outboxId)
+                        .addValue("customerTypes", CustomerOrderNotifications.TYPES),
                 (rs, rowNum) -> mapPayload(rs));
         return results.stream().findFirst();
     }

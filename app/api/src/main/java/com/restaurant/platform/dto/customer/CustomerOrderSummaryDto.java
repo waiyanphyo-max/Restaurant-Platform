@@ -14,6 +14,7 @@ public record CustomerOrderSummaryDto(
         long deliveryFee,
         long discountAmount,
         long totalAmount,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        String currency
 ) {
 }

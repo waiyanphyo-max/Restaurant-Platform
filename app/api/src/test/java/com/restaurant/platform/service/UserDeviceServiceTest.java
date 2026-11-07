@@ -2,7 +2,9 @@ package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.device.RegisterDeviceRequest;
+import com.restaurant.platform.entity.Restaurant;
 import com.restaurant.platform.entity.UserDevice;
+import com.restaurant.platform.repository.RestaurantRepository;
 import com.restaurant.platform.repository.UserDeviceRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +23,7 @@ class UserDeviceServiceTest {
 
     private UserDeviceRepository repository;
     private RestaurantAuthorization authorization;
+    private RestaurantRepository restaurants;
     private UserDeviceService service;
     private final UUID userId = UUID.randomUUID();
     private final UUID otherUserId = UUID.randomUUID();
@@ -31,7 +34,8 @@ class UserDeviceServiceTest {
     void setUp() {
         repository = mock(UserDeviceRepository.class);
         authorization = mock(RestaurantAuthorization.class);
-        service = new UserDeviceService(repository, authorization);
+        restaurants = mock(RestaurantRepository.class);
+        service = new UserDeviceService(repository, authorization, restaurants);
     }
 
     @Test
@@ -107,6 +111,32 @@ class UserDeviceServiceTest {
         assertEquals("ANDROID", response.getFirst().platform());
         assertFalse(response.getFirst().toString().contains(token));
         verify(repository).findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    @Test
+    void scopedAndroidRegistrationUpgradesAnOwnedLegacyTokenAndRejectsTenantSwitch() {
+        UUID restaurantId = UUID.randomUUID();
+        UUID otherRestaurantId = UUID.randomUUID();
+        when(restaurants.findByIdAndIsActiveTrue(any())).thenReturn(Optional.of(new Restaurant()));
+        UserDevice existing = device(userId);
+        when(repository.findByPushToken(token)).thenReturn(Optional.of(existing));
+        when(repository.save(existing)).thenReturn(existing);
+        var request = new RegisterDeviceRequest(token, "ANDROID");
+
+        assertEquals(deviceId, service.registerCustomerDevice(restaurantId, userId, request).id());
+        assertEquals(restaurantId, existing.getCustomerRestaurantId());
+        assertEquals(HttpStatus.CONFLICT, assertThrows(ApiException.class,
+                () -> service.registerCustomerDevice(otherRestaurantId, userId, request)).getStatus());
+        verify(repository).save(existing);
+    }
+
+    @Test
+    void scopedDeactivationChecksBothOwnerAndRestaurant() {
+        UUID restaurantId = UUID.randomUUID();
+        assertEquals(HttpStatus.NOT_FOUND, assertThrows(ApiException.class,
+                () -> service.deactivateCustomerDevice(restaurantId, otherUserId, deviceId)).getStatus());
+        verify(repository).findCustomerAndroidDevice(restaurantId, otherUserId, deviceId);
+        verifyNoMoreInteractions(repository);
     }
 
     private UserDevice device(UUID ownerId) {

@@ -2,6 +2,7 @@ package com.restaurant.platform.dto.customer;
 
 import com.restaurant.platform.dto.order.OrderItemDetailDto;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -26,7 +27,16 @@ public record CustomerOrderDetailDto(
         List<OrderItemDetailDto> items,
         List<CustomerOrderStatusDto> statusHistory,
         List<CustomerPaymentDto> payments,
-        CustomerDeliveryStatusDto delivery
+        CustomerDeliveryStatusDto delivery,
+        BigDecimal deliveryLatitude,
+        BigDecimal deliveryLongitude,
+        String deliveryTownship,
+        String deliveryCity,
+        String deliveryLocationSource,
+        UUID deliveryAddressId,
+        OffsetDateTime destinationConfirmedAt,
+        boolean canCancel,
+        String currency
 ) {
     public CustomerOrderDetailDto {
         items = items == null ? List.of() : List.copyOf(items);

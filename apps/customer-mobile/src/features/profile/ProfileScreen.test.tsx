@@ -8,10 +8,12 @@ const harness = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], cleanups: [] as (() => void)[],
   stateIndex: 0, refIndex: 0, effectIndex: 0,
   account: { status: "loading" } as QueryState<Account>, notificationsEnabled: false,
-  reload: vi.fn(), editAddress: vi.fn(), signOut: vi.fn(), updateProfile: vi.fn(), setDefault: vi.fn(), enableNotifications: vi.fn(), cleanup: vi.fn()
+  reload: vi.fn(), editAddress: vi.fn(), signOut: vi.fn(), updateProfile: vi.fn(), setDefault: vi.fn(), deleteAddress: vi.fn(),
+  enableNotifications: vi.fn(), cleanup: vi.fn(), navigate: vi.fn()
 }));
 vi.mock("react", async importOriginal => ({
   ...await importOriginal<typeof import("react")>(),
+  useCallback<T>(callback: T) { return callback; },
   useState(initial: unknown) {
     const index = harness.stateIndex++;
     if (!(index in harness.states)) harness.states[index] = initial;
@@ -25,8 +27,9 @@ vi.mock("react", async importOriginal => ({
   }
 }));
 vi.mock("react-native", () => ({ Text: "Text", View: "View" }));
+vi.mock("expo-router", () => ({ useRouter: () => ({ navigate: harness.navigate }) }));
 vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page", StateView: "StateView" }));
-vi.mock("../../api", () => ({ getCustomerApi: () => ({ updateProfile: harness.updateProfile, setDefaultAddress: harness.setDefault }) }));
+vi.mock("../../api", () => ({ getCustomerApi: () => ({ updateProfile: harness.updateProfile, setDefaultAddress: harness.setDefault, deleteAddress: harness.deleteAddress }) }));
 vi.mock("../../auth/AuthProvider", () => ({ useCustomerAuth: () => ({ signOut: harness.signOut }) }));
 vi.mock("../../notifications/native", () => ({ enableCustomerNotifications: harness.enableNotifications, retryCustomerDeviceCleanup: harness.cleanup }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => ({ notificationsEnabled: harness.notificationsEnabled }) }));
@@ -69,6 +72,7 @@ describe("customer profile and saved-address access", () => {
     harness.account = { status: "ready", data: { profile, addresses: [home] } };
     harness.reload.mockReset(); harness.editAddress.mockReset(); harness.signOut.mockReset().mockResolvedValue(undefined);
     harness.updateProfile.mockReset().mockResolvedValue(profile); harness.setDefault.mockReset().mockResolvedValue(home);
+    harness.deleteAddress.mockReset().mockResolvedValue(undefined); harness.navigate.mockReset();
     harness.enableNotifications.mockReset().mockResolvedValue("Provider setup is unavailable."); harness.cleanup.mockReset().mockResolvedValue(undefined);
   });
 
@@ -147,6 +151,26 @@ describe("customer profile and saved-address access", () => {
   it("gates notification setup when provider configuration is unavailable", () => {
     const tree = render(); expect(action(tree, "Enable notifications").disabled).toBe(true);
     expect(textContent(tree)).toContain("not configured"); expect(harness.enableNotifications).not.toHaveBeenCalled();
+  });
+
+  it("requires confirmation before deleting the selected saved address", async () => {
+    action(render(), "Delete saved address").onPress();
+    expect(harness.deleteAddress).not.toHaveBeenCalled();
+    action(render(), "Cancel").onPress();
+    expect(harness.deleteAddress).not.toHaveBeenCalled();
+    action(render(), "Delete saved address").onPress();
+    action(render(), "Confirm address deletion").onPress();
+    await tick();
+    expect(harness.deleteAddress).toHaveBeenCalledExactlyOnceWith(home.id);
+    expect(harness.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("localizes profile actions from the persisted Burmese preference", () => {
+    harness.account = { status: "ready", data: { profile: { ...profile, preferredLanguage: "my-MM" }, addresses: [home] } };
+    const tree = render();
+    expect(tree.props.title).toBe("ပရိုဖိုင်");
+    action(tree, "အသိပေးချက်မှတ်တမ်း ကြည့်ရန်").onPress();
+    expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/notifications");
   });
 
   it("reports the notification adapter result without inventing delivery success", async () => {

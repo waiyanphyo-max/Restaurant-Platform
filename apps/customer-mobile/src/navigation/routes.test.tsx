@@ -12,6 +12,10 @@ vi.mock("expo-router", () => ({ Redirect: "Redirect", Slot: "Slot", usePathname:
   useRouter: () => ({ replace: harness.replace, navigate: harness.navigate }) }));
 vi.mock("../auth/AuthProvider", () => ({ useCustomerAuth: () => ({ state: harness.auth }) }));
 vi.mock("../features/profile/AccountProvider", () => ({ CustomerAccountProvider: "CustomerAccountProvider", useCustomerAccount: () => harness.account }));
+vi.mock("../features/cart/CartProvider", () => ({ CustomerCartProvider: "CustomerCartProvider" }));
+vi.mock("../features/checkout/CheckoutProvider", () => ({ CustomerCheckoutProvider: "CustomerCheckoutProvider",
+  useCustomerCheckout: () => ({ state: { status: "idle" } }) }));
+vi.mock("../i18n", () => ({ useCustomerText: () => (english: string) => english, queryStateLabel: (state: string) => state }));
 vi.mock("../features/addresses/AddressScreen", () => ({ AddressScreen: "AddressScreen" }));
 vi.mock("../components/ui", () => ({ Page: "Page", StateView: "StateView" }));
 vi.mock("../tenant", () => ({ readEmbeddedTenant: () => ({ branding: { displayName: "Configured Restaurant", primaryColor: "#2457a7" } }) }));
@@ -38,7 +42,9 @@ describe("restaurant-locked customer navigation", () => {
   });
 
   it("offers Home, Menu, Cart, Orders, Profile within the configured restaurant", () => {
-    const tree = StoreLayout(); const tabs = elements(tree).filter(item => item.type === "Pressable");
+    const navigation = elements(StoreLayout()).find(item => typeof item.type === "function")!;
+    const tree = (navigation.type as () => ReactNode)();
+    const tabs = elements(tree).filter(item => item.type === "Pressable");
     expect(tabs.map(tab => tab.props.accessibilityLabel)).toEqual(["home", "menu", "cart", "orders", "profile"]);
     for (const tab of tabs) (tab.props.onPress as () => void)();
     expect(harness.navigate.mock.calls.map(call => call[0])).toEqual(["/home", "/menu", "/cart", "/orders", "/profile"]);

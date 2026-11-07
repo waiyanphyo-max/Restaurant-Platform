@@ -69,6 +69,7 @@ public class ManagerOrderService {
     private final AppNotificationRepository appNotificationRepository;
     private final RestaurantAuthorization restaurantAuthorization;
     private final DeliveryService deliveryService;
+    private final CustomerOrderNotifications customerNotifications;
     private AccountingSupport accounting;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -82,7 +83,8 @@ public class ManagerOrderService {
             QueueTicketRepository queueTicketRepository,
             AppNotificationRepository appNotificationRepository,
             RestaurantAuthorization restaurantAuthorization,
-            DeliveryService deliveryService
+            DeliveryService deliveryService,
+            CustomerOrderNotifications customerNotifications
     ) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
@@ -92,6 +94,7 @@ public class ManagerOrderService {
         this.appNotificationRepository = appNotificationRepository;
         this.restaurantAuthorization = restaurantAuthorization;
         this.deliveryService = deliveryService;
+        this.customerNotifications = customerNotifications;
     }
 
     @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
@@ -368,6 +371,7 @@ public class ManagerOrderService {
         history.setNote(request.note());
 
         orderStatusHistoryRepository.save(history);
+        customerNotifications.orderStatusChanged(order);
 
         // Create a delivery task as soon as a delivery order becomes READY.
         if ("READY".equals(nextStatus) && "DELIVERY".equals(orderType)) {

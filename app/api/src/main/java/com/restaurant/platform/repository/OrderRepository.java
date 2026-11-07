@@ -69,6 +69,39 @@ public interface OrderRepository
 
     Optional<Order> findByIdAndCustomerId(UUID id, UUID customerId);
 
+    Optional<Order> findByRestaurantIdAndCustomerIdAndDeliveryCheckoutKey(
+            UUID restaurantId, UUID customerId, UUID deliveryCheckoutKey);
+
+    @Query("""
+            select o from Order o
+            where o.restaurantId = :restaurantId and o.customerId = :customerId
+                and o.orderType = 'DELIVERY' and (:status is null or o.status = :status)
+            """)
+    Page<Order> findCustomerDeliveryOrders(
+            @Param("restaurantId") UUID restaurantId,
+            @Param("customerId") UUID customerId,
+            @Param("status") String status,
+            Pageable pageable);
+
+    @Query("""
+            select o from Order o where o.id = :orderId and o.restaurantId = :restaurantId
+                and o.customerId = :customerId and o.orderType = 'DELIVERY'
+            """)
+    Optional<Order> findCustomerDeliveryOrder(
+            @Param("restaurantId") UUID restaurantId,
+            @Param("customerId") UUID customerId,
+            @Param("orderId") UUID orderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select o from Order o where o.id = :orderId and o.restaurantId = :restaurantId
+                and o.customerId = :customerId and o.orderType = 'DELIVERY'
+            """)
+    Optional<Order> findCustomerDeliveryOrderForUpdate(
+            @Param("restaurantId") UUID restaurantId,
+            @Param("customerId") UUID customerId,
+            @Param("orderId") UUID orderId);
+
     /** Resolve the lock scope without caching a mutable Order before the tenant lock. */
     @Query("select o.restaurantId from Order o where o.id = :orderId and o.customerId = :customerId")
     Optional<UUID> findRestaurantIdByIdAndCustomerId(

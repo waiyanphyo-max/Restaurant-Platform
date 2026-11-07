@@ -286,6 +286,8 @@ public class DeliveryService {
                                 || "ASSIGNED".equals(currentStatus)),
                         currentStatus, nextStatus);
                 delivery.setStatus("CANCELLED");
+                notifyCustomer(order, "DELIVERY_CANCELLED", "Delivery cancelled",
+                        "The delivery for order " + order.getOrderNumber() + " was cancelled.");
             }
             default -> throw new ApiException(HttpStatus.BAD_REQUEST,
                     "INVALID_DELIVERY_STATUS", "error.delivery.invalid-status");

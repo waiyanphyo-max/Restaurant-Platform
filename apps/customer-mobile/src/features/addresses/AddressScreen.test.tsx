@@ -32,6 +32,7 @@ vi.mock("react", async importOriginal => ({
 vi.mock("react-native", () => ({ Switch: "Switch", Text: "Text", View: "View" }));
 vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page" }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => harness.tenant }));
+vi.mock("../../i18n", () => ({ useCustomerLanguage: () => "en", useCustomerText: () => (english: string) => english }));
 vi.mock("../../api", () => ({ getCustomerApi: () => ({ createAddress: harness.createAddress, updateAddress: harness.updateAddress }) }));
 vi.mock("./AddressMap", () => ({ AddressMap: "AddressMap" }));
 vi.mock("./native-location", () => ({ suggestCurrentLocation: harness.locate }));

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDeviceApiClient, createCustomerApiClient, createPublicRestaurantApiClient, ApiProtocolError } from "./index.js";
+import { createDeviceApiClient, createCustomerDeviceApiClient, createCustomerApiClient, createPublicRestaurantApiClient, ApiProtocolError } from "./index.js";
 const restaurantId = "11111111-1111-4111-8111-111111111111";
 const addressId = "22222222-2222-4222-8222-222222222222";
 const origin = "https://api.example.test";
@@ -25,6 +25,21 @@ describe("customer native contracts", () => {
     expect((await api.updateAddress(addressId, { ...body, longitude: 96.18 })).longitude).toBe(96.18);
     expect(fetchImpl.mock.calls.map(call => new URL(String(call[0])).pathname)).toEqual(["/api/v1/customer/addresses", "/api/v1/customer/addresses", `/api/v1/customer/addresses/${addressId}`]);
     expect(JSON.parse(String(fetchImpl.mock.calls[2][1]?.body))).toMatchObject({ longitude: 96.18 });
+  });
+  it("keeps customer push registration and cleanup bound to the configured restaurant", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ id: addressId, platform: "ANDROID", active: true }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const options = { baseUrl: origin, restaurantId, getAccessToken: () => "customer-session", fetchImpl };
+    const api = createCustomerDeviceApiClient(options);
+    options.restaurantId = addressId;
+
+    await api.registerDevice("native-fcm-token");
+    await api.deactivateDevice(addressId);
+
+    const devices = `/api/v1/customer/restaurants/${restaurantId}/devices`;
+    expect(fetchImpl.mock.calls.map(call => new URL(String(call[0])).pathname)).toEqual([devices, `${devices}/${addressId}`]);
+    expect(new Headers(fetchImpl.mock.calls[0][1]?.headers).get("Authorization")).toBe("Bearer customer-session");
+    expect(JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))).toEqual({ pushToken: "native-fcm-token", platform: "ANDROID" });
   });
   it("captures restaurant at client construction and rejects a foreign storefront response", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(json({ restaurantId: addressId }));

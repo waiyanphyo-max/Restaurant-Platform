@@ -60,6 +60,7 @@ class AssignedDeliveryServiceTest {
         givenAssignedWorker(role);
         restaurant.setLatitude(BigDecimal.ZERO);
         restaurant.setLongitude(BigDecimal.valueOf(180));
+        order.setDeliveryLocationSource("MANUAL_MAP");
         order.setDeliveryLatitude(BigDecimal.valueOf(-90));
         order.setDeliveryLongitude(BigDecimal.ZERO);
         OrderItem item = new OrderItem();

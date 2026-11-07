@@ -1,6 +1,7 @@
 package com.restaurant.platform.dto.customer;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record CustomerDeliveryStatusDto(
@@ -8,6 +9,10 @@ public record CustomerDeliveryStatusDto(
         String status,
         OffsetDateTime assignedAt,
         OffsetDateTime pickedUpAt,
-        OffsetDateTime deliveredAt
+        OffsetDateTime deliveredAt,
+        List<CustomerOrderStatusDto> statusHistory
 ) {
+    public CustomerDeliveryStatusDto {
+        statusHistory = List.copyOf(statusHistory);
+    }
 }

@@ -2,7 +2,8 @@ import type {
   AssignedDeliveryDetailDto, AssignDeliveryDriverRequest, CreateDeliveryOrderRequest, CreateOrderResponse,
   CreateQrOrderRequest, CreateStaffOrderRequest, CreateStaffOrderResponse,
   CustomerAddressRequest, CustomerAddressResponse, CustomerProfileRequest,
-  CustomerProfileResponse, DeliveryTaskDto, DeliveryZoneDto, ManagerOrderDetailDto,
+  CustomerProfileResponse, CustomerOrderDetailDto, CustomerOrderSummaryDto,
+  DeliveryCheckoutRequest, DeliveryQuoteRequest, DeliveryQuoteResponse, DeliveryTaskDto, DeliveryZoneDto, ManagerOrderDetailDto,
   CategoryResponse, DailyOperationsReportResponse, PaymentResponse, ProductManagementResponse,
   RestaurantMemberResponse, RestaurantSettingsResponse, StaffOrderOptions,
   MyRestaurantResponse, NotificationResponse, OrderSummaryDto, PlatformOverviewResponse,
@@ -266,7 +267,10 @@ export function createCustomerApiClient(options: CustomerApiClientOptions) {
   const restaurantId = requireUuid(options.restaurantId, "restaurantId");
   const transport = createAuthenticatedTransport(options);
   const prefix = "/api/v1/customer";
+  const restaurant = `${prefix}/restaurants/${restaurantId}`;
+  const checkout = `${restaurant}/orders/delivery`;
   const addressPath = (id: string) => `${prefix}/addresses/${requireUuid(id, "addressId")}`;
+  const orderPath = (id: string) => `${restaurant}/orders/${requireUuid(id, "orderId")}`;
   return {
     restaurantId,
     getProfile: (o?: ApiRequestOptions) => read<CustomerProfileResponse>(transport, `${prefix}/profile`, o),
@@ -281,8 +285,32 @@ export function createCustomerApiClient(options: CustomerApiClientOptions) {
       transport.request({ method: "PATCH", path: `${addressPath(id)}/default`, options: o }),
     deleteAddress: (id: string, o?: ApiRequestOptions): Promise<void> =>
       transport.request({ method: "DELETE", path: addressPath(id), options: o }),
-    getDeliveryZones: (o?: ApiRequestOptions) => read<DeliveryZoneDto[]>(transport, `${prefix}/restaurants/${restaurantId}/delivery-zones`, o),
+    getDeliveryZones: (o?: ApiRequestOptions) => read<DeliveryZoneDto[]>(transport, `${restaurant}/delivery-zones`, o),
     createDeliveryOrder: (body: CreateDeliveryOrderRequest, o?: ApiRequestOptions): Promise<CreateOrderResponse> =>
-      transport.request({ method: "POST", path: `${prefix}/restaurants/${restaurantId}/orders/delivery`, body, options: o })
+      transport.request({ method: "POST", path: checkout, body, options: o }),
+    quoteDelivery: async (body: DeliveryQuoteRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await transport.request<DeliveryQuoteResponse>({ method: "POST", path: `${checkout}/quote`, body, options: o }),
+      restaurantId, "restaurantId"),
+    checkoutDelivery: (body: DeliveryCheckoutRequest, idempotencyKey: string, o?: ApiRequestOptions): Promise<CreateOrderResponse> =>
+      transport.request({ method: "POST", path: `${checkout}/checkout`, body, options: o,
+        headers: { "Idempotency-Key": requireUuid(idempotencyKey, "Idempotency-Key") }, retryTransient: true }),
+    getCheckoutReceipt: (idempotencyKey: string, o?: ApiRequestOptions): Promise<CreateOrderResponse> =>
+      transport.request({ method: "GET", path: `${checkout}/checkout`, options: o,
+        headers: { "Idempotency-Key": requireUuid(idempotencyKey, "Idempotency-Key") }, retryTransient: true }),
+    async listOrders(query: PageQuery = {}, o?: ApiRequestOptions) {
+      const page = await read<SpringPage<CustomerOrderSummaryDto>>(transport, `${restaurant}/orders`, o, pageQuery(query));
+      if (!Array.isArray(page?.content)) throw new ApiProtocolError();
+      page.content.forEach(order => checkedRestaurantResponse(order, restaurantId, "restaurantId"));
+      return page;
+    },
+    getOrder: async (id: string, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await read<CustomerOrderDetailDto>(transport, orderPath(id), o), restaurantId, "restaurantId"),
+    cancelOrder: async (id: string, o?: ApiRequestOptions) => checkedRestaurantResponse(
+      await transport.request<CustomerOrderDetailDto>({ method: "POST", path: `${orderPath(id)}/cancel`, options: o }),
+      restaurantId, "restaurantId"),
+    listNotifications: (status?: string, o?: ApiRequestOptions) =>
+      read<NotificationResponse[]>(transport, `${restaurant}/notifications`, o, { status }),
+    markNotificationRead: (id: string, o?: ApiRequestOptions): Promise<NotificationResponse> =>
+      transport.request({ method: "PATCH", path: `${restaurant}/notifications/${requireUuid(id, "notificationId")}/read`, options: o })
   };
 }

@@ -24,6 +24,6 @@ public record CreateOrderItemRequest(
         String specialInstruction,
 
         @Size(max = 20)
-        List<@Valid ModifierSelectionRequest> modifiers
+        List<@NotNull @Valid ModifierSelectionRequest> modifiers
 ) {
 }
