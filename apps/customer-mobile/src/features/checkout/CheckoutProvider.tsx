@@ -79,11 +79,12 @@ export function CustomerCheckoutProvider({ owner, children }: PropsWithChildren<
 
   async function abandonPrevious() {
     const previous = current.current;
-    if (request.current || previous.status !== "unrecorded") return;
+    if (request.current || (previous.status !== "unrecorded" && previous.status !== "uncertain")) return;
+    const key = previous.status === "unrecorded" ? previous.key : previous.attempt.quote.idempotencyKey;
     const controller = new AbortController();
     request.current = controller;
     update({ status: "recovering" });
-    try { await settlePrevious(previous.key, controller, { status: "idle" }); }
+    try { await settlePrevious(key, controller, { status: "idle" }); }
     finally { request.current = null; }
   }
 

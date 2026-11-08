@@ -1,11 +1,25 @@
 package com.restaurant.platform.config;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.ECDSASigner;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.JwtValidationException;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,6 +61,14 @@ class SecurityConfigJwtValidatorTest {
     }
 
     @Test
+    void rejectsAbbreviatedUuidSubject() {
+        Jwt token = jwt("1-1-1-1-1", List.of("authenticated"), ISSUER,
+                Instant.now().minusSeconds(1), Instant.now().plusSeconds(60));
+
+        assertTrue(SecurityConfig.userSubjectValidator().validate(token).hasErrors());
+    }
+
+    @Test
     void acceptsRequiredAudience() {
         OAuth2TokenValidatorResult result = SecurityConfig
                 .audienceValidator("authenticated")
@@ -68,29 +90,61 @@ class SecurityConfigJwtValidatorTest {
     }
 
     @Test
-    void defaultJwtValidatorsRejectIncorrectIssuer() {
+    void tokenValidatorRejectsIncorrectIssuer() {
         Jwt token = jwt(UUID.randomUUID().toString(), List.of("authenticated"),
                 "https://wrong.example.test/auth/v1",
                 Instant.now().minusSeconds(1), Instant.now().plusSeconds(60));
 
-        OAuth2TokenValidatorResult result = JwtValidators
-                .createDefaultWithIssuer(ISSUER)
+        OAuth2TokenValidatorResult result = SecurityConfig
+                .tokenValidator(ISSUER, "authenticated")
                 .validate(token);
 
         assertFalse(result.getErrors().isEmpty());
     }
 
     @Test
-    void defaultJwtValidatorsRejectExpiredTokens() {
+    void tokenValidatorRejectsExpiredTokens() {
         Instant now = Instant.now();
         Jwt token = jwt(UUID.randomUUID().toString(), List.of("authenticated"), ISSUER,
                 now.minusSeconds(300), now.minusSeconds(120));
 
-        OAuth2TokenValidatorResult result = JwtValidators
-                .createDefaultWithIssuer(ISSUER)
+        OAuth2TokenValidatorResult result = SecurityConfig
+                .tokenValidator(ISSUER, "authenticated")
                 .validate(token);
 
         assertFalse(result.getErrors().isEmpty());
+    }
+
+    @Test
+    void nimbusRejectsWrongSignatureAndSignedTokensWithoutAnExpiry() throws Exception {
+        ECKey trustedKey = new ECKeyGenerator(Curve.P_256).keyID("test-key").generate();
+        ECKey unrelatedKey = new ECKeyGenerator(Curve.P_256).keyID(trustedKey.getKeyID()).generate();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSource(
+                        new ImmutableJWKSet<>(new JWKSet(trustedKey.toPublicJWK())))
+                .jwsAlgorithm(SignatureAlgorithm.ES256)
+                .build();
+        decoder.setJwtValidator(SecurityConfig.tokenValidator(ISSUER, "authenticated"));
+
+        String subject = UUID.randomUUID().toString();
+        Instant now = Instant.now();
+        JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
+                .issuer(ISSUER)
+                .audience("authenticated")
+                .subject(subject)
+                .issueTime(Date.from(now.minusSeconds(1)));
+        JWTClaimsSet noExpiry = claims.build();
+        JWTClaimsSet withExpiry = claims.expirationTime(Date.from(now.plusSeconds(120))).build();
+
+        assertEquals(subject, decoder.decode(sign(trustedKey, withExpiry)).getSubject());
+        assertThrows(BadJwtException.class, () -> decoder.decode(sign(unrelatedKey, withExpiry)));
+        assertThrows(JwtValidationException.class, () -> decoder.decode(sign(trustedKey, noExpiry)));
+    }
+
+    private static String sign(ECKey key, JWTClaimsSet claims) throws Exception {
+        SignedJWT token = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.ES256).keyID(key.getKeyID()).build(), claims);
+        token.sign(new ECDSASigner(key));
+        return token.serialize();
     }
 
     private static Jwt jwt(

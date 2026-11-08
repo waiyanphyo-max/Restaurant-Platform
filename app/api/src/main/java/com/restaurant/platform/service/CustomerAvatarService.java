@@ -1,7 +1,6 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.dto.customer.CustomerProfileResponse;
-import com.restaurant.platform.entity.Profile;
 import com.restaurant.platform.repository.ProfileRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import org.springframework.stereotype.Service;
@@ -38,18 +37,10 @@ public class CustomerAvatarService {
         ImageUploadValidator.ValidatedImage image =
                 imageValidator.validate(file, MAX_AVATAR_BYTES);
 
-        Profile profile = profileRepository.findById(userId).orElseGet(() -> {
-            Profile created = new Profile();
-            created.setId(userId);
-            return created;
-        });
-
         String objectPath = userId + "/" + UUID.randomUUID() + "." + image.extension();
         storageClient.uploadPrivateAvatar(objectPath, image.contentType(), image.bytes());
-        profile.setAvatarPath(objectPath);
-        // Do not store an expiring signed URL. Retain avatar_url only for legacy public URLs.
-        profile.setAvatarUrl(null);
-        profileRepository.save(profile);
+        // Write only the durable path after storage returns. The response signs it on read.
+        profileRepository.saveAvatarPath(userId, objectPath);
         return customerProfileService.getMyProfile(userId);
     }
 

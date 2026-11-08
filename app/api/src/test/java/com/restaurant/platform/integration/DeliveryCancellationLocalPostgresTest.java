@@ -5,6 +5,9 @@ import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.menu.ProductRequest;
 import com.restaurant.platform.dto.order.CreateDeliveryOrderRequest;
 import com.restaurant.platform.dto.order.CreateOrderItemRequest;
+import com.restaurant.platform.dto.order.CreateOrderResponse;
+import com.restaurant.platform.dto.order.CreateQrOrderRequest;
+import com.restaurant.platform.dto.order.CreateStaffOrderRequest;
 import com.restaurant.platform.dto.order.UpdateOrderStatusRequest;
 import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.repository.OrderRepository;
@@ -16,7 +19,10 @@ import com.restaurant.platform.service.DeliveryService;
 import com.restaurant.platform.service.ManagerOrderService;
 import com.restaurant.platform.service.OrderCancellationService;
 import com.restaurant.platform.service.OrderService;
+import com.restaurant.platform.service.PaymentService;
 import com.restaurant.platform.service.QrOrderIdempotencyService;
+import com.restaurant.platform.service.QueueManagementService;
+import com.restaurant.platform.service.QueueTrackingService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,8 +42,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -48,7 +61,8 @@ import static org.junit.jupiter.api.Assertions.*;
         webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.datasource.url=${ACCOUNTING_TEST_DATABASE_URL}",
         "spring.datasource.username=postgres",
-        "spring.datasource.password="
+        "spring.datasource.password=",
+        "app.idempotency.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 class DeliveryCancellationLocalPostgresTest {
     @Configuration(proxyBeanMethods = false)
@@ -58,7 +72,8 @@ class DeliveryCancellationLocalPostgresTest {
     @EnableMethodSecurity
     @Import({AccountingSupport.class, RestaurantAuthorization.class, CatalogManagementService.class,
             CustomerOrderNotifications.class, CustomerOrderService.class, DeliveryService.class,
-            ManagerOrderService.class, OrderCancellationService.class, OrderService.class, QrOrderIdempotencyService.class})
+            ManagerOrderService.class, OrderCancellationService.class, OrderService.class, PaymentService.class,
+            QrOrderIdempotencyService.class, QueueManagementService.class, QueueTrackingService.class})
     static class DatabaseApplication { }
 
     @Autowired private JdbcTemplate jdbc;
@@ -66,6 +81,162 @@ class DeliveryCancellationLocalPostgresTest {
     @Autowired private ManagerOrderService managerOrders;
     @Autowired private CustomerOrderService customerOrders;
     @Autowired private CatalogManagementService catalog;
+    @Autowired private PaymentService payments;
+    @Autowired private QueueManagementService queueManagement;
+    @Autowired private QueueTrackingService queueTracking;
+
+    @Test
+    void parallelCommonQrOrdersAllocateSeparateTenantQueuesAndReplayTheOriginalReceipt() throws Exception {
+        Fixture a = seed();
+        Fixture b = seed();
+        String tokenA = commonToken(a);
+        String tokenB = commonToken(b);
+        var orderA = new CreateQrOrderRequest(tokenA, List.of(line(a.trackedProduct())));
+        var orderB = new CreateQrOrderRequest(tokenB, List.of(line(b.trackedProduct())));
+        jdbc.update("""
+                INSERT INTO public.daily_queue_counters(restaurant_id, queue_date, last_number)
+                VALUES (?, (now() AT TIME ZONE 'Asia/Yangon')::date - 1, 53)
+                """, a.restaurant());
+
+        var begin = new CountDownLatch(1);
+        CreateOrderResponse first;
+        CreateOrderResponse second;
+        CreateOrderResponse other;
+        try (var workers = Executors.newFixedThreadPool(4)) {
+            var firstOrder = workers.submit(() -> {
+                assertTrue(begin.await(10, TimeUnit.SECONDS));
+                return orders.createCommonQrOrder(a.restaurant(), orderA, "duplicate-qr");
+            });
+            var replay = workers.submit(() -> {
+                assertTrue(begin.await(10, TimeUnit.SECONDS));
+                return orders.createCommonQrOrder(a.restaurant(), orderA, "duplicate-qr");
+            });
+            var secondOrder = workers.submit(() -> {
+                assertTrue(begin.await(10, TimeUnit.SECONDS));
+                return orders.createCommonQrOrder(a.restaurant(), orderA, "another-qr");
+            });
+            var otherOrder = workers.submit(() -> {
+                assertTrue(begin.await(10, TimeUnit.SECONDS));
+                return orders.createCommonQrOrder(b.restaurant(), orderB, "duplicate-qr");
+            });
+            begin.countDown();
+            first = firstOrder.get(15, TimeUnit.SECONDS);
+            assertEquals(first, replay.get(15, TimeUnit.SECONDS));
+            second = secondOrder.get(15, TimeUnit.SECONDS);
+            other = otherOrder.get(15, TimeUnit.SECONDS);
+        }
+
+        assertEquals(Set.of(1, 2), new HashSet<>(List.of(first.queue().queueNumber(), second.queue().queueNumber())));
+        assertEquals(1, other.queue().queueNumber());
+        assertEquals(2, stock(a.trackedProduct()));
+        assertEquals(4, stock(b.trackedProduct()));
+        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM public.orders WHERE restaurant_id = ?",
+                Integer.class, a.restaurant()));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM public.orders WHERE restaurant_id = ?",
+                Integer.class, b.restaurant()));
+        assertEquals("PENDING", paymentStatus(first.orderId()));
+
+        UUID ticket = first.queue().ticketId();
+        String token = first.queue().trackingToken();
+        LocalDate queueDate = jdbc.queryForObject("""
+                SELECT c.queue_date FROM public.queue_tickets q
+                JOIN public.daily_queue_counters c ON q.daily_counter_id = c.id WHERE q.id = ?
+                """, LocalDate.class, ticket);
+        assertTrue(first.orderNumber().startsWith("ORD-" + queueDate.format(DateTimeFormatter.BASIC_ISO_DATE) + "-"));
+        assertEquals("QUEUE_TICKET_NOT_FOUND", assertThrows(ApiException.class,
+                () -> queueTracking.getStatus(ticket, token, b.restaurant())).getCode());
+        assertEquals("QUEUE_TICKET_NOT_FOUND", assertThrows(ApiException.class,
+                () -> queueTracking.getStatus(ticket, other.queue().trackingToken(), a.restaurant())).getCode());
+        assertEquals("INVALID_COMMON_QR_TOKEN", assertThrows(ApiException.class,
+                () -> orders.createCommonQrOrder(b.restaurant(), orderA, "wrong-tenant")).getCode());
+        assertEquals("WAITING", queueTracking.getStatus(ticket, token, a.restaurant()).queueStatus());
+
+        changeStatus(a, first.orderId(), "ACCEPTED", null);
+        changeStatus(a, first.orderId(), "PREPARING", null);
+        changeStatus(a, first.orderId(), "READY", null);
+        assertEquals("READY", queueTracking.getStatus(ticket, token, a.restaurant()).queueStatus());
+        assertEquals("CALLED", asUser(a.manager(),
+                () -> queueManagement.callTicket(a.restaurant(), ticket)).status());
+        var notices = queueTracking.getNotifications(ticket, token, a.restaurant());
+        assertEquals(2, notices.size());
+        var notice = notices.getFirst();
+        assertEquals("QUEUE_TICKET_NOT_FOUND", assertThrows(ApiException.class, () ->
+                queueTracking.markNotificationRead(ticket, notice.id(), token, b.restaurant())).getCode());
+        assertEquals("READ", queueTracking.markNotificationRead(ticket, notice.id(), token, a.restaurant()).status());
+        changeStatus(a, first.orderId(), "COMPLETED", null);
+        assertEquals("COMPLETED", queueTracking.getStatus(ticket, token, a.restaurant()).queueStatus());
+
+        assertEquals("CANCELLED", changeStatus(a, second.orderId(), "CANCELLED", null));
+        assertEquals("CANCELLED", paymentStatus(second.orderId()));
+        assertEquals("CANCELLED", queueTracking.getStatus(second.queue().ticketId(),
+                second.queue().trackingToken(), a.restaurant()).queueStatus());
+    }
+
+    @Test
+    void tableQrAndStaffOrdersUseTheSameCounterPaymentDisposition() {
+        Fixture data = seed();
+        UUID table = UUID.randomUUID();
+        String token = UUID.randomUUID().toString();
+        jdbc.update("""
+                INSERT INTO public.dining_tables(id, restaurant_id, table_number, qr_token)
+                VALUES (?, ?, 'A-01', ?)
+                """, table, data.restaurant(), token);
+        var tableOrder = orders.createTableQrOrder(data.restaurant(),
+                new CreateQrOrderRequest(token, List.of(line(data.trackedProduct()))), "table-checkout");
+        assertEquals("DINE_IN", tableOrder.orderType());
+        assertEquals(2000L, tableOrder.totalAmount());
+        assertEquals(table, jdbc.queryForObject("SELECT table_id FROM public.orders WHERE id = ?",
+                UUID.class, tableOrder.orderId()));
+        assertNull(tableOrder.queue());
+
+        var staffOrder = asUser(data.manager(), () -> orders.createStaffOrder(data.restaurant(), data.manager(),
+                new CreateStaffOrderRequest("TAKEAWAY", null, List.of(line(data.trackedProduct())), null)));
+        for (UUID id : List.of(tableOrder.orderId(), staffOrder.orderId())) {
+            assertEquals("PENDING", paymentStatus(id));
+            assertEquals("CANCELLED", changeStatus(data, id, "CANCELLED", "Duplicate request"));
+            assertEquals("CANCELLED", paymentStatus(id));
+        }
+        // Counter stock still follows the manual review policy.
+        assertEquals(2, stock(data.trackedProduct()));
+    }
+
+    @Test
+    void concurrentCounterCollectionAndCancellationPreserveTheWinningFinancialState() throws Exception {
+        Fixture data = seed();
+        UUID order = asUser(data.manager(), () -> orders.createStaffOrder(data.restaurant(), data.manager(),
+                new CreateStaffOrderRequest("TAKEAWAY", null, List.of(line(data.trackedProduct())), null))).orderId();
+        UUID payment = jdbc.queryForObject("SELECT id FROM public.payments WHERE order_id = ?", UUID.class, order);
+        var begin = new CountDownLatch(1);
+        String collection;
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var cancel = workers.submit(() -> {
+                assertTrue(begin.await(10, TimeUnit.SECONDS));
+                return changeStatus(data, order, "CANCELLED", null);
+            });
+            var collect = workers.submit(() -> {
+                assertTrue(begin.await(10, TimeUnit.SECONDS));
+                try {
+                    return asUser(data.manager(), () ->
+                            payments.collectCashAtCounter(data.restaurant(), order, payment, data.manager())).status();
+                } catch (ApiException error) {
+                    return error.getCode();
+                }
+            });
+            begin.countDown();
+            assertEquals("CANCELLED", cancel.get(15, TimeUnit.SECONDS));
+            collection = collect.get(15, TimeUnit.SECONDS);
+        }
+        assertTrue(Set.of("PAID", "CANCELLED_ORDER_PAYMENT").contains(collection));
+        assertEquals("PAID".equals(collection) ? "PAID" : "CANCELLED", paymentStatus(order));
+        assertEquals("PAID".equals(collection) ? data.manager() : null,
+                jdbc.queryForObject("SELECT collected_by_user_id FROM public.payments WHERE id = ?", UUID.class, payment));
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT count(*) FROM public.order_status_history WHERE order_id = ? AND status = 'CANCELLED'
+                """, Integer.class, order));
+        assertEquals("CANCELLED_ORDER_PAYMENT", assertThrows(ApiException.class, () ->
+                asUser(data.manager(), () -> payments.collectCashAtCounter(data.restaurant(), order, payment, data.manager())))
+                .getCode());
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {"PENDING", "ACCEPTED", "PREPARING"})
@@ -238,6 +409,11 @@ class DeliveryCancellationLocalPostgresTest {
 
     private String paymentStatus(UUID order) {
         return jdbc.queryForObject("SELECT status FROM public.payments WHERE order_id = ?", String.class, order);
+    }
+
+    private String commonToken(Fixture data) {
+        return jdbc.queryForObject("SELECT common_qr_token FROM public.restaurant_settings WHERE restaurant_id = ?",
+                String.class, data.restaurant());
     }
 
     private static <T> T asUser(UUID user, Supplier<T> operation) {

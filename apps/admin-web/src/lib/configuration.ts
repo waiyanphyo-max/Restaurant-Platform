@@ -1,12 +1,12 @@
 import type { PlatformRestaurantConfigurationRequest } from "@restaurant-platform/shared-types";
 
 /** Early form feedback mirrors Spring; Spring still validates every submitted mutation. */
-export function validateRestaurantConfiguration(request: PlatformRestaurantConfigurationRequest): Record<string, string> {
+export function validateRestaurantConfiguration(request: PlatformRestaurantConfigurationRequest, currentLogoUrl?: string | null): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!request.name.trim() || request.name.length > 150) errors.name = "Enter a restaurant name using 150 characters or fewer.";
   if (request.slug.length > 100 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(request.slug)) errors.slug = "Use lowercase letters, numbers and single hyphens, up to 100 characters.";
   const logo = request.logoUrl?.trim();
-  if (logo) {
+  if (logo && logo !== currentLogoUrl) {
     try {
       const url = new URL(logo);
       if (logo.length > 2000 || /[\s?#]/.test(logo) || url.protocol !== "https:" || !url.hostname || url.username || url.password || url.search || url.hash) throw new Error();

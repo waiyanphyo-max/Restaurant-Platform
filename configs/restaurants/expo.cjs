@@ -115,6 +115,7 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
         ["expo-secure-store", { configureAndroidBackup: true }],
         ["expo-build-properties", { android: { usesCleartextTraffic: environment === "development" } }],
         ["expo-splash-screen", splash],
+        fromApp(appDirectory, "with-app-label.cjs"),
         [fromApp(appDirectory, "with-build-fingerprint.cjs"), { fingerprint }],
         ...plugins
       ],

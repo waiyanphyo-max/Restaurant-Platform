@@ -50,4 +50,16 @@ class PlatformAdminAuthorizationTest {
         assertEquals("PLATFORM_ADMIN_NOT_CONFIGURED", missingError.getCode());
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, invalidError.getStatus());
     }
+
+    @Test
+    void abbreviatedUuidDoesNotGrantPlatformAccess() {
+        when(identity.requireAuthenticatedUserId())
+                .thenReturn(UUID.fromString("00000001-0001-0001-0001-000000000001"));
+        PlatformAdminAuthorization authorization = new PlatformAdminAuthorization(identity, "1-1-1-1-1");
+
+        ApiException error = assertThrows(ApiException.class, authorization::requirePlatformAdmin);
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, error.getStatus());
+        assertEquals("PLATFORM_ADMIN_NOT_CONFIGURED", error.getCode());
+    }
 }

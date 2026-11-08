@@ -26,7 +26,7 @@ export function RestaurantConfiguration({ detail }: { detail: PlatformRestaurant
     const domains = (key: string) => value(key).split(/[\s,]+/).filter(Boolean);
     try {
       const request = { name: value("name"), slug: value("slug"), logoUrl: value("logoUrl") || null, configuration: { primaryColor: value("primaryColor") || null, secondaryColor: value("secondaryColor") || null, guestDomains: { staging: domains("stagingDomains"), production: domains("productionDomains") }, android: { operations: android("operations"), customer: android("customer") } } };
-      const fields = validateRestaurantConfiguration(request);
+      const fields = validateRestaurantConfiguration(request, restaurant.logoUrl);
       if (Object.keys(fields).length) { setFailure({ ok: false, message: "Check the highlighted configuration fields.", fields }); return; }
       const result = await updateRestaurantConfiguration(restaurant.id, request);
       if (result.ok) { setSaved(true); router.refresh(); } else setFailure(result);

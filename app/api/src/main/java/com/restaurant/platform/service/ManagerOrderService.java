@@ -363,9 +363,10 @@ public class ManagerOrderService {
         }
 
         String historyNote = request.note();
-        if ("CANCELLED".equals(nextStatus) && "DELIVERY".equals(orderType)
-                && "CUSTOMER_APP".equals(order.getOrderChannel())) {
-            String disposition = cancellation.settleUnpaidOrder(order);
+        if ("CANCELLED".equals(nextStatus)) {
+            String disposition = "DELIVERY".equals(orderType) && "CUSTOMER_APP".equals(order.getOrderChannel())
+                    ? cancellation.settleUnpaidOrder(order)
+                    : cancellation.closePendingCounterPayments(order);
             historyNote = historyNote == null || historyNote.isBlank() ? disposition : historyNote + "\n" + disposition;
         }
 

@@ -757,8 +757,7 @@ public class OrderService {
         }
 
         String orderNumber = "ORD-"
-                + LocalDate.now(zone)
-                .format(DateTimeFormatter.BASIC_ISO_DATE)
+                + queueDate.format(DateTimeFormatter.BASIC_ISO_DATE)
                 + "-"
                 + UUID.randomUUID()
                 .toString()
@@ -1046,8 +1045,6 @@ public class OrderService {
         Map<UUID, Integer> selectedCountByGroup = new HashMap<>();
         List<PreparedModifier> preparedModifiers = new ArrayList<>();
 
-        long modifierExtraPerServing = 0L;
-
         for (ModifierSelectionRequest selection : selections) {
             if (!selectedOptionIds.add(selection.modifierOptionId())) {
                 throw new ApiException(
@@ -1092,14 +1089,6 @@ public class OrderService {
             // min/max selections count selected options, not modifier units.
             selectedCountByGroup.merge(groupId, 1, Integer::sum);
 
-            modifierExtraPerServing = Math.addExact(
-                    modifierExtraPerServing,
-                    Math.multiplyExact(
-                            option.getAdditionalPrice(),
-                            (long) selection.quantity()
-                    )
-            );
-
             preparedModifiers.add(
                     new PreparedModifier(option, selection.quantity())
             );
@@ -1138,10 +1127,11 @@ public class OrderService {
         long itemSubtotal;
 
         try {
-            long pricePerServing = Math.addExact(
-                    unitPrice,
-                    modifierExtraPerServing
-            );
+            long pricePerServing = unitPrice;
+            for (PreparedModifier modifier : preparedModifiers) {
+                long extra = Math.multiplyExact(modifier.option().getAdditionalPrice(), (long) modifier.quantity());
+                pricePerServing = Math.addExact(pricePerServing, extra);
+            }
 
             itemSubtotal = Math.multiplyExact(
                     pricePerServing,

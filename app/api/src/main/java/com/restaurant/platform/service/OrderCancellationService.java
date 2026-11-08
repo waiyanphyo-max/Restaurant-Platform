@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -37,6 +38,19 @@ public class OrderCancellationService {
         String stockNote = "PENDING".equals(order.getStatus()) || "ACCEPTED".equals(order.getStatus())
                 ? releaseReservations(order)
                 : "Stock retained because preparation had started.";
+        return stockNote + " " + closePendingPayments(orderPayments);
+    }
+
+    /** Counter cancellations leave collected cash and stock for the existing review workflow. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    String closePendingCounterPayments(Order order) {
+        var counterPayments = payments.findByOrderIdOrderByCreatedAtDesc(order.getId()).stream()
+                .filter(payment -> "CASH_AT_COUNTER".equals(payment.getMethod()))
+                .toList();
+        return closePendingPayments(counterPayments);
+    }
+
+    private String closePendingPayments(List<Payment> orderPayments) {
         int cancelledPayments = 0;
         for (Payment payment : orderPayments) {
             if ("PENDING".equals(payment.getStatus())) {
@@ -45,7 +59,7 @@ public class OrderCancellationService {
                 cancelledPayments++;
             }
         }
-        return stockNote + " Closed pending payments as cancelled (" + cancelledPayments + ").";
+        return "Closed pending payments as cancelled (" + cancelledPayments + ").";
     }
 
     private String releaseReservations(Order order) {

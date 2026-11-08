@@ -6,8 +6,10 @@ import com.restaurant.platform.security.RestaurantRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +24,11 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, UUID> {
     long countByIsActiveFalse();
 
     Optional<Restaurant> findByIdAndIsActiveTrue(UUID id);
+
+    @Modifying
+    @Transactional
+    @Query("update Restaurant r set r.logoUrl = :logoUrl where r.id = :id and r.isActive = true")
+    int updateActiveRestaurantLogo(@Param("id") UUID id, @Param("logoUrl") String logoUrl);
 
     boolean existsBySlug(String slug);
 

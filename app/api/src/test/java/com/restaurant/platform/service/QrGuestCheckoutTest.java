@@ -18,6 +18,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -201,15 +202,22 @@ class QrGuestCheckoutTest {
             ticket.setId(UUID.randomUUID());
             return ticket;
         });
-        CreateOrderResponse response = service.createCommonQrOrder(restaurantId,
-                request("common-token-A"), "checkout-key-123");
+        ZoneId zone = ZoneId.of(timezone);
+        LocalDate businessDate = LocalDate.of(2026, 11, 7);
+        LocalDate nextDay = businessDate.plusDays(1);
+        CreateOrderResponse response;
+        try (var calendar = mockStatic(LocalDate.class, CALLS_REAL_METHODS)) {
+            calendar.when(() -> LocalDate.now(zone)).thenReturn(businessDate, nextDay);
+            response = service.createCommonQrOrder(restaurantId, request("common-token-A"), "checkout-key-123");
+        }
         assertEquals("TAKEAWAY", response.orderType());
         assertEquals("COMMON_QR", response.orderChannel());
+        assertTrue(response.orderNumber().startsWith("ORD-" + businessDate.format(DateTimeFormatter.BASIC_ISO_DATE) + "-"));
         assertEquals(12, response.queue().queueNumber());
         assertEquals("012", response.queue().displayCode());
         ArgumentCaptor<MapSqlParameterSource> params = ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(jdbc).queryForObject(anyString(), params.capture(), any(RowMapper.class));
-        assertEquals(LocalDate.now(ZoneId.of(timezone)), params.getValue().getValue("queueDate"));
+        assertEquals(businessDate, params.getValue().getValue("queueDate"));
         assertEquals(restaurantId, params.getValue().getValue("restaurantId"));
         ArgumentCaptor<QueueTicket> ticket = ArgumentCaptor.forClass(QueueTicket.class);
         verify(tickets).saveAndFlush(ticket.capture());
@@ -267,6 +275,30 @@ class QrGuestCheckoutTest {
         assertError("INVALID_MODIFIER_OPTION", () -> service.createTableQrOrder(restaurantId, request, "checkout-key-123"));
         verify(options).findByIdAndRestaurantIdAndIsAvailableTrue(optionId, restaurantId);
         verifyNoInteractions(orders, tickets);
+    }
+
+    @Test
+    void modifierPriceOverflowReturnsOrderAmountValidationErrorBeforeWrites() {
+        UUID groupId = UUID.randomUUID();
+        UUID optionId = UUID.randomUUID();
+        ModifierGroup group = new ModifierGroup();
+        group.setId(groupId);
+        group.setMinSelections(0);
+        group.setMaxSelections(1);
+        ModifierOption option = new ModifierOption();
+        option.setId(optionId);
+        option.setModifierGroupId(groupId);
+        option.setAdditionalPrice(Long.MAX_VALUE);
+        when(productGroups.findModifierGroupIdsByProductIdAndRestaurantId(productId, restaurantId))
+                .thenReturn(List.of(groupId));
+        when(groups.findByIdAndRestaurantIdAndIsActiveTrue(groupId, restaurantId)).thenReturn(Optional.of(group));
+        when(options.findByIdAndRestaurantIdAndIsAvailableTrue(optionId, restaurantId)).thenReturn(Optional.of(option));
+        var request = new CreateQrOrderRequest("table-token-A", List.of(
+                new CreateOrderItemRequest(productId, null, 1, null, List.of(new ModifierSelectionRequest(optionId, 2)))));
+
+        assertError("ORDER_AMOUNT_TOO_LARGE", () -> service.createTableQrOrder(restaurantId, request, "checkout-key-123"));
+        verifyNoInteractions(orders, tickets);
+        verify(products, never()).reserveStock(any(), any(), anyInt());
     }
 
     private CreateQrOrderRequest request(String token) {

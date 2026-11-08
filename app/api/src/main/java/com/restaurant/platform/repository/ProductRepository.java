@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.Optional;
@@ -61,6 +62,12 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findByIdAndRestaurantId(
             UUID productId, UUID restaurantId);
+
+    @Modifying
+    @Transactional
+    @Query("update Product p set p.imageUrl = :imageUrl where p.id = :productId and p.restaurantId = :restaurantId")
+    int updateProductImage(@Param("productId") UUID productId, @Param("restaurantId") UUID restaurantId,
+                           @Param("imageUrl") String imageUrl);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Product p where p.id = :productId and p.restaurantId = :restaurantId")

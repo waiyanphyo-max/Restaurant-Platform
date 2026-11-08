@@ -58,7 +58,8 @@ public class PlatformAdminAuthorization {
 
     private UUID parseUuidOrNull(String value) {
         try {
-            return UUID.fromString(value);
+            UUID parsed = UUID.fromString(value);
+            return parsed.toString().equalsIgnoreCase(value) ? parsed : null;
         } catch (IllegalArgumentException exception) {
             // Ignore malformed entries; invalid configuration never grants access.
             return null;

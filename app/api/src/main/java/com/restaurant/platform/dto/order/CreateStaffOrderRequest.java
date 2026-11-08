@@ -12,7 +12,7 @@ import java.util.UUID;
 public record CreateStaffOrderRequest(
         @NotNull @Pattern(regexp = "DINE_IN|TAKEAWAY") String orderType,
         UUID tableId,
-        @NotEmpty @Size(max = 50) List<@Valid CreateOrderItemRequest> items,
+        @NotEmpty @Size(max = 50) List<@NotNull @Valid CreateOrderItemRequest> items,
         @Size(max = 500) String note
 ) {
 }

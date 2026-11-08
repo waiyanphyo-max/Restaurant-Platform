@@ -84,6 +84,25 @@ describe("COD checkout and receipt recovery", () => {
     expect(render().state.status).toBe("created");
   });
 
+  it.each([undefined, order])("settles a timed-out checkout without restarting with server receipt %j", async receipt => {
+    mocks.submit.mockRejectedValueOnce(new ApiTimeoutError());
+    mocks.abandon.mockResolvedValue(receipt);
+    render(); await tick();
+    await render().submit(attempt);
+    expect(render().state).toEqual({ status: "uncertain", attempt });
+    const { abandonPrevious } = render();
+    await Promise.all([abandonPrevious(), abandonPrevious()]);
+    expect(mocks.abandon).toHaveBeenCalledExactlyOnceWith(attempt.quote.idempotencyKey, { signal: expect.any(AbortSignal) });
+    expect(mocks.submit).toHaveBeenCalledOnce();
+    if (receipt) {
+      expect(render().state).toEqual({ status: "created", order: receipt });
+      expect(mocks.remove).not.toHaveBeenCalled();
+    } else {
+      expect(render().state.status).toBe("idle");
+      expect(mocks.abandon).toHaveBeenCalledBefore(mocks.remove);
+    }
+  });
+
   it("keeps the cart and releases a definitively rejected checkout for a new quote", async () => {
     const error = new ApiHttpError(409, "DELIVERY_QUOTE_CHANGED");
     mocks.submit.mockRejectedValueOnce(error);

@@ -27,7 +27,7 @@ type OrderConfirmation = (
 
 function cancellationMessage(order: Pick<ManagerOrderDetailDto, "orderChannel" | "orderType" | "status">): string {
   if (order.orderType !== "DELIVERY" || order.orderChannel !== "CUSTOMER_APP") {
-    return "Cancel this order? Historical records remain. Review tracked stock and pending payments separately after cancellation. Collected cash is not refunded by this action.";
+    return "Cancel this order? Pending counter payments will be cancelled. Historical records and collected cash remain. Review stock and any required refund separately.";
   }
   const stock = order.status === "PREPARING"
     ? "Stock is retained because preparation has started."

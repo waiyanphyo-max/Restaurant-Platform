@@ -323,16 +323,32 @@ class ManagerOrderServiceTest {
     }
 
     @Test
-    void cancellationRequiresSeparateCancellationPermission() {
+    void counterCancellationRequiresPermissionAndOnlyClosesPendingCounterPayments() {
         Order order = order("PENDING", "DINE_IN");
+        Payment pending = new Payment();
+        pending.setMethod("CASH_AT_COUNTER");
+        pending.setStatus("PENDING");
+        Payment collected = new Payment();
+        collected.setMethod("CASH_AT_COUNTER");
+        collected.setStatus("PAID");
+        Payment otherMethod = new Payment();
+        otherMethod.setMethod("ONLINE");
+        otherMethod.setStatus("PENDING");
         when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
                 .thenReturn(Optional.of(order));
+        when(payments.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(pending, collected, otherMethod));
 
         service.updateStatus(restaurantId, orderId, userId,
                 new UpdateOrderStatusRequest("CANCELLED", "Customer cancelled"));
 
         verify(authorization).requirePermission(restaurantId, RestaurantPermission.ORDER_CANCEL);
-        verifyNoInteractions(payments, products);
+        assertEquals("CANCELLED", pending.getStatus());
+        assertEquals("PAID", collected.getStatus());
+        assertEquals("PENDING", otherMethod.getStatus());
+        verify(payments).save(pending);
+        verify(payments, never()).save(collected);
+        verify(payments, never()).save(otherMethod);
+        verifyNoInteractions(products);
     }
 
     @ParameterizedTest

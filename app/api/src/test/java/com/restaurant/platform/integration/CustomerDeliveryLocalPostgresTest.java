@@ -1,6 +1,7 @@
 package com.restaurant.platform.integration;
 
 import com.restaurant.platform.accounting.AccountingSupport;
+import com.restaurant.platform.accounting.CashbookDtos;
 import com.restaurant.platform.accounting.CashbookService;
 import com.restaurant.platform.accounting.SalesAccountingService;
 import com.restaurant.platform.common.error.ApiException;
@@ -14,17 +15,29 @@ import com.restaurant.platform.dto.order.CustomerDeliveryCheckoutRequest.Tempora
 import com.restaurant.platform.dto.order.CustomerDeliveryQuote;
 import com.restaurant.platform.dto.order.UpdateOrderStatusRequest;
 import com.restaurant.platform.entity.Order;
+import com.restaurant.platform.entity.ProductVariant;
+import com.restaurant.platform.entity.Profile;
+import com.restaurant.platform.entity.Restaurant;
 import com.restaurant.platform.repository.DeliveryRepository;
 import com.restaurant.platform.repository.OrderRepository;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.AssignedDeliveryService;
+import com.restaurant.platform.service.CatalogImageService;
+import com.restaurant.platform.service.CustomerAvatarService;
 import com.restaurant.platform.service.CustomerDeliveryCheckoutService;
 import com.restaurant.platform.service.CustomerOrderNotifications;
+import com.restaurant.platform.service.CustomerOrderService;
+import com.restaurant.platform.service.CustomerProfileService;
 import com.restaurant.platform.service.DeliveryService;
+import com.restaurant.platform.service.ImageUploadValidator;
 import com.restaurant.platform.service.ManagerOrderService;
 import com.restaurant.platform.service.OrderCancellationService;
 import com.restaurant.platform.service.OrderService;
 import com.restaurant.platform.service.QrOrderIdempotencyService;
+import com.restaurant.platform.service.RestaurantLogoService;
+import com.restaurant.platform.service.SupabaseMediaStorageClient;
+import com.restaurant.platform.service.SupabaseStorageClient;
+import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,10 +49,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -51,6 +66,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.when;
 
 /** Exercises checkout, assigned delivery and COD accounting against a disposable local database. */
 @EnabledIfEnvironmentVariable(named = "ACCOUNTING_TEST_DATABASE_URL",
@@ -69,8 +86,10 @@ class CustomerDeliveryLocalPostgresTest {
     @EnableMethodSecurity
     @Import({AccountingSupport.class, RestaurantAuthorization.class, AssignedDeliveryService.class,
             CashbookService.class, SalesAccountingService.class, CustomerDeliveryCheckoutService.class,
-            CustomerOrderNotifications.class, DeliveryService.class, ManagerOrderService.class,
-            OrderCancellationService.class, OrderService.class, QrOrderIdempotencyService.class})
+            CustomerOrderNotifications.class, CustomerOrderService.class, DeliveryService.class, ManagerOrderService.class,
+            OrderCancellationService.class, OrderService.class, QrOrderIdempotencyService.class,
+            CatalogImageService.class, CustomerAvatarService.class, CustomerProfileService.class,
+            ImageUploadValidator.class, RestaurantLogoService.class})
     static class DatabaseApplication { }
 
     @Autowired private JdbcTemplate jdbc;
@@ -78,10 +97,135 @@ class CustomerDeliveryLocalPostgresTest {
     @Autowired private CashbookService cashbook;
     @Autowired private SalesAccountingService sales;
     @Autowired private CustomerDeliveryCheckoutService checkout;
+    @Autowired private CustomerOrderService customerOrders;
     @Autowired private AssignedDeliveryService assignedDelivery;
     @Autowired private DeliveryRepository deliveries;
     @Autowired private DeliveryService deliveryService;
     @Autowired private ManagerOrderService managerOrders;
+    @Autowired private CatalogImageService catalogImages;
+    @Autowired private CustomerAvatarService customerAvatars;
+    @Autowired private RestaurantLogoService restaurantLogos;
+    @Autowired private EntityManagerFactory entityManagers;
+    @MockitoBean private SupabaseMediaStorageClient mediaStorage;
+    @MockitoBean private SupabaseStorageClient logoStorage;
+
+    @Test
+    void configurationWriteCannotRestoreThePreviousRestaurantStatus() {
+        UUID restaurant = checkoutRestaurant().restaurant();
+        try (var manager = entityManagers.createEntityManager()) {
+            manager.getTransaction().begin();
+            Restaurant configurationSnapshot = manager.find(Restaurant.class, restaurant);
+            assertTrue(configurationSnapshot.getIsActive());
+            jdbc.update("UPDATE public.restaurants SET is_active = false WHERE id = ?", restaurant);
+            configurationSnapshot.setName("Updated display name");
+            manager.getTransaction().commit();
+        }
+        assertEquals(Boolean.FALSE, jdbc.queryForObject(
+                "SELECT is_active FROM public.restaurants WHERE id = ?", Boolean.class, restaurant));
+        assertEquals("Updated display name", jdbc.queryForObject(
+                "SELECT name FROM public.restaurants WHERE id = ?", String.class, restaurant));
+    }
+
+    @Test
+    void mediaUploadCannotOverwriteAConcurrentStockOrPriceChange() {
+        var fixture = checkoutRestaurant();
+        UUID owner = fixtureOwner(fixture.restaurant());
+        UUID variant = UUID.randomUUID();
+        jdbc.update("INSERT INTO public.product_variants(id, product_id, name, price) VALUES (?, ?, 'Large', 1100)",
+                variant, fixture.product());
+        String imageUrl = "https://images.example.test/product.png";
+        String variantUrl = "https://images.example.test/variant.png";
+        when(mediaStorage.uploadMenuImage(startsWith(fixture.restaurant() + "/products/" + fixture.product() + "/variants/"),
+                eq("image/png"), any(byte[].class))).thenAnswer(call -> {
+            jdbc.update("UPDATE public.product_variants SET price = 1300 WHERE id = ?", variant);
+            return variantUrl;
+        });
+        when(mediaStorage.uploadMenuImage(argThat(path -> path != null && !path.contains("/variants/")),
+                eq("image/png"), any(byte[].class))).thenAnswer(call -> {
+            jdbc.update("UPDATE public.products SET stock_quantity = stock_quantity - 1 WHERE id = ?", fixture.product());
+            return imageUrl;
+        });
+        var product = asUser(owner, () -> catalogImages.uploadProductImage(fixture.restaurant(), fixture.product(), png()));
+        assertEquals(imageUrl, product.imageUrl());
+        assertEquals(3, product.stockQuantity());
+        try (var manager = entityManagers.createEntityManager()) {
+            manager.getTransaction().begin();
+            var variantBeforeUpload = manager.find(ProductVariant.class, variant);
+            var savedVariant = asUser(owner, () -> catalogImages.uploadVariantImage(
+                    fixture.restaurant(), fixture.product(), variant, png()));
+            assertEquals(variantUrl, savedVariant.imageUrl());
+            assertEquals(1300L, savedVariant.price());
+            variantBeforeUpload.setName("Extra large");
+            manager.getTransaction().commit();
+        }
+        assertEquals(variantUrl, jdbc.queryForObject(
+                "SELECT image_url FROM public.product_variants WHERE id = ?", String.class, variant));
+        assertEquals(1300L, jdbc.queryForObject(
+                "SELECT price FROM public.product_variants WHERE id = ?", Long.class, variant));
+    }
+
+    @Test
+    void logoUploadCannotReactivateARestaurantDeactivatedWhileStorageWasWriting() {
+        UUID restaurant = checkoutRestaurant().restaurant();
+        UUID owner = fixtureOwner(restaurant);
+        when(logoStorage.uploadRestaurantLogo(eq(restaurant), eq("image/png"), any(byte[].class))).thenAnswer(call -> {
+            jdbc.update("UPDATE public.restaurants SET is_active = false WHERE id = ?", restaurant);
+            return "https://images.example.test/restaurant.png";
+        });
+        assertEquals("RESTAURANT_NOT_FOUND", assertThrows(ApiException.class,
+                () -> asUser(owner, () -> restaurantLogos.upload(restaurant, owner, png()))).getCode());
+        assertEquals(Boolean.FALSE, jdbc.queryForObject(
+                "SELECT is_active FROM public.restaurants WHERE id = ?", Boolean.class, restaurant));
+        assertNull(jdbc.queryForObject("SELECT logo_url FROM public.restaurants WHERE id = ?", String.class, restaurant));
+    }
+
+    @Test
+    void avatarUploadPreservesConcurrentProfileEditsAndCreatesAMissingProfile() {
+        UUID customer = UUID.randomUUID();
+        UUID missingProfile = UUID.randomUUID();
+        jdbc.update("INSERT INTO auth.users(id) VALUES (?), (?)", customer, missingProfile);
+        jdbc.update("DELETE FROM public.profiles WHERE id = ?", missingProfile);
+        jdbc.update("UPDATE public.profiles SET avatar_url = 'https://images.example.test/legacy.png' WHERE id = ?", customer);
+        when(mediaStorage.uploadPrivateAvatar(startsWith(customer + "/"), eq("image/png"), any(byte[].class)))
+                .thenAnswer(call -> {
+                    jdbc.update("UPDATE public.profiles SET phone = '0912345678', preferred_language = 'en' WHERE id = ?", customer);
+                    return call.getArgument(0);
+                });
+        when(mediaStorage.createSignedAvatarUrl(anyString())).thenReturn("https://images.example.test/private");
+
+        try (var manager = entityManagers.createEntityManager()) {
+            manager.getTransaction().begin();
+            var profileBeforeUpload = manager.find(Profile.class, customer);
+            var response = asUser(customer, () -> customerAvatars.upload(customer, png()));
+            assertEquals("0912345678", response.phone());
+            assertEquals("en", response.preferredLanguage());
+            assertEquals("https://images.example.test/private", response.avatarUrl());
+            profileBeforeUpload.setFullName("Updated customer");
+            manager.getTransaction().commit();
+        }
+
+        assertEquals("Updated customer", jdbc.queryForObject(
+                "SELECT full_name FROM public.profiles WHERE id = ?", String.class, customer));
+        assertNull(jdbc.queryForObject("SELECT avatar_url FROM public.profiles WHERE id = ?", String.class, customer));
+        assertTrue(jdbc.queryForObject("SELECT avatar_path FROM public.profiles WHERE id = ?", String.class, customer)
+                .startsWith(customer + "/"));
+        var created = asUser(missingProfile, () -> customerAvatars.upload(missingProfile, png()));
+        assertEquals(missingProfile, created.id());
+        assertEquals("my-MM", created.preferredLanguage());
+    }
+
+    private UUID fixtureOwner(UUID restaurant) {
+        UUID owner = UUID.randomUUID();
+        jdbc.update("INSERT INTO auth.users(id) VALUES (?)", owner);
+        jdbc.update("INSERT INTO public.restaurant_members(restaurant_id, user_id, role) VALUES (?, ?, 'OWNER')",
+                restaurant, owner);
+        return owner;
+    }
+
+    private static MockMultipartFile png() {
+        return new MockMultipartFile("file", "image.png", "image/png",
+                new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
+    }
 
     @Test
     void concurrentQuotesShareAnAttemptAndServerAbandonmentResolvesBothDelayedPostOutcomes() throws Exception {
@@ -180,10 +324,11 @@ class CustomerDeliveryLocalPostgresTest {
         UUID driver = UUID.randomUUID();
         UUID staff = UUID.randomUUID();
         UUID manager = UUID.randomUUID();
+        UUID owner = UUID.randomUUID();
         UUID address = UUID.randomUUID();
         UUID category = UUID.randomUUID();
         UUID product = UUID.randomUUID();
-        jdbc.update("INSERT INTO auth.users(id) VALUES (?), (?), (?), (?)", customer, driver, staff, manager);
+        jdbc.update("INSERT INTO auth.users(id) VALUES (?), (?), (?), (?), (?)", customer, driver, staff, manager, owner);
         jdbc.update("""
                 INSERT INTO public.restaurants(id, name, slug, township, city, latitude, longitude)
                 VALUES (?, 'Local checkout', ?, 'Tamwe', 'Yangon', 16.8, 96.1)
@@ -191,8 +336,8 @@ class CustomerDeliveryLocalPostgresTest {
         jdbc.update("INSERT INTO public.restaurant_settings(restaurant_id) VALUES (?)", restaurant);
         jdbc.update("""
                 INSERT INTO public.restaurant_members(restaurant_id, user_id, role)
-                VALUES (?, ?, 'DELIVERY_DRIVER'), (?, ?, 'STAFF'), (?, ?, 'MANAGER')
-                """, restaurant, driver, restaurant, staff, restaurant, manager);
+                VALUES (?, ?, 'DELIVERY_DRIVER'), (?, ?, 'STAFF'), (?, ?, 'MANAGER'), (?, ?, 'OWNER')
+                """, restaurant, driver, restaurant, staff, restaurant, manager, restaurant, owner);
         jdbc.update("""
                 INSERT INTO public.customer_addresses(id, user_id, label, street, township, city, latitude, longitude, is_default)
                 VALUES (?, ?, 'Home', 'Home Street', 'Tamwe', 'Yangon', 15.5, 96.5, true)
@@ -267,6 +412,10 @@ class CustomerDeliveryLocalPostgresTest {
         assertEquals("CANCELLED", cancelled.status());
         assertEquals("READY", cancelled.orderStatus());
         assertEquals("PENDING", asUser(manager, () -> sales.detail(restaurant, order)).payments().getFirst().status());
+        var cancelledPickup = new UpdateDeliveryStatusRequest("PICKED_UP", null, null, null, cancelled.updatedAt());
+        assertEquals("INVALID_DELIVERY_STATUS_TRANSITION", assertThrows(ApiException.class,
+                () -> asUser(driver, () -> deliveryService.updateDeliveryStatus(restaurant, delivery, driver, cancelledPickup)))
+                .getCode());
 
         var reassigned = asUser(manager, () -> deliveryService.assignDriver(restaurant, delivery, manager,
                 new AssignDeliveryDriverRequest(staff, null, cancelled.updatedAt())));
@@ -316,6 +465,21 @@ class CustomerDeliveryLocalPostgresTest {
         var collectionDate = payment.paidAt().atZoneSameInstant(accounting.zone(restaurant)).toLocalDate();
         assertEquals(receipt.totalAmount(), asUser(manager, () -> cashbook.day(restaurant, collectionDate)).cashSalesReceived());
         assertEquals(receipt.totalAmount(), asUser(manager, () -> sales.summary(restaurant, collectionDate, collectionDate)).collectedPayments());
+
+        var customerOrder = asUser(customer, () -> customerOrders.getMyDeliveryOrder(restaurant, customer, order));
+        assertEquals("COMPLETED", customerOrder.status());
+        assertEquals("PAID", customerOrder.payments().getFirst().status());
+        assertEquals("CUSTOMER_ORDER_NOT_FOUND", assertThrows(ApiException.class,
+                () -> asUser(staff, () -> customerOrders.getMyDeliveryOrder(restaurant, staff, order))).getCode());
+
+        asUser(owner, () -> cashbook.open(restaurant, "opening",
+                new CashbookDtos.Opening(collectionDate, 500L, "Initial count")));
+        long closingCash = 500L + receipt.totalAmount();
+        var closing = asUser(owner, () -> cashbook.close(restaurant, "closing",
+                new CashbookDtos.Close(collectionDate, closingCash, false, null, closingCash)));
+        assertEquals(closingCash, closing.expectedCash());
+        assertEquals(0, closing.variance());
+        assertEquals(owner, closing.responsibleMember());
     }
 
     private static <T> T asUser(UUID user, Supplier<T> action) {
