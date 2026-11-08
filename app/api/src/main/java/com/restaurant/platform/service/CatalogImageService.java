@@ -42,8 +42,7 @@ public class CatalogImageService {
     public ProductManagementResponse uploadProductImage(
             UUID restaurantId, UUID productId, MultipartFile file) {
         authorization.requirePermission(restaurantId, RestaurantPermission.MENU_MANAGE);
-        Product product = productRepository.findByIdAndRestaurantId(productId, restaurantId)
-                .orElseThrow(() -> notFound("PRODUCT_NOT_FOUND", "error.catalog.product-not-found"));
+        requireProduct(restaurantId, productId);
 
         ImageUploadValidator.ValidatedImage image =
                 imageValidator.validate(file, MAX_IMAGE_BYTES);
@@ -52,8 +51,11 @@ public class CatalogImageService {
         String imageUrl = storageClient.uploadMenuImage(
                 objectPath, image.contentType(), image.bytes());
 
-        product.setImageUrl(imageUrl);
-        Product saved = productRepository.save(product);
+        // Storage can take time. Do not merge a product snapshot that predates a stock update.
+        if (productRepository.updateProductImage(productId, restaurantId, imageUrl) == 0) {
+            throw productNotFound();
+        }
+        Product saved = requireProduct(restaurantId, productId);
         return new ProductManagementResponse(
                 saved.getId(), saved.getCategoryId(), saved.getName(), saved.getDescription(),
                 saved.getPrice(), saved.getImageUrl(), Boolean.TRUE.equals(saved.getTrackStock()),
@@ -64,11 +66,8 @@ public class CatalogImageService {
     public ProductVariantResponse uploadVariantImage(
             UUID restaurantId, UUID productId, UUID variantId, MultipartFile file) {
         authorization.requirePermission(restaurantId, RestaurantPermission.MENU_MANAGE);
-        Product product = productRepository.findByIdAndRestaurantId(productId, restaurantId)
-                .orElseThrow(() -> notFound("PRODUCT_NOT_FOUND", "error.catalog.product-not-found"));
-        ProductVariant variant = variantRepository.findByIdAndProductId(variantId, productId)
-                .orElseThrow(() -> notFound("PRODUCT_VARIANT_NOT_FOUND",
-                        "error.catalog.variant-not-found"));
+        requireProduct(restaurantId, productId);
+        requireVariant(productId, variantId);
 
         ImageUploadValidator.ValidatedImage image =
                 imageValidator.validate(file, MAX_IMAGE_BYTES);
@@ -77,15 +76,31 @@ public class CatalogImageService {
         String imageUrl = storageClient.uploadMenuImage(
                 objectPath, image.contentType(), image.bytes());
 
-        variant.setImageUrl(imageUrl);
-        ProductVariant saved = variantRepository.save(variant);
+        if (variantRepository.updateVariantImage(variantId, productId, imageUrl) == 0) {
+            throw variantNotFound();
+        }
+        ProductVariant saved = requireVariant(productId, variantId);
         return new ProductVariantResponse(
                 saved.getId(), saved.getProductId(), saved.getName(), saved.getPrice(),
                 saved.getImageUrl(), Boolean.TRUE.equals(saved.getIsAvailable()),
                 saved.getCreatedAt(), saved.getUpdatedAt());
     }
 
-    private ApiException notFound(String code, String messageKey) {
-        return new ApiException(HttpStatus.NOT_FOUND, code, messageKey);
+    private Product requireProduct(UUID restaurantId, UUID productId) {
+        return productRepository.findByIdAndRestaurantId(productId, restaurantId)
+                .orElseThrow(this::productNotFound);
+    }
+
+    private ProductVariant requireVariant(UUID productId, UUID variantId) {
+        return variantRepository.findByIdAndProductId(variantId, productId)
+                .orElseThrow(this::variantNotFound);
+    }
+
+    private ApiException productNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "error.catalog.product-not-found");
+    }
+
+    private ApiException variantNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_VARIANT_NOT_FOUND", "error.catalog.variant-not-found");
     }
 }

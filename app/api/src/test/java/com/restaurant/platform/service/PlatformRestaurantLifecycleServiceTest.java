@@ -221,6 +221,19 @@ class PlatformRestaurantLifecycleServiceTest {
     }
 
     @Test
+    void configurationCanRetainTheExistingUploadedLogoWithACacheBuster() {
+        String stored = "https://cdn.example.test/storage/v1/object/public/restaurant-logos/logo?v=1";
+        restaurant.setLogoUrl(stored);
+        var response = service.updateConfiguration(restaurantId,
+                new PlatformRestaurantConfigurationRequest("Renamed Garden", "garden", stored, null));
+
+        assertEquals(stored, response.restaurant().logoUrl());
+        assertEquals("Renamed Garden", response.restaurant().name());
+        assertThrows(ApiException.class, () -> service.updateConfiguration(restaurantId,
+                new PlatformRestaurantConfigurationRequest("Renamed Garden", "garden", stored + "2", null)));
+    }
+
+    @Test
     void unsafeLogoDomainsAppIdsAndAssetPathsAreRejectedBeforeWrites() {
         for (String logo : List.of("javascript:alert(1)", "http://cdn.example.test/logo.png",
                 "https://cdn.example.test/logo.png?token=private", "https://user:secret@cdn.example.test/logo.png")) {

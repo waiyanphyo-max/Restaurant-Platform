@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -96,9 +97,12 @@ public class PlatformRestaurantLifecycleService {
                 || !request.slug().matches("[a-z0-9]+(?:-[a-z0-9]+)*")) {
             throw invalidConfiguration();
         }
-        String logoUrl = validateLogoUrl(request.logoUrl());
         PlatformRestaurantConfiguration configuration = validateConfiguration(request.configuration());
         Restaurant restaurant = requireRestaurant(restaurantId);
+        // Owner uploads can already have a cache-busting query in the stored logo URL.
+        String requestedLogo = clean(request.logoUrl());
+        String logoUrl = Objects.equals(requestedLogo, restaurant.getLogoUrl())
+                ? requestedLogo : validateLogoUrl(requestedLogo);
         if (restaurants.existsBySlugAndIdNot(request.slug(), restaurantId)) {
             throw slugConflict();
         }

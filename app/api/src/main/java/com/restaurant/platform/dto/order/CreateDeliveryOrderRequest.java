@@ -15,6 +15,6 @@ public record CreateDeliveryOrderRequest(
         @Size(max = 30) String recipientPhone,
         @Size(max = 2000) String deliveryNote,
         @Size(max = 30) String paymentMethod,
-        @NotEmpty @Size(max = 50) List<@Valid CreateOrderItemRequest> items
+        @NotEmpty @Size(max = 50) List<@NotNull @Valid CreateOrderItemRequest> items
 ) {
 }

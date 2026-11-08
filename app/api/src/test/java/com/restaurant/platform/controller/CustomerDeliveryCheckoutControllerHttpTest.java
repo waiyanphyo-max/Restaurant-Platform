@@ -66,6 +66,18 @@ class CustomerDeliveryCheckoutControllerHttpTest {
     }
 
     @Test
+    void legacyDeliveryOrderRejectsNullCartItemsBeforeReachingOrderService() throws Exception {
+        mvc.perform(post(base).with(jwt().jwt(token -> token.subject(customer.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"addressId":"%s","deliveryZoneId":"%s","items":[null]}
+                                """.formatted(UUID.randomUUID(), UUID.randomUUID())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(legacyOrders);
+    }
+
+    @Test
     void temporaryQuoteIsPrivateAndUsesJwtCustomerAndPathRestaurant() throws Exception {
         var destination = new CustomerDeliveryQuote.Destination("GPS_CONFIRMED", null, "16 Garden Road",
                 "Yangon", "Tamwe", BigDecimal.ZERO, new BigDecimal("96.15"), "Recipient", "09123456", null);

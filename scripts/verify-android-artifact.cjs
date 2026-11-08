@@ -43,6 +43,11 @@ function parseApkManifest(output) {
   return document.manifest?.[0];
 }
 
+function parseApkLabel(badging) {
+  const label = /^application-label:'([^\r\n]*)'\r?$/m.exec(badging)?.[1];
+  return label === undefined ? undefined : JSON.parse(`"${label}"`);
+}
+
 function bundleLabel(dumpResources, label) {
   const reference = /^@?(?:(?:[\w.]+:)?(string\/\w+)|(0x[\da-f]+|\d+))$/i.exec(label ?? "");
   if (!reference) return label;
@@ -157,8 +162,7 @@ async function verifyAndroidArtifact(artifactPath, expected) {
   if (extension === ".apk") {
     const aapt2 = process.env.AAPT2 || "aapt2";
     manifest = parseApkManifest(runTool(aapt2, ["dump", "xmltree", artifact, "--file", "AndroidManifest.xml"], "AAPT2 manifest inspection"));
-    const badging = runTool(aapt2, ["dump", "badging", artifact], "AAPT2 application label inspection");
-    displayName = /^application-label:'([^\r\n]*)'\r?$/m.exec(badging)?.[1];
+    displayName = parseApkLabel(runTool(aapt2, ["dump", "badging", artifact], "AAPT2 application label inspection"));
   } else {
     if (!process.env.BUNDLETOOL_JAR) throw new Error("Set BUNDLETOOL_JAR to the standalone bundletool JAR to verify an AAB.");
     const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", process.platform === "win32" ? "java.exe" : "java") : "java";
@@ -175,4 +179,4 @@ async function verifyAndroidArtifact(artifactPath, expected) {
   return { ...expected, artifact };
 }
 
-module.exports = { verifyAndroidArtifact, verifyAndroidManifest, verifyEmbeddedExpoConfig, FINGERPRINT_META_DATA };
+module.exports = { verifyAndroidArtifact, verifyAndroidManifest, verifyEmbeddedExpoConfig, parseApkLabel, FINGERPRINT_META_DATA };

@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { parseStringPromise } = require("xml2js");
-const { FINGERPRINT_META_DATA, verifyAndroidManifest, verifyEmbeddedExpoConfig } = require("./verify-android-artifact.cjs");
+const { FINGERPRINT_META_DATA, parseApkLabel, verifyAndroidManifest, verifyEmbeddedExpoConfig } = require("./verify-android-artifact.cjs");
 
 const expected = {
   applicationId: "dev.restaurantplatform.fixturea.customer",
@@ -31,6 +31,11 @@ const nativeManifest = `
       </activity>
     </application>
   </manifest>`;
+
+test("reads the literal launcher label from AAPT2 badging", () => {
+  const badging = String.raw`application-label:'Moe's \"Tea\"  10% \\ Kitchen'`;
+  assert.equal(parseApkLabel(badging), 'Moe\'s "Tea"  10% \\ Kitchen');
+});
 
 test("accepts the selected Android manifest and rejects mismatched release and restaurant identity", async () => {
   const { manifest } = await parseStringPromise(nativeManifest);

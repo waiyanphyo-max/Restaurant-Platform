@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const test = require("node:test");
 const { getConfig } = require("expo/config");
+const { AndroidConfig, compileModsAsync } = require("@expo/config-plugins");
 const configure = require("../app.config.js");
 
 function withEnvironment(values, callback) {
@@ -71,4 +72,20 @@ test("release fingerprint is reproducible and rejects mismatched or secret-beari
   assert.throws(() => configure.inspect({
     ...env, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_secret_synthetic"
   }), /publishable key/);
+});
+
+test("native launcher labels preserve literal punctuation and spacing in Android resources", async () => {
+  const projectRoot = path.resolve(__dirname, "..");
+  const config = configure.inspect({ MOBILE_ENV: "development", RESTAURANT_SLUG: "restaurant-a" });
+  const plugin = config.plugins.find((value) => typeof value === "string" && value.endsWith("/with-app-label.cjs"));
+  const withAppLabel = require(path.resolve(projectRoot, plugin));
+  config.name = 'Moe\'s "Tea"  10% \\ Kitchen';
+  const { _internal } = await compileModsAsync(AndroidConfig.Name.withName(withAppLabel(config)), {
+    projectRoot, platforms: ["android"], introspect: true, ignoreExistingNativeFiles: true
+  });
+  const strings = _internal.modResults.android.strings.resources.string;
+  assert.deepEqual(strings.find((item) => item.$.name === "app_name"), {
+    $: { name: "app_name", formatted: "false" },
+    _: '"Moe\'s \\"Tea\\"  10% \\\\ Kitchen"'
+  });
 });

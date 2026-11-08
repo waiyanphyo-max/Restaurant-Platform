@@ -4,7 +4,9 @@ import com.restaurant.platform.common.error.ApiSecurityErrorHandler;
 import com.restaurant.platform.controller.PublicOrderController;
 import com.restaurant.platform.controller.PublicQrContextController;
 import com.restaurant.platform.controller.QueueTrackingController;
+import com.restaurant.platform.controller.StaffOrderController;
 import com.restaurant.platform.dto.order.*;
+import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.OrderService;
 import com.restaurant.platform.service.QueueTrackingService;
 import org.junit.jupiter.api.Test;
@@ -21,11 +23,13 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** Actual anonymous Spring HTTP/security and credential transport contract. */
-@WebMvcTest(controllers = {PublicQrContextController.class, PublicOrderController.class, QueueTrackingController.class},
+@WebMvcTest(controllers = {PublicQrContextController.class, PublicOrderController.class,
+        QueueTrackingController.class, StaffOrderController.class},
         properties = {
                 "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.test/auth/v1",
                 "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.example.test/auth/v1/.well-known/jwks.json"
@@ -36,6 +40,7 @@ class PublicQrGuestHttpIntegrationTest {
     @MockitoBean private JwtDecoder jwtDecoder;
     @MockitoBean private OrderService orders;
     @MockitoBean private QueueTrackingService queues;
+    @MockitoBean private RestaurantAuthorization authorization;
 
     @Test
     void anonymousQrValidationHasNoCacheAndNoCredentialInResponse() throws Exception {
@@ -70,6 +75,24 @@ class PublicQrGuestHttpIntegrationTest {
                         .content("{\"qrToken\":\"secret\",\"items\":[]}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(orders);
+    }
+
+    @Test
+    void qrAndStaffCheckoutRejectNullCartItemsBeforeReachingOrderService() throws Exception {
+        UUID restaurant = UUID.randomUUID();
+        for (String channel : new String[]{"table-qr", "common-qr"}) {
+            http.perform(post("/api/v1/public/restaurants/{id}/orders/{channel}", restaurant, channel)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"qrToken\":\"secret\",\"items\":[null]}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        }
+        http.perform(post("/api/v1/restaurants/{id}/orders/staff", restaurant).with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderType\":\"TAKEAWAY\",\"items\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(authorization, orders);
     }
 
     @Test

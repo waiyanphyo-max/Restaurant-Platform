@@ -2,6 +2,10 @@ package com.restaurant.platform.repository;
 
 import com.restaurant.platform.entity.ProductVariant;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.Optional;
@@ -21,4 +25,10 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     Optional<ProductVariant> findByIdAndProductId(
             UUID variantId, UUID productId);
+
+    @Modifying
+    @Transactional
+    @Query("update ProductVariant v set v.imageUrl = :imageUrl where v.id = :variantId and v.productId = :productId")
+    int updateVariantImage(@Param("variantId") UUID variantId, @Param("productId") UUID productId,
+                           @Param("imageUrl") String imageUrl);
 }

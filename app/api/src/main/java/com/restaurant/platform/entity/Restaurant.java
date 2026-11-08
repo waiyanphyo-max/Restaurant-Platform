@@ -5,6 +5,7 @@ import java.util.UUID;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.UpdateTimestamp;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,6 +16,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
+@DynamicUpdate // Concurrent profile, configuration and status edits touch different fields.
 @Table(name = "restaurants", schema = "public")
 public class Restaurant {
     @Id

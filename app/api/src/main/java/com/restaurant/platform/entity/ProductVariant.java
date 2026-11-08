@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.util.UUID;
 import java.time.OffsetDateTime;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.UpdateTimestamp;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,6 +15,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
+@DynamicUpdate
 @Table(name = "product_variants", schema = "public")
 public class ProductVariant {
     @Id

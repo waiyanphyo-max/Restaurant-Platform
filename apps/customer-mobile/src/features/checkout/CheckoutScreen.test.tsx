@@ -2,10 +2,12 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CustomerAddressResponse, DeliveryQuoteRequest } from "@restaurant-platform/shared-types";
 import type { CustomerAccount } from "../profile/AccountProvider";
+import type { CheckoutAttempt } from "./CheckoutProvider";
 
 const harness = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], state: 0, ref: 0,
-  quote: vi.fn(), submit: vi.fn(), reset: vi.fn(), locate: vi.fn(), map: true, language: "en"
+  quote: vi.fn(), submit: vi.fn(), abandon: vi.fn(), reset: vi.fn(), locate: vi.fn(), map: true, language: "en",
+  checkoutState: { status: "idle" } as { status: "idle" } | { status: "uncertain"; attempt: CheckoutAttempt }
 }));
 vi.mock("react", async load => ({
   ...await load<typeof import("react")>(),
@@ -35,7 +37,8 @@ vi.mock("../cart/CartProvider", () => {
   const items = [{ productId: "product", quantity: 1 }];
   return { useCustomerCart: () => ({ items }) };
 });
-vi.mock("./CheckoutProvider", () => ({ useCustomerCheckout: () => ({ state: { status: "idle" }, submit: harness.submit, reset: harness.reset }) }));
+vi.mock("./CheckoutProvider", () => ({ useCustomerCheckout: () => ({ state: harness.checkoutState, submit: harness.submit,
+  abandonPrevious: harness.abandon, reset: harness.reset }) }));
 
 import { LocationSelectionError, type Coordinates, type PinSelection } from "../addresses/location";
 import { CheckoutScreen } from "./CheckoutScreen";
@@ -87,6 +90,7 @@ function fillAddress() {
 describe("customer checkout destination selection", () => {
   beforeEach(() => {
     harness.states = []; harness.refs = []; harness.map = true; harness.language = "en";
+    harness.checkoutState = { status: "idle" };
     vi.resetAllMocks();
     harness.quote.mockImplementation(async (request: DeliveryQuoteRequest) => ({
       confirmationToken: "server-quote", idempotencyKey: "server-key", totalAmount: 8500,
@@ -112,6 +116,20 @@ describe("customer checkout destination selection", () => {
     press("Check delivery and review total");
     await tick();
     expect(harness.quote.mock.calls[0][0]).toMatchObject({ addressId: "work", deliveryNote: "Office" });
+  });
+
+  it("offers server settlement when an in-memory checkout result is uncertain", async () => {
+    press("Check delivery and review total");
+    await tick();
+    const review = elements(render()).find(element => element.props.quote)!;
+    (review.props.onSubmit as () => void)();
+    const attempt = harness.submit.mock.calls[0][0] as CheckoutAttempt;
+    harness.checkoutState = { status: "uncertain", attempt };
+    press("Start a new checkout");
+    expect(harness.abandon).toHaveBeenCalledOnce();
+    expect(harness.submit).toHaveBeenCalledOnce();
+    harness.checkoutState = { status: "idle" };
+    expect(elements(render()).some(element => element.props.quote)).toBe(false);
   });
 
   it("explains an invalid recipient phone before requesting a quote", () => {

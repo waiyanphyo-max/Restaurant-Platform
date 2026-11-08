@@ -3,6 +3,7 @@ package com.restaurant.platform.dto.order;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -15,6 +16,6 @@ public record CreateQrOrderRequest(
 
         @NotEmpty
         @Size(max = 50)
-        List<@Valid CreateOrderItemRequest> items
+        List<@NotNull @Valid CreateOrderItemRequest> items
 ) {
 }

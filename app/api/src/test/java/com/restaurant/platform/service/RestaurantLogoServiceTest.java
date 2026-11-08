@@ -56,8 +56,7 @@ class RestaurantLogoServiceTest {
         restaurant.setCity("City");
         when(restaurantRepository.findByIdAndIsActiveTrue(restaurantId))
                 .thenReturn(Optional.of(restaurant));
-        when(restaurantRepository.save(any(Restaurant.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(restaurantRepository.updateActiveRestaurantLogo(restaurantId, logoUrl)).thenReturn(1);
         when(storageClient.uploadRestaurantLogo(eq(restaurantId), eq("image/png"), any(byte[].class)))
                 .thenReturn(logoUrl);
     }
@@ -75,8 +74,7 @@ class RestaurantLogoServiceTest {
         verify(authorization).requireAuthenticatedUserMatches(ownerId);
         verify(storageClient).uploadRestaurantLogo(
                 eq(restaurantId), eq("image/png"), any(byte[].class));
-        verify(restaurantRepository).save(argThat(restaurant ->
-                logoUrl.equals(restaurant.getLogoUrl())));
+        verify(restaurantRepository).updateActiveRestaurantLogo(restaurantId, logoUrl);
     }
 
     @Test
@@ -96,7 +94,7 @@ class RestaurantLogoServiceTest {
         assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
         assertEquals("RESTAURANT_LOGO_OWNER_REQUIRED", error.getCode());
         verifyNoInteractions(storageClient);
-        verify(restaurantRepository, never()).save(any(Restaurant.class));
+        verify(restaurantRepository, never()).updateActiveRestaurantLogo(any(), any());
     }
 
     @Test
@@ -110,7 +108,7 @@ class RestaurantLogoServiceTest {
         assertEquals(HttpStatus.UNSUPPORTED_MEDIA_TYPE, error.getStatus());
         assertEquals("RESTAURANT_LOGO_CONTENT_MISMATCH", error.getCode());
         verifyNoInteractions(storageClient);
-        verify(restaurantRepository, never()).save(any(Restaurant.class));
+        verify(restaurantRepository, never()).updateActiveRestaurantLogo(any(), any());
     }
 
     @Test

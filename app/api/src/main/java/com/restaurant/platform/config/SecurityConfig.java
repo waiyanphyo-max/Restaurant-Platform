@@ -16,13 +16,14 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -78,14 +79,18 @@ public class SecurityConfig {
                 .jwsAlgorithm(signingAlgorithm)
                 .build();
 
-        OAuth2TokenValidator<Jwt> issuerValidator =
-                JwtValidators.createDefaultWithIssuer(issuerUri);
-
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                issuerValidator,
-                audienceValidator(requiredAudience),
-                userSubjectValidator()));
+        decoder.setJwtValidator(tokenValidator(issuerUri, requiredAudience));
         return decoder;
+    }
+
+    static OAuth2TokenValidator<Jwt> tokenValidator(String issuerUri, String requiredAudience) {
+        JwtTimestampValidator timestamps = new JwtTimestampValidator();
+        timestamps.setAllowEmptyExpiryClaim(false);
+        return JwtValidators.createDefaultWithValidators(
+                new JwtIssuerValidator(issuerUri),
+                timestamps,
+                audienceValidator(requiredAudience),
+                userSubjectValidator());
     }
 
     /**
@@ -95,14 +100,17 @@ public class SecurityConfig {
     static OAuth2TokenValidator<Jwt> userSubjectValidator() {
         return jwt -> {
             try {
-                UUID.fromString(jwt.getSubject());
-                return OAuth2TokenValidatorResult.success();
-            } catch (IllegalArgumentException | NullPointerException exception) {
-                return OAuth2TokenValidatorResult.failure(new OAuth2Error(
-                        "invalid_token",
-                        "The token subject must be a valid user UUID",
-                        null));
+                String subject = jwt.getSubject();
+                if (subject != null && UUID.fromString(subject).toString().equalsIgnoreCase(subject)) {
+                    return OAuth2TokenValidatorResult.success();
+                }
+            } catch (IllegalArgumentException exception) {
+                // Malformed subjects receive the same response as missing ones.
             }
+            return OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                    "invalid_token",
+                    "The token subject must be a valid user UUID",
+                    null));
         };
     }
 

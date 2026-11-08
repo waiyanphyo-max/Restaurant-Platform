@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { PlatformRestaurantConfigurationRequest } from "@restaurant-platform/shared-types";
 import { validateRestaurantConfiguration } from "./configuration";
 
+it("allows the current uploaded logo while validating replacement URLs", () => {
+  const currentLogoUrl = "https://images.example.test/kitchen.png?v=1";
+  expect(validateRestaurantConfiguration({ ...valid(), logoUrl: currentLogoUrl }, currentLogoUrl)).toEqual({});
+  expect(validateRestaurantConfiguration({ ...valid(), logoUrl: `${currentLogoUrl}2` }, currentLogoUrl))
+    .toHaveProperty("logoUrl");
+});
+
 function valid(): PlatformRestaurantConfigurationRequest {
   return {
     name: "Example Kitchen", slug: "example-kitchen", logoUrl: "https://images.example.test/kitchen.png",

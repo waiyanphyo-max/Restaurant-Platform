@@ -2,7 +2,6 @@ package com.restaurant.platform.service;
 
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.restaurant.RestaurantLogoResponse;
-import com.restaurant.platform.entity.Restaurant;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.repository.RestaurantMemberRepository;
 import com.restaurant.platform.repository.RestaurantRepository;
@@ -48,11 +47,7 @@ public class RestaurantLogoService {
         authorization.requireAuthenticatedUserMatches(actorUserId);
         requireOwner(restaurantId, actorUserId);
 
-        Restaurant restaurant = restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        "RESTAURANT_NOT_FOUND",
-                        "error.restaurant.not-found"));
+        restaurantRepository.findByIdAndIsActiveTrue(restaurantId).orElseThrow(this::restaurantNotFound);
 
         if (file == null || file.isEmpty()) {
             throw new ApiException(
@@ -94,9 +89,14 @@ public class RestaurantLogoService {
         }
 
         String logoUrl = storageClient.uploadRestaurantLogo(restaurantId, contentType, bytes);
-        restaurant.setLogoUrl(logoUrl);
-        restaurantRepository.save(restaurant);
+        if (restaurantRepository.updateActiveRestaurantLogo(restaurantId, logoUrl) == 0) {
+            throw restaurantNotFound();
+        }
         return new RestaurantLogoResponse(restaurantId, logoUrl);
+    }
+
+    private ApiException restaurantNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "RESTAURANT_NOT_FOUND", "error.restaurant.not-found");
     }
 
     private void requireOwner(UUID restaurantId, UUID actorUserId) {

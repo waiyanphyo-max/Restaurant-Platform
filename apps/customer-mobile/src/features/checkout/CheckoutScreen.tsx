@@ -52,6 +52,10 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   }
 
   function resetReview() { setReview(null); setError(null); checkout.reset(); }
+  function startNewCheckout() {
+    resetReview();
+    void checkout.abandonPrevious();
+  }
   function useSaved(address: CustomerAddressResponse) {
     resetReview();
     setTemporary(false);
@@ -154,10 +158,7 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
         <Body>{t("The server found no order yet. Starting again asks it to close the previous checkout or return its receipt.",
           "ဆာဗာတွင် မှာယူမှု မတွေ့သေးပါ။ အသစ်စတင်ပါက ယခင်ငွေရှင်းမှုကို ပိတ်ရန် သို့မဟုတ် ပြေစာပြန်ပေးရန် ဆာဗာသို့ တောင်းဆိုပါမည်။")}</Body>
         <Action title={t("Check again", "ပြန်စစ်ရန်")} onPress={() => void checkout.recover()} secondary />
-        <Action title={t("Start a new checkout", "အသစ်မှာယူရန်")} onPress={() => {
-          resetReview();
-          void checkout.abandonPrevious();
-        }} />
+        <Action title={t("Start a new checkout", "အသစ်မှာယူရန်")} onPress={startNewCheckout} />
       </> : null}
       {status !== "recovering" ? <Action title={ordersLabel} secondary onPress={onOrders} /> : null}
     </Card></Page>;
@@ -192,6 +193,9 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
           <Body>{t("Reconnect and retry this same order safely, or check your order history for the result.",
             "အင်တာနက်ပြန်ချိတ်ပြီး ဤမှာယူမှုကို ထပ်စမ်းပါ သို့မဟုတ် မှတ်တမ်းတွင် ရလဒ်ကို စစ်ဆေးပါ။")}</Body>
           <Action title={t("Retry this checkout", "ဤမှာယူမှုကို ထပ်ကြိုးစားရန်")} onPress={() => void checkout.submit(attempt)} />
+          <Body>{t("Starting again asks the server to close this checkout or return the receipt if the order was already placed.",
+            "အသစ်စတင်ပါက ဤငွေရှင်းမှုကို ပိတ်ရန် သို့မဟုတ် မှာယူပြီးဖြစ်လျှင် ပြေစာပြန်ပေးရန် ဆာဗာသို့ တောင်းဆိုပါမည်။")}</Body>
+          <Action title={t("Start a new checkout", "အသစ်မှာယူရန်")} secondary onPress={startNewCheckout} />
           <Action title={ordersLabel} secondary onPress={onOrders} />
         </> : null}
       </Card>
