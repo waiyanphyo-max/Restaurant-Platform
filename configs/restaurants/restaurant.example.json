@@ -1,28 +1,61 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "slug": "replace-with-restaurant-slug",
   "restaurantId": "REPLACE_WITH_EXISTING_RESTAURANT_UUID",
   "branding": {
     "displayName": "REPLACE_WITH_RESTAURANT_NAME",
-    "primaryColor": "#000000",
-    "logoUrl": "https://REPLACE_WITH_PUBLIC_LOGO_URL"
+    "primaryColor": "#2457A7",
+    "secondaryColor": "#205759",
+    "backgroundColor": "#FFFFFF",
+    "logoUrl": "https://REPLACE_WITH_PUBLIC_LOGO_URL",
+    "logoPath": "assets/REPLACE_WITH_MOBILE_LOGO.png"
   },
   "guestDomains": {
-    "staging": ["REPLACE_WITH_STAGING_HOST"],
-    "production": ["REPLACE_WITH_PRODUCTION_HOST"]
+    "staging": [
+      "REPLACE_WITH_STAGING_HOST"
+    ],
+    "production": [
+      "REPLACE_WITH_PRODUCTION_HOST"
+    ]
+  },
+  "mobileProfiles": {
+    "development": {
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://replace-with-restaurant-slug.localhost:3002"
+    },
+    "staging": {
+      "apiBaseUrl": "https://REPLACE_WITH_STAGING_API_ORIGIN"
+    },
+    "production": {
+      "apiBaseUrl": "https://REPLACE_WITH_PRODUCTION_API_ORIGIN"
+    }
   },
   "android": {
     "operations": {
       "displayName": "REPLACE_WITH_OPERATIONS_APP_NAME",
+      "developmentApplicationId": "com.replace.restaurant.operations.dev",
       "stagingApplicationId": "com.replace.restaurant.operations.staging",
       "productionApplicationId": "com.replace.restaurant.operations",
-      "iconPath": "assets/REPLACE_WITH_OPERATIONS_ICON.png"
+      "iconPath": "assets/REPLACE_WITH_OPERATIONS_ICON.png",
+      "splashPath": "assets/REPLACE_WITH_OPERATIONS_SPLASH.png",
+      "splashBackgroundColor": "#FFFFFF",
+      "release": {
+        "versionName": "1.0.0",
+        "versionCode": 1
+      }
     },
     "customer": {
       "displayName": "REPLACE_WITH_CUSTOMER_APP_NAME",
+      "developmentApplicationId": "com.replace.restaurant.customer.dev",
       "stagingApplicationId": "com.replace.restaurant.customer.staging",
       "productionApplicationId": "com.replace.restaurant.customer",
-      "iconPath": "assets/REPLACE_WITH_CUSTOMER_ICON.png"
+      "iconPath": "assets/REPLACE_WITH_CUSTOMER_ICON.png",
+      "splashPath": "assets/REPLACE_WITH_CUSTOMER_SPLASH.png",
+      "splashBackgroundColor": "#FFFFFF",
+      "release": {
+        "versionName": "1.0.0",
+        "versionCode": 1
+      }
     }
   }
 }

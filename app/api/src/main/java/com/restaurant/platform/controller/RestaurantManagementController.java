@@ -9,7 +9,9 @@ import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.RestaurantManagementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,6 +29,12 @@ public class RestaurantManagementController {
     public List<MyRestaurantResponse> listMyRestaurants() {
         return restaurantService.listMyRestaurants(
                 authorization.requireAuthenticatedUserId());
+    }
+
+    @GetMapping("/restaurants/{restaurantId}/membership")
+    public ResponseEntity<MyRestaurantResponse> getMyRestaurantMembership(@PathVariable UUID restaurantId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(restaurantService.getMyRestaurantMembership(restaurantId));
     }
 
     @PostMapping("/restaurants")

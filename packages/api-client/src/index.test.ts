@@ -83,13 +83,16 @@ describe("origin and tenant validation", () => {
   });
 
   it("returns only the configured active membership and denies another tenant", async () => {
-    const fetchImpl = vi.fn(async () => json([{ restaurantId: otherId, active: true, role: "OWNER" }]));
-    const client = createRestaurantMemberApiClient({ baseUrl, restaurantId, getAccessToken: () => "token", fetchImpl: fetchImpl as typeof fetch });
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ restaurantId: otherId, active: true, role: "OWNER" }))
+      .mockResolvedValueOnce(json({ restaurantId, active: false, role: "OWNER" }))
+      .mockResolvedValueOnce(json({ restaurantId, active: true, role: "STAFF" }));
+    const client = createRestaurantMemberApiClient({ baseUrl, restaurantId, getAccessToken: () => "token", fetchImpl });
+    await expect(client.getConfiguredMembership()).rejects.toBeInstanceOf(ApiProtocolError);
     await expect(client.getConfiguredMembership()).rejects.toBeInstanceOf(TenantAccessError);
-    fetchImpl.mockImplementation(async () => json([{ restaurantId, active: false, role: "OWNER" }]));
-    await expect(client.getConfiguredMembership()).rejects.toBeInstanceOf(TenantAccessError);
-    fetchImpl.mockImplementation(async () => json([{ restaurantId: otherId, active: true }, { restaurantId, active: true, role: "STAFF" }]));
     await expect(client.getConfiguredMembership()).resolves.toMatchObject({ restaurantId, role: "STAFF" });
+    for (const [url] of fetchImpl.mock.calls) {
+      expect(new URL(String(url)).pathname).toBe(`/api/v1/restaurants/${restaurantId}/membership`);
+    }
   });
 
   it("locks customer delivery requests to the configured restaurant", async () => {

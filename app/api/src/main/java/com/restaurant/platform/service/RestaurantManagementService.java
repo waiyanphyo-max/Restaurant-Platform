@@ -154,12 +154,25 @@ public class RestaurantManagementService {
         authorization.requireAuthenticatedUserMatches(userId);
         return memberRepository.findByUserId(userId).stream()
                 .map(member -> restaurantRepository.findById(member.getRestaurantId())
-                        .map(restaurant -> new MyRestaurantResponse(
-                                restaurant.getId(), restaurant.getName(), restaurant.getSlug(),
-                                member.getRole().name(), Boolean.TRUE.equals(restaurant.getIsActive())))
+                        .map(restaurant -> toMembership(restaurant, member))
                         .orElse(null))
                 .filter(java.util.Objects::nonNull)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public MyRestaurantResponse getMyRestaurantMembership(UUID restaurantId) {
+        UUID userId = authorization.requireAuthenticatedUserId();
+        return memberRepository.findByRestaurantIdAndUserId(restaurantId, userId)
+                .flatMap(member -> restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
+                        .map(restaurant -> toMembership(restaurant, member)))
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
+                        "INSUFFICIENT_RESTAURANT_PERMISSION", "error.authorization.permission_denied"));
+    }
+
+    private static MyRestaurantResponse toMembership(Restaurant restaurant, RestaurantMember member) {
+        return new MyRestaurantResponse(restaurant.getId(), restaurant.getName(), restaurant.getSlug(),
+                member.getRole().name(), Boolean.TRUE.equals(restaurant.getIsActive()));
     }
 
     @Transactional(readOnly = true)

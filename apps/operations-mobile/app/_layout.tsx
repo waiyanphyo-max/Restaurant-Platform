@@ -7,6 +7,7 @@ function Navigation() {
   const { state } = useOperationsAuth();
   return <Stack screenOptions={{ headerShown: false }}>
     <Stack.Screen name="index" />
+    <Stack.Screen name="open" />
     <Stack.Protected guard={state.status === "ready"}>
       <Stack.Screen name="(workspace)" />
     </Stack.Protected>

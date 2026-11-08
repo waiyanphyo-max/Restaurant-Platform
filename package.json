@@ -28,7 +28,8 @@
     "build:mobile:starter": "npm run build:packages && npm run build:starter -w @restaurant-platform/operations-mobile && npm run build:starter -w @restaurant-platform/customer-mobile",
     "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
     "lint": "eslint scripts eslint.config.mjs && npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && node --test scripts/*.test.cjs",
+    "mobile:build": "node scripts/mobile-build.cjs",
     "verify:frontend": "npm run typecheck && npm run lint && npm run test && npm run build:web && npm run build:mobile:starter"
   },
   "dependencies": {
@@ -42,7 +43,8 @@
     "supabase": "^2.120.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.35.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "xml2js": "0.6.0"
   },
   "repository": "https://github.com/waiyanphyo-max/Restaurant-Platform.git",
   "license": "ISC"

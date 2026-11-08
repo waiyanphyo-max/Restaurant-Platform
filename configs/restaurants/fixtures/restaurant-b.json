@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 2,
+  "fixture": true,
+  "slug": "restaurant-b",
+  "restaurantId": "00000000-0000-4000-8000-000000000102",
+  "branding": {
+    "displayName": "Restaurant B (Test)",
+    "primaryColor": "#195954",
+    "secondaryColor": "#60C8B7",
+    "backgroundColor": "#EDF8F7",
+    "logoPath": "assets/restaurant-b/logo.png"
+  },
+  "guestDomains": {
+    "staging": [
+      "restaurant-b.staging.test"
+    ],
+    "production": [
+      "restaurant-b.test"
+    ]
+  },
+  "mobileProfiles": {
+    "development": {
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-b.localhost:3000"
+    },
+    "staging": {
+      "apiBaseUrl": "https://api.restaurant-b.staging.test"
+    },
+    "production": {
+      "apiBaseUrl": "https://api.restaurant-b.test"
+    }
+  },
+  "android": {
+    "operations": {
+      "displayName": "Demo B Crew",
+      "developmentApplicationId": "dev.restaurantplatform.fixtureb.operations.dev",
+      "stagingApplicationId": "dev.restaurantplatform.fixtureb.operations.staging",
+      "productionApplicationId": "dev.restaurantplatform.fixtureb.operations",
+      "iconPath": "assets/restaurant-b/operations-icon.png",
+      "splashPath": "assets/restaurant-b/operations-splash.png",
+      "splashBackgroundColor": "#195954",
+      "release": {
+        "versionName": "0.1.0",
+        "versionCode": 1
+      }
+    },
+    "customer": {
+      "displayName": "Demo B Table",
+      "developmentApplicationId": "dev.restaurantplatform.fixtureb.customer.dev",
+      "stagingApplicationId": "dev.restaurantplatform.fixtureb.customer.staging",
+      "productionApplicationId": "dev.restaurantplatform.fixtureb.customer",
+      "iconPath": "assets/restaurant-b/customer-icon.png",
+      "splashPath": "assets/restaurant-b/customer-splash.png",
+      "splashBackgroundColor": "#EDF8F7",
+      "release": {
+        "versionName": "0.1.0",
+        "versionCode": 1
+      }
+    }
+  }
+}

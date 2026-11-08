@@ -5,7 +5,7 @@ import { CustomerAuthProvider, useCustomerAuth } from "../src/auth/AuthProvider"
 
 function Navigation() {
   const { state } = useCustomerAuth();
-  return <Stack screenOptions={{ headerShown: false }}><Stack.Screen name="index" />
+  return <Stack screenOptions={{ headerShown: false }}><Stack.Screen name="index" /><Stack.Screen name="open" />
     <Stack.Protected guard={state.status === "signed_in"}><Stack.Screen name="(store)" /></Stack.Protected>
     <Stack.Screen name="+not-found" />
   </Stack>;
