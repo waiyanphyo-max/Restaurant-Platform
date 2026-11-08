@@ -5,6 +5,9 @@ export interface RestaurantBranding {
   displayName: string;
   primaryColor: string;
   logoUrl?: string;
+  logoPath?: string;
+  secondaryColor?: string;
+  backgroundColor?: string;
 }
 
 export interface AndroidApplicationBranding {
@@ -12,10 +15,15 @@ export interface AndroidApplicationBranding {
   stagingApplicationId: string;
   productionApplicationId: string;
   iconPath?: string;
+  developmentApplicationId?: string;
+  splashPath?: string;
+  splashBackgroundColor?: string;
+  release?: { versionName: string; versionCode: number };
+  eas?: { owner: string; projectId: string };
 }
 
 export interface RestaurantConfig {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   slug: string;
   restaurantId: string;
   branding: RestaurantBranding;
@@ -27,4 +35,10 @@ export interface RestaurantConfig {
     operations: AndroidApplicationBranding;
     customer: AndroidApplicationBranding;
   };
+  mobileProfiles?: {
+    development: { apiBaseUrl: string; guestBaseUrl: string };
+    staging: { apiBaseUrl: string };
+    production: { apiBaseUrl: string };
+  };
+  fixture?: true;
 }

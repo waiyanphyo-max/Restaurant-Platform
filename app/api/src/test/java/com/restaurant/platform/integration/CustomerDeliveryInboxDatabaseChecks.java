@@ -99,13 +99,19 @@ public final class CustomerDeliveryInboxDatabaseChecks {
         AppNotificationRepository notifications = repositories.getRepository(AppNotificationRepository.class);
         assertEquals(Set.of(firstOrder, snapshotOrder), Set.copyOf(orders.findCustomerDeliveryOrders(
                         firstTenant, customer, null, PageRequest.of(0, 20)).map(Order::getId).getContent()));
+        assertEquals(List.of(secondOrder), orders.findCustomerDeliveryOrders(
+                secondTenant, customer, null, PageRequest.of(0, 20)).map(Order::getId).getContent());
         assertTrue(orders.findCustomerDeliveryOrder(firstTenant, customer, secondOrder).isEmpty());
+        assertTrue(orders.findCustomerDeliveryOrderForUpdate(secondTenant, customer, firstOrder).isEmpty());
         assertTrue(orders.findCustomerDeliveryOrder(firstTenant, customer, foreignOrder).isEmpty());
         Set<String> types = Set.of("ORDER_CREATED");
         assertEquals(Set.of(firstNotice, snapshotNotice), Set.copyOf(notifications.findCustomerDeliveryNotifications(
                         firstTenant, customer, types, "PENDING")
                 .stream().map(AppNotification::getId).toList()));
+        assertEquals(List.of(secondNotice), notifications.findCustomerDeliveryNotifications(secondTenant, customer, types, "PENDING")
+                .stream().map(AppNotification::getId).toList());
         assertTrue(notifications.findCustomerDeliveryNotificationForUpdate(firstTenant, customer, types, secondNotice).isEmpty());
+        assertTrue(notifications.findCustomerDeliveryNotificationForUpdate(secondTenant, customer, types, firstNotice).isEmpty());
         assertTrue(notifications.findCustomerDeliveryNotificationForUpdate(firstTenant, otherCustomer, types, firstNotice).isEmpty());
         assertTrue(notifications.findCustomerDeliveryNotificationForUpdate(firstTenant, customer, types, firstNotice).isPresent());
     }

@@ -151,13 +151,11 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
   return {
     restaurantId,
     async getConfiguredMembership(o?: ApiRequestOptions): Promise<MyRestaurantResponse> {
-      const memberships = await read<MyRestaurantResponse[]>(transport, "/api/v1/my/restaurants", o);
-      if (!Array.isArray(memberships) || memberships.some(item => !item || typeof item.restaurantId !== "string" || typeof item.active !== "boolean")) {
-        throw new ApiProtocolError();
-      }
-      const match = memberships.find(item => item.restaurantId.toLowerCase() === restaurantId && item.active);
-      if (!match) throw new TenantAccessError();
-      return match;
+      const membership = checkedRestaurantResponse(
+        await read<MyRestaurantResponse>(transport, `${prefix}/membership`, o), restaurantId, "restaurantId");
+      if (typeof membership.active !== "boolean") throw new ApiProtocolError();
+      if (!membership.active) throw new TenantAccessError();
+      return membership;
     },
     getRestaurant: async (o?: ApiRequestOptions) => checkedRestaurantResponse(
       await read<RestaurantResponse>(transport, prefix, o), restaurantId, "id"),

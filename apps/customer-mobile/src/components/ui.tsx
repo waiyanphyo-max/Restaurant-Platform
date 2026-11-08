@@ -17,10 +17,12 @@ export function Body({ children }: PropsWithChildren) { return <Text style={styl
 export function Action({ title, onPress, disabled = false, secondary = false, selected }: {
   title: string; onPress(): void; disabled?: boolean; secondary?: boolean; selected?: boolean;
 }) {
-  const brand = resolveBrandTokens(readEmbeddedTenant().branding);
+  const { branding } = readEmbeddedTenant();
+  const primaryColor = secondary ? branding.secondaryColor ?? "#e8edf1" : branding.primaryColor;
+  const brand = resolveBrandTokens({ ...branding, primaryColor });
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled, selected }} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [styles.action, { backgroundColor: secondary ? "#e8edf1" : brand.primaryColor, opacity: disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
-    <Text style={[styles.actionText, { color: secondary ? "#18222e" : brand.onPrimaryColor }]}>{title}</Text>
+    style={({ pressed }) => [styles.action, { backgroundColor: brand.primaryColor, opacity: disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
+    <Text style={[styles.actionText, { color: secondary && !branding.secondaryColor ? "#18222e" : brand.onPrimaryColor }]}>{title}</Text>
   </Pressable>;
 }
 export function FormField({ label, error, ...props }: TextInputProps & { label: string; error?: string }) {

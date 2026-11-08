@@ -3,8 +3,10 @@ package com.restaurant.platform.config;
 import com.restaurant.platform.common.error.ApiSecurityErrorHandler;
 import com.restaurant.platform.common.error.GlobalExceptionHandler;
 import com.restaurant.platform.controller.DeliverySettingsController;
+import com.restaurant.platform.controller.RestaurantManagementController;
 import com.restaurant.platform.controller.RestaurantMemberController;
 import com.restaurant.platform.controller.RestaurantNotificationController;
+import com.restaurant.platform.entity.Restaurant;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.repository.*;
 import com.restaurant.platform.security.RestaurantAuthorization;
@@ -16,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.Optional;
@@ -26,7 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = {RestaurantNotificationController.class, DeliverySettingsController.class,
-        RestaurantMemberController.class}, properties = {
+        RestaurantManagementController.class, RestaurantMemberController.class}, properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.test/auth/v1",
         "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://auth.example.test/auth/v1/.well-known/jwks.json",
         "app.security.jwt.required-audience=authenticated", "app.security.jwt.signing-algorithm=ES256",
@@ -34,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @Import({SecurityConfig.class, ApiSecurityErrorHandler.class, GlobalExceptionHandler.class, LocaleConfig.class,
         RestaurantAuthorization.class, RestaurantNotificationService.class, DeliveryAssignmentOptionsService.class,
-        RestaurantMemberService.class})
+        RestaurantMemberService.class, RestaurantManagementService.class})
 class OwnerOperationsHttpIntegrationTest {
     static final UUID RESTAURANT = UUID.randomUUID(), ACTOR = UUID.randomUUID();
     static final String BASE = "/api/v1/restaurants/" + RESTAURANT;
@@ -46,12 +49,66 @@ class OwnerOperationsHttpIntegrationTest {
     @MockitoBean ProfileRepository profiles;
     @MockitoBean AppNotificationRepository notifications;
     @MockitoBean DeliveryService deliveryService;
+    @MockitoBean RestaurantRepository restaurants;
     @MockitoBean RestaurantSettingsRepository settings;
     @MockitoBean SupabaseAuthAdminClient authAdmin;
 
     void member(RestaurantRole role) {
-        RestaurantMember member = new RestaurantMember(); member.setRestaurantId(RESTAURANT); member.setUserId(ACTOR); member.setRole(role);
-        when(members.findByRestaurantIdAndUserId(RESTAURANT, ACTOR)).thenReturn(Optional.of(member));
+        member(RESTAURANT, role);
+    }
+
+    private void member(UUID restaurantId, RestaurantRole role) {
+        RestaurantMember member = new RestaurantMember();
+        member.setRestaurantId(restaurantId);
+        member.setUserId(ACTOR);
+        member.setRole(role);
+        when(members.findByRestaurantIdAndUserId(restaurantId, ACTOR)).thenReturn(Optional.of(member));
+    }
+
+    private void activeRestaurant(UUID restaurantId, String name, String slug) {
+        Restaurant restaurant = new Restaurant();
+        restaurant.setId(restaurantId);
+        restaurant.setName(name);
+        restaurant.setSlug(slug);
+        restaurant.setIsActive(true);
+        when(restaurants.findByIdAndIsActiveTrue(restaurantId)).thenReturn(Optional.of(restaurant));
+    }
+
+    @Test void aDualMemberReceivesOnlyTheRequestedRestaurantMembership() throws Exception {
+        UUID otherRestaurant = UUID.randomUUID();
+        member(RestaurantRole.OWNER);
+        member(otherRestaurant, RestaurantRole.STAFF);
+        activeRestaurant(RESTAURANT, "Restaurant A", "restaurant-a");
+        activeRestaurant(otherRestaurant, "Restaurant B", "restaurant-b");
+        var identity = jwt().jwt(token -> token.subject(ACTOR.toString()));
+
+        mvc.perform(get(BASE + "/membership").with(identity).header("X-Restaurant-Id", otherRestaurant.toString()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().json("""
+                        {"restaurantId":"%s","name":"Restaurant A","slug":"restaurant-a","role":"OWNER","active":true}
+                        """.formatted(RESTAURANT), JsonCompareMode.STRICT));
+        verify(restaurants, never()).findByIdAndIsActiveTrue(otherRestaurant);
+        mvc.perform(get("/api/v1/restaurants/" + otherRestaurant + "/membership").with(identity))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.restaurantId").value(otherRestaurant.toString()))
+                .andExpect(jsonPath("$.role").value("STAFF"));
+        verify(members, never()).findByUserId(any());
+    }
+
+    @Test void membershipRejectsAnonymousInactiveAndForeignRestaurantAccess() throws Exception {
+        UUID otherRestaurant = UUID.randomUUID();
+        String otherPath = "/api/v1/restaurants/" + otherRestaurant + "/membership";
+        member(RestaurantRole.OWNER);
+        var forged = jwt().jwt(token -> token.subject(ACTOR.toString())
+                .claim("role", "OWNER").claim("restaurantId", otherRestaurant.toString()));
+
+        mvc.perform(get(BASE + "/membership")).andExpect(status().isUnauthorized());
+        mvc.perform(get(otherPath).with(forged).header("X-Restaurant-Id", RESTAURANT.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_RESTAURANT_PERMISSION"));
+        verifyNoInteractions(restaurants);
+        mvc.perform(get(BASE + "/membership").with(forged)).andExpect(status().isForbidden());
     }
     @Test void anonymousRequestsCannotReachNewOperationalRoutes() throws Exception {
         mvc.perform(get(BASE + "/notifications")).andExpect(status().isUnauthorized());

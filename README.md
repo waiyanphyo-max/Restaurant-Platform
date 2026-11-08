@@ -148,6 +148,8 @@ M2 adds separate public and authenticated [typed API clients](packages/api-clien
 
 M11 extends the separate [Customer Android app](apps/customer-mobile/README.md) with restaurant-locked navigation, customer registration/sign-in, profile management and optional Home Address onboarding through Google Maps, one-shot foreground GPS or manual entry. Existing Spring address storage remains authoritative. See [M11 acceptance and M12 dependencies](docs/m11-acceptance.md) for configuration, ownership tests and the native-device/provider verification limits; delivery checkout remains outside M11.
 
+M13 adds restaurant-specific Android branding, build profiles, deep links, and APK/AAB verification for both mobile apps. See the [Android build and onboarding runbook](docs/m13-android-branding.md).
+
 M5 adds restaurant-branded public menu browsing through the real Spring menu endpoint, server-side tenant/response checks and English/Burmese UI localization. Local development supports reviewed restaurant slugs; production requires exact configured domains. See the [Guest Website setup and production domain runbook](docs/m5-guest-web-foundation.md). QR entry stays public; checkout and migration of an old shared QR origin remain separate readiness gates.
 
 ## External push notification delivery

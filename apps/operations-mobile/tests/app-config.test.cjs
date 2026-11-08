@@ -1,7 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const path = require("node:path");
 const test = require("node:test");
+const { getConfig } = require("expo/config");
 const configure = require("../app.config.js");
 
 function withEnvironment(values, callback) {
@@ -43,8 +45,30 @@ test("phone build request cannot contain an implicit enabled default", () => {
   });
 });
 
+test("Expo public config omits development links without an HTTPS association", () => {
+  withEnvironment({ MOBILE_ENV: "development", RESTAURANT_SLUG: "starter-fixture", PUBLIC_API_BASE_URL: "http://10.0.2.2:8080" }, () => {
+    const { exp } = getConfig(path.resolve(__dirname, ".."), { isPublicConfig: true });
+    assert.deepEqual(exp.extra.routing, { scheme: "rp-starter-fixture-operations" });
+    assert.equal(exp.extra.guestBaseUrl, undefined);
+  });
+});
+
 test("operations production config fails closed without a real tenant file", () => {
   withEnvironment({ MOBILE_ENV: "production", RESTAURANT_SLUG: "starter-fixture", PUBLIC_API_BASE_URL: "https://api.example.test" }, () => {
     assert.throws(() => configure({ config: {} }), /no real restaurant config/);
   });
+});
+
+test("release fingerprint is reproducible and rejects mismatched or secret-bearing inputs", () => {
+  const env = { MOBILE_ENV: "development", RESTAURANT_SLUG: "restaurant-a", MOBILE_SOURCE_REVISION: "a".repeat(40) };
+  const release = configure.inspect(env).extra.release;
+  assert.match(release.fingerprint, /^sha256:[a-f0-9]{64}$/);
+  assert.deepEqual(configure.inspect({ ...env, MOBILE_EXPECTED_FINGERPRINT: release.fingerprint }).extra.release, release);
+  assert.throws(() => configure.inspect({
+    ...env, RESTAURANT_SLUG: "restaurant-b", MOBILE_EXPECTED_FINGERPRINT: release.fingerprint
+  }), /MOBILE_EXPECTED_FINGERPRINT/);
+  assert.throws(() => configure.inspect({ ...env, EAS_BUILD_GIT_COMMIT_HASH: "b".repeat(40) }), /EAS Git commit/);
+  assert.throws(() => configure.inspect({
+    ...env, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_secret_synthetic"
+  }), /publishable key/);
 });

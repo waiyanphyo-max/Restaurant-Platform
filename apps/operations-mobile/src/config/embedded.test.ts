@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveMobileSystemPath } from "@restaurant-platform/restaurant-config/mobile-runtime";
 import { parseEmbeddedTenant } from "./embedded";
 
 const build = {
@@ -31,5 +32,23 @@ describe("embedded Operations configuration", () => {
     for (const guestBaseUrl of ["http://evil.test", "https://user:pass@restaurant.test", "https://restaurant.test/path", "https://restaurant.test?token=bad", "https://restaurant.test#bad"]) {
       expect(() => parseEmbeddedTenant({ ...build, guestBaseUrl })).toThrow();
     }
+  });
+  it("uses the embedded brand and maps only matching Operations links", () => {
+    const guestBaseUrl = "https://restaurant.example.test";
+    const config = parseEmbeddedTenant({
+      ...build,
+      tenant: { ...build.tenant, branding: { ...build.tenant.branding,
+        secondaryColor: "#ABCDEF", backgroundColor: "#FEFAF5", logoDataUri: "data:image/png;base64,iVBORw0KGgo=" } },
+      mobileEnvironment: "production",
+      apiBaseUrl: "https://api.restaurant.example.test",
+      guestBaseUrl,
+      routing: { scheme: "rp-starter-fixture-operations", appLinkOrigin: guestBaseUrl, appLinkPathPrefix: "/app/operations/" }
+    });
+    expect(config.branding).toMatchObject({ secondaryColor: "#ABCDEF", backgroundColor: "#FEFAF5", logoDataUri: "data:image/png;base64,iVBORw0KGgo=" });
+    expect(Object.isFrozen(config)).toBe(true);
+    expect(resolveMobileSystemPath(`${guestBaseUrl}/app/operations/dashboard?restaurantId=foreign`, "operations", config.routing))
+      .toBe("/open?destination=%2Fdashboard");
+    expect(resolveMobileSystemPath(`${guestBaseUrl}/app/customer/orders`, "operations", config.routing)).toBeNull();
+    expect(resolveMobileSystemPath("rp-starter-fixture-customer://orders", "operations", config.routing)).toBeNull();
   });
 });

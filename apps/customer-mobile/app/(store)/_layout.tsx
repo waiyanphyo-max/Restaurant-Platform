@@ -31,9 +31,10 @@ function StoreNavigation() {
     orders: t("Orders", "မှာယူမှုများ"), profile: t("Profile", "ပရိုဖိုင်") };
   const tenant = readEmbeddedTenant();
   const brand = resolveBrandTokens(tenant.branding);
-  return <SafeAreaView style={styles.screen}>
+  const logo = tenant.branding.logoDataUri ?? tenant.branding.logoUrl;
+  return <SafeAreaView style={[styles.screen, { backgroundColor: tenant.branding.backgroundColor ?? "#f6f8fa" }]}>
     <View style={[styles.header, { backgroundColor: brand.primaryColor }]}>
-      {tenant.branding.logoUrl ? <Image source={{ uri: tenant.branding.logoUrl }} accessibilityLabel={`${tenant.branding.displayName} logo`} style={styles.logo} /> : null}
+      {logo ? <Image source={{ uri: logo }} accessibilityLabel={`${tenant.branding.displayName} logo`} style={styles.logo} /> : null}
       <Text style={[styles.name, { color: brand.onPrimaryColor }]}>{tenant.branding.displayName}</Text>
     </View>
     {hasReceipt && pathname !== "/checkout" ? <Pressable accessibilityRole="button" style={styles.receipt}

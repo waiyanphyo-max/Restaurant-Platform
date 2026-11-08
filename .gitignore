@@ -17,6 +17,11 @@ out/
 .expo/
 .expo-shared/
 web-build/
+credentials.json
+*.jks
+*.keystore
+*.apk
+*.aab
 
 # Environment files
 .env

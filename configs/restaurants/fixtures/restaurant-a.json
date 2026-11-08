@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 2,
+  "fixture": true,
+  "slug": "restaurant-a",
+  "restaurantId": "00000000-0000-4000-8000-000000000101",
+  "branding": {
+    "displayName": "Restaurant A (Test)",
+    "primaryColor": "#8A3C25",
+    "secondaryColor": "#EDAE49",
+    "backgroundColor": "#FFF6E7",
+    "logoPath": "assets/restaurant-a/logo.png"
+  },
+  "guestDomains": {
+    "staging": [
+      "restaurant-a.staging.test"
+    ],
+    "production": [
+      "restaurant-a.test"
+    ]
+  },
+  "mobileProfiles": {
+    "development": {
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-a.localhost:3000"
+    },
+    "staging": {
+      "apiBaseUrl": "https://api.restaurant-a.staging.test"
+    },
+    "production": {
+      "apiBaseUrl": "https://api.restaurant-a.test"
+    }
+  },
+  "android": {
+    "operations": {
+      "displayName": "Demo A Counter",
+      "developmentApplicationId": "dev.restaurantplatform.fixturea.operations.dev",
+      "stagingApplicationId": "dev.restaurantplatform.fixturea.operations.staging",
+      "productionApplicationId": "dev.restaurantplatform.fixturea.operations",
+      "iconPath": "assets/restaurant-a/operations-icon.png",
+      "splashPath": "assets/restaurant-a/operations-splash.png",
+      "splashBackgroundColor": "#8A3C25",
+      "release": {
+        "versionName": "0.1.0",
+        "versionCode": 1
+      }
+    },
+    "customer": {
+      "displayName": "Demo A Kitchen",
+      "developmentApplicationId": "dev.restaurantplatform.fixturea.customer.dev",
+      "stagingApplicationId": "dev.restaurantplatform.fixturea.customer.staging",
+      "productionApplicationId": "dev.restaurantplatform.fixturea.customer",
+      "iconPath": "assets/restaurant-a/customer-icon.png",
+      "splashPath": "assets/restaurant-a/customer-splash.png",
+      "splashBackgroundColor": "#FFF6E7",
+      "release": {
+        "versionName": "0.1.0",
+        "versionCode": 1
+      }
+    }
+  }
+}

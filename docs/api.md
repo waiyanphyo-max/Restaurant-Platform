@@ -343,6 +343,7 @@ These authenticated routes let a signed-in user create and manage their own rest
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/api/v1/my/restaurants` | List restaurants where the current user is a member, including their role |
+| GET | `/api/v1/restaurants/{restaurantId}/membership` | Read the current user's membership for the path restaurant. Returns one no-store membership object or 403 if the user lacks an active membership. |
 | POST | `/api/v1/restaurants` | Create a restaurant, initial settings, and OWNER membership in one transaction |
 | GET | `/api/v1/restaurants/{restaurantId}` | Read active restaurant details with `RESTAURANT_READ` |
 | PUT | `/api/v1/restaurants/{restaurantId}/profile` | Update restaurant profile fields with `SETTINGS_MANAGE` |

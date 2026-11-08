@@ -12,10 +12,11 @@ export default function WorkspaceLayout() {
   if (state.status !== "ready") return <Redirect href="/" />;
   const tenant = readEmbeddedTenant();
   const brand = resolveBrandTokens(tenant.branding);
+  const logo = tenant.branding.logoDataUri ?? tenant.branding.logoUrl;
   const navigation = getNavigationItems(state.membership, tenant.restaurantId);
-  return <SafeAreaView style={styles.screen}>
+  return <SafeAreaView style={[styles.screen, { backgroundColor: tenant.branding.backgroundColor ?? "#f6f8fa" }]}>
     <View style={[styles.header, { backgroundColor: brand.primaryColor }]}>
-      {tenant.branding.logoUrl ? <Image source={{ uri: tenant.branding.logoUrl }} accessibilityLabel={`${tenant.branding.displayName} logo`} style={styles.logo} /> : null}
+      {logo ? <Image source={{ uri: logo }} accessibilityLabel={`${tenant.branding.displayName} logo`} style={styles.logo} /> : null}
       <View style={styles.identity}><Text style={[styles.name, { color: brand.onPrimaryColor }]}>{tenant.branding.displayName}</Text>
         <Text style={{ color: brand.onPrimaryColor }}>{state.membership.role.replaceAll("_", " ")}{tenant.environment !== "production" ? ` · ${tenant.environment}` : ""}</Text></View>
     </View>

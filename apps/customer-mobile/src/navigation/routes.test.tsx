@@ -3,14 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const harness = vi.hoisted(() => ({
   auth: { status: "signed_in", userId: "customer-a" }, pathname: "/home",
+  params: {} as { destination?: string | string[] },
   account: { state: { status: "ready" }, editingAddress: null as null | { id: string }, reload: vi.fn(), dismissOnboarding: vi.fn() },
   replace: vi.fn(), navigate: vi.fn()
 }));
 vi.mock("react-native", () => ({ Image: "Image", Pressable: "Pressable", Text: "Text", View: "View", StyleSheet: { create: (value: unknown) => value } }));
 vi.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView" }));
 vi.mock("expo-router", () => ({ Redirect: "Redirect", Slot: "Slot", usePathname: () => harness.pathname,
+  useLocalSearchParams: () => harness.params,
   useRouter: () => ({ replace: harness.replace, navigate: harness.navigate }) }));
 vi.mock("../auth/AuthProvider", () => ({ useCustomerAuth: () => ({ state: harness.auth }) }));
+vi.mock("../auth/AuthPanel", () => ({ AuthPanel: "AuthPanel" }));
 vi.mock("../features/profile/AccountProvider", () => ({ CustomerAccountProvider: "CustomerAccountProvider", useCustomerAccount: () => harness.account }));
 vi.mock("../features/cart/CartProvider", () => ({ CustomerCartProvider: "CustomerCartProvider" }));
 vi.mock("../features/checkout/CheckoutProvider", () => ({ CustomerCheckoutProvider: "CustomerCheckoutProvider",
@@ -22,6 +25,8 @@ vi.mock("../tenant", () => ({ readEmbeddedTenant: () => ({ branding: { displayNa
 
 import Address from "../../app/(store)/address";
 import StoreLayout from "../../app/(store)/_layout";
+import OpenCustomerLink from "../../app/open";
+import SignIn from "../../app/index";
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
@@ -31,6 +36,7 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 describe("restaurant-locked customer navigation", () => {
   beforeEach(() => {
     harness.auth = { status: "signed_in", userId: "customer-a" }; harness.pathname = "/home";
+    harness.params = {};
     harness.account.state = { status: "ready" }; harness.account.editingAddress = null;
     harness.account.reload.mockReset(); harness.account.dismissOnboarding.mockReset(); harness.replace.mockReset(); harness.navigate.mockReset();
   });
@@ -49,6 +55,18 @@ describe("restaurant-locked customer navigation", () => {
     for (const tab of tabs) (tab.props.onPress as () => void)();
     expect(harness.navigate.mock.calls.map(call => call[0])).toEqual(["/home", "/menu", "/cart", "/orders", "/profile"]);
     expect(elements(tree).some(item => item.props.children === "Configured Restaurant")).toBe(true);
+  });
+
+  it("holds a validated deep-link destination through sign-in and rejects a tampered bridge route", () => {
+    harness.params = { destination: "/menu" };
+    const bridge = OpenCustomerLink();
+    expect(bridge.type).toBe(SignIn);
+    harness.auth.status = "loading";
+    expect(elements(SignIn(bridge.props)).some(item => item.type === "Redirect")).toBe(false);
+    harness.auth.status = "signed_in";
+    expect(SignIn(bridge.props).props.href).toBe("/menu");
+    harness.params = { destination: "//other.example.test/profile" };
+    expect(OpenCustomerLink().props.destination).toBe("/home");
   });
 
   it("mounts private account state with an authenticated user key", () => {
