@@ -83,7 +83,7 @@ public class CatalogImageService {
         return new ProductVariantResponse(
                 saved.getId(), saved.getProductId(), saved.getName(), saved.getPrice(),
                 saved.getImageUrl(), Boolean.TRUE.equals(saved.getIsAvailable()),
-                saved.getCreatedAt(), saved.getUpdatedAt());
+                saved.getCreatedAt(), saved.getUpdatedAt(), saved.getDescription());
     }
 
     private Product requireProduct(UUID restaurantId, UUID productId) {

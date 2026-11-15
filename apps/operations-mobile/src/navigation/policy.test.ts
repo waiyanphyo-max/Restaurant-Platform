@@ -11,8 +11,8 @@ const ids = (role: string) => getNavigationItems(member(role), restaurantId).map
 
 describe("operations navigation policy", () => {
   it("matches the Owner and Manager supported navigation in the requested order", () => {
-    expect(ids("OWNER")).toEqual(["dashboard", "orders", "menu", "shopping", "sales-history", "accounting", "reports", "team", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
-    expect(ids("MANAGER")).toEqual(["dashboard", "orders", "menu", "shopping", "sales-history", "accounting", "reports", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
+    expect(ids("OWNER")).toEqual(["dashboard", "orders", "menu", "shopping", "purchasing", "sales-history", "accounting", "reports", "team", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
+    expect(ids("MANAGER")).toEqual(["dashboard", "orders", "menu", "shopping", "purchasing", "sales-history", "accounting", "reports", "settings", "tables", "queue", "notifications", "deliveries", "profile"]);
   });
 
   it("restricts staff and drivers to operational screens", () => {
@@ -23,7 +23,7 @@ describe("operations navigation policy", () => {
       expect(canAccessScreen(screen, member("DELIVERY_DRIVER"), restaurantId)).toBe(false);
     }
     for (const role of ["STAFF", "DELIVERY_DRIVER"]) {
-      for (const screen of ["reports", "sales-history", "accounting", "shopping", "team", "settings", "tables"]) {
+      for (const screen of ["reports", "sales-history", "accounting", "shopping", "purchasing", "team", "settings", "tables"]) {
         expect(canAccessScreen(screen, member(role), restaurantId)).toBe(false);
       }
       expect(getPlannedNavigationItems(member(role), restaurantId)).toEqual([]);
@@ -53,7 +53,7 @@ describe("operations navigation policy", () => {
   });
 
   it("gives Owner and Manager the same financial routes and rejects cross-restaurant deep links", () => {
-    const financeRoutes = ["reports", "sales-history", "shopping", "accounting"];
+    const financeRoutes = ["reports", "sales-history", "shopping", "purchasing", "accounting"];
     const financialNavigation = (role: string) => getNavigationItems(member(role), restaurantId)
       .filter(item => item.requiredPermission === "FINANCE_READ");
     expect(financialNavigation("MANAGER")).toEqual(financialNavigation("OWNER"));

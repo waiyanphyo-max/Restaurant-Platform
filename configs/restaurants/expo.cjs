@@ -4,6 +4,7 @@ const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { getMobileBuildConfig } = require("./index.cjs");
+const { selectFirebaseAndroid } = require("./firebase-android.cjs");
 
 function fromApp(appDirectory, relative) {
   return path.relative(appDirectory, path.resolve(__dirname, relative)).split(path.sep).join("/");
@@ -17,16 +18,14 @@ function assetDigest(relative) {
   return relative ? digest(fs.readFileSync(path.resolve(__dirname, relative))) : null;
 }
 
-function publicAuthInputs(env, environment) {
+function publicAuthInputs(env) {
   const url = env.EXPO_PUBLIC_SUPABASE_URL || null;
   const key = env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || null;
   if (url) {
     let parsed;
-    try { parsed = new URL(url); } catch { throw new Error("EXPO_PUBLIC_SUPABASE_URL must be a public origin"); }
-    const local = ["localhost", "127.0.0.1", "10.0.2.2"].includes(parsed.hostname);
-    if (!/^https?:\/\/[a-z0-9.-]+(?::\d+)?\/?$/i.test(url) ||
-        (parsed.protocol !== "https:" && !(environment === "development" && local))) {
-      throw new Error("EXPO_PUBLIC_SUPABASE_URL must be a public HTTPS origin or a local development origin");
+    try { parsed = new URL(url); } catch { throw new Error("EXPO_PUBLIC_SUPABASE_URL must be a public HTTPS origin"); }
+    if (!/^https:\/\/[a-z0-9.-]+(?::\d+)?\/?$/i.test(url) || parsed.protocol !== "https:") {
+      throw new Error("EXPO_PUBLIC_SUPABASE_URL must be a public HTTPS origin");
     }
   }
   if (key && !/^sb_publishable_[A-Za-z0-9_-]{10,}$/.test(key)) {
@@ -47,7 +46,18 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
       ? [{ host: new URL(routing.appLinkOrigin).hostname, pathPrefix: routing.appLinkPathPrefix }]
       : [];
     const { plugins = [], android = {}, extra = {} } = appOptions(selected, env);
-    const auth = publicAuthInputs(env, environment);
+    const notifications = selectFirebaseAndroid(kind, appDirectory, selected.applicationId, env);
+    const auth = publicAuthInputs(env);
+    const allowPrivateLanHttp = environment === "development" && Boolean(env.MOBILE_DEVELOPMENT_API_BASE_URL) &&
+      selected.apiBaseUrl.startsWith("http:");
+    const cleartextHosts = environment === "development"
+      ? [...new Set([
+          // Local Metro via adb reverse remains available to the development client.
+          "localhost", "127.0.0.1", "::1",
+          ...[selected.apiBaseUrl, selected.guestBaseUrl].filter((origin) => origin?.startsWith("http:"))
+            .map((origin) => new URL(origin).hostname.replace(/^\[|\]$/g, ""))
+        ])]
+      : [];
     const sourceRevision = env.MOBILE_SOURCE_REVISION || env.EAS_BUILD_GIT_COMMIT_HASH || null;
     if (sourceRevision && !/^[a-f0-9]{40}$/.test(sourceRevision)) {
       throw new Error("MOBILE_SOURCE_REVISION must be a full Git commit SHA");
@@ -82,7 +92,9 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
       appLinks,
       apiBaseUrl: selected.apiBaseUrl,
       guestBaseUrl: selected.guestBaseUrl,
+      ...(allowPrivateLanHttp ? { allowPrivateLanHttp } : {}),
       easProjectId: app.eas?.projectId ?? null,
+      ...(notifications ? { firebase: notifications.firebase } : {}),
       sourceRevision
     };
     const fingerprint = `sha256:${digest(JSON.stringify({
@@ -91,9 +103,10 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
       icon: assetDigest(app.iconPath),
       splash: { ...splash, image: assetDigest(app.splashPath ?? app.iconPath) },
       plugins,
-      android: { ...android, googleServicesFile: android.googleServicesFile ? assetDigest(android.googleServicesFile) : null },
+      android: { ...android, googleServicesFile: notifications ? assetDigest(path.resolve(appDirectory, notifications.file)) : null },
       extra,
       auth,
+      cleartextHosts,
       lockfile: digest(fs.readFileSync(path.resolve(__dirname, "../../package-lock.json"), "utf8").replaceAll("\r\n", "\n"))
     }))}`;
     if (env.MOBILE_EXPECTED_FINGERPRINT && env.MOBILE_EXPECTED_FINGERPRINT !== fingerprint) {
@@ -113,14 +126,29 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
         "expo-router",
         ["expo-dev-client", { addGeneratedScheme: false }],
         ["expo-secure-store", { configureAndroidBackup: true }],
-        ["expo-build-properties", { android: { usesCleartextTraffic: environment === "development" } }],
+        ["expo-build-properties", {
+          android: {
+            usesCleartextTraffic: environment === "development",
+            ...(kind === "customer"
+              ? {
+                  extraProguardRules: [
+                    "-keep class * extends androidx.room.RoomDatabase { <init>(); }",
+                    "-keep class * extends androidx.work.InputMerger { <init>(); }"
+                  ].join("\n")
+                }
+              : {})
+          }
+        }],
+        [fromApp(appDirectory, "with-network-security.cjs"), { cleartextHosts }],
         ["expo-splash-screen", splash],
         fromApp(appDirectory, "with-app-label.cjs"),
         [fromApp(appDirectory, "with-build-fingerprint.cjs"), { fingerprint }],
-        ...plugins
+        ...plugins,
+        ...(notifications ? [["expo-notifications", { defaultChannel: "default" }]] : [])
       ],
       android: {
         ...android,
+        ...(notifications ? { googleServicesFile: notifications.file } : {}),
         package: selected.applicationId,
         versionCode: release.versionCode,
         ...(icon ? { icon } : {}),
@@ -128,10 +156,12 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
       },
       extra: {
         ...extra,
+        features: { ...extra.features, notificationsEnabled: Boolean(notifications) },
         tenant: { restaurantId: restaurant.restaurantId, slug: restaurant.slug, branding },
         appKind: kind,
         mobileEnvironment: environment,
         apiBaseUrl: selected.apiBaseUrl,
+        ...(allowPrivateLanHttp ? { allowPrivateLanHttp } : {}),
         ...(selected.guestBaseUrl ? { guestBaseUrl: selected.guestBaseUrl } : {}),
         routing: {
           scheme: routing.scheme,

@@ -43,8 +43,9 @@ export function productRequest(draft: ProductDraft, categories: readonly Categor
   };
 }
 
-export function variantRequest(name: string, price: string, available: boolean, imageUrl: string | null) {
-  return { name: named(name, "Variant name"), price: wholeNumber(price, "Variant price"), available, imageUrl };
+export function variantRequest(name: string, price: string, available: boolean, imageUrl: string | null, description = "") {
+  if (description.length > 5000) throw new FormValidationError("Variant description must be 5,000 characters or fewer.");
+  return { name: named(name, "Variant name"), price: wholeNumber(price, "Variant price"), available, imageUrl, description: description.trim() || null };
 }
 
 export function modifierGroupRequest(name: string, required: boolean, minimum: string, maximum: string, active: boolean) {

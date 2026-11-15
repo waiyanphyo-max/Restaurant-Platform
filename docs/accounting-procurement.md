@@ -1,4 +1,6 @@
-# Shopping, purchases and supplier payables
+# Shopping planning, purchasing and supplier payables
+
+Operations Mobile exposes two separate routes: **Shopping** (catalog and daily quantity sheets) and **Purchasing & Accounting** (actual purchases, history, payments, suppliers, payables and audit). The existing Accounting route retains expenses, cashbook and closing. Shopping never displays costs, invoices, suppliers, payments or purchase-confirmation controls.
 
 These Spring APIs are under `/api/v1/restaurants/{restaurantId}/accounting`. Owner and Manager finance permissions are checked on every entry point; the backend derives actor identity. Every mutation requires an `Idempotency-Key` (1–120 letters, digits, period, underscore, colon or hyphen). A retry with identical payload returns the existing result. Reusing the key with changed payload is a conflict. Monetary values and decimal quantities are JSON strings to preserve exact precision in clients.
 
@@ -7,7 +9,7 @@ These Spring APIs are under `/api/v1/restaurants/{restaurantId}/accounting`. Own
 | `GET/POST /suppliers`, `PUT /suppliers/{id}` | Search, create or correct supplier identity/contact and active status |
 | `GET /suppliers/payables` | Confirmed obligations, net payments, outstanding amount, earliest unpaid due date by supplier |
 | `GET /suppliers/{id}/payments` | Paginated payment history, including reversal reasons/actors/timestamps |
-| `GET/POST /shopping/items`, `PUT /shopping/items/{id}` | Restaurant catalog; name, default unit/quantity, default supplier and suggestion preference |
+| `GET/POST /shopping/items`, `PUT /shopping/items/{id}` | Reusable catalog; name, optional default unit and suggestion preference; legacy quantity/supplier metadata retained for compatibility, never applied as daily quantities |
 | `GET /shopping/items?suggestionsOnly=true` | Only eligible automatic suggestions |
 | `GET/POST /shopping/sheets`, `GET/PUT /shopping/sheets/{id}` | Daily planning sheets and audited corrections before posting |
 | `GET/POST /purchases`, `GET /purchases/{id}` | Immutable confirmed obligations, historical line snapshots and chronological payments/adjustments |
@@ -34,7 +36,24 @@ CSV has one row per historical purchase line. Purchase total, amount paid, outst
 
 ## Recognition and suggestion rules
 
+After `20261115091000_shopping_planning_separation.sql`, the planning write contract is:
+
+```json
+{
+  "shoppingDate": "2026-11-15",
+  "lines": [{"itemId": "00000000-0000-4000-8000-000000000002", "quantity": "1.5", "unit": "kg"}]
+}
+```
+
+Only item identity, quantity and unit are accepted on a planning row. Costs/totals/supplier fields on an outdated planning payload are rejected instead of silently discarded. Purchase `LineInput` remains a separate financial contract requiring actual `unitCost`. Positive decimal quantities allow up to twelve integer and six fractional digits; units must contain text (maximum 30 characters). New writes reject duplicate item identities. A sheet starts empty, items are selected explicitly, and copied sheets become independent unsaved drafts. Saved-plan changes require an audit reason; posted historical plans remain locked and can be copied.
+
+The new `accounting_shopping_plan_lines` table stores pure planning snapshots in row order. Migration copies every old row, including historical duplicates, retaining IDs, names, quantities and units. Original `accounting_shopping_lines` stays as an update/delete-protected legacy valuation archive with its costs, totals and supplier references intact. Editing pure planning lines never overwrites that archive. Catalog default quantities remain stored but are not read by the daily editor. Actual purchases, purchase lines, payments, reversals, cancellations, audit and request ledgers retain their tables and financial semantics. Tenant-scoped foreign keys and revoked direct client privileges apply to the new table.
+
+Review/apply outstanding migrations in timestamp order before the updated API, then reload updated Operations JavaScript. Avoid mixed old/new API binaries during rollout: old binaries write the legacy table and cannot use the new quantity contract. An older Operations shopping editor that still sends prices must be upgraded. No hosted migrations are applied by application startup.
+
 Saving a shopping sheet only saves a **plan**. It never posts a purchase, expense, payment, cash movement, payable, latest cost or usage date. Confirming an actual purchase is a separate explicit `POST /purchases`. A linked `sheetId` can be posted once; actual purchase lines may reflect what was really bought. The sheet then shows `PURCHASED` or `CANCELLED` and its derived payment status. Posted sheet contents cannot be edited.
+
+Copying a saved plan into a purchase draft is available only in Purchasing, requires explicit confirmation, and leaves every copied cost blank. The user enters actual costs and may change quantities or remove items before separately confirming a purchase. Independent purchases need no plan. The mobile purchase submission stores its immutable body and key in account/restaurant/environment-scoped SecureStore before sending, and resolves an uncertain result using the same body/key after navigation or relaunch. Corrupt/unavailable recovery storage blocks a new purchase. Only confirmed non-write errors release the retained attempt, including the known rolled-back data/correction conflicts; network failures and ambiguous server responses retain it. Successful purchase details provide payment/reversal and correction/cancellation actions as before.
 
 A purchase requires an actual `purchasedAt` timestamp matching `purchaseDate` in the restaurant timezone. Future confirmations are rejected. Backdated purchases are permitted. Their immutable item names, quantity, unit, unit cost and totals do not change when the catalog changes. Whole-currency unit costs multiply exact decimal quantities; non-whole results and overflow are rejected instead of rounded. `latestUnitCost` and `latestCostUnit` come from the latest confirmed, noncancelled purchase ordered by purchase date, purchase timestamp and recorded timestamp. Costs in different units must not be compared as if the units match.
 

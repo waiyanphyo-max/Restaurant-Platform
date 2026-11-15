@@ -1,0 +1,21 @@
+{
+  "name": "@restaurant-platform/mobile-notifications",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./native.ts",
+    "./lifecycle": "./lifecycle.ts",
+    "./navigation": "./navigation.ts"
+  },
+  "scripts": {
+    "lint": "eslint *.ts"
+  },
+  "peerDependencies": {
+    "expo-device": "~58.0.5",
+    "expo-network": "~58.0.4",
+    "expo-notifications": "~58.1.7",
+    "expo-secure-store": "~58.0.2",
+    "react": "19.3.0",
+    "react-native": "^0.88.1"
+  }
+}

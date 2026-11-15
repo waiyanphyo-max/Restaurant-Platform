@@ -35,7 +35,10 @@ test("operations fixture export embeds a fixed restaurant and operations applica
     assert.ok(result.plugins.includes("expo-router"));
     assert.deepEqual(result.plugins.find(plugin => Array.isArray(plugin) && plugin[0] === "expo-secure-store"),
       ["expo-secure-store", { configureAndroidBackup: true }]);
+    // Development HTTP is explicitly enabled alongside the existing scoped host policy.
     assert.equal(result.plugins.find(plugin => Array.isArray(plugin) && plugin[0] === "expo-build-properties")[1].android.usesCleartextTraffic, true);
+    const [, network] = result.plugins.find(plugin => Array.isArray(plugin) && plugin[0].endsWith("/with-network-security.cjs"));
+    assert.deepEqual(network.cleartextHosts, ["localhost", "127.0.0.1", "::1", "10.0.2.2"]);
   });
 });
 
@@ -84,8 +87,13 @@ test("native launcher labels preserve literal punctuation and spacing in Android
     projectRoot, platforms: ["android"], introspect: true, ignoreExistingNativeFiles: true
   });
   const strings = _internal.modResults.android.strings.resources.string;
-  assert.deepEqual(strings.find((item) => item.$.name === "app_name"), {
-    $: { name: "app_name", formatted: "false" },
+  const label = strings.find((item) => item.$.name === "app_name");
+  assert.deepEqual(label, {
+    $: { name: "app_name", formatted: "false", translatable: "false" },
     _: '"Moe\'s \\"Tea\\"  10% \\\\ Kitchen"'
   });
+  const { format } = require("@expo/config-plugins/build/utils/XML");
+  const { parseStringPromise } = require("xml2js");
+  const serialized = await parseStringPromise(format({ resources: { string: [structuredClone(label)] } }));
+  assert.deepEqual(serialized.resources.string[0], label);
 });

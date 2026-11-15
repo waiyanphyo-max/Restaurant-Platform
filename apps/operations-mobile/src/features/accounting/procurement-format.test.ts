@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { procurementMoney, purchaseOccurrence, purchaseQuantity, purchaseTimestamp, purchaseWholeAmount } from "./procurement-format";
+import { procurementMoney, purchaseLineTotal, purchaseOccurrence, purchaseQuantity, purchaseTimestamp, purchaseWholeAmount } from "./procurement-format";
 
 describe("procurement date and precision boundaries",()=>{
+  it("reviews decimal purchase valuation exactly and rejects rounding and overflow", () => {
+    expect(purchaseLineTotal("1.5", "200")).toBe("300");
+    expect(purchaseLineTotal("1", "9007199254740993")).toBe("9007199254740993");
+    expect(() => purchaseLineTotal("0.3", "1")).toThrow("whole currency");
+    expect(() => purchaseLineTotal("2", "9223372036854775807")).toThrow();
+  });
   it("preserves amounts beyond binary floating point precision",()=>{
     expect(procurementMoney("9007199254740993")).toBe("9,007,199,254,740,993");
     expect(purchaseWholeAmount("9007199254740993")).toBe("9007199254740993");

@@ -100,6 +100,36 @@ describe("guest same-origin QR context", () => {
     const refused = await handleGuestApi(wrong, "tea", { baseUrl, fetchImpl });
     expect(refused.status).toBe(404);
   });
+
+  it.each([
+    { input: { action: "validate", kind: "COMMON_QR", qrToken }, upstream: { restaurantId: a.restaurantId, kind: "COMMON_QR", tableId: null, tableNumber: null } },
+    { input: checkout, upstream: order() },
+    { input: { action: "status", ticketId, queueToken }, upstream: status() },
+  ])("accepts the reviewed HTTPS browser origin behind TLS termination: $input.action", async ({ input, upstream }) => {
+    mocks.headers.mockResolvedValue(new Headers({ host: "garden.test" }));
+    const req = new Request("http://garden.test/api/guest", {
+      method: "POST", headers: { host: "garden.test", origin: "https://garden.test", "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const fetchImpl = fetchResponse(upstream);
+    const response = await handleGuestApi(req, undefined, { baseUrl, fetchImpl });
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual(upstream);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("accepts same-origin HTTP on loopback for Android ADB reverse development", async () => {
+    vi.stubEnv("GUEST_CONFIG_ENV", "staging");
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("GUEST_LOCAL_ROUTING", "true");
+    mocks.headers.mockResolvedValue(new Headers({ host: "127.0.0.1:3002" }));
+    const req = new Request("http://127.0.0.1:3002/r/garden/api/guest", {
+      method: "POST", headers: { host: "127.0.0.1:3002", origin: "http://127.0.0.1:3002", "content-type": "application/json" },
+      body: JSON.stringify({ action: "validate", kind: "COMMON_QR", qrToken }),
+    });
+    const response = await handleGuestApi(req, "garden", { baseUrl, fetchImpl: fetchResponse({ restaurantId: a.restaurantId, kind: "COMMON_QR", tableId: null, tableNumber: null }) });
+    expect(response.status).toBe(200);
+  });
 });
 
 describe("checkout response and idempotency", () => {
@@ -235,6 +265,9 @@ describe("guest input and failure containment", () => {
     { origin: "https://attacker.test" },
     { origin: "null" },
     { origin: "http://garden.test" },
+    { origin: "http://garden.test", "x-forwarded-proto": "https" },
+    { origin: "https://attacker.test", "x-forwarded-host": "attacker.test", "x-forwarded-proto": "https" },
+    { origin: "https://garden.test:444" },
     { "content-type": "text/plain" },
   ];
   it.each(unsafeHeaders)("refuses cross-origin and non-JSON posts", async headers => {

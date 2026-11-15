@@ -160,6 +160,19 @@ function apiOrigin(value: string) {
   if ((origin.protocol !== "https:" && !local) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash || value.trim() !== value) throw new ApiConfigurationError("Invalid API origin");
   return origin;
 }
+
+function sameBrowserOrigin(origin: string, expectedHost: string): boolean {
+  const browser = new URL(origin);
+  if (browser.origin !== origin || browser.host !== expectedHost.toLowerCase()) return false;
+  // TLS may terminate at the ingress, so Request.url's internal HTTP scheme is
+  // not the browser's scheme. Host still has to resolve to a reviewed tenant.
+  // Never use forwarded host/protocol to authorize a different browser origin.
+  if (browser.protocol === "https:") return true;
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(browser.hostname)
+    || browser.hostname.endsWith(".localhost");
+  return browser.protocol === "http:" && loopback;
+}
+
 async function validateQr(origin: URL, restaurantId: string, input: Extract<Input, { action: "validate" }>, fetchImpl: typeof fetch, timeoutMs: number) {
   const response = await fetchImpl(new URL(`/api/v1/public/restaurants/${restaurantId}/qr-context`, origin), {
     method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -186,7 +199,7 @@ export async function handleGuestApi(request: Request, slug?: string, options: O
     const origin = request.headers.get("origin");
     const expectedHost = request.headers.get("host") ?? url.host;
     if (request.method !== "POST" || url.search || !request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return failure("selection", 400);
-    if (origin && (new URL(origin).host !== expectedHost || new URL(origin).protocol !== url.protocol || new URL(origin).origin !== origin)) return failure("invalid-qr", 403);
+    if (origin && !sameBrowserOrigin(origin, expectedHost)) return failure("invalid-qr", 403);
     if (Number(request.headers.get("content-length") ?? 0) > 100_000) return failure("selection", 413);
     const body = await request.text();
     if (body.length > 100_000) return failure("selection", 413);

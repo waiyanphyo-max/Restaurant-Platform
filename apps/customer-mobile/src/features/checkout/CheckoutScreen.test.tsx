@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CustomerAddressResponse, DeliveryQuoteRequest } from "@restaurant-platform/shared-types";
 import type { CustomerAccount } from "../profile/AccountProvider";
 import type { CheckoutAttempt } from "./CheckoutProvider";
+import type { QueryState } from "../../hooks/useApiQuery";
 
 const harness = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], state: 0, ref: 0,
-  quote: vi.fn(), submit: vi.fn(), abandon: vi.fn(), reset: vi.fn(), locate: vi.fn(), map: true, language: "en",
+  quote: vi.fn(), submit: vi.fn(), abandon: vi.fn(), reset: vi.fn(), locate: vi.fn(), reloadZones: vi.fn(), map: true, language: "en",
+  zoneState: { status: "loading" } as QueryState<unknown[]>,
   checkoutState: { status: "idle" } as { status: "idle" } | { status: "uncertain"; attempt: CheckoutAttempt }
 }));
 vi.mock("react", async load => ({
@@ -25,11 +27,11 @@ vi.mock("react", async load => ({
   useEffect: vi.fn()
 }));
 vi.mock("react-native", () => ({ Text: "Text" }));
-vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page" }));
+vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page", StateView: "StateView" }));
 vi.mock("../../i18n", () => ({ useCustomerLanguage: () => harness.language, useCustomerText: () => (en: string, my: string) => harness.language === "en" ? en : my }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => ({ mapsConfigured: harness.map, branding: { displayName: "Restaurant" } }) }));
 vi.mock("../../api", () => ({ getCustomerApi: () => ({ quoteDelivery: harness.quote }) }));
-vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: () => ({ state: { status: "loading" } }) }));
+vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: () => ({ state: harness.zoneState, reload: harness.reloadZones }) }));
 vi.mock("../addresses/AddressMap", () => ({ AddressMap: "AddressMap" }));
 vi.mock("../addresses/DestinationPin", () => ({ DestinationPin: "DestinationPin" }));
 vi.mock("../addresses/native-location", () => ({ suggestCurrentLocation: harness.locate }));
@@ -90,12 +92,27 @@ function fillAddress() {
 describe("customer checkout destination selection", () => {
   beforeEach(() => {
     harness.states = []; harness.refs = []; harness.map = true; harness.language = "en";
+    harness.zoneState = { status: "loading" };
     harness.checkoutState = { status: "idle" };
     vi.resetAllMocks();
     harness.quote.mockImplementation(async (request: DeliveryQuoteRequest) => ({
       confirmationToken: "server-quote", idempotencyKey: "server-key", totalAmount: 8500,
       destination: { address: request.temporaryDestination?.address ?? "12 Main Rd" }
     }));
+  });
+
+  it("reports a delivery-area failure and retries that request while server quotes remain authoritative", async () => {
+    harness.zoneState = { status: "offline", failure: { kind: "network", operation: "checkout-zones" } };
+    const failure = elements(render()).find(element => element.type === "StateView")!;
+    expect(failure.props.title).toBe("Could not load delivery areas");
+    expect(failure.props.message).toContain("Check your connection");
+    (failure.props.onRetry as () => void)();
+    expect(harness.reloadZones).toHaveBeenCalledOnce();
+    expect(harness.quote).not.toHaveBeenCalled();
+    harness.zoneState = { status: "ready", data: [] };
+    press("Check delivery and review total"); await tick();
+    expect(harness.quote).toHaveBeenCalledOnce();
+    expect(harness.submit).not.toHaveBeenCalled();
   });
 
   it("selects the default saved address and requires a final action after quote", async () => {

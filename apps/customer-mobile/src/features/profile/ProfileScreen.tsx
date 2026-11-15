@@ -6,6 +6,7 @@ import { getCustomerApi } from "../../api";
 import { useCustomerAuth } from "../../auth/AuthProvider";
 import { Action, Body, Card, FormField, Page, StateView } from "../../components/ui";
 import { customerLanguage, queryStateLabel, useCustomerText } from "../../i18n";
+import { accountFailureTitle, apiFailure, apiFailureMessage, logApiFailure } from "../../hooks/apiFailure";
 import { enableCustomerNotifications, retryCustomerDeviceCleanup } from "../../notifications/native";
 import { readEmbeddedTenant } from "../../tenant";
 import { homeAddress, useCustomerAccount } from "./AccountProvider";
@@ -24,12 +25,14 @@ export function ProfileScreen() {
   const inFlight = useRef(false);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  async function perform(action: () => Promise<void>) {
+  async function perform(action: () => Promise<void>, operation = "profile-update") {
     if (inFlight.current) return;
     inFlight.current = true; setBusy(true); setNotice(null);
     try { await action(); }
-    catch { if (alive.current) setNotice(t("Unable to confirm the change. Check your connection, refresh, and try again.",
-      "ပြောင်းလဲမှုကို အတည်မပြုနိုင်ပါ။ အင်တာနက်ချိတ်ဆက်မှု စစ်ဆေးပြီး အသစ်ပြန်ရယူကာ ထပ်ကြိုးစားပါ။")); }
+    catch (error) {
+      const failure = apiFailure(error, operation); logApiFailure(failure);
+      if (alive.current) setNotice(apiFailureMessage(failure, t) ?? null);
+    }
     finally { inFlight.current = false; if (alive.current) setBusy(false); }
   }
   function saveProfile() {
@@ -53,7 +56,8 @@ export function ProfileScreen() {
   const logOut = t("Log out", "အကောင့်မှ ထွက်ရန်");
   const cancel = t("Cancel", "မလုပ်တော့ပါ");
   if (account.state.status !== "ready") return <Page title={title}>
-    <StateView kind={account.state.status} title={queryStateLabel(account.state.status, t)} onRetry={account.reload} retryLabel={t("Try again", "ထပ်ကြိုးစားပါ")} />
+    <StateView kind={account.state.status} title={account.state.status === "error" ? accountFailureTitle(account.state.failure, t) : queryStateLabel(account.state.status, t)}
+      message={account.state.status === "loading" ? undefined : apiFailureMessage(account.state.failure, t)} onRetry={account.reload} retryLabel={t("Try again", "ထပ်ကြိုးစားပါ")} />
     <Action title={logOut} onPress={() => { void auth.signOut().catch(() => undefined); }} /></Page>;
   const { profile, addresses } = account.state.data;
   const home = homeAddress(addresses);
@@ -92,13 +96,13 @@ export function ProfileScreen() {
       <Action title={t(`View or change ${address.label}`, `${address.label} ကြည့်ရန် သို့မဟုတ် ပြင်ရန်`)} secondary disabled={busy} onPress={() => account.editAddress(address)} />
       {!address.isDefault ? <Action title={t("Use as default", "ပုံသေလိပ်စာအဖြစ် သုံးရန်")} secondary disabled={busy} onPress={() => { void perform(async () => {
         await getCustomerApi().setDefaultAddress(address.id); if (alive.current) account.reload();
-      }); }} /> : null}
+      }, "address-update"); }} /> : null}
       {deleting === address.id ? <>
         <Body>{t(`Delete ${address.label} from your saved addresses?`, `သိမ်းထားသော လိပ်စာများမှ ${address.label} ကို ဖျက်မလား။`)}</Body>
         <Action title={t("Confirm address deletion", "လိပ်စာဖျက်ရန် အတည်ပြုပါ")} disabled={busy} onPress={() => { void perform(async () => {
           await getCustomerApi().deleteAddress(address.id);
           if (alive.current) { setDeleting(null); account.reload(); }
-        }); }} />
+        }, "address-update"); }} />
         <Action title={cancel} disabled={busy} secondary onPress={() => setDeleting(null)} />
       </> : <Action title={t("Delete saved address", "သိမ်းထားသော လိပ်စာ ဖျက်ရန်")} secondary disabled={busy} onPress={() => setDeleting(address.id)} />}
     </Card>)}
@@ -109,11 +113,11 @@ export function ProfileScreen() {
         : t("Order notifications are not configured in this app yet.", "ဤအက်ပ်တွင် အမှာစာအတွက် စက်သို့ အသိပေးချက်ပို့ခြင်းကို မသတ်မှတ်ရသေးပါ။")}</Body>
       <Action title={t("Enable notifications", "အသိပေးချက်များ ဖွင့်ရန်")} disabled={busy || !tenant.notificationsEnabled} onPress={() => { void perform(async () => {
         const result = await enableCustomerNotifications(t); if (alive.current) setNotice(result);
-      }); }} />
+      }, "notifications"); }} />
       <Action title={t("Retry pending device cleanup", "စက်မှတ်ပုံတင် ဖြုတ်ရန် ထပ်ကြိုးစားပါ")} secondary disabled={busy || !tenant.notificationsEnabled} onPress={() => { void perform(async () => {
         await retryCustomerDeviceCleanup(); if (alive.current) setNotice(t("Pending device cleanup checked.", "စက်မှတ်ပုံတင် ဖြုတ်ရန် ကျန်ရှိမှုကို စစ်ဆေးပြီးပါပြီ။"));
-      }); }} />
+      }, "notifications"); }} />
     </Card>
-    <Action title={logOut} disabled={busy} onPress={() => { void perform(auth.signOut); }} secondary />
+    <Action title={logOut} disabled={busy} onPress={() => { void perform(auth.signOut, "logout"); }} secondary />
   </Page>;
 }

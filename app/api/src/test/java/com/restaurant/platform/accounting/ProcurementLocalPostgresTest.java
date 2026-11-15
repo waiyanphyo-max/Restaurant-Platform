@@ -24,6 +24,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** Exercises every procurement query family against reviewed migrations in an opt-in disposable database. */
 @EnabledIfEnvironmentVariable(named="ACCOUNTING_TEST_DATABASE_URL",matches="jdbc:postgresql://127\\.0\\.0\\.1:[0-9]+/accounting_verify")
 class ProcurementLocalPostgresTest {
+    @Test void dailyPlansAreIndependentFromFinancialRecordsAndOtherRestaurants() {
+        AccountingDatabaseChecks.independentDailyPlansAndExplicitPurchases(
+                new DriverManagerDataSource(System.getenv("ACCOUNTING_TEST_DATABASE_URL"),"postgres",""));
+    }
+
     @Test void multiLineCsvEmitsPurchaseTotalsAndPaymentHistoryOnce() {
         var f=new Fixture();
         var item=f.tx(()->f.service.saveItem(f.restaurant,null,"csv-item",new ItemInput("CSV item","pack",BigDecimal.ONE,null,true,null)));
@@ -56,10 +61,11 @@ class ProcurementLocalPostgresTest {
         assertEquals(1,f.service.suppliers(f.restaurant,"Local",0,20).totalElements());
         var item=f.tx(()->f.service.saveItem(f.restaurant,null,"item",new ItemInput("Rice","kg",BigDecimal.ONE,supplier.id(),false,null)));
         var lines=List.of(new LineInput(item.id(),new BigDecimal("2.5"),"kg",100L,supplier.id()));
-        var plan=f.tx(()->f.service.saveSheet(f.restaurant,null,"sheet",new SheetInput(f.today,lines,null)));
+        var planningLines=List.of(new PlanLineInput(item.id(),new BigDecimal("2.5"),"kg"));
+        var plan=f.tx(()->f.service.saveSheet(f.restaurant,null,"sheet",new SheetInput(f.today,planningLines,null)));
         assertEquals("PLANNED",plan.status());assertEquals(0,f.count("accounting_purchases"));
         UUID sheetId=plan.id();
-        f.tx(()->f.service.saveSheet(f.restaurant,sheetId,"sheet-correction",new SheetInput(f.today,lines,"Confirm planned quantity")));
+        f.tx(()->f.service.saveSheet(f.restaurant,sheetId,"sheet-correction",new SheetInput(f.today,planningLines,"Confirm planned quantity")));
         assertEquals(1,f.service.sheets(f.restaurant,f.today,f.today,0,20).totalElements());
         var body=new PurchaseInput(f.today,f.now.minusMinutes(1),supplier.id(),lines,sheetId,f.today.plusDays(7),null,"INV-ONE",null,null);
         var purchase=f.tx(()->f.service.confirmPurchase(f.restaurant,"confirm",body));
@@ -69,7 +75,7 @@ class ProcurementLocalPostgresTest {
         assertEquals("PURCHASED",f.service.sheet(f.restaurant,sheetId).status());
         assertEquals(1,f.service.purchases(f.restaurant,f.today,f.today,supplier.id(),"Rice","UNPAID",0,20).totalElements());
         assertEquals(250,f.service.report(f.restaurant,f.today,f.today,supplier.id(),"Rice","UNPAID").confirmedTotal());
-        assertThrows(ApiException.class,()->f.tx(()->f.service.saveSheet(f.restaurant,sheetId,"posted-sheet",new SheetInput(f.today,lines,"Cannot overwrite posted plan"))));
+        assertThrows(ApiException.class,()->f.tx(()->f.service.saveSheet(f.restaurant,sheetId,"posted-sheet",new SheetInput(f.today,planningLines,"Cannot overwrite posted plan"))));
         var payment=new PaymentInput(100L,"CASH",f.now);
         var paid=f.tx(()->f.service.payPurchase(f.restaurant,purchase.purchase().id(),"payment",payment));
         assertEquals("PARTIALLY_PAID",paid.purchase().paymentStatus());assertEquals(150,paid.purchase().outstandingAmount());

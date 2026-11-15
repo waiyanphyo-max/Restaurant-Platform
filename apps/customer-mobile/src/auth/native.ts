@@ -13,7 +13,7 @@ import {
   type NativeSessionController
 } from "./session";
 
-function checkedSupabaseOrigin(value: string | undefined, environment: string): string {
+function checkedSupabaseOrigin(value: string | undefined): string {
   if (!value) throw new Error("Public Supabase URL is not configured");
   let url: URL;
   try {
@@ -21,9 +21,8 @@ function checkedSupabaseOrigin(value: string | undefined, environment: string): 
   } catch {
     throw new Error("Public Supabase URL must be an origin");
   }
-  const emulatorHost = ["localhost", "127.0.0.1", "10.0.2.2"].includes(url.hostname);
   if (
-    (url.protocol !== "https:" && !(environment === "development" && url.protocol === "http:" && emulatorHost)) ||
+    url.protocol !== "https:" ||
     url.username || url.password || url.pathname !== "/" || url.search || url.hash ||
     !/^[a-z0-9.-]+$/i.test(url.hostname)
   ) {
@@ -40,13 +39,16 @@ function checkedPublishableKey(value: string | undefined): string {
 }
 
 let singleton: NativeSessionController | null = null;
+export function customerEmailRecoveryEnabled(): boolean {
+  return process.env.EXPO_PUBLIC_CUSTOMER_EMAIL_OTP_RECOVERY_ENABLED === "true";
+}
 
 /** Returns only Auth methods. Business data must go through the Spring API. */
 export function getCustomerAuth(): NativeSessionController {
   if (singleton) return singleton;
   if (Platform.OS !== "android") throw new Error("This Customer build supports Android only");
   const tenant = readEmbeddedTenant();
-  const supabaseUrl = checkedSupabaseOrigin(process.env.EXPO_PUBLIC_SUPABASE_URL, tenant.environment);
+  const supabaseUrl = checkedSupabaseOrigin(process.env.EXPO_PUBLIC_SUPABASE_URL);
   const publishableKey = checkedPublishableKey(process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const projectUrl = new URL(supabaseUrl);
   const projectScope = `${projectUrl.hostname}.${projectUrl.port || (projectUrl.protocol === "https:" ? "443" : "80")}`;
@@ -86,6 +88,27 @@ export function getCustomerAuth(): NativeSessionController {
       if (error) throw error;
       return data.session;
     },
+    async resendConfirmation(email) {
+      const { error } = await client.auth.resend({ type: "signup", email });
+      if (error) throw error;
+    },
+    async requestPasswordReset(email) {
+      if (!customerEmailRecoveryEnabled()) throw Object.assign(new Error("Recovery unavailable"), { code: "recovery_unavailable" });
+      const { error } = await recoveryAuth().resetPasswordForEmail(email);
+      if (error) throw error;
+    },
+    async resetPassword(email, token, password) {
+      if (!customerEmailRecoveryEnabled()) throw Object.assign(new Error("Recovery unavailable"), { code: "recovery_unavailable" });
+      // A recovery session must never become the shopping session, including after app restart.
+      const recovery = recoveryAuth();
+      try {
+        const verified = await recovery.verifyOtp({ email, token, type: "recovery" });
+        if (verified.error) throw verified.error;
+        if (!verified.data.session || !verified.data.user) throw new Error("No verified recovery session");
+        const { error } = await recovery.updateUser({ password });
+        if (error) throw error;
+      } finally { await recovery.signOut({ scope: "local" }); }
+    },
     phoneOtpEnabled() {
       return phoneProviderAvailable(tenant.phoneOtpRequested, supabaseUrl, publishableKey);
     },
@@ -118,7 +141,11 @@ export function getCustomerAuth(): NativeSessionController {
       return data.session;
     },
     onSessionChange(listener) {
-      const { data } = client.auth.onAuthStateChange((_event, session) => listener(session));
+      const { data } = client.auth.onAuthStateChange((event, session) => {
+        // restore() owns startup errors/retry. auth-js emits a null INITIAL_SESSION
+        // after some transient restoration failures; it is not an explicit logout.
+        if (event !== "INITIAL_SESSION") listener(session);
+      });
       return () => data.subscription.unsubscribe();
     },
     startAutoRefresh() {
@@ -128,6 +155,11 @@ export function getCustomerAuth(): NativeSessionController {
       client.auth.stopAutoRefresh();
     }
   };
+  function recoveryAuth() {
+    return createClient(supabaseUrl, publishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    }).auth;
+  }
   const lifecycle: AppLifecyclePort = {
     currentState: AppState.currentState ?? "inactive",
     addEventListener(_event, listener) {

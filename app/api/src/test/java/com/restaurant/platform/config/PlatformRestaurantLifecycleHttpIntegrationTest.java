@@ -63,6 +63,7 @@ class PlatformRestaurantLifecycleHttpIntegrationTest {
     @MockitoBean private ProfileRepository profiles;
     @MockitoBean private RestaurantPlatformConfigurationRepository configurations;
     @MockitoBean private SupabaseAuthAdminClient authAdmin;
+    @MockitoBean private OwnerOnboardingRepository onboarding;
 
     @BeforeEach
     void setUp() {

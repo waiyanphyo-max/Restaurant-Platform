@@ -11,6 +11,7 @@ const native = vi.hoisted(() => ({
   authListener: undefined as undefined | ((state: { status: string; userId?: string }) => void),
   channel: vi.fn(), request: vi.fn(), permission: vi.fn(), token: vi.fn(),
   unregister: vi.fn(), dismiss: vi.fn(), cancel: vi.fn(), save: vi.fn(),
+  clearResponse: vi.fn(), setHandler: vi.fn(),
   register: vi.fn(), deactivate: vi.fn(), bearer: vi.fn(),
   tokenRemove: vi.fn(), foregroundRemove: vi.fn(), networkRemove: vi.fn(), authRemove: vi.fn()
 }));
@@ -29,6 +30,7 @@ vi.mock("expo-notifications", () => ({
   getPermissionsAsync: native.permission, getDevicePushTokenAsync: native.token,
   unregisterForNotificationsAsync: native.unregister, dismissAllNotificationsAsync: native.dismiss,
   cancelAllScheduledNotificationsAsync: native.cancel,
+  clearLastNotificationResponse: native.clearResponse, setNotificationHandler: native.setHandler,
   addPushTokenListener(callback: typeof native.tokenListener) { native.tokenListener = callback; return { remove: native.tokenRemove }; }
 }));
 vi.mock("react-native", () => ({ AppState: { addEventListener(_event: string, callback: typeof native.foreground) {
@@ -123,6 +125,37 @@ describe("customer native notification registration", () => {
     expect(native.register).not.toHaveBeenCalled();
   });
 
+  it("retries the initial token fetch on reconnect after consent was granted offline", async () => {
+    const notifications = await import("./native");
+    const stop = notifications.watchCustomerNotificationConnectivity();
+    native.token.mockRejectedValueOnce(new Error("offline"));
+    await expect(notifications.enableCustomerNotifications()).rejects.toThrow("offline");
+    expect(savedState().optedInUser).toBe("alice");
+    expect(native.register).not.toHaveBeenCalled();
+
+    native.network?.({ isConnected: true, isInternetReachable: true });
+    await notifications.resumeCustomerNotifications();
+    expect(native.request).toHaveBeenCalledOnce();
+    expect(native.register).toHaveBeenCalledOnce();
+    expect(savedState().activeDeviceId).toBe("device-one");
+    stop();
+  });
+
+  it("shows foreground alerts for the enrolled identity and clears tap state on logout", async () => {
+    const notifications = await import("./native");
+    const stop = notifications.watchCustomerNotificationConnectivity();
+    await notifications.enableCustomerNotifications();
+    const { handleNotification } = native.setHandler.mock.calls[0][0];
+    expect(await handleNotification()).toMatchObject({ shouldShowBanner: true, shouldShowList: true });
+    expect(await notifications.customerNotifications.ownsNotifications("bob")).toBe(false);
+
+    const cleanup = notifications.cleanupCustomerDevice();
+    expect(await handleNotification()).toMatchObject({ shouldShowBanner: false, shouldShowList: false });
+    await cleanup;
+    expect(native.clearResponse).toHaveBeenCalled();
+    stop();
+  });
+
   it("restores an earlier opt-in without prompting and refreshes a rotated token on foreground", async () => {
     native.raw = JSON.stringify({ optedInUser: "alice", associations: [{ userId: "alice", deviceId: "old-device" }] });
     const notifications = await import("./native");
@@ -162,6 +195,34 @@ describe("customer native notification registration", () => {
     const rotationSaves = native.save.mock.calls.slice(savedBeforeRotation).map(call => JSON.parse(String(call[1])));
     expect(rotationSaves.every(state => state.associations.some((row: { deviceId: string }) => row.deviceId === "device-two"))).toBe(true);
     expect(native.deactivate).toHaveBeenCalledWith("device-one", { timeoutMs: 3000 }, "alice-access-token", "restaurant");
+  });
+
+  it("registers a rotation that arrives while the first API request is pending", async () => {
+    const firstResponse = deferred<{ id: string }>();
+    native.register.mockReturnValueOnce(firstResponse.promise).mockResolvedValueOnce({ id: "device-two" });
+    const notifications = await import("./native");
+    const enrollment = notifications.enableCustomerNotifications();
+    await vi.waitFor(() => expect(native.register).toHaveBeenCalledOnce());
+
+    native.tokenListener?.({ type: "android", data: "rotated-token" });
+    firstResponse.resolve({ id: "device-one" });
+    await enrollment;
+    await vi.waitFor(() => expect(savedState().activeDeviceId).toBe("device-two"));
+    expect(native.register.mock.calls.map(([token]) => token)).toEqual(["native-fcm-token", "rotated-token"]);
+  });
+
+  it("posts only once when fetching the current token also emits the Expo token event", async () => {
+    const notifications = await import("./native");
+    await notifications.enableCustomerNotifications();
+    native.token.mockImplementation(async () => {
+      const fetched = { type: "android", data: "rotated-token" };
+      native.tokenListener?.(fetched);
+      return fetched;
+    });
+    await notifications.resumeCustomerNotifications();
+    native.tokenListener?.({ type: "android", data: "rotated-token" });
+    await flush();
+    expect(native.register.mock.calls.map(([token]) => token)).toEqual(["native-fcm-token", "rotated-token"]);
   });
 
   it("cleans an earlier opt-in if Android notification permission was revoked", async () => {

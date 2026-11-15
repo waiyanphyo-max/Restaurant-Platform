@@ -37,6 +37,7 @@ class PlatformRestaurantLifecycleServiceTest {
     private ProfileRepository profiles;
     private RestaurantPlatformConfigurationRepository configurations;
     private SupabaseAuthAdminClient authAdmin;
+    private OwnerOnboardingRepository onboarding;
     private PlatformRestaurantLifecycleService service;
     private Restaurant restaurant;
 
@@ -50,8 +51,9 @@ class PlatformRestaurantLifecycleServiceTest {
         profiles = mock(ProfileRepository.class);
         configurations = mock(RestaurantPlatformConfigurationRepository.class);
         authAdmin = mock(SupabaseAuthAdminClient.class);
+        onboarding = mock(OwnerOnboardingRepository.class);
         service = new PlatformRestaurantLifecycleService(authorization, restaurants, settings,
-                members, orders, profiles, configurations, authAdmin, "https://guest.example.test");
+                members, orders, profiles, configurations, authAdmin, onboarding, "https://guest.example.test");
         restaurant = new Restaurant();
         restaurant.setId(restaurantId);
         restaurant.setName("Garden");
@@ -66,6 +68,30 @@ class PlatformRestaurantLifecycleServiceTest {
         when(settings.findById(restaurantId)).thenReturn(Optional.of(row));
         when(members.findByRestaurantIdAndRoleOrderByCreatedAtAsc(restaurantId, RestaurantRole.OWNER))
                 .thenReturn(List.of());
+    }
+
+    @Test
+    void confirmedEmailAndPreviousSignInAreUnknownUntilAppOwnedPasswordProof() {
+        addOwner();
+        var now = OffsetDateTime.now();
+        when(authAdmin.getUserById(ownerId)).thenReturn(new SupabaseAuthAdminClient.AuthUser(
+                ownerId, "owner@example.test", now, now.minusDays(1), now, null, null));
+        assertEquals("UNKNOWN", service.getDetail(restaurantId).owners().getFirst().onboardingStatus());
+        when(onboarding.findCompletedAt(ownerId)).thenReturn(Optional.of(now));
+        var completed = service.getDetail(restaurantId).owners().getFirst();
+        assertEquals("COMPLETE", completed.onboardingStatus());
+        assertEquals(now, completed.onboardingCompletedAt());
+    }
+
+    @Test
+    void unappliedOnboardingMigrationKeepsRestaurantVisibleAndDisablesUnsafeAction() {
+        addOwner();
+        when(authAdmin.getUserById(ownerId)).thenReturn(new SupabaseAuthAdminClient.AuthUser(ownerId, "owner@example.test"));
+        when(onboarding.findCompletedAt(ownerId)).thenThrow(new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
+                "OWNER_INVITATION_NOT_CONFIGURED", "error.owner-onboarding.unavailable"));
+        var detail = service.getDetail(restaurantId);
+        assertEquals(restaurantId, detail.restaurant().id());
+        assertEquals("UNAVAILABLE", detail.owners().getFirst().onboardingStatus());
     }
 
     @Test

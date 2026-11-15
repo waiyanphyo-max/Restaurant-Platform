@@ -33,13 +33,22 @@ describe("menu forms and catalogue history", () => {
     expect(categoryRequest("Drinks", "2", false)).toEqual({ name: "Drinks", displayOrder: 2, active: false });
   });
   it("validates variant/option prices and modifier selection constraints", () => {
-    expect(variantRequest("Large", "3500", false, product.imageUrl)).toEqual({ name: "Large", price: 3500, available: false, imageUrl: product.imageUrl });
+    expect(variantRequest("Large", "3500", false, product.imageUrl)).toEqual({ name: "Large", price: 3500, available: false, imageUrl: product.imageUrl, description: null });
     expect(modifierOptionRequest("Egg", "500", true).additionalPrice).toBe(500);
     expect(() => variantRequest("Large", "0.5", true, null)).toThrow();
     expect(() => modifierOptionRequest("", "500", true)).toThrow();
     expect(() => modifierGroupRequest("Sides", true, "0", "2", true)).toThrow("Required groups");
     expect(() => modifierGroupRequest("Sides", false, "3", "2", true)).toThrow("Maximum");
     expect(modifierGroupRequest("Sides", true, "1", "2", true).maxSelections).toBe(2);
+  });
+  it("saves independent optional variant descriptions and preserves Burmese and multiline text", () => {
+    expect(variantRequest("Small", "1500", true, null, " လူတစ်ယောက်အတွက်\nSuitable for one person. ").description)
+      .toBe("လူတစ်ယောက်အတွက်\nSuitable for one person.");
+    expect(variantRequest("Small", "1500", true, null, "  ").description).toBeNull();
+    expect(variantRequest("Large", "3500", true, product.imageUrl, "A family serving.")).toMatchObject({
+      imageUrl: product.imageUrl, price: 3500, description: "A family serving."
+    });
+    expect(() => variantRequest("Small", "1500", true, null, "a".repeat(5001))).toThrow("5,000");
   });
   it("searches and filters the full catalogue before paginating and clamps stale pages", () => {
     const products = Array.from({ length: 25 }, (_, i) => ({ ...product, id: String(i), name: `Noodles ${i}`, available: i % 2 === 0 }));

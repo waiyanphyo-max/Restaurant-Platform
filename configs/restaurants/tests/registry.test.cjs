@@ -94,3 +94,11 @@ test("fixture release profiles are inspection-only and branded origins come from
   assert.throws(() => getMobileBuildConfig("customer", { ...env, EAS_BUILD_PROFILE: "production" }), /EAS_BUILD_PROFILE/);
   assert.throws(() => getMobileBuildConfig("customer", { ...env, MOBILE_ENV: "development", EAS_BUILD: "true" }), /approved project/);
 });
+
+test("device-test API override permits explicit private-LAN HTTP only in development", () => {
+  const env = { ...development, RESTAURANT_SLUG: "restaurant-a", MOBILE_DEVELOPMENT_API_BASE_URL: "http://192.168.1.25:8080" };
+  assert.equal(getMobileBuildConfig("customer", env).apiBaseUrl, "http://192.168.1.25:8080");
+  assert.equal(getMobileBuildConfig("customer", { ...env, MOBILE_ENV: "production" }, { inspectFixtureProfiles: true }).apiBaseUrl,
+    "https://api.restaurant-a.test");
+  assert.throws(() => getMobileBuildConfig("customer", { ...env, MOBILE_DEVELOPMENT_API_BASE_URL: "http://api.example.test" }), /private-LAN/);
+});

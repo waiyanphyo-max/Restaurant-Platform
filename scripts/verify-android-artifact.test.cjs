@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { parseStringPromise } = require("xml2js");
-const { FINGERPRINT_META_DATA, parseApkLabel, verifyAndroidManifest, verifyEmbeddedExpoConfig } = require("./verify-android-artifact.cjs");
+const { FINGERPRINT_META_DATA, parseApkLabel, verifyAndroidManifest, verifyEmbeddedExpoConfig, verifyApkFirebaseResources } = require("./verify-android-artifact.cjs");
 
 const expected = {
   applicationId: "dev.restaurantplatform.fixturea.customer",
@@ -90,4 +90,18 @@ test("rejects a stale native build with a different embedded Expo tenant or API"
   assert.throws(() => verifyEmbeddedExpoConfig(config, release), /embedded API origin mismatch/);
   config.extra.tenant.restaurantId = "00000000-0000-4000-8000-000000000102";
   assert.throws(() => verifyEmbeddedExpoConfig(config, release), /embedded restaurant UUID mismatch/);
+});
+
+test("verifies the native Firebase resource identity from AAPT2 output", () => {
+  const firebase = { projectId: "test-project", appId: "1:123:android:aaa", senderId: "123" };
+  const resources = `
+    resource 0x7f120001 string/gcm_defaultSenderId
+      () "123"
+    resource 0x7f120002 string/google_app_id
+      () "1:123:android:aaa"
+    resource 0x7f120003 string/project_id
+      () "test-project"
+  `;
+  assert.doesNotThrow(() => verifyApkFirebaseResources(resources, firebase));
+  assert.throws(() => verifyApkFirebaseResources(resources, { ...firebase, projectId: "other-project" }), /Firebase resource project_id mismatch/);
 });

@@ -5,8 +5,13 @@ import { resolveBrandTokens } from "@restaurant-platform/ui-tokens";
 import { useOperationsAuth } from "../../src/auth/AuthProvider";
 import { getNavigationItems } from "../../src/navigation/policy";
 import { readEmbeddedTenant } from "../../src/tenant";
+import { WorkspaceBoundary } from "../../src/auth/WorkspaceBoundary";
 
 export default function WorkspaceLayout() {
+  return <WorkspaceBoundary><WorkspaceContent /></WorkspaceBoundary>;
+}
+
+function WorkspaceContent() {
   const { state } = useOperationsAuth();
   const pathname = usePathname();
   if (state.status !== "ready") return <Redirect href="/" />;

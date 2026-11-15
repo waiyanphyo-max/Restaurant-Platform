@@ -88,6 +88,7 @@ function variant(value: unknown): MenuVariantDto {
   const item = record(value);
   return {
     id: uuid(item.id), name: text(item.name), price: nullableInteger(item.price),
+    description: item.description === undefined ? null : nullableText(item.description),
     imageUrl: safeImageUrl(nullableText(item.imageUrl)) ?? null,
     available: boolean(item.available),
   };

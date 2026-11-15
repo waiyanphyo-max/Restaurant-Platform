@@ -132,6 +132,7 @@ export function createNativeSessionController(
   }
 
   return {
+    getSnapshot(): AuthSnapshot { return snapshot; },
     subscribe(listener: (value: AuthSnapshot) => void): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);

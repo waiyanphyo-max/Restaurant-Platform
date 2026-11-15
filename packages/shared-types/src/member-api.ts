@@ -238,7 +238,7 @@ export interface ProductRequest {
   categoryId: Uuid; name: string; description?: string | null; price: number;
   imageUrl?: string | null; trackStock: boolean; stockQuantity?: number | null; available: boolean;
 }
-export interface ProductVariantRequest { name: string; price: number; available: boolean; imageUrl?: string | null; }
+export interface ProductVariantRequest { name: string; price: number; available: boolean; imageUrl?: string | null; description?: string | null; }
 export interface ProductVariantResponse extends ProductVariantRequest {
   id: Uuid; productId: Uuid; imageUrl: string | null; createdAt: IsoDateTime; updatedAt: IsoDateTime;
 }

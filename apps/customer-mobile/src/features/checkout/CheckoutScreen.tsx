@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Text } from "react-native";
 import type { CustomerAddressResponse, DeliveryQuoteResponse } from "@restaurant-platform/shared-types";
 import { getCustomerApi } from "../../api";
-import { Action, Body, Card, FormField, Page } from "../../components/ui";
+import { Action, Body, Card, FormField, Page, StateView } from "../../components/ui";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import { apiFailureMessage } from "../../hooks/apiFailure";
 import { useCustomerLanguage, useCustomerText } from "../../i18n";
 import { readEmbeddedTenant } from "../../tenant";
 import { savedPin } from "../addresses/address";
@@ -29,7 +30,7 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   const cart = useCustomerCart();
   const checkout = useCustomerCheckout();
   const tenant = readEmbeddedTenant();
-  const { state: zoneState } = useApiQuery(signal => getCustomerApi().getDeliveryZones({ signal }), "checkout-zones");
+  const { state: zoneState, reload: reloadZones } = useApiQuery(signal => getCustomerApi().getDeliveryZones({ signal }), "checkout-zones");
   const [addressId, setAddressId] = useState(() => defaultAddress(addresses)?.id);
   const saved = addresses.find(address => address.id === addressId);
   const [temporary, setTemporary] = useState(false);
@@ -219,6 +220,9 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   const distinctAreas = [...new Map(areas.map(area => [`${area.city}, ${area.township}`, area])).values()];
   return <>
     <Page title={title} subtitle={tenant.branding.displayName}>
+      {zoneState.status !== "ready" && zoneState.status !== "loading" ? <StateView kind={zoneState.status}
+        title={t("Could not load delivery areas", "ပို့ဆောင်မှု ဧရိယာများ မရယူနိုင်ပါ")}
+        message={apiFailureMessage(zoneState.failure, t)} onRetry={reloadZones} retryLabel={t("Reload delivery areas", "ပို့ဆောင်မှု ဧရိယာများ ပြန်ရယူရန်")} /> : null}
       <Card title={t("Delivery location", "ပို့ဆောင်မည့်နေရာ")}>
         <Body>{t("Use a saved address or choose a location for this order.", "သိမ်းထားသည့်လိပ်စာကို သုံးပါ သို့မဟုတ် ယခုမှာယူမှုအတွက် နေရာအသစ်ရွေးပါ။")}</Body>
         {addresses.map(address => <Action key={address.id}

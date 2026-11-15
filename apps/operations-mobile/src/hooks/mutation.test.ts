@@ -32,6 +32,18 @@ describe("duplicate mutation gate", () => {
 });
 
 describe("safe operational mutation feedback", () => {
+  it("distinguishes image storage failures from invalid files without exposing provider details", () => {
+    const privateDetails = "Bearer private-token provider-response";
+    expect(mutationError(new ApiHttpError(503, "MEDIA_STORAGE_NOT_CONFIGURED", [], privateDetails))).toContain("Image storage is not configured");
+    expect(mutationError(new ApiHttpError(502, "MEDIA_STORAGE_OPERATION_FAILED", [], privateDetails))).toContain("could not be saved to storage");
+    expect(mutationError(new ApiHttpError(413, "HTTP_413"))).toContain("5 MB");
+    for (const code of ["UNSUPPORTED_IMAGE_TYPE", "IMAGE_CONTENT_MISMATCH", "INVALID_IMAGE_FILE", "IMAGE_FILE_READ_FAILED"]) {
+      expect(mutationError(new ApiHttpError(415, code, [], privateDetails))).toContain("PNG, JPEG or WebP");
+      expect(mutationError(new ApiHttpError(415, code, [], privateDetails))).not.toContain(privateDetails);
+    }
+    expect(mutationError(new ApiHttpError(502, "MEDIA_STORAGE_OPERATION_FAILED", [], privateDetails))).not.toContain(privateDetails);
+  });
+
   it("distinguishes expired authentication from a forbidden operation", () => {
     expect(mutationError(new MissingAccessTokenError())).toContain("Sign in again");
     expect(mutationError(new ApiHttpError(401, "TOKEN_EXPIRED"))).toContain("Sign in again");

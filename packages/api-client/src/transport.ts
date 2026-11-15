@@ -14,6 +14,8 @@ export type AccessTokenProvider = () => string | null | Promise<string | null>;
 
 export interface ApiTransportOptions {
   baseUrl: string;
+  /** Explicit opt-in for Android development on a trusted private LAN. */
+  allowPrivateLanHttp?: boolean;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
 }
@@ -51,13 +53,14 @@ export interface ApiTransport {
 const LOCAL_HTTP_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "10.0.2.2"]);
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
 
-export function requireApiOrigin(baseUrl: string): URL {
+export function requireApiOrigin(baseUrl: string, allowPrivateLanHttp = false): URL {
   if (typeof baseUrl !== "string" || baseUrl.trim() !== baseUrl) {
     throw new ApiConfigurationError("API base URL must be a trimmed absolute origin");
   }
   let url: URL;
   try { url = new URL(baseUrl); } catch { throw new ApiConfigurationError("API base URL must be an absolute origin"); }
-  const localHttp = url.protocol === "http:" && LOCAL_HTTP_HOSTS.has(url.hostname);
+  const privateLan = allowPrivateLanHttp === true && /^(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)(?:\.\d{1,3}){2}$/.test(url.hostname);
+  const localHttp = url.protocol === "http:" && (LOCAL_HTTP_HOSTS.has(url.hostname) || privateLan);
   if ((url.protocol !== "https:" && !localHttp) || url.username || url.password ||
       url.pathname !== "/" || url.search || url.hash || !url.hostname) {
     throw new ApiConfigurationError("API base URL must be an HTTPS origin or an approved local development origin");
@@ -125,7 +128,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 
 /** Internal transport. Public and authenticated factories are distinct at the package boundary. */
 export function createTransport(options: ApiTransportOptions, getAccessToken?: AccessTokenProvider): ApiTransport {
-  const origin = requireApiOrigin(options.baseUrl);
+  const origin = requireApiOrigin(options.baseUrl, options.allowPrivateLanHttp);
   const fetchImpl = options.fetchImpl ?? fetch;
   const defaultTimeout = requireTimeout(options.timeoutMs ?? 15_000);
 

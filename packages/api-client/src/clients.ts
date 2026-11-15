@@ -10,6 +10,7 @@ import type {
   PlatformRestaurantSummaryResponse, PlatformRestaurantDetailResponse,
   PlatformRestaurantProvisionRequest, PlatformRestaurantProvisionResponse,
   PlatformRestaurantConfigurationRequest, PlatformRestaurantStatusRequest,
+  PlatformOwnerInvitationResponse, OwnerOnboardingCompletionResponse,
   PublicMenuResponse, PublicModifierGroupResponse,
   QueueTicketManagerDto, QueueTrackingResponse, RestaurantResponse, SpringPage,
   UpdateDeliveryStatusRequest, UpdateOrderStatusRequest
@@ -110,6 +111,17 @@ export function createPlatformAdminApiClient(options: AuthenticatedApiTransportO
     async getRestaurant(id: string, o?: ApiRequestOptions): Promise<PlatformRestaurantDetailResponse> {
       return checkedDetail(await read(transport, restaurantPath(id), o), id);
     },
+    async resendOwnerInvitation(id: string, ownerId: string, o?: ApiRequestOptions): Promise<PlatformOwnerInvitationResponse> {
+      const restaurantId = requireUuid(id, "restaurantId");
+      const ownerUserId = requireUuid(ownerId, "ownerUserId");
+      const response = await transport.request<PlatformOwnerInvitationResponse>({ method: "POST",
+        path: `${restaurantPath(restaurantId)}/owners/${ownerUserId}/invitation`, options: o });
+      checkedRestaurantResponse(response, restaurantId, "restaurantId");
+      if (response.ownerUserId?.toLowerCase() !== ownerUserId || response.onboardingStatus !== "UNKNOWN" ||
+          response.emailStatus !== "REQUESTED" || !Number.isFinite(Date.parse(response.requestedAt)) ||
+          !Number.isFinite(Date.parse(response.nextAllowedAt))) throw new ApiProtocolError();
+      return response;
+    },
     async provisionRestaurant(body: PlatformRestaurantProvisionRequest, o?: ApiRequestOptions): Promise<PlatformRestaurantProvisionResponse> {
       if (body.ownerUserId != null) requireUuid(body.ownerUserId, "ownerUserId");
       const response = await transport.request<PlatformRestaurantProvisionResponse>({ method: "POST", path: prefix, body, options: o });
@@ -129,6 +141,21 @@ export function createPlatformAdminApiClient(options: AuthenticatedApiTransportO
     },
     async updateRestaurantConfiguration(id: string, body: PlatformRestaurantConfigurationRequest, o?: ApiRequestOptions): Promise<PlatformRestaurantDetailResponse> {
       return checkedDetail(await transport.request({ method: "PUT", path: `${restaurantPath(id)}/configuration`, body, options: o }), id);
+    },
+  };
+}
+
+/** Public setup page uses an authenticated session; the backend requires fresh password proof and OWNER membership. */
+export function createOwnerOnboardingApiClient(options: AuthenticatedApiTransportOptions) {
+  const transport = createAuthenticatedTransport(options);
+  return {
+    async complete(o?: ApiRequestOptions): Promise<OwnerOnboardingCompletionResponse> {
+      const response = await transport.request<OwnerOnboardingCompletionResponse>({ method: "POST",
+        path: "/api/v1/owner-onboarding/complete", options: o });
+      if (response?.onboardingStatus !== "COMPLETE" || !Number.isFinite(Date.parse(response.completedAt))) {
+        throw new ApiProtocolError();
+      }
+      return response;
     },
   };
 }

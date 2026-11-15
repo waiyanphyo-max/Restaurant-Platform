@@ -109,6 +109,53 @@ class CatalogManagementServiceTest {
     }
 
     @Test
+    void variantDescriptionCanBeCreatedUpdatedAndClearedWithoutChangingParentDescription() {
+        Product parent = product();
+        parent.setDescription("Product description");
+        when(productRepository.findByIdAndRestaurantId(productId, restaurantId))
+                .thenReturn(Optional.of(parent));
+        when(variantRepository.save(any(ProductVariant.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var created = service.createVariant(restaurantId, userId, productId,
+                new ProductVariantRequest(" Small ", 1500L, true, null, " လူတစ်ယောက်အတွက်\nSingle serving. "));
+        assertEquals("Small", created.name());
+        assertEquals("လူတစ်ယောက်အတွက်\nSingle serving.", created.description());
+        assertEquals("Product description", parent.getDescription());
+
+        ProductVariant existing = new ProductVariant();
+        UUID variantId = UUID.randomUUID();
+        existing.setId(variantId);
+        existing.setProductId(productId);
+        existing.setDescription(created.description());
+        existing.setImageUrl("https://media.example.test/variant.png");
+        when(variantRepository.findByIdAndProductId(variantId, productId)).thenReturn(Optional.of(existing));
+        var updated = service.updateVariant(restaurantId, userId, productId, variantId,
+                new ProductVariantRequest("Small", 1600L, false, null, "Updated portion"));
+        assertEquals("Updated portion", updated.description());
+        assertEquals(1600L, updated.price());
+        assertEquals(existing.getImageUrl(), updated.imageUrl());
+        assertFalse(updated.available());
+
+        var cleared = service.updateVariant(restaurantId, userId, productId, variantId,
+                new ProductVariantRequest("Small", 1600L, true, null, " \n "));
+        assertNull(cleared.description());
+        var optional = service.createVariant(restaurantId, userId, productId,
+                new ProductVariantRequest("Large", 2500L, true));
+        assertNull(optional.description());
+        verify(authorization, times(4)).requirePermission(restaurantId, RestaurantPermission.MENU_MANAGE);
+    }
+
+    @Test
+    void variantDescriptionHasABoundedLengthBeforePersistence() {
+        when(productRepository.findByIdAndRestaurantId(productId, restaurantId))
+                .thenReturn(Optional.of(product()));
+        ApiException error = assertThrows(ApiException.class, () -> service.createVariant(restaurantId, userId, productId,
+                new ProductVariantRequest("Small", 1500L, true, null, "a".repeat(5001))));
+        assertEquals("INVALID_PRODUCT_VARIANT", error.getCode());
+        verify(variantRepository, never()).save(any());
+    }
+
+    @Test
     void publicModifierListingUsesRestaurantScopedActiveGroupAndOptions() {
         when(restaurantRepository.findByIdAndIsActiveTrue(restaurantId))
                 .thenReturn(Optional.of(new Restaurant()));

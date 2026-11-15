@@ -9,11 +9,12 @@ export type AuthReturnInput =
   | { kind: "invalid" };
 
 type AuthErrorLike = { message: string } | null;
+type AuthLinkResult = { data: { user: { id: string } | null }; error: AuthErrorLike };
 
 export interface AuthReturnPort {
-  exchangeCodeForSession(code: string): Promise<{ error: AuthErrorLike }>;
-  verifyOtp(input: { token_hash: string; type: EmailReturnType }): Promise<{ error: AuthErrorLike }>;
-  setSession(input: { access_token: string; refresh_token: string }): Promise<{ error: AuthErrorLike }>;
+  exchangeCodeForSession(code: string): Promise<AuthLinkResult>;
+  verifyOtp(input: { token_hash: string; type: EmailReturnType }): Promise<AuthLinkResult>;
+  setSession(input: { access_token: string; refresh_token: string }): Promise<AuthLinkResult>;
   getClaims(): Promise<{ data: { claims: { sub?: string } | null } | null; error: AuthErrorLike }>;
 }
 
@@ -34,6 +35,9 @@ export function parseAuthReturn(href: string, purpose: AuthReturnPurpose): AuthR
   try {
     url = new URL(href);
   } catch {
+    return { kind: "invalid" };
+  }
+  if (url.username || url.password || (purpose === "invitation" && url.protocol !== "https:")) {
     return { kind: "invalid" };
   }
   const query = url.searchParams;
@@ -58,30 +62,94 @@ export function parseAuthReturn(href: string, purpose: AuthReturnPurpose): AuthR
   if (hasHash) {
     const rawType = single(query, "type", 32);
     if (!tokenHash || !rawType || !emailTypes.has(rawType as EmailReturnType)) return { kind: "invalid" };
-    if (purpose === "invitation" && rawType !== "invite") return { kind: "invalid" };
+    if (purpose === "invitation" && rawType !== "invite" && rawType !== "recovery") return { kind: "invalid" };
     return { kind: "token-hash", tokenHash, type: rawType as EmailReturnType };
   }
   if (hasSession) {
     const type = single(fragment, "type", 32);
     if (!accessToken || !refreshToken || (fragment.has("type") && !type) ||
       (type && !emailTypes.has(type as EmailReturnType)) ||
-      (purpose === "invitation" && type && type !== "invite")) {
+      (purpose === "invitation" && type !== "invite" && type !== "recovery")) {
       return { kind: "invalid" };
     }
     return { kind: "legacy-session", accessToken, refreshToken };
   }
-  return query.toString() || fragment.toString() ? { kind: "invalid" } : { kind: "existing-session" };
+  return purpose === "invitation" || query.toString() || fragment.toString()
+    ? { kind: "invalid" } : { kind: "existing-session" };
 }
 
 export interface InvitationPasswordPort {
   getClaims: AuthReturnPort["getClaims"];
+  getUser(): Promise<{
+    data: { user: { id: string; email?: string } | null };
+    error: AuthErrorLike;
+  }>;
   updateUser(input: { password: string }): Promise<{
+    data: { user: { id: string } | null };
+    error: AuthErrorLike;
+  }>;
+  signInWithPassword(input: { email: string; password: string }): Promise<{
     data: { user: { id: string } | null };
     error: AuthErrorLike;
   }>;
 }
 
-/** Updating a password must retain the verified Auth UUID from the invitation session. */
+interface InvitationSessionStore {
+  getSession(): Promise<{
+    data: { session: { access_token: string; refresh_token: string; user: { id: string } } | null };
+    error: AuthErrorLike;
+  }>;
+  setSession(input: { access_token: string; refresh_token: string }): Promise<{
+    data: { user: { id: string } | null };
+    error: AuthErrorLike;
+  }>;
+}
+
+/** An isolated Auth client prevents other tabs from changing the password's target. */
+export async function pinInvitationPasswordAuth(
+  shared: InvitationSessionStore,
+  isolated: InvitationSessionStore & InvitationPasswordPort,
+  expectedUserId: string,
+): Promise<InvitationPasswordPort> {
+  try {
+    const snapshot = await shared.getSession();
+    const session = snapshot.data.session;
+    if (snapshot.error || !session || session.user.id !== expectedUserId) throw new AuthReturnFailure();
+    const pinned = await isolated.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+    const claims = await isolated.getClaims();
+    if (pinned.error || pinned.data.user?.id !== expectedUserId || claims.error || claims.data?.claims?.sub !== expectedUserId) {
+      throw new AuthReturnFailure();
+    }
+    return {
+      getClaims: () => isolated.getClaims(),
+      getUser: () => isolated.getUser(),
+      updateUser: (input) => isolated.updateUser(input),
+      async signInWithPassword(input) {
+        const result = await isolated.signInWithPassword(input);
+        const claims = await isolated.getClaims();
+        if (result.error || result.data.user?.id !== expectedUserId || claims.error || claims.data?.claims?.sub !== expectedUserId) {
+          throw new AuthReturnFailure();
+        }
+        const fresh = await isolated.getSession();
+        if (fresh.error || !fresh.data.session || fresh.data.session.user.id !== expectedUserId) throw new AuthReturnFailure();
+        const persisted = await shared.setSession({
+          access_token: fresh.data.session.access_token,
+          refresh_token: fresh.data.session.refresh_token,
+        });
+        if (persisted.error || persisted.data.user?.id !== expectedUserId) throw new AuthReturnFailure();
+        return result;
+      },
+    };
+  } catch { throw new AuthReturnFailure(); }
+}
+
+export function invitationPasswordIssue(password: string, confirmation: string): string | null {
+  if (password.length < 8) return "Use at least 8 characters for your password.";
+  if (password !== confirmation) return "The passwords do not match.";
+  return null;
+}
+
+/** Keep the verified invitation identity, then obtain fresh proof of password sign-in. */
 export async function updateInvitationPassword(
   auth: InvitationPasswordPort,
   expectedUserId: string,
@@ -91,8 +159,16 @@ export async function updateInvitationPassword(
   try {
     const { data, error } = await auth.getClaims();
     if (error || data?.claims?.sub !== expectedUserId) throw new AuthReturnFailure();
+    const account = await auth.getUser();
+    const email = account.data.user?.email;
+    if (account.error || account.data.user?.id !== expectedUserId || !email) throw new AuthReturnFailure();
     const result = await auth.updateUser({ password });
     if (result.error || result.data.user?.id !== expectedUserId) throw new AuthReturnFailure();
+    // The provider-verified email cannot be changed by an input or URL parameter.
+    const signIn = await auth.signInWithPassword({ email, password });
+    if (signIn.error || signIn.data.user?.id !== expectedUserId) throw new AuthReturnFailure();
+    const refreshed = await auth.getClaims();
+    if (refreshed.error || refreshed.data?.claims?.sub !== expectedUserId) throw new AuthReturnFailure();
   } catch {
     throw new AuthReturnFailure();
   }
@@ -109,25 +185,28 @@ export class AuthReturnFailure extends Error {
 export async function completeAuthReturn(auth: AuthReturnPort, input: AuthReturnInput): Promise<string> {
   if (input.kind === "invalid") throw new AuthReturnFailure();
   try {
+    let linkResult: AuthLinkResult | undefined;
     if (input.kind === "code") {
-      const { error } = await auth.exchangeCodeForSession(input.code);
-      if (error) throw new AuthReturnFailure();
+      linkResult = await auth.exchangeCodeForSession(input.code);
     } else if (input.kind === "token-hash") {
-      const { error } = await auth.verifyOtp({ token_hash: input.tokenHash, type: input.type });
-      if (error) throw new AuthReturnFailure();
+      linkResult = await auth.verifyOtp({ token_hash: input.tokenHash, type: input.type });
     } else if (input.kind === "legacy-session") {
-      const { error } = await auth.setSession({
+      linkResult = await auth.setSession({
         access_token: input.accessToken,
         refresh_token: input.refreshToken,
       });
-      if (error) throw new AuthReturnFailure();
     }
-    const { data, error } = await auth.getClaims();
-    const userId = data?.claims?.sub;
-    if (error || !userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    if (input.kind !== "existing-session" && (!linkResult || linkResult.error || !linkResult.data?.user?.id)) {
       throw new AuthReturnFailure();
     }
-    return userId;
+    const linkedUserId = linkResult?.data.user?.id;
+    const { data, error } = await auth.getClaims();
+    const userId = data?.claims?.sub;
+    if (error || !userId || (linkedUserId && userId !== linkedUserId) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      throw new AuthReturnFailure();
+    }
+    return linkedUserId ?? userId;
   } catch {
     throw new AuthReturnFailure();
   }

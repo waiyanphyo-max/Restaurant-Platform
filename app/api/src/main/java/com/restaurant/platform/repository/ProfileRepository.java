@@ -13,6 +13,27 @@ import java.util.Optional;
 public interface ProfileRepository extends JpaRepository<Profile, UUID> {
     Optional<Profile> findFirstByEmailIgnoreCase(String email);
 
+    /**
+     * Repair an interrupted/missing Auth-to-profile sync using the Auth registry,
+     * never client metadata or an arbitrary UUID. A concurrent repair or profile
+     * edit wins unchanged. This query runs only on the trusted API database role.
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO public.profiles (id, email, full_name, phone, preferred_language)
+            SELECT u.id, u.email,
+                   NULLIF(LEFT(BTRIM(COALESCE(u.raw_user_meta_data ->> 'full_name',
+                                               u.raw_user_meta_data ->> 'name')), 150), ''),
+                   NULLIF(LEFT(BTRIM(u.raw_user_meta_data ->> 'phone'), 30), ''),
+                   CASE WHEN u.raw_user_meta_data ->> 'preferred_language' = 'en'
+                        THEN 'en' ELSE 'my-MM' END
+            FROM auth.users u
+            WHERE u.id = :userId AND u.deleted_at IS NULL
+              AND (u.banned_until IS NULL OR u.banned_until <= now())
+            ON CONFLICT (id) DO NOTHING
+            """, nativeQuery = true)
+    int restoreMissingFromAuthUser(@Param("userId") UUID userId);
+
     @Modifying
     @Transactional
     @Query(value = """

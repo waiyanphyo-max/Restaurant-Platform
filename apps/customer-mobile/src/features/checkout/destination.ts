@@ -1,5 +1,6 @@
-import { ApiHttpError, MissingAccessTokenError } from "@restaurant-platform/api-client";
+import { ApiHttpError } from "@restaurant-platform/api-client";
 import type { CreateOrderItemRequest, CustomerAddressResponse, DeliveryQuoteRequest } from "@restaurant-platform/shared-types";
+import { apiFailure, apiFailureMessage } from "../../hooks/apiFailure";
 import { savedPin } from "../addresses/address";
 import { validCoordinates, type PinSelection } from "../addresses/location";
 
@@ -61,9 +62,6 @@ export function invalidRecipientPhoneMessage(t: Text): string {
 }
 
 export function checkoutError(error: unknown, t: Text): string {
-  if (error instanceof MissingAccessTokenError || error instanceof ApiHttpError && (error.status === 401 || error.status === 403)) {
-    return t("Your session has expired. Sign in again to continue.", "သင့်အကောင့် ဝင်ရောက်ချိန် ကုန်ဆုံးသွားပါပြီ။ ဆက်လုပ်ရန် ပြန်ဝင်ပါ။");
-  }
   if (error instanceof ApiHttpError) {
     switch (error.code) {
       case "DELIVERY_ADDRESS_OUTSIDE_ZONE":
@@ -94,5 +92,7 @@ export function checkoutError(error: unknown, t: Text): string {
         return invalidRecipientPhoneMessage(t);
     }
   }
+  const failure = apiFailure(error, "checkout");
+  if (failure.kind !== "unknown") return apiFailureMessage(failure, t)!;
   return t("The delivery quote could not be confirmed. Check your connection and details, then try again.", "ပို့ဆောင်ခကို အတည်မပြုနိုင်ပါ။ အင်တာနက်နှင့် အချက်အလက်များ စစ်ဆေးပြီး ထပ်ကြိုးစားပါ။");
 }

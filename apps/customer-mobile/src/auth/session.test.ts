@@ -59,6 +59,53 @@ function setup(initial: NativeSession | null, clock = () => 1_000_000) {
 }
 
 describe("native session lifecycle", () => {
+  it("does not publish an expired SDK initial event before successful refresh", async () => {
+    const { controller, auth, setSession } = setup(null);
+    const listener = vi.fn(); controller.subscribe(listener);
+    setSession(session(firstUser, "expired", 500));
+    expect(listener).not.toHaveBeenCalled();
+    expect(await controller.restore()).toEqual({ status: "signed_in", userId: firstUser });
+    expect(auth.refreshSession).toHaveBeenCalledOnce(); controller.dispose();
+  });
+  it("clears revoked sessions instead of repeatedly restoring expired credentials", async () => {
+    const { controller, auth } = setup(session(firstUser, "expired", 500));
+    auth.refreshSession = vi.fn(async () => { throw Object.assign(new Error("revoked"), { code: "refresh_token_not_found" }); });
+    expect(await controller.restore()).toEqual({ status: "signed_out" });
+    expect(auth.signOut).toHaveBeenCalledOnce();
+    expect(await controller.getAccessToken()).toBeNull(); controller.dispose();
+  });
+  it.each([undefined, 500, Number.NaN])("rejects login/signup results with invalid or expired expiry %s", async expiry => {
+    for (const operation of ["signInWithPassword", "signUpWithPassword"] as const) {
+      const { controller, auth, setSession } = setup(null);
+      auth[operation] = vi.fn(async () => ({ ...session(), expires_at: expiry }));
+      await expect(controller[operation]("customer@example.test", "long-password")).rejects.toBeInstanceOf(NativeAuthError);
+      setSession(session());
+      expect(controller.getSnapshot()).toEqual({ status: "signed_out" });
+      expect(await controller.getAccessToken()).toBeNull(); controller.dispose();
+    }
+  });
+  it("prevents duplicate password authentication and preserves underlying failure codes", async () => {
+    const { controller, auth, setSession } = setup(null);
+    let fail!: (reason: unknown) => void;
+    auth.signInWithPassword = vi.fn(() => new Promise<NativeSession>((_resolve, reject) => { fail = reject; }));
+    const request = controller.signInWithPassword("customer@example.test", "long-password");
+    await expect(controller.signInWithPassword("customer@example.test", "long-password")).rejects.toMatchObject({ code: "request_in_progress" });
+    const error = { code: "invalid_credentials", status: 400 };
+    fail(error); await expect(request).rejects.toBe(error);
+    setSession(session()); expect(controller.getSnapshot()).toEqual({ status: "signed_out" }); controller.dispose();
+  });
+  it("validates reset codes, normalizes email and leaves customer identity signed out", async () => {
+    const { controller, auth } = setup(null);
+    auth.requestPasswordReset = vi.fn(async () => {});
+    auth.resetPassword = vi.fn(async () => {});
+    await expect(controller.resetPassword("customer@example.test", "bad", "long-password")).rejects.toMatchObject({ code: "invalid_input" });
+    await controller.requestPasswordReset(" Customer@Example.Test ");
+    await expect(controller.requestPasswordReset("other@example.test")).rejects.toMatchObject({ code: "request_cooldown" });
+    await controller.resetPassword(" Customer@Example.Test ", "123456", "long-password");
+    expect(auth.requestPasswordReset).toHaveBeenCalledExactlyOnceWith("customer@example.test");
+    expect(auth.resetPassword).toHaveBeenCalledExactlyOnceWith("customer@example.test", "123456", "long-password");
+    expect(controller.getSnapshot()).toEqual({ status: "signed_out" }); controller.dispose();
+  });
   it("refreshes an expired restored session before exposing a signed-in identity", async () => {
     const { controller, auth } = setup(session(firstUser, "expired", 500));
     expect(await controller.restore()).toEqual({ status: "signed_in", userId: firstUser });

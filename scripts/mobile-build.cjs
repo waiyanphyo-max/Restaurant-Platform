@@ -13,6 +13,7 @@ const profiles = ["development", "staging", "production"];
 const usage = [
   "mobile:build -- validate",
   "mobile:build -- resolve <restaurant-slug> <operations|customer> <development|staging|production> [--fixture]",
+  "mobile:build -- preflight-fcm <restaurant-slug> [--fixture]",
   "mobile:build -- verify <release.json> <artifact.apk|artifact.aab>",
   "mobile:build -- assetlinks <release.json> <SHA-256 signing certificate fingerprint> [additional fingerprints]"
 ].join("\n");
@@ -56,6 +57,37 @@ function validateBuilds() {
   return { legacyGuestConfigs: restaurants.filter((restaurant) => restaurant.schemaVersion === 1 && !restaurant.fixture).length, validatedBuilds: builds };
 }
 
+function preflightFcm(slug, env, fixture) {
+  const missing = ["MOBILE_FIREBASE_PROJECT_ID", "EXPO_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"]
+    .filter((name) => !env[name]);
+  for (const kind of Object.keys(apps)) {
+    const prefix = kind.toUpperCase();
+    if (env[`${prefix}_NOTIFICATIONS_ENABLED`] !== "true") missing.push(`${prefix}_NOTIFICATIONS_ENABLED=true`);
+    if (!env[`${prefix}_GOOGLE_SERVICES_FILE`]) missing.push(`${prefix}_GOOGLE_SERVICES_FILE`);
+  }
+  if (missing.length) throw new Error(`FCM build inputs required: ${missing.join(", ")}`);
+
+  const plans = Object.fromEntries(Object.keys(apps).map((kind) => [kind, resolveBuild(slug, kind, "development", env, fixture)]));
+  const { operations, customer } = plans;
+  if (operations.firebase.senderId !== customer.firebase.senderId || operations.firebase.appId === customer.firebase.appId) {
+    throw new Error("FCM requires two distinct Android apps registered in the same Firebase project");
+  }
+  const restaurant = listMobileBuildConfigs().find((item) => item.slug === slug);
+  if (customer.apiBaseUrl === restaurant.mobileProfiles?.production.apiBaseUrl) {
+    throw new Error("The development API origin must differ from the restaurant's production API origin");
+  }
+  const adbReverse = env.MOBILE_ADB_REVERSE_ENABLED === "true";
+  if (adbReverse && [customer, operations].some((plan) => plan.apiBaseUrl !== "http://127.0.0.1:8080")) {
+    throw new Error("MOBILE_ADB_REVERSE_ENABLED=true requires the development API origin http://127.0.0.1:8080");
+  }
+  const { hostname } = new URL(customer.apiBaseUrl);
+  if (!adbReverse && (["localhost", "ip6-localhost", "[::1]", "10.0.2.2", "0.0.0.0", "[::]"].includes(hostname) ||
+      hostname.endsWith(".localhost") || /^127\./.test(hostname))) {
+    throw new Error("Set MOBILE_DEVELOPMENT_API_BASE_URL to a phone-reachable HTTPS or private-LAN origin, or explicitly enable MOBILE_ADB_REVERSE_ENABLED=true for http://127.0.0.1:8080");
+  }
+  return plans;
+}
+
 function assetLinks(release, fingerprints) {
   const expected = /^(?:[0-9a-f]{2}:){31}[0-9a-f]{2}$/i;
   if (!fingerprints.length || fingerprints.some((value) => !expected.test(value))) {
@@ -76,6 +108,9 @@ async function main([command, ...args]) {
   if (command === "validate" && args.length === 0) return validateBuilds();
   if (command === "resolve" && (args.length === 3 || (args.length === 4 && args[3] === "--fixture"))) {
     return resolveBuild(args[0], args[1], args[2], process.env, args.length === 4);
+  }
+  if (command === "preflight-fcm" && (args.length === 1 || (args.length === 2 && args[1] === "--fixture"))) {
+    return preflightFcm(args[0], process.env, args.length === 2);
   }
   if (command === "verify" && args.length === 2) {
     const release = JSON.parse(readFileSync(args[0], "utf8").replace(/^\uFEFF/, ""));

@@ -3,6 +3,7 @@ package com.restaurant.platform.accounting;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -22,7 +23,7 @@ public final class ProcurementDtos {
                                 boolean active, @Size(max=1000) String reason) { }
     public record Supplier(UUID id, String name, String contact, boolean active, UUID createdBy,
                            OffsetDateTime createdAt, UUID updatedBy, OffsetDateTime updatedAt) { }
-    public record ItemInput(@NotBlank @Size(max=150) String name, @NotBlank @Size(max=30) String defaultUnit,
+    public record ItemInput(@NotBlank @Size(max=150) String name, @Size(max=30) String defaultUnit,
                             @JsonFormat(shape=JsonFormat.Shape.STRING) @DecimalMin(value="0",inclusive=false) @Digits(integer=12,fraction=6) BigDecimal defaultQuantity,
                             UUID supplierId, boolean suggestionEnabled, @Size(max=1000) String reason) { }
     public record Item(UUID id, String name, String defaultUnit, @JsonFormat(shape=JsonFormat.Shape.STRING) BigDecimal defaultQuantity, UUID supplierId,
@@ -31,12 +32,25 @@ public final class ProcurementDtos {
     public record LineInput(@NotNull UUID itemId,
                             @JsonFormat(shape=JsonFormat.Shape.STRING) @NotNull @DecimalMin(value="0",inclusive=false) @Digits(integer=12,fraction=6) BigDecimal quantity,
                             @NotBlank @Size(max=30) String unit, @JsonFormat(shape=JsonFormat.Shape.STRING) @NotNull @PositiveOrZero Long unitCost, UUID supplierId) { }
-    public record SheetInput(@NotNull LocalDate shoppingDate, @NotEmpty @Size(max=200) List<@Valid LineInput> lines,
+    /** Planning has no financial inputs. Purchase lines retain their separate cost validation. */
+    public record PlanLineInput(@NotNull UUID itemId,
+                            @JsonFormat(shape=JsonFormat.Shape.STRING) @NotNull @DecimalMin(value="0",inclusive=false) @Digits(integer=12,fraction=6) BigDecimal quantity,
+                            @NotBlank @Size(max=30) String unit) {
+        @JsonAnySetter
+        public void rejectUnsupportedField(String field, Object value) {
+            // Old cost-bearing planning clients must upgrade, not silently lose
+            // newly entered valuations at a quantity-only endpoint.
+            throw new IllegalArgumentException("Shopping rows accept only itemId, quantity and unit.");
+        }
+    }
+    public record PlanLine(UUID id, UUID itemId, String itemName,
+                           @JsonFormat(shape=JsonFormat.Shape.STRING) BigDecimal quantity, String unit) { }
+    public record SheetInput(@NotNull LocalDate shoppingDate, @NotEmpty @Size(max=200) List<@Valid PlanLineInput> lines,
                              @Size(max=1000) String reason) { }
     public record Line(UUID id, UUID itemId, String itemName, @JsonFormat(shape=JsonFormat.Shape.STRING) BigDecimal quantity, String unit,
                        @JsonFormat(shape=JsonFormat.Shape.STRING) long unitCost, @JsonFormat(shape=JsonFormat.Shape.STRING) long lineTotal, UUID supplierId) { }
     public record Sheet(UUID id, LocalDate shoppingDate, String status, String paymentStatus, UUID purchaseId,
-                        List<Line> lines, UUID createdBy, OffsetDateTime createdAt, UUID updatedBy, OffsetDateTime updatedAt) { }
+                        List<PlanLine> lines, UUID createdBy, OffsetDateTime createdAt, UUID updatedBy, OffsetDateTime updatedAt) { }
     public record PurchaseInput(@NotNull LocalDate purchaseDate, @NotNull OffsetDateTime purchasedAt, UUID supplierId,
                                 @NotEmpty @Size(max=200) List<@Valid LineInput> lines, UUID sheetId,
                                 LocalDate dueDate, UUID receiptId, @Size(max=150) String invoiceReference,

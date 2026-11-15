@@ -3,12 +3,14 @@ import { FormValidationError } from "../hooks/mutation";
 
 const picker = vi.hoisted(() => ({ launch: vi.fn() }));
 vi.mock("expo-image-picker", () => ({ launchImageLibraryAsync: picker.launch }));
+vi.mock("expo-file-system", () => ({ File: class File { constructor(readonly uri: string) {} } }));
 
 import { pickAndUploadImage, validatePickedImage } from "./imageUpload";
+import { File } from "expo-file-system";
 
 class NativeFormData {
-  readonly parts: { name: string; value: unknown }[] = [];
-  append(name: string, value: unknown) { this.parts.push({ name, value }); }
+  readonly parts: { name: string; value: unknown; fileName?: string }[] = [];
+  append(name: string, value: unknown, fileName?: string) { this.parts.push({ name, value, fileName }); }
 }
 const asset = { uri: "file:///storage/private/menu.png", mimeType: "image/png", fileSize: 1024 };
 
@@ -59,7 +61,28 @@ describe("native image upload", () => {
     await expect(pickAndUploadImage(upload)).rejects.toBe(failure);
     expect(upload).toHaveBeenCalledTimes(1);
     const form = upload.mock.calls[0][0] as NativeFormData;
-    expect(form.parts).toEqual([{ name: "file", value: { uri: asset.uri, name: "image.png", type: "image/png" } }]);
+    expect(form.parts).toEqual([{ name: "file", value: expect.any(File), fileName: "image.png" }]);
+    expect(form.parts[0].value).toMatchObject({ uri: asset.uri });
+  });
+  it("waits for reverified access before sending a selected image", async () => {
+    picker.launch.mockResolvedValue({ canceled: false, assets: [asset] });
+    let allow!: () => void;
+    const verification = vi.fn(() => new Promise<void>(resolve => { allow = resolve; }));
+    const upload = vi.fn(async () => undefined);
+    const result = pickAndUploadImage(upload, verification);
+    await Promise.resolve();
+    expect(verification).toHaveBeenCalledOnce();
+    expect(upload).not.toHaveBeenCalled();
+    allow();
+    await expect(result).resolves.toBe(true);
+    expect(upload).toHaveBeenCalledOnce();
+  });
+  it("does not upload after membership validation rejects the pending picker action", async () => {
+    picker.launch.mockResolvedValue({ canceled: false, assets: [asset] });
+    const upload = vi.fn();
+    const failure = new Error("Access changed");
+    await expect(pickAndUploadImage(upload, async () => { throw failure; })).rejects.toBe(failure);
+    expect(upload).not.toHaveBeenCalled();
   });
   it.each([ ["image/png", "png"], ["image/jpeg", "jpg"], ["image/webp", "webp"] ])("uploads %s through native FormData", async (mimeType, extension) => {
     picker.launch.mockResolvedValue({ canceled: false, assets: [{ ...asset, mimeType }] });
@@ -67,6 +90,7 @@ describe("native image upload", () => {
     await expect(pickAndUploadImage(upload)).resolves.toBe(true);
     expect(upload).toHaveBeenCalledTimes(1);
     const form = upload.mock.calls[0][0] as NativeFormData;
-    expect(form.parts).toEqual([{ name: "file", value: { uri: asset.uri, name: `image.${extension}`, type: mimeType } }]);
+    expect(form.parts).toEqual([{ name: "file", value: expect.any(File), fileName: `image.${extension}` }]);
+    expect(form.parts[0].value).toMatchObject({ uri: asset.uri });
   });
 });

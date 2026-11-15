@@ -12,6 +12,7 @@
     "packages/shared-types",
     "packages/ui-tokens",
     "packages/api-client",
+    "packages/mobile-notifications",
     "configs/restaurants",
     "apps/admin-web",
     "apps/guest-web",

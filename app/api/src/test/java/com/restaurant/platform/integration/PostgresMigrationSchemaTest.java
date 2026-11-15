@@ -58,6 +58,102 @@ class PostgresMigrationSchemaTest {
     private static DataSource dataSource;
     private static LocalContainerEntityManagerFactoryBean entityManagerFactoryBean;
     private static Path migrationDirectory;
+    private static final UUID LEGACY_SHOPPING_RESTAURANT = UUID.randomUUID();
+    private static final UUID LEGACY_SHOPPING_ACTOR = UUID.randomUUID();
+    private static final UUID LEGACY_SHOPPING_SUPPLIER = UUID.randomUUID();
+    private static final UUID LEGACY_SHOPPING_ITEM = UUID.randomUUID();
+    private static final UUID LEGACY_SHOPPING_SHEET = UUID.randomUUID();
+    private static final UUID LEGACY_CONFIRMED_SHEET = UUID.randomUUID();
+    private static final UUID LEGACY_SHOPPING_LINE = UUID.randomUUID();
+    private static final UUID LEGACY_DUPLICATE_SHOPPING_LINE = UUID.randomUUID();
+    private static final UUID LEGACY_CONFIRMED_LINE = UUID.randomUUID();
+    private static final UUID LEGACY_PURCHASE = UUID.randomUUID();
+
+    @Test
+    void shoppingSeparationCopiesLegacyPlansAndRetainsValuationAndConfirmedFinancialHistory() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        assertEquals(3L, jdbc.queryForObject("SELECT count(*) FROM public.accounting_shopping_plan_lines WHERE restaurant_id=?", Long.class, LEGACY_SHOPPING_RESTAURANT));
+        assertEquals(3L, jdbc.queryForObject("SELECT count(*) FROM public.accounting_shopping_lines WHERE restaurant_id=?", Long.class, LEGACY_SHOPPING_RESTAURANT));
+        assertEquals(2L, jdbc.queryForObject("SELECT count(*) FROM public.accounting_shopping_plan_lines WHERE restaurant_id=? AND sheet_id=? AND item_id=?",
+                Long.class, LEGACY_SHOPPING_RESTAURANT, LEGACY_SHOPPING_SHEET, LEGACY_SHOPPING_ITEM), "Historical duplicate catalog rows must be preserved during migration");
+        assertEquals(LEGACY_SHOPPING_ITEM, jdbc.queryForObject("SELECT item_id FROM public.accounting_shopping_plan_lines WHERE id=?", UUID.class, LEGACY_SHOPPING_LINE));
+        assertEquals("Historical rice", jdbc.queryForObject("SELECT item_name FROM public.accounting_shopping_plan_lines WHERE id=?", String.class, LEGACY_SHOPPING_LINE));
+        assertEquals(0, new java.math.BigDecimal("2.5").compareTo(jdbc.queryForObject("SELECT quantity FROM public.accounting_shopping_plan_lines WHERE id=?", java.math.BigDecimal.class, LEGACY_SHOPPING_LINE)));
+        assertEquals(1000L, jdbc.queryForObject("SELECT unit_cost FROM public.accounting_shopping_lines WHERE id=?", Long.class, LEGACY_SHOPPING_LINE));
+        assertEquals(2500L, jdbc.queryForObject("SELECT line_total FROM public.accounting_shopping_lines WHERE id=?", Long.class, LEGACY_SHOPPING_LINE));
+        assertEquals(LEGACY_SHOPPING_SUPPLIER, jdbc.queryForObject("SELECT supplier_id FROM public.accounting_shopping_lines WHERE id=?", UUID.class, LEGACY_SHOPPING_LINE));
+        assertEquals(1200L, jdbc.queryForObject("SELECT total_amount FROM public.accounting_purchases WHERE id=?", Long.class, LEGACY_PURCHASE));
+        assertEquals(500L, jdbc.queryForObject("SELECT sum(amount) FROM public.accounting_purchase_payments WHERE purchase_id=?", Long.class, LEGACY_PURCHASE));
+        assertEquals(400L, jdbc.queryForObject("SELECT unit_cost FROM public.accounting_purchase_lines WHERE purchase_id=?", Long.class, LEGACY_PURCHASE));
+        assertEquals(0L, jdbc.queryForObject("""
+                SELECT count(*) FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='accounting_shopping_plan_lines'
+                  AND column_name IN ('unit_cost','line_total','supplier_id')
+                """, Long.class));
+        assertEquals(2L, jdbc.queryForObject("SELECT count(DISTINCT position) FROM public.accounting_shopping_plan_lines WHERE sheet_id=?", Long.class, LEGACY_SHOPPING_SHEET));
+        jdbc.update("UPDATE public.accounting_shopping_plan_lines SET quantity=1.5 WHERE id=?", LEGACY_SHOPPING_LINE);
+        assertEquals(0, new java.math.BigDecimal("2.5").compareTo(jdbc.queryForObject("SELECT quantity FROM public.accounting_shopping_lines WHERE id=?", java.math.BigDecimal.class, LEGACY_SHOPPING_LINE)));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("UPDATE public.accounting_shopping_lines SET item_name='Changed archive' WHERE id=?", LEGACY_SHOPPING_LINE));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("DELETE FROM public.accounting_shopping_lines WHERE id=?", LEGACY_SHOPPING_LINE));
+        assertEquals(1200L, jdbc.queryForObject("SELECT total_amount FROM public.accounting_purchases WHERE id=?", Long.class, LEGACY_PURCHASE));
+        assertEquals(500L, jdbc.queryForObject("SELECT sum(amount) FROM public.accounting_purchase_payments WHERE purchase_id=?", Long.class, LEGACY_PURCHASE));
+    }
+
+    @Test
+    void optionalVariantDescriptionsPreserveExistingFieldsAndRoundTripUnicode() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        UUID restaurantId = UUID.randomUUID(), categoryId = UUID.randomUUID(), productId = UUID.randomUUID(), variantId = UUID.randomUUID();
+        jdbc.update("INSERT INTO public.restaurants (id, name, slug, township, city) VALUES (?, 'Variant test', ?, 'Bahan', 'Yangon')",
+                restaurantId, "variant-" + restaurantId.toString().replace("-", ""));
+        jdbc.update("INSERT INTO public.categories (id, restaurant_id, name) VALUES (?, ?, 'Meals')", categoryId, restaurantId);
+        jdbc.update("INSERT INTO public.products (id, restaurant_id, category_id, name, price) VALUES (?, ?, ?, 'Rice', 1000)",
+                productId, restaurantId, categoryId);
+        jdbc.update("INSERT INTO public.product_variants (id, product_id, name, price, image_url) VALUES (?, ?, 'Small', 1500, 'https://media.example.test/rice.png')",
+                variantId, productId);
+        assertNull(jdbc.queryForObject("SELECT description FROM public.product_variants WHERE id = ?", String.class, variantId));
+        try (var manager = entityManagerFactoryBean.getObject().createEntityManager()) {
+            manager.getTransaction().begin();
+            var variant = manager.find(com.restaurant.platform.entity.ProductVariant.class, variantId);
+            variant.setDescription("လူတစ်ယောက်အတွက်\nSuitable for one person.");
+            manager.getTransaction().commit();
+            manager.clear();
+            var reloaded = manager.find(com.restaurant.platform.entity.ProductVariant.class, variantId);
+            assertEquals("လူတစ်ယောက်အတွက်\nSuitable for one person.", reloaded.getDescription());
+            assertEquals(1500L, reloaded.getPrice());
+            assertEquals("https://media.example.test/rice.png", reloaded.getImageUrl());
+            assertTrue(reloaded.getIsAvailable());
+        }
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("UPDATE public.product_variants SET description = ? WHERE id = ?", "a".repeat(5001), variantId));
+    }
+
+    @Test
+    void missingCustomerProfileCanOnlyBeRestoredFromAnActiveAuthIdentity() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        UUID owner = UUID.randomUUID(), banned = UUID.randomUUID(), deleted = UUID.randomUUID();
+        for (UUID id : List.of(owner, banned, deleted)) {
+            jdbc.update("INSERT INTO auth.users(id, email) VALUES (?, 'profile-test@example.test')", id);
+            jdbc.update("DELETE FROM public.profiles WHERE id = ?", id);
+        }
+        jdbc.update("UPDATE auth.users SET banned_until = now() + interval '1 day' WHERE id = ?", banned);
+        jdbc.update("UPDATE auth.users SET deleted_at = now() WHERE id = ?", deleted);
+        try (var manager = entityManagerFactoryBean.getObject().createEntityManager()) {
+            var repository = new org.springframework.data.jpa.repository.support.JpaRepositoryFactory(manager)
+                    .getRepository(com.restaurant.platform.repository.ProfileRepository.class);
+            manager.getTransaction().begin();
+            assertEquals(1, repository.restoreMissingFromAuthUser(owner));
+            assertEquals(0, repository.restoreMissingFromAuthUser(owner));
+            assertEquals(0, repository.restoreMissingFromAuthUser(banned));
+            assertEquals(0, repository.restoreMissingFromAuthUser(deleted));
+            assertEquals(0, repository.restoreMissingFromAuthUser(UUID.randomUUID()));
+            assertEquals(owner, repository.findById(owner).orElseThrow().getId());
+            manager.getTransaction().commit();
+        }
+        assertEquals("profile-test@example.test", jdbc.queryForObject(
+                "SELECT email FROM public.profiles WHERE id = ?", String.class, owner));
+    }
 
     @Test
     void restaurantInboxQueriesExcludeOtherTenantsAndUsers() {
@@ -426,6 +522,9 @@ class PostgresMigrationSchemaTest {
                     .toList();
 
             for (Path migration : migrations) {
+                if (migration.getFileName().toString().equals("20261115091000_shopping_planning_separation.sql")) {
+                    seedLegacyShoppingBeforeSeparation();
+                }
                 String containerPath = "/tmp/" + migration.getFileName();
                 POSTGRES.copyFileToContainer(
                         MountableFile.forHostPath(migration.toAbsolutePath()), containerPath);
@@ -439,6 +538,43 @@ class PostgresMigrationSchemaTest {
                 }
             }
         }
+    }
+
+    private static void seedLegacyShoppingBeforeSeparation() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.update("INSERT INTO auth.users(id) VALUES(?)", LEGACY_SHOPPING_ACTOR);
+        jdbc.update("INSERT INTO public.restaurants(id,name,slug,township,city) VALUES(?,'Legacy shopping migration',?,'Bahan','Yangon')",
+                LEGACY_SHOPPING_RESTAURANT, "legacy-shopping-" + LEGACY_SHOPPING_RESTAURANT);
+        jdbc.update("INSERT INTO public.accounting_suppliers(id,restaurant_id,name,created_by,updated_by) VALUES(?,?,'Legacy supplier',?,?)",
+                LEGACY_SHOPPING_SUPPLIER, LEGACY_SHOPPING_RESTAURANT, LEGACY_SHOPPING_ACTOR, LEGACY_SHOPPING_ACTOR);
+        jdbc.update("""
+                INSERT INTO public.accounting_shopping_items(id,restaurant_id,name,default_unit,default_quantity,supplier_id,created_by,updated_by)
+                VALUES(?,?,'Historical rice','kg',7,?,?,?)
+                """, LEGACY_SHOPPING_ITEM, LEGACY_SHOPPING_RESTAURANT, LEGACY_SHOPPING_SUPPLIER, LEGACY_SHOPPING_ACTOR, LEGACY_SHOPPING_ACTOR);
+        for (UUID sheet : List.of(LEGACY_SHOPPING_SHEET, LEGACY_CONFIRMED_SHEET)) {
+            jdbc.update("INSERT INTO public.accounting_shopping_sheets(id,restaurant_id,shopping_date,created_by,updated_by) VALUES(?,?,CURRENT_DATE,?,?)",
+                    sheet, LEGACY_SHOPPING_RESTAURANT, LEGACY_SHOPPING_ACTOR, LEGACY_SHOPPING_ACTOR);
+        }
+        jdbc.update("""
+                INSERT INTO public.accounting_shopping_lines(id,restaurant_id,sheet_id,item_id,item_name,quantity,unit,unit_cost,line_total,supplier_id)
+                VALUES(?,?,?,?,'Historical rice',2.5,'kg',1000,2500,?),
+                      (?,?,?,?,'Historical rice',1.5,'kg',2000,3000,?),
+                      (?,?,?,?,'Historical rice',3,'kg',400,1200,?)
+                """, LEGACY_SHOPPING_LINE, LEGACY_SHOPPING_RESTAURANT, LEGACY_SHOPPING_SHEET, LEGACY_SHOPPING_ITEM, LEGACY_SHOPPING_SUPPLIER,
+                LEGACY_DUPLICATE_SHOPPING_LINE, LEGACY_SHOPPING_RESTAURANT, LEGACY_SHOPPING_SHEET, LEGACY_SHOPPING_ITEM, LEGACY_SHOPPING_SUPPLIER,
+                LEGACY_CONFIRMED_LINE, LEGACY_SHOPPING_RESTAURANT, LEGACY_CONFIRMED_SHEET, LEGACY_SHOPPING_ITEM, LEGACY_SHOPPING_SUPPLIER);
+        jdbc.update("""
+                INSERT INTO public.accounting_purchases(id,restaurant_id,purchase_date,purchased_at,supplier_id,supplier_name,total_amount,sheet_id,created_by)
+                VALUES(?,?,CURRENT_DATE,now(),?,'Legacy supplier',1200,?,?)
+                """, LEGACY_PURCHASE, LEGACY_SHOPPING_RESTAURANT, LEGACY_SHOPPING_SUPPLIER, LEGACY_CONFIRMED_SHEET, LEGACY_SHOPPING_ACTOR);
+        jdbc.update("""
+                INSERT INTO public.accounting_purchase_lines(id,restaurant_id,purchase_id,item_id,item_name,quantity,unit,unit_cost,line_total)
+                VALUES(?,?,?,?,'Historical rice',3,'kg',400,1200)
+                """, UUID.randomUUID(), LEGACY_SHOPPING_RESTAURANT, LEGACY_PURCHASE, LEGACY_SHOPPING_ITEM);
+        jdbc.update("""
+                INSERT INTO public.accounting_purchase_payments(id,restaurant_id,purchase_id,amount,method,paid_at,created_by)
+                VALUES(?,?,?,500,'CASH',now(),?)
+                """, UUID.randomUUID(), LEGACY_SHOPPING_RESTAURANT, LEGACY_PURCHASE, LEGACY_SHOPPING_ACTOR);
     }
 
     private static void validateHibernateSchema() {

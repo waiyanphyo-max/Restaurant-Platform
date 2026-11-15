@@ -32,6 +32,7 @@ export interface PublicModifierGroupResponse {
 export interface MenuVariantDto {
   id: Uuid;
   name: string;
+  description?: string | null;
   price: number | null;
   imageUrl: string | null;
   available: boolean;

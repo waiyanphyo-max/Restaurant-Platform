@@ -12,6 +12,7 @@ function fixture(initial: AuthSnapshot = { status: "signed_out" }) {
     restore: vi.fn(async () => state),
     signInWithPassword: vi.fn(async () => { publish({ status: "signed_in", userId }); return state; }),
     signUpWithPassword: vi.fn(async () => { publish({ status: "signed_in", userId }); return { authenticated: true }; }),
+    resendConfirmation: vi.fn(async () => {}), requestPasswordReset: vi.fn(async () => {}), resetPassword: vi.fn(async () => {}),
     phoneOtpEnabled: vi.fn(async () => false),
     requestPhoneOtp: vi.fn(async () => {}), verifyPhoneOtp: vi.fn(async () => { publish({ status: "signed_in", userId }); return state; }),
     signOut: vi.fn(async () => { publish({ status: "signed_out" }); }),

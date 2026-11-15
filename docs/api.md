@@ -658,6 +658,8 @@ The backend includes an optional Firebase Admin sender and a durable per-device 
 
 The sender is disabled by default. An addressed `IN_APP` notification queues one outbox row per eligible active device. A restaurant-scoped Android device accepts customer delivery events for that restaurant and account. M12 checkout events require a matching scoped device. The dispatcher checks this scope again before sending, including for rows queued before a device upgraded. The outbox tracks delivery per device and retries transient failures with bounded backoff. FCM `UNREGISTERED` errors deactivate the stale device. Tokens stay in device records. Public queue tickets use their existing polling flow.
 
+Android push alerts use generic text. The apps retrieve details from their authenticated inboxes. Operations uses the account-owned device route for events such as delivery assignment. Operations device routing is account-wide, while its inbox requires current membership in the requested restaurant. [Android FCM device build and test](android-fcm-device-build.md)
+
 If Firebase is disabled, in-app notifications continue to work, but no external push message is sent. Outbox rows are retained for dispatch when enabled and should be monitored until Firebase is configured. Client-side sound playback remains a separate client feature.
 
 ## Remaining backend work
@@ -838,3 +840,25 @@ Do not expose the Supabase service-role/secret key to the browser or mobile app.
 ## Shared accounting
 
 Accounting routes live under `/api/v1/restaurants/{restaurantId}/accounting`. The backend checks `FINANCE_READ` for records, reports, private attachments and CSV exports, and `FINANCE_MANAGE` for writes, including expense corrections and cash closings. Both grants are explicit for Owner and Manager within their current restaurant memberships. See [accounting.md](accounting.md) for contracts, date and sorting filters, and idempotency.
+## Owner account setup and invitation resend
+
+`POST /api/v1/platform/restaurants/{restaurantId}/owners/{ownerUserId}/invitation` requires an allowlisted Platform Admin. It has no request body. Recipient identity is resolved from the restaurant's authoritative OWNER membership and the exact Supabase Auth UUID. Existing users receive a recovery/setup email through Supabase, preserving their account and membership. The configured redirect must be an exact public HTTPS `/auth/accept-invite` URL. A successful response means the provider accepted the request, not confirmed inbox delivery:
+
+```json
+{
+  "restaurantId": "2c62c49f-2310-4999-961f-81f79b868b0c",
+  "ownerUserId": "<existing-owner-auth-uuid>",
+  "onboardingStatus": "UNKNOWN",
+  "emailStatus": "REQUESTED",
+  "requestedAt": "2026-11-12T00:00:00Z",
+  "nextAllowedAt": "2026-11-12T00:01:00Z"
+}
+```
+
+The backend reserves attempts durably before contacting Supabase. Owner cooldown is 60 seconds, with at most 5 owner attempts/hour and 20 operator attempts/hour. Provider failures consume limits. Completion returns 409 `OWNER_ONBOARDING_COMPLETE`; rate limits return 429 `OWNER_INVITATION_RATE_LIMITED`; missing HTTPS/provider/storage configuration returns 503 `OWNER_INVITATION_NOT_CONFIGURED`; provider failures return 502 `OWNER_INVITATION_PROVIDER_ERROR`. Authorization and owner/restaurant mismatch are rejected before requesting email. No invitation tokens or recipient overrides are returned.
+
+Restaurant detail owners now include `onboardingStatus` (`UNKNOWN`, `COMPLETE`, `UNAVAILABLE`) and nullable `onboardingCompletedAt`, separately from invitation/email confirmation state. Legacy accounts without trusted proof remain `UNKNOWN`. Email confirmation is never proof of a user-set password.
+
+`POST /api/v1/owner-onboarding/complete` has no request body and requires a verified bearer JWT, recent signed password authentication proof, and an eligible OWNER membership. It records completion for the authenticated subject and returns `{"onboardingStatus":"COMPLETE","completedAt":"<timestamp>"}`. Missing/stale password proof returns 403 `OWNER_PASSWORD_PROOF_REQUIRED`. The public Admin acceptance page calls this through a same-origin authenticated server action without granting Platform Admin access.
+
+Review the unapplied onboarding migration before testing. See [Owner invitation and password setup](owner-invitation-onboarding.md) for configuration, templates, manual testing, and operational limits.

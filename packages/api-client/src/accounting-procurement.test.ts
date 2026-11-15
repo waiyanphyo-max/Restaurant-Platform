@@ -7,14 +7,16 @@ const client=(fetchImpl:typeof fetch)=>createProcurementApiClient({baseUrl:"http
 describe("procurement contracts",()=>{
   it("saves plans independently from actual purchases and preserves exact strings",async()=>{
     const fetchImpl=vi.fn<typeof fetch>().mockImplementation(async()=>new Response("{}",{headers:{"Content-Type":"application/json"}}));
-    const api=client(fetchImpl),lines=[{itemId,quantity:"0.3",unit:"kg",unitCost:"9007199254740993"}];
+    const api=client(fetchImpl),lines=[{itemId,quantity:"0.3",unit:"kg"}];
     await api.createShoppingSheet({shoppingDate:"2026-11-02",lines},"plan-1");
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(new URL(String(fetchImpl.mock.calls[0][0])).pathname).toBe(`/api/v1/restaurants/${restaurantId}/accounting/shopping/sheets`);
-    await api.confirmPurchase({purchaseDate:"2026-11-02",purchasedAt:"2026-11-02T09:30:00+06:30",lines},"purchase-1");
+    expect(JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))).toEqual({shoppingDate:"2026-11-02",lines});
+    const purchaseLines=lines.map(line=>({...line,quantity:"0.5",unitCost:"9007199254740993"}));
+    await api.confirmPurchase({purchaseDate:"2026-11-02",purchasedAt:"2026-11-02T09:30:00+06:30",lines:purchaseLines},"purchase-1");
     const [,request]=fetchImpl.mock.calls[1];
     expect(new URL(String(fetchImpl.mock.calls[1][0])).pathname).toBe(`/api/v1/restaurants/${restaurantId}/accounting/purchases`);
-    expect(JSON.parse(String(request?.body)).lines[0]).toEqual(lines[0]);
+    expect(JSON.parse(String(request?.body)).lines[0]).toEqual(purchaseLines[0]);
     expect((request?.headers as Headers).get("Authorization")).toBe("Bearer owner-token");
     expect((request?.headers as Headers).get("Idempotency-Key")).toBe("purchase-1");
     expect(request?.credentials).toBe("omit");

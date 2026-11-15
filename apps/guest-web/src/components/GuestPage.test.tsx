@@ -40,7 +40,7 @@ const dish: MenuProductDto = {
   imageUrl: "https://media.example.test/noodles.webp", available: true, trackStock: false,
   stockQuantity: null,
   variants: [
-    { id: "55555555-5555-4555-8555-555555555555", name: "Regular bowl", price: 3000, available: true, imageUrl: null },
+    { id: "55555555-5555-4555-8555-555555555555", name: "Regular bowl", description: "လူတစ်ယောက်အတွက်\nSuitable for one person. <script>alert('x')</script>", price: 3000, available: true, imageUrl: null },
     { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Large bowl", price: 4500, available: false, imageUrl: null },
   ],
   modifierGroups: [{
@@ -134,6 +134,10 @@ describe("public guest page routing", () => {
     const html = renderToStaticMarkup(await GuestPage({ view: "product", productId: productA }));
     expect(html).toContain('id="variant-heading"');
     expect(html).toContain("Regular bowl");
+    expect(html).toContain('Regular bowl</strong><p class="variant-description">လူတစ်ယောက်အတွက်');
+    expect(html).toContain("Suitable for one person.");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>alert");
     expect(html).toContain("3,000");
     expect(html).toContain("Large bowl</strong><span class=\"muted\">Unavailable");
     expect(html).toContain("4,500");

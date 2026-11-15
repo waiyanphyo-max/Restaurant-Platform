@@ -29,6 +29,9 @@ public class ProductVariant {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
+    @Column(name = "description", columnDefinition = "text")
+    private String description;
+
     @Column(name = "price", nullable = false)
     private Long price;
 

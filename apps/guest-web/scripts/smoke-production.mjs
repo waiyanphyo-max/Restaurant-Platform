@@ -2,14 +2,15 @@
  * Production-bundle HTTP smoke test. Run after `npm run build -w
  * @restaurant-platform/guest-web` with no other guest server using this checkout.
  *
- * This does NOT test a live Spring/database deployment. A loopback HTTP server
- * implements the Spring menu, QR context, checkout and queue wire contracts with synthetic data.
+ * A loopback HTTP server implements the Spring menu, QR context, checkout and
+ * queue wire contracts with synthetic data in the staging registry environment.
+ * Production registry startup must reject the loopback HTTP origin.
  * Two unique, temporary registry records exercise the real external registry in
  * `next start`; they are not shipped fixtures or application fallback data.
  * Existing configs, assets, environment files and build output are never edited.
  */
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { access, mkdir, rmdir, unlink, writeFile } from "node:fs/promises";
 import http from "node:http";
@@ -153,7 +154,7 @@ function configuration(item, iconPath) {
   return {
     schemaVersion: 1, slug: item.slug, restaurantId: item.restaurantId,
     branding: { displayName: item.name, primaryColor: item.color, logoUrl: item.logo },
-    guestDomains: { staging: [`staging.${item.host}`], production: [item.host] },
+    guestDomains: { staging: [item.host], production: [`production.${item.host}`] },
     android: { operations: androidApp("operations"), customer: androidApp("customer") },
   };
 }
@@ -222,8 +223,10 @@ function request(port, host, pathname, extraHeaders = {}) {
 function guestPost(port, restaurant, body, extraHeaders = {}, pathname = "/api/guest") {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
+    // Simulate a public TLS terminator forwarding HTTP to the Next listener.
+    const browserScheme = restaurant.host.startsWith("localhost:") ? "http" : "https";
     const req = http.request({ hostname: "127.0.0.1", port, path: pathname, method: "POST", headers: {
-      Host: restaurant.host, Origin: `http://${restaurant.host}`, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data), ...extraHeaders,
+      Host: restaurant.host, Origin: `${browserScheme}://${restaurant.host}`, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data), ...extraHeaders,
     } }, response => {
       let responseBody = "";
       response.setEncoding("utf8");
@@ -329,13 +332,23 @@ try {
   const guestPort = await listen(reservation);
   await closeServer(reservation);
 
-  nextProcess = spawn(process.execPath, [nextBinary, "start", "--hostname", "127.0.0.1", "--port", String(guestPort)], {
+  const args = [nextBinary, "start", "--hostname", "127.0.0.1", "--port", String(guestPort)];
+  const localEnvironment = {
+    ...process.env, NODE_ENV: "production", GUEST_LOCAL_ROUTING: "true",
+    GUEST_API_BASE_URL: `http://127.0.0.1:${upstreamPort}`, NEXT_TELEMETRY_DISABLED: "1",
+  };
+  const rejected = spawnSync(process.execPath, args, {
+    cwd: appDirectory, windowsHide: true, encoding: "utf8", timeout: 10_000,
+    env: { ...localEnvironment, GUEST_CONFIG_ENV: "production" },
+  });
+  if (rejected.error) throw rejected.error;
+  assert.equal(rejected.status, 1, "Production registry startup must fail with an HTTP upstream");
+  assert.match(rejected.stderr, /GUEST_API_BASE_URL must use HTTPS in production/);
+  checks++;
+
+  nextProcess = spawn(process.execPath, args, {
     cwd: appDirectory, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
-    env: {
-      ...process.env, NODE_ENV: "production", GUEST_CONFIG_ENV: "production",
-      GUEST_LOCAL_ROUTING: "true", GUEST_API_BASE_URL: `http://127.0.0.1:${upstreamPort}`,
-      NEXT_TELEMETRY_DISABLED: "1",
-    },
+    env: { ...localEnvironment, GUEST_CONFIG_ENV: "staging" },
   });
   nextExit = new Promise((resolve, reject) => {
     nextProcess.once("exit", (code, signal) => resolve({ code, signal }));
@@ -573,6 +586,13 @@ try {
   const crossOrigin = await guestPost(guestPort, a, { action: "validate", kind: "TABLE_QR", qrToken: a.tableQrToken }, { Origin: "https://attacker.test" });
   assert.equal(crossOrigin.status, 403);
   assert.equal(crossOrigin.data.error, "invalid-qr");
+  checks++;
+
+  const downgraded = await guestPost(guestPort, a, { action: "validate", kind: "TABLE_QR", qrToken: a.tableQrToken }, {
+    Origin: `http://${a.host}`, "x-forwarded-proto": "https",
+  });
+  assert.equal(downgraded.status, 403);
+  assert.equal(downgraded.data.error, "invalid-qr");
   checks++;
 
   assert.ok(upstreamRequests.length > 0);

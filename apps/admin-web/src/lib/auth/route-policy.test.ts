@@ -7,7 +7,7 @@ describe("admin route policy", () => {
     for (const path of ["/", "/restaurants", "/provisioning", "/restaurant-details", "/settings", "/auth/anything"]) {
       expect(isPublicAdminPath(path)).toBe(false);
     }
-    for (const path of ["/login", "/access", "/auth/callback", "/auth/accept-invite"]) expect(isPublicAdminPath(path)).toBe(true);
+    for (const path of ["/login", "/access", "/auth/callback", "/auth/accept-invite", "/auth/recover"]) expect(isPublicAdminPath(path)).toBe(true);
   });
 
   it("preserves recognized local destinations and only valid registry parameters", () => {

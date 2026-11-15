@@ -39,4 +39,15 @@ describe("generated A/B configurations at the Android runtime boundary", () => {
       }
     }
   });
+
+  it("allows the generated private-LAN API only with the development opt-in", () => {
+    const apiBaseUrl = "http://192.168.1.25:8080";
+    const env = { RESTAURANT_SLUG: "restaurant-a", MOBILE_DEVELOPMENT_API_BASE_URL: apiBaseUrl };
+    const dev = configs.customer.inspect({ ...env, MOBILE_ENV: "development" });
+    expect(parseEmbeddedMobileTenant(dev.extra, "customer")).toMatchObject({ apiBaseUrl, allowPrivateLanHttp: true });
+    expect(() => parseEmbeddedMobileTenant({ ...dev.extra, allowPrivateLanHttp: false }, "customer")).toThrow(/Unsafe mobile origin/);
+    const production = configs.customer.inspect({ ...env, MOBILE_ENV: "production" }, { inspectFixtureProfiles: true });
+    expect(() => parseEmbeddedMobileTenant({ ...production.extra, apiBaseUrl, allowPrivateLanHttp: true }, "customer"))
+      .toThrow(/Unsafe mobile origin/);
+  });
 });

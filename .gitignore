@@ -18,6 +18,7 @@ out/
 .expo-shared/
 web-build/
 credentials.json
+google-services.json
 *.jks
 *.keystore
 *.apk

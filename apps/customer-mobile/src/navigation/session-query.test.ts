@@ -78,9 +78,30 @@ describe("customer session navigation data boundaries", () => {
 
   it("supports an explicit retry after an offline error without preserving old private data", async () => {
     const query = vi.fn().mockRejectedValueOnce(new ApiNetworkError()).mockResolvedValue("saved-home");
-    render(query); await tick(); const offline = render(query); expect(offline.state).toEqual({ status: "offline" });
+    render(query); await tick(); const offline = render(query); expect(offline.state).toMatchObject({ status: "offline", failure: { kind: "network", operation: "account" } });
     offline.reload(); expect(render(query).state).toEqual({ status: "loading" }); await tick();
     expect(render(query).state).toEqual({ status: "ready", data: "saved-home" });
+  });
+
+  it("retries a missing profile and reloads updated profile data rather than retaining the failure", async () => {
+    const query = vi.fn().mockRejectedValueOnce(new ApiHttpError(404, "CUSTOMER_PROFILE_NOT_FOUND"))
+      .mockResolvedValueOnce("original-profile").mockResolvedValueOnce("updated-profile");
+    render(query); await tick();
+    const missing = render(query);
+    expect(missing.state).toMatchObject({ status: "error", failure: { kind: "missing_profile", code: "CUSTOMER_PROFILE_NOT_FOUND" } });
+    missing.reload(); render(query); await tick();
+    const loaded = render(query); expect(loaded.state).toEqual({ status: "ready", data: "original-profile" });
+    loaded.reload(); expect(render(query).state).toEqual({ status: "loading" }); await tick();
+    expect(render(query).state).toEqual({ status: "ready", data: "updated-profile" });
+  });
+
+  it("does not publish a failed request after it was cancelled by Reload", async () => {
+    let fail!: (error: unknown) => void;
+    const query = vi.fn<(signal: AbortSignal) => Promise<string>>().mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }))
+      .mockResolvedValueOnce("recovered-profile");
+    const first = render(query); first.reload(); render(query); await tick();
+    fail(new ApiNetworkError()); await tick();
+    expect(render(query).state).toEqual({ status: "ready", data: "recovered-profile" });
   });
 
   it.each([

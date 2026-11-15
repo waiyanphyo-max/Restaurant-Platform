@@ -1,14 +1,25 @@
-import { Stack, type ErrorBoundaryProps } from "expo-router";
+import { router, Stack, useRootNavigationState, type ErrorBoundaryProps } from "expo-router";
 import { Button, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { OperationsAuthProvider, useOperationsAuth } from "../src/auth/AuthProvider";
+import { operationsNotifications } from "../src/notifications/native";
+import { useNotificationInbox } from "@restaurant-platform/mobile-notifications/navigation";
 
+const openInbox = () => router.navigate("/notifications");
 function Navigation() {
-  const { state } = useOperationsAuth();
+  const { state, workspace } = useOperationsAuth();
+  const navigation = useRootNavigationState();
+  useNotificationInbox({
+    owner: state.status === "ready" ? state.userId : null,
+    navigationReady: !!navigation?.key,
+    discardResponse: state.status === "signed_out" || state.status === "denied" || state.status === "unconfigured",
+    ownsNotifications: operationsNotifications.ownsNotifications,
+    openInbox
+  });
   return <Stack screenOptions={{ headerShown: false }}>
     <Stack.Screen name="index" />
     <Stack.Screen name="open" />
-    <Stack.Protected guard={state.status === "ready"}>
+    <Stack.Protected guard={state.status === "ready" || !!workspace && state.status === "checking_membership" && workspace.userId === state.userId}>
       <Stack.Screen name="(workspace)" />
     </Stack.Protected>
     <Stack.Screen name="+not-found" />

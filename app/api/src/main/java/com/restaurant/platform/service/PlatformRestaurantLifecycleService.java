@@ -13,6 +13,7 @@ import com.restaurant.platform.entity.Restaurant;
 import com.restaurant.platform.entity.RestaurantMember;
 import com.restaurant.platform.entity.RestaurantPlatformConfiguration;
 import com.restaurant.platform.repository.OrderRepository;
+import com.restaurant.platform.repository.OwnerOnboardingRepository;
 import com.restaurant.platform.repository.ProfileRepository;
 import com.restaurant.platform.repository.RestaurantMemberRepository;
 import com.restaurant.platform.repository.RestaurantPlatformConfigurationRepository;
@@ -21,6 +22,7 @@ import com.restaurant.platform.repository.RestaurantSettingsRepository;
 import com.restaurant.platform.security.PlatformAdminAuthorization;
 import com.restaurant.platform.security.RestaurantRole;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -46,8 +48,10 @@ public class PlatformRestaurantLifecycleService {
     private final ProfileRepository profiles;
     private final RestaurantPlatformConfigurationRepository configurations;
     private final SupabaseAuthAdminClient authAdmin;
+    private final OwnerOnboardingRepository ownerOnboarding;
     private final String publicWebBaseUrl;
 
+    @Autowired
     public PlatformRestaurantLifecycleService(
             PlatformAdminAuthorization authorization,
             RestaurantRepository restaurants,
@@ -57,6 +61,7 @@ public class PlatformRestaurantLifecycleService {
             ProfileRepository profiles,
             RestaurantPlatformConfigurationRepository configurations,
             SupabaseAuthAdminClient authAdmin,
+            OwnerOnboardingRepository ownerOnboarding,
             @Value("${app.public-web-base-url:http://localhost:3000}") String publicWebBaseUrl) {
         this.authorization = authorization;
         this.restaurants = restaurants;
@@ -66,8 +71,19 @@ public class PlatformRestaurantLifecycleService {
         this.profiles = profiles;
         this.configurations = configurations;
         this.authAdmin = authAdmin;
+        this.ownerOnboarding = ownerOnboarding;
         this.publicWebBaseUrl = publicWebBaseUrl == null ? ""
                 : publicWebBaseUrl.trim().replaceAll("/+$", "");
+    }
+
+    public PlatformRestaurantLifecycleService(
+            PlatformAdminAuthorization authorization, RestaurantRepository restaurants,
+            RestaurantSettingsRepository settings, RestaurantMemberRepository members,
+            OrderRepository orders, ProfileRepository profiles,
+            RestaurantPlatformConfigurationRepository configurations,
+            SupabaseAuthAdminClient authAdmin, String publicWebBaseUrl) {
+        this(authorization, restaurants, settings, members, orders, profiles, configurations,
+                authAdmin, null, publicWebBaseUrl);
     }
 
     @Transactional(readOnly = true)
@@ -211,7 +227,19 @@ public class PlatformRestaurantLifecycleService {
         } catch (SupabaseAuthAdminException exception) {
             // Show incomplete provider status without inventing acceptance or hiding restaurant data.
         }
-        return new PlatformRestaurantDetailResponse.Owner(member.getUserId(), email, fullName, status);
+        String onboardingStatus = "UNAVAILABLE";
+        java.time.OffsetDateTime completedAt = null;
+        if (ownerOnboarding != null) {
+            try {
+                completedAt = ownerOnboarding.findCompletedAt(member.getUserId()).orElse(null);
+                onboardingStatus = completedAt != null ? "COMPLETE"
+                        : "PROVIDER_UNAVAILABLE".equals(status) ? "UNAVAILABLE" : "UNKNOWN";
+            } catch (ApiException exception) {
+                // An unapplied onboarding migration must not hide existing restaurant details.
+            }
+        }
+        return new PlatformRestaurantDetailResponse.Owner(member.getUserId(), email, fullName, status,
+                onboardingStatus, completedAt);
     }
 
     private String workspaceUrl(UUID id, boolean qrSetup) {

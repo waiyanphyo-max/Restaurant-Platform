@@ -21,7 +21,7 @@ vi.mock("react", async importOriginal => ({
 }));
 vi.mock("expo-router", () => ({ useRouter: () => ({ push: harness.push, replace: harness.replace, navigate: harness.navigate }),
   useLocalSearchParams: () => harness.params }));
-vi.mock("react-native", () => ({ Image: "Image", ScrollView: "ScrollView", Text: "Text", StyleSheet: { create: (value: unknown) => value } }));
+vi.mock("react-native", () => ({ Image: "Image", ScrollView: "ScrollView", Text: "Text", View: "View", StyleSheet: { create: (value: unknown) => value } }));
 vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page", StateView: "StateView" }));
 vi.mock("../../api", () => ({ getCustomerPublicApi: vi.fn() }));
 vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: () => ({
@@ -114,6 +114,19 @@ describe("customer product configuration", () => {
     harness.params = { productId: configurable.id };
     harness.menu = { ...menu, categories: [{ ...menu.categories[0], products: [configurable] }] };
     harness.saveLine.mockReset().mockReturnValue(true); harness.replace.mockReset();
+  });
+
+  it("shows each variant's own optional description below its selector without duplicating product copy", () => {
+    const description = "မိသားစုအတွက်\nA larger portion with extra ingredients.";
+    const described = { ...configurable, variants: [{ ...configurable.variants[0], description },
+      { ...configurable.variants[0], id: "small", name: "Small", description: null }] };
+    harness.menu = { ...menu, categories: [{ ...menu.categories[0], products: [described] }] };
+    const tree = renderDetails();
+    const selectedRow = elements(tree).find(element => element.type === "View"
+      && elements(element).some(child => child.type === "Action" && child.props.title === "Large · 3,000 MMK"))!;
+    expect(elements(selectedRow).find(element => element.type === "Body")?.props.children).toBe(description);
+    expect(elements(tree).filter(element => element.type === "Body" && element.props.children === description)).toHaveLength(1);
+    expect(elements(tree).some(element => element.type === "Body" && element.props.children === configurable.description)).toBe(false);
   });
 
   it("requires configured variant and modifier choices before adding the item to the cart", () => {

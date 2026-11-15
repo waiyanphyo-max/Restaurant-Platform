@@ -13,6 +13,7 @@ import { DeliveriesScreen } from "../../src/features/operations/DeliveriesScreen
 import { ProfileScreen } from "../../src/features/profile/ProfileScreen";
 import { SalesLedgerScreen } from "../../src/features/accounting/SalesLedgerScreen";
 import { ShoppingScreen } from "../../src/features/accounting/ShoppingScreen";
+import { PurchasingScreen } from "../../src/features/accounting/PurchasingScreen";
 import { AccountingScreen } from "../../src/features/accounting/AccountingScreen";
 
 export default function OperationsRoute() {
@@ -22,6 +23,7 @@ export default function OperationsRoute() {
     {screen === "dashboard" ? <DashboardScreen /> : screen === "orders" ? <OrdersScreen />
       : screen === "sales-history" ? <SalesLedgerScreen /> : screen === "reports" ? <ReportsScreen />
       : screen === "shopping" ? <ShoppingScreen /> : screen === "accounting" ? <AccountingScreen />
+      : screen === "purchasing" ? <PurchasingScreen />
       : screen === "menu" ? <MenuScreen /> : screen === "team" ? <TeamScreen />
       : screen === "settings" ? <SettingsScreen /> : screen === "deliveries" ? <DeliveriesScreen />
       : screen === "tables" ? <TablesScreen /> : screen === "queue" ? <QueueScreen /> : screen === "notifications" ? <NotificationsScreen />

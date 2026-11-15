@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@restaurant-platform/api-client": "0.1.0",
+    "@restaurant-platform/mobile-notifications": "0.1.0",
     "@restaurant-platform/restaurant-config": "0.1.0",
     "@restaurant-platform/shared-types": "0.1.0",
     "@restaurant-platform/ui-tokens": "0.1.0",

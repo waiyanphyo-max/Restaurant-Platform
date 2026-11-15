@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Image, StyleSheet, Text } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import type { CreateOrderItemRequest, MenuModifierGroupDto, MenuProductDto } from "@restaurant-platform/shared-types";
 import { getCustomerPublicApi } from "../../api";
 import { Action, Body, Card, FormField, Page, StateView } from "../../components/ui";
@@ -79,10 +79,12 @@ function ProductDetails({ product, line, currency }: { product: MenuProductDto; 
       <Body>{t("Check the menu for another option.", "အခြား အစားအစာများကို မီနူးတွင် ကြည့်ပါ။")}</Body>
     </Card> : <>
       {product.variants.length ? <Card title={t("Choose a variant", "အမျိုးကွဲ ရွေးရန်")}>
-        {product.variants.map(variant => <Action key={variant.id}
+        {product.variants.map(variant => <View key={variant.id} style={{ gap: 4 }}><Action
           title={`${variant.name} · ${variant.available && variant.price !== null ? money(variant.price) : t("Unavailable", "မရနိုင်ပါ")}`}
           selected={variant.id === selection.variantId} secondary={variant.id !== selection.variantId}
-          disabled={!variant.available || variant.price === null} onPress={() => update({ variantId: variant.id })} />)}
+          disabled={!variant.available || variant.price === null} onPress={() => update({ variantId: variant.id })} />
+          {variant.description ? <Body>{variant.description}</Body> : null}
+        </View>)}
       </Card> : null}
       {unavailableModifiers.length ? <Card title={t("Some selected options are unavailable", "ရွေးချယ်ထားသော အပိုပစ္စည်းအချို့ မရနိုင်ပါ")}>
         <Action title={t("Remove unavailable options", "မရနိုင်သော အပိုပစ္စည်းများကို ဖယ်ရန်")} secondary onPress={() => update({
