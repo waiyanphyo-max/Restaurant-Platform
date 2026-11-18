@@ -1,10 +1,12 @@
-import { Switch, Text, View } from "react-native";
+import { Switch, View } from "react-native";
+import { foundationTokens } from "@restaurant-platform/ui-tokens";
 import { Action, Body } from "./ui";
 
 export function FormToggle({ label, value, onChange, disabled = false }: { label: string; value: boolean; onChange(value: boolean): void; disabled?: boolean }) {
-  return <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-    <Text style={{ flex: 1, color: "#334155", fontSize: 15 }}>{label}</Text>
-    <Switch accessibilityLabel={label} value={value} onValueChange={onChange} disabled={disabled} />
+  return <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: foundationTokens.spacing.sm,
+    minHeight: foundationTokens.density.touchTarget }}>
+    <View style={{ flex: 1 }}><Body>{label}</Body></View>
+    <Switch accessibilityLabel={label} value={value} onValueChange={onChange} disabled={disabled} hitSlop={foundationTokens.spacing.md} />
   </View>;
 }
 export function Choices({ label, value, values, onChange }: { label: string; value: string; values: readonly string[]; onChange(value: string): void }) {
@@ -13,6 +15,7 @@ export function Choices({ label, value, values, onChange }: { label: string; val
   </View></View>;
 }
 export function MutationFeedback({ busy, error, message }: { busy: boolean; error: string | null; message: string | null }) {
-  return <>{busy ? <Body>Saving…</Body> : null}{error ? <Text accessibilityRole="alert" style={{ color: "#b91c1c", fontSize: 15 }}>{error}</Text> : null}
-    {message ? <Text accessibilityLiveRegion="polite" style={{ color: "#166534", fontSize: 15 }}>{message}</Text> : null}</>;
+  return <>{busy ? <Body accessibilityLiveRegion="polite">Saving…</Body> : null}
+    {error ? <Body accessibilityRole="alert" tone="danger">{error}</Body> : null}
+    {message ? <Body accessibilityLiveRegion="polite" tone="success">{message}</Body> : null}</>;
 }
