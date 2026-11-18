@@ -2,7 +2,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import type { RestaurantConfig } from "@restaurant-platform/shared-types";
-import { resolveBrandTokens } from "@restaurant-platform/ui-tokens";
+import { resolveThemeTokens, toWebThemeVariables } from "@restaurant-platform/ui-tokens";
 import { messages, type GuestLocale } from "@/lib/i18n";
 import { safeImageUrl } from "@/lib/menu";
 
@@ -11,8 +11,14 @@ export function GuestShell({ restaurant, locale, basePath = "", languageForm, ch
   languageForm?: ReactNode; children: ReactNode;
 }) {
   const text = messages[locale];
-  const brand = resolveBrandTokens(restaurant.branding);
-  const style = { "--brand-primary": brand.primaryColor, "--brand-on-primary": brand.onPrimaryColor } as CSSProperties;
+  // Keep tokens on this tenant's subtree, never on a process-wide singleton or document root.
+  // UXI-02 can supply validated branding through the existing restaurant presentation contract.
+  const theme = resolveThemeTokens(restaurant.branding);
+  const style = {
+    ...toWebThemeVariables(theme),
+    "--brand-primary": theme.color.primary,
+    "--brand-on-primary": theme.color.onPrimary,
+  } as CSSProperties;
   const logo = safeImageUrl(restaurant.branding.logoUrl);
   return <div className="guest-site" style={style}>
     <a className="skip-link" href="#main-content">{text.skip}</a>
