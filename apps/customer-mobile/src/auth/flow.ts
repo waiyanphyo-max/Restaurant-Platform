@@ -1,4 +1,5 @@
 import type { AuthSnapshot, NativeSessionController } from "./session";
+import { logAuthFailure } from "./errors";
 
 export type CustomerAuthState = AuthSnapshot | { status: "loading" | "unconfigured" | "error"; message?: string };
 export interface CustomerAuthView { state: CustomerAuthState; phoneEnabled: boolean }
@@ -31,7 +32,8 @@ export function createCustomerAuthFlow(auth: NativeSessionController, cleanupDev
       const snapshot = await auth.restore();
       if (current === attempt && previousRevision === revision) publish(snapshot);
       void checkPhone();
-    } catch {
+    } catch (error) {
+      logAuthFailure("restore", error);
       if (current === attempt && previousRevision === revision) publish({ status: "error", message: "Your saved session could not be restored. Check your connection and retry, or sign out." });
     }
   }
@@ -52,6 +54,9 @@ export function createCustomerAuthFlow(auth: NativeSessionController, cleanupDev
     retry,
     async signInWithPassword(email: string, password: string) { await auth.signInWithPassword(email, password); },
     signUpWithPassword(email: string, password: string) { return auth.signUpWithPassword(email, password); },
+    resendConfirmation(email: string) { return auth.resendConfirmation(email); },
+    requestPasswordReset(email: string) { return auth.requestPasswordReset(email); },
+    resetPassword(email: string, token: string, password: string) { return auth.resetPassword(email, token, password); },
     async requestPhoneOtp(phone: string) {
       try { await auth.requestPhoneOtp(phone); }
       catch (error) { await checkPhone(); throw error; }

@@ -93,6 +93,14 @@ describe("customer profile and saved-address access", () => {
     expect(harness.editAddress).toHaveBeenCalledExactlyOnceWith(home);
   });
 
+  it("identifies a failed saved-address request and shows recovery guidance", () => {
+    harness.account = { status: "error", failure: { kind: "server", operation: "addresses", status: 500, code: "DATABASE_ERROR" } };
+    const state = elements(render()).find(item => item.type === "StateView")!;
+    expect(state.props.title).toBe("Could not load saved addresses");
+    expect(state.props.message).toContain("temporarily unavailable");
+    (state.props.onRetry as () => void)(); expect(harness.reload).toHaveBeenCalledOnce();
+  });
+
   it("supports an empty address list and optional later setup", () => {
     harness.account = { status: "ready", data: { profile, addresses: [] } };
     const tree = render(); expect(textContent(tree)).toContain("No Home Address saved yet");

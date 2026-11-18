@@ -82,6 +82,14 @@ describe("origin and tenant validation", () => {
     expect(() => assertRestaurantContext(restaurantId, restaurantId.toUpperCase())).not.toThrow();
   });
 
+  it("requires an explicit private-LAN HTTP opt-in and rejects public addresses", () => {
+    const baseUrl = "http://192.168.1.25:8080";
+    expect(() => createPublicRestaurantApiClient({ baseUrl, restaurantId })).toThrow(ApiConfigurationError);
+    expect(() => createPublicRestaurantApiClient({ baseUrl, restaurantId, allowPrivateLanHttp: true })).not.toThrow();
+    expect(() => createPublicRestaurantApiClient({ baseUrl: "http://192.169.1.25", restaurantId, allowPrivateLanHttp: true }))
+      .toThrow(ApiConfigurationError);
+  });
+
   it("returns only the configured active membership and denies another tenant", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ restaurantId: otherId, active: true, role: "OWNER" }))
       .mockResolvedValueOnce(json({ restaurantId, active: false, role: "OWNER" }))

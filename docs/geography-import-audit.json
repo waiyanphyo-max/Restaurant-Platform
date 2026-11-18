@@ -1,0 +1,412 @@
+{
+  "version": "carenet-v1",
+  "source": "https://github.com/waiyanphyo-max/CareNet_Backend/blob/main/src/main/resources/import.sql",
+  "sourceBlob": "bd247b556f7d77d407abceea159752e1183b4a73",
+  "counts": {
+    "region": 15,
+    "district": 85,
+    "township": 323
+  },
+  "invalidParents": [],
+  "duplicates": [
+    [
+      {
+        "kind": "township",
+        "sourceId": 120,
+        "parentSourceId": 35,
+        "rawName": "Thayet",
+        "name": "Thayet",
+        "id": "efaee201-f83b-51bd-9aae-ad2086ef3fbd",
+        "code": "carenet-v1-township-120",
+        "active": false
+      },
+      {
+        "kind": "township",
+        "sourceId": 121,
+        "parentSourceId": 35,
+        "rawName": "Thayet",
+        "name": "Thayet",
+        "id": "bcee53c0-5841-588a-8036-cb801ebaeb50",
+        "code": "carenet-v1-township-121",
+        "active": false
+      }
+    ],
+    [
+      {
+        "kind": "township",
+        "sourceId": 125,
+        "parentSourceId": 36,
+        "rawName": "Tada-U",
+        "name": "Tada-U",
+        "id": "42a33da0-4100-5df9-9eb9-1cc051e95f2b",
+        "code": "carenet-v1-township-125",
+        "active": false
+      },
+      {
+        "kind": "township",
+        "sourceId": 126,
+        "parentSourceId": 36,
+        "rawName": "Tada-U",
+        "name": "Tada-U",
+        "id": "c0240bb9-0e79-56de-8e11-530adb6a2f56",
+        "code": "carenet-v1-township-126",
+        "active": false
+      }
+    ],
+    [
+      {
+        "kind": "township",
+        "sourceId": 133,
+        "parentSourceId": 37,
+        "rawName": "Pyigyidagun",
+        "name": "Pyigyidagun",
+        "id": "fa49f975-f116-5471-ab47-55d250da0b77",
+        "code": "carenet-v1-township-133",
+        "active": false
+      },
+      {
+        "kind": "township",
+        "sourceId": 134,
+        "parentSourceId": 37,
+        "rawName": "Pyigyidagun",
+        "name": "Pyigyidagun",
+        "id": "3a1d0cb7-fdb5-5c6a-b308-042aa5095e6a",
+        "code": "carenet-v1-township-134",
+        "active": false
+      }
+    ],
+    [
+      {
+        "kind": "township",
+        "sourceId": 138,
+        "parentSourceId": 38,
+        "rawName": "Wundwin",
+        "name": "Wundwin",
+        "id": "51c9b528-4cab-5f10-b50b-19da0ed7672e",
+        "code": "carenet-v1-township-138",
+        "active": false
+      },
+      {
+        "kind": "township",
+        "sourceId": 139,
+        "parentSourceId": 38,
+        "rawName": "Wundwin",
+        "name": "Wundwin",
+        "id": "d10738fc-f6ac-529b-ba27-70e9403eccde",
+        "code": "carenet-v1-township-139",
+        "active": false
+      }
+    ],
+    [
+      {
+        "kind": "township",
+        "sourceId": 152,
+        "parentSourceId": 42,
+        "rawName": "Yamethin",
+        "name": "Yamethin",
+        "id": "c9b7a6d9-3a6e-50d4-8089-ca0a566b44da",
+        "code": "carenet-v1-township-152",
+        "active": false
+      },
+      {
+        "kind": "township",
+        "sourceId": 153,
+        "parentSourceId": 42,
+        "rawName": "Yamethin",
+        "name": "Yamethin",
+        "id": "90d30e08-2fd0-5210-beb5-c01b75411618",
+        "code": "carenet-v1-township-153",
+        "active": false
+      }
+    ]
+  ],
+  "ambiguousNames": [
+    [
+      {
+        "kind": "township",
+        "sourceId": 47,
+        "parentSourceId": 13,
+        "rawName": "Minhla",
+        "name": "Minhla",
+        "id": "a669518e-9209-5ada-87c7-36bfa4ff2147",
+        "code": "carenet-v1-township-47",
+        "active": true
+      },
+      {
+        "kind": "township",
+        "sourceId": 118,
+        "parentSourceId": 35,
+        "rawName": "Minhla",
+        "name": "Minhla",
+        "id": "f352b616-8f5b-5aab-936b-232dd96e6592",
+        "code": "carenet-v1-township-118",
+        "active": true
+      }
+    ]
+  ],
+  "whitespaceNormalized": [
+    {
+      "kind": "township",
+      "sourceId": 5,
+      "rawName": "Kyonpyaw ",
+      "name": "Kyonpyaw"
+    },
+    {
+      "kind": "township",
+      "sourceId": 6,
+      "rawName": "Yekyi ",
+      "name": "Yekyi"
+    },
+    {
+      "kind": "township",
+      "sourceId": 7,
+      "rawName": "Labutta ",
+      "name": "Labutta"
+    },
+    {
+      "kind": "township",
+      "sourceId": 20,
+      "rawName": "Ngapudaw ",
+      "name": "Ngapudaw"
+    },
+    {
+      "kind": "township",
+      "sourceId": 21,
+      "rawName": "Pathein ",
+      "name": "Pathein"
+    },
+    {
+      "kind": "township",
+      "sourceId": 22,
+      "rawName": "Thabaung ",
+      "name": "Thabaung"
+    },
+    {
+      "kind": "township",
+      "sourceId": 191,
+      "rawName": "Hkamti ",
+      "name": "Hkamti"
+    },
+    {
+      "kind": "township",
+      "sourceId": 193,
+      "rawName": "Kale ",
+      "name": "Kale"
+    },
+    {
+      "kind": "township",
+      "sourceId": 194,
+      "rawName": "Kalewa ",
+      "name": "Kalewa"
+    },
+    {
+      "kind": "township",
+      "sourceId": 195,
+      "rawName": "Mingin ",
+      "name": "Mingin"
+    },
+    {
+      "kind": "township",
+      "sourceId": 196,
+      "rawName": "Kanbalu ",
+      "name": "Kanbalu"
+    },
+    {
+      "kind": "township",
+      "sourceId": 197,
+      "rawName": "Kyunhla ",
+      "name": "Kyunhla"
+    },
+    {
+      "kind": "township",
+      "sourceId": 198,
+      "rawName": "Banmauk ",
+      "name": "Banmauk"
+    },
+    {
+      "kind": "township",
+      "sourceId": 199,
+      "rawName": "Htigyaing ",
+      "name": "Htigyaing"
+    },
+    {
+      "kind": "township",
+      "sourceId": 200,
+      "rawName": "Indaw ",
+      "name": "Indaw"
+    },
+    {
+      "kind": "township",
+      "sourceId": 201,
+      "rawName": "Katha ",
+      "name": "Katha"
+    },
+    {
+      "kind": "township",
+      "sourceId": 202,
+      "rawName": "Kawlin ",
+      "name": "Kawlin"
+    },
+    {
+      "kind": "township",
+      "sourceId": 203,
+      "rawName": "Pinlebu ",
+      "name": "Pinlebu"
+    },
+    {
+      "kind": "township",
+      "sourceId": 204,
+      "rawName": "Wuntho ",
+      "name": "Wuntho"
+    },
+    {
+      "kind": "township",
+      "sourceId": 205,
+      "rawName": "Mawlaik ",
+      "name": "Mawlaik"
+    },
+    {
+      "kind": "township",
+      "sourceId": 206,
+      "rawName": "Paungbyin ",
+      "name": "Paungbyin"
+    },
+    {
+      "kind": "township",
+      "sourceId": 207,
+      "rawName": "Ayadaw ",
+      "name": "Ayadaw"
+    },
+    {
+      "kind": "township",
+      "sourceId": 208,
+      "rawName": "Budalin ",
+      "name": "Budalin"
+    },
+    {
+      "kind": "township",
+      "sourceId": 209,
+      "rawName": "Chaung-U ",
+      "name": "Chaung-U"
+    },
+    {
+      "kind": "township",
+      "sourceId": 210,
+      "rawName": "Monywa ",
+      "name": "Monywa"
+    },
+    {
+      "kind": "township",
+      "sourceId": 211,
+      "rawName": "Myaung ",
+      "name": "Myaung"
+    },
+    {
+      "kind": "township",
+      "sourceId": 212,
+      "rawName": "Myinmu ",
+      "name": "Myinmu"
+    },
+    {
+      "kind": "township",
+      "sourceId": 213,
+      "rawName": "Sagaing ",
+      "name": "Sagaing"
+    },
+    {
+      "kind": "township",
+      "sourceId": 214,
+      "rawName": "Khin-U ",
+      "name": "Khin-U"
+    },
+    {
+      "kind": "township",
+      "sourceId": 215,
+      "rawName": "Shwebo ",
+      "name": "Shwebo"
+    },
+    {
+      "kind": "township",
+      "sourceId": 216,
+      "rawName": "Wetlet ",
+      "name": "Wetlet"
+    },
+    {
+      "kind": "township",
+      "sourceId": 217,
+      "rawName": "Tamu ",
+      "name": "Tamu"
+    },
+    {
+      "kind": "township",
+      "sourceId": 218,
+      "rawName": "Tabayin ",
+      "name": "Tabayin"
+    },
+    {
+      "kind": "township",
+      "sourceId": 219,
+      "rawName": "Taze ",
+      "name": "Taze"
+    },
+    {
+      "kind": "township",
+      "sourceId": 220,
+      "rawName": "Ye-U ",
+      "name": "Ye-U"
+    },
+    {
+      "kind": "township",
+      "sourceId": 221,
+      "rawName": "Kani ",
+      "name": "Kani"
+    },
+    {
+      "kind": "township",
+      "sourceId": 222,
+      "rawName": "Pale ",
+      "name": "Pale"
+    },
+    {
+      "kind": "township",
+      "sourceId": 223,
+      "rawName": "Salingyi ",
+      "name": "Salingyi"
+    },
+    {
+      "kind": "township",
+      "sourceId": 224,
+      "rawName": "Yinmabin ",
+      "name": "Yinmabin"
+    },
+    {
+      "kind": "township",
+      "sourceId": 227,
+      "rawName": "Mong La ",
+      "name": "Mong La"
+    },
+    {
+      "kind": "township",
+      "sourceId": 229,
+      "rawName": "Mong Hpayak ",
+      "name": "Mong Hpayak"
+    },
+    {
+      "kind": "township",
+      "sourceId": 272,
+      "rawName": "Yebyu ",
+      "name": "Yebyu"
+    },
+    {
+      "kind": "township",
+      "sourceId": 273,
+      "rawName": "Bokepyin ",
+      "name": "Bokepyin"
+    }
+  ],
+  "reviewRequired": [
+    "Same-district duplicate records retain separate deterministic IDs but are inactive pending explicit review; no records are merged.",
+    "All administrative boundaries and transliterations are source-era, unverified reference data. Yangon four-district grouping and all other boundaries require authoritative current review before production rollout.",
+    "No missing entities or Burmese translations have been inferred. Codes identify source records, not official administrative codes."
+  ]
+}

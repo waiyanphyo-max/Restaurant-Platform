@@ -13,7 +13,7 @@ import {
   type NativeSessionController
 } from "./session";
 
-function checkedSupabaseOrigin(value: string | undefined, environment: string): string {
+function checkedSupabaseOrigin(value: string | undefined): string {
   if (!value) throw new Error("Public Supabase URL is not configured");
   let url: URL;
   try {
@@ -21,9 +21,8 @@ function checkedSupabaseOrigin(value: string | undefined, environment: string): 
   } catch {
     throw new Error("Public Supabase URL must be an origin");
   }
-  const emulatorHost = ["localhost", "127.0.0.1", "10.0.2.2"].includes(url.hostname);
   if (
-    (url.protocol !== "https:" && !(environment === "development" && url.protocol === "http:" && emulatorHost)) ||
+    url.protocol !== "https:" ||
     url.username || url.password || url.pathname !== "/" || url.search || url.hash ||
     !/^[a-z0-9.-]+$/i.test(url.hostname)
   ) {
@@ -52,7 +51,7 @@ export function getOperationsAuth(): NativeSessionController {
   if (singleton) return singleton;
   if (Platform.OS !== "android") throw new Error("This Operations build supports Android only");
   const tenant = readEmbeddedTenant();
-  const supabaseUrl = checkedSupabaseOrigin(process.env.EXPO_PUBLIC_SUPABASE_URL, tenant.environment);
+  const supabaseUrl = checkedSupabaseOrigin(process.env.EXPO_PUBLIC_SUPABASE_URL);
   const publishableKey = checkedPublishableKey(process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const projectUrl = new URL(supabaseUrl);
   const projectScope = `${projectUrl.hostname}.${projectUrl.port || (projectUrl.protocol === "https:" ? "443" : "80")}`;

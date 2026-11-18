@@ -144,6 +144,7 @@ public class CatalogManagementService {
         ProductVariant variant = new ProductVariant();
         variant.setProductId(productId);
         variant.setName(request.name().trim());
+        variant.setDescription(clean(request.description()));
         variant.setPrice(request.price());
         variant.setImageUrl(clean(request.imageUrl()));
         variant.setIsAvailable(request.available());
@@ -161,6 +162,7 @@ public class CatalogManagementService {
                 .orElseThrow(() -> notFound("PRODUCT_VARIANT_NOT_FOUND",
                         "error.catalog.variant-not-found"));
         variant.setName(request.name().trim());
+        variant.setDescription(clean(request.description()));
         variant.setPrice(request.price());
         if (request.imageUrl() != null) {
             variant.setImageUrl(clean(request.imageUrl()));
@@ -366,7 +368,7 @@ public class CatalogManagementService {
                 variant.getId(), variant.getProductId(), variant.getName(),
                 variant.getPrice(), variant.getImageUrl(),
                 Boolean.TRUE.equals(variant.getIsAvailable()),
-                variant.getCreatedAt(), variant.getUpdatedAt());
+                variant.getCreatedAt(), variant.getUpdatedAt(), variant.getDescription());
     }
 
     private ModifierOptionResponse toModifierOption(ModifierOption option) {
@@ -439,7 +441,8 @@ public class CatalogManagementService {
     private void validateVariantRequest(ProductVariantRequest request) {
         if (request == null || request.name() == null || request.name().isBlank()
                 || request.price() == null || request.price() < 0
-                || request.available() == null) {
+                || request.available() == null
+                || request.description() != null && request.description().length() > 5000) {
             throw badRequest("INVALID_PRODUCT_VARIANT", "error.catalog.invalid-variant");
         }
     }

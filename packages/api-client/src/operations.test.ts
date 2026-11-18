@@ -40,6 +40,25 @@ const clientFor = (fetchImpl: typeof fetch) => createRestaurantMemberApiClient({
 });
 
 describe("operations read contracts", () => {
+  it("sends kitchen commands with an expected state to the authenticated restaurant route", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(json({ id: orderId, status: "READY" }));
+    const client = clientFor(fetchImpl);
+    const body = { action: "COMPLETE", expectedStatus: "ACCEPTED", reason: null } as const;
+    await client.executeOrderAction(orderId, body);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(new URL(String(url)).pathname).toBe(`/api/v1/restaurants/${restaurantId}/orders/${orderId}/actions`);
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual(body);
+    expect((init?.headers as Headers).get("Authorization")).toBe("Bearer current-token");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves stale kitchen command conflicts without automatically retrying mutations", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(json({ code: "ORDER_ACTION_STALE" }, 409));
+    await expect(clientFor(fetchImpl).executeOrderAction(orderId, { action: "CANCEL", expectedStatus: "PENDING", reason: "Address too far away" }))
+      .rejects.toMatchObject({ status: 409, code: "ORDER_ACTION_STALE" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
   it("uses only existing tenant-scoped GET routes and exact Java wire field names", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(json(report)).mockResolvedValueOnce(json([product]))

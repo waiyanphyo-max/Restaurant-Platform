@@ -53,8 +53,8 @@ public class SupabaseAuthAdminClient {
     }
 
     public AuthUser inviteByEmail(String email, String fullName) {
-        requireConfigured();
-        URI uri = buildInviteUri();
+        requireEmailDeliveryConfigured();
+        URI uri = buildEmailUri("invite");
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("email", email);
         if (fullName != null && !fullName.isBlank()) {
@@ -86,7 +86,8 @@ public class SupabaseAuthAdminClient {
                         "The email address is already registered", false, true, exception);
             }
             throw new SupabaseAuthAdminException(
-                    "Supabase Auth invitation request failed", false, false, exception);
+                    "Supabase Auth invitation request failed", false, false,
+                    exception.getStatusCode().value() == 429, exception);
         } catch (RestClientException exception) {
             throw new SupabaseAuthAdminException(
                     "Supabase Auth invitation request failed", false, false, exception);
@@ -115,20 +116,64 @@ public class SupabaseAuthAdminClient {
         }
     }
 
-    private URI buildInviteUri() {
-        UriComponentsBuilder builder = UriComponentsBuilder
-                .fromUriString(projectUrl + "/auth/v1/invite");
-        if (!inviteRedirectUrl.isBlank()) {
-            builder.queryParam("redirect_to", inviteRedirectUrl);
+    /** Existing accounts use recovery, preserving their Auth UUID and memberships. */
+    public void requestRecoveryEmail(String email) {
+        requireEmailDeliveryConfigured();
+        try {
+            restClient.post().uri(buildEmailUri("recover"))
+                    .header("apikey", serviceRoleKey)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceRoleKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("email", email))
+                    .retrieve().toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            throw new SupabaseAuthAdminException("Supabase Auth account setup email request failed",
+                    false, false, exception.getStatusCode().value() == 429, exception);
+        } catch (RestClientException exception) {
+            throw new SupabaseAuthAdminException("Supabase Auth account setup email request failed",
+                    false, false, exception);
         }
-        return builder.build().encode().toUri();
+    }
+
+    private URI buildEmailUri(String action) {
+        return UriComponentsBuilder.fromUriString(projectUrl + "/auth/v1/" + action)
+                .queryParam("redirect_to", inviteRedirectUrl).build().encode().toUri();
+    }
+
+    /** Fail before requesting email when its HTTPS destination is absent or malformed. */
+    public void requireEmailDeliveryConfigured() {
+        requireConfigured();
+        try {
+            URI redirect = URI.create(inviteRedirectUrl);
+            if (!safeHttps(redirect) || !"/auth/accept-invite".equals(redirect.getPath())) {
+                throw new IllegalArgumentException("Invalid invitation destination");
+            }
+        } catch (IllegalArgumentException exception) {
+            throw new SupabaseAuthAdminException(
+                    "An HTTPS invitation acceptance URL is required", true, false, null);
+        }
     }
 
     private void requireConfigured() {
-        if (projectUrl.isBlank() || serviceRoleKey.isBlank()) {
+        boolean validOrigin;
+        try {
+            URI origin = URI.create(projectUrl);
+            validOrigin = safeHttps(origin) && (origin.getPath() == null || origin.getPath().isEmpty());
+        } catch (IllegalArgumentException exception) {
+            validOrigin = false;
+        }
+        if (!validOrigin || serviceRoleKey.isBlank()) {
             throw new SupabaseAuthAdminException(
                     "Supabase Auth Admin is not configured", true, false, null);
         }
+    }
+
+    private static boolean safeHttps(URI uri) {
+        String host = uri.getHost();
+        return "https".equalsIgnoreCase(uri.getScheme()) && host != null
+                && !host.equalsIgnoreCase("localhost") && !host.equals("127.0.0.1")
+                && !host.equals("[::1]") && !host.equals("::1")
+                && uri.getRawUserInfo() == null && uri.getRawQuery() == null && uri.getRawFragment() == null;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

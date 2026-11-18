@@ -114,6 +114,7 @@ function ActiveDelivery({ deliveryId, role, userId }: { deliveryId: string; role
         </Card>
         <Card title="Customer destination">
           <Body>{task.deliveryAddress ?? "Delivery address unavailable"}</Body>
+          <Body>City: {task.deliveryCity ?? "Unavailable"} · Township: {task.deliveryTownship ?? "Unavailable"}</Body>
           <Body>Recipient: {task.customerName ?? "Name unavailable"}</Body>
           <Body>Phone: {task.customerPhone ?? "Phone unavailable"}</Body>
           <Body>Delivery instructions: {task.deliveryNote ?? "None provided"}</Body>
@@ -143,11 +144,11 @@ function LocationActions({ location, available, busy, viewLabel, navigateLabel, 
   location: DeliveryCoordinatesDto; available: boolean; busy: boolean; viewLabel: string; navigateLabel: string; onOpen(action: MapAction): void;
 }) {
   const valid = validDeliveryCoordinates(location);
-  const disabled = busy || !valid || !available;
+  if (!valid) return <Body>Map and navigation unavailable. No map pin is available for this address. Use the address and contact details for delivery.</Body>;
+  const disabled = busy || !available;
   return <>
-    {valid ? <Body>Latitude {location.latitude} · Longitude {location.longitude}</Body>
-      : <Body>Map and navigation unavailable. This location has no verified coordinates.</Body>}
-    {valid && !available ? <Body>Map and navigation are available for active delivery tasks.</Body> : null}
+    <Body>Latitude {location.latitude} · Longitude {location.longitude}</Body>
+    {!available ? <Body>Map and navigation are available for active delivery tasks.</Body> : null}
     <Action title={viewLabel} secondary disabled={disabled} onPress={() => onOpen("view")} />
     <Action title={navigateLabel} disabled={disabled} onPress={() => onOpen("navigate")} />
   </>;

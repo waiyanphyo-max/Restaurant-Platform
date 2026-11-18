@@ -3,6 +3,7 @@ package com.restaurant.platform.controller;
 import com.restaurant.platform.dto.order.ManagerOrderDetailDto;
 import com.restaurant.platform.dto.order.OrderSummaryDto;
 import com.restaurant.platform.dto.order.UpdateOrderStatusRequest;
+import com.restaurant.platform.dto.order.OrderActionRequest;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.ManagerOrderService;
 
@@ -50,5 +51,12 @@ public class ManagerOrderController {
             @Valid @RequestBody UpdateOrderStatusRequest request) {
         UUID userId = restaurantAuthorization.requireAuthenticatedUserId();
         return managerOrderService.updateStatus(restaurantId, orderId, userId, request);
+    }
+
+    @PostMapping("/{orderId}/actions")
+    public OrderSummaryDto executeAction(@PathVariable UUID restaurantId, @PathVariable UUID orderId,
+                                        @Valid @RequestBody OrderActionRequest request) {
+        return managerOrderService.executeAction(restaurantId, orderId,
+                restaurantAuthorization.requireAuthenticatedUserId(), request);
     }
 }

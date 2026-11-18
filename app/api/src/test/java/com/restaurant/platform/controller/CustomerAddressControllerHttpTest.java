@@ -50,11 +50,13 @@ class CustomerAddressControllerHttpTest {
     @Autowired private MockMvc mvc;
     @MockitoBean private JwtDecoder decoder;
     @MockitoBean private CustomerAddressRepository addresses;
+    @MockitoBean private com.restaurant.platform.service.GeographicLocationService locations;
     @MockitoBean private RestaurantMemberRepository memberships;
     @MockitoBean private DeliveryRepository deliveries;
 
     @BeforeEach
     void saveReturnsPersistedEntity() {
+        when(locations.resolve(any(),any(),any(),any(),any())).thenAnswer(call -> new com.restaurant.platform.service.GeographicLocationService.Hierarchy(UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),((String)call.getArgument(3)).trim(),"District",((String)call.getArgument(4)).trim()));
         when(addresses.save(any(CustomerAddress.class))).thenAnswer(invocation -> {
             CustomerAddress address = invocation.getArgument(0);
             if (address.getId() == null) address.setId(addressId);

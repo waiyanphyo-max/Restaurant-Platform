@@ -1,6 +1,4 @@
 const { createAndroidExpoConfig } = require("@restaurant-platform/restaurant-config/expo");
-const fs = require("node:fs");
-const path = require("node:path");
 
 function initialRegion(env) {
   const latitude = Number(env.CUSTOMER_MAP_INITIAL_LATITUDE);
@@ -10,41 +8,25 @@ function initialRegion(env) {
   return { latitude, longitude, latitudeDelta: 0.04, longitudeDelta: 0.04 };
 }
 
-function validGoogleServicesFile(file, applicationId) {
-  if (typeof file !== "string" || !file) return false;
-  try {
-    const value = JSON.parse(fs.readFileSync(file, "utf8"));
-    return !!value && value.type !== "service_account" && !value.private_key &&
-      typeof value.project_info?.project_number === "string" && typeof value.project_info?.project_id === "string" &&
-      Array.isArray(value.client) && value.client.some(client => client?.client_info?.android_client_info?.package_name === applicationId);
-  } catch { return false; }
-}
-
-module.exports = createAndroidExpoConfig("customer", __dirname, (selected, env) => {
+module.exports = createAndroidExpoConfig("customer", __dirname, (_selected, env) => {
   // Android SDK keys are public in the native binary: restrict them by package + signing SHA-1.
   const mapKey = env.CUSTOMER_GOOGLE_MAPS_ANDROID_API_KEY;
   const mapsConfigured = typeof mapKey === "string" && /^AIza[A-Za-z0-9_-]{35}$/.test(mapKey);
-  const googleServicesFile = env.CUSTOMER_GOOGLE_SERVICES_FILE
-    ? path.resolve(__dirname, env.CUSTOMER_GOOGLE_SERVICES_FILE) : undefined;
-  const notificationsEnabled = env.CUSTOMER_NOTIFICATIONS_ENABLED === "true" &&
-    validGoogleServicesFile(googleServicesFile, selected.applicationId);
   const region = initialRegion(env);
   return {
     plugins: [
       ["expo-location", { isAndroidBackgroundLocationEnabled: false, isAndroidForegroundServiceEnabled: false }],
-      ...(mapsConfigured ? [["react-native-maps", { androidGoogleMapsApiKey: mapKey }]] : []),
-      ...(notificationsEnabled ? ["expo-notifications"] : [])
+      ...(mapsConfigured ? [["react-native-maps", { androidGoogleMapsApiKey: mapKey }]] : [])
     ],
     android: {
-      blockedPermissions: ["android.permission.ACCESS_BACKGROUND_LOCATION", "android.permission.FOREGROUND_SERVICE_LOCATION"],
-      ...(notificationsEnabled ? { googleServicesFile } : {})
+      blockedPermissions: ["android.permission.ACCESS_BACKGROUND_LOCATION", "android.permission.FOREGROUND_SERVICE_LOCATION"]
     },
     extra: {
+      customerConfirmationUrl: env.EXPO_PUBLIC_CUSTOMER_CONFIRMATION_URL || null,
       mapsConfigured,
       ...(region ? { initialMapRegion: region } : {}),
       features: {
-        phoneOtpRequested: env.CUSTOMER_PHONE_OTP_ENABLED === "true",
-        notificationsEnabled
+        phoneOtpRequested: env.CUSTOMER_PHONE_OTP_ENABLED === "true"
       }
     }
   };

@@ -3,7 +3,7 @@ import { Image } from "react-native";
 import type { RestaurantResponse, RestaurantSettingsRequest, RestaurantSettingsResponse, UpdateRestaurantRequest } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
-import { pickAndUploadImage } from "../../components/imageUpload";
+import { useImageUpload } from "../../components/useImageUpload";
 import { QueryResult } from "../../components/QueryResult";
 import { Action, Body, Card, ConfirmDialog, FormField, Page } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
@@ -12,17 +12,18 @@ import { FormStatus, Toggle } from "./controls";
 import { coordinate, optionalText, requiredText, wholeAmount } from "./validation";
 
 export function SettingsScreen() {
-  const profile = useApiQuery(signal => getOperationsApi().getRestaurant({ signal }), "managed-profile");
+  const profile = useApiQuery(signal => getOperationsApi().getRestaurant({ signal }), "managed-profile", { keepPreviousData: true });
   const settings = useApiQuery(signal => getOperationsApi().getSettings({ signal }), "managed-settings");
   const { state } = useOperationsAuth();
   const owner = state.status === "ready" && state.membership.role === "OWNER";
-  return <Page title="Restaurant" subtitle="Profile, ordering and delivery preferences" onRefresh={() => { profile.reload(); settings.reload(); }} refreshing={profile.state.status === "loading" || settings.state.status === "loading"}>
+  return <Page title="Restaurant" subtitle="Profile, ordering and delivery preferences" onRefresh={() => { profile.reload(); settings.reload(); }} refreshing={profile.state.status === "loading" || profile.refreshing || settings.state.status === "loading"}>
     <QueryResult {...profile}>{restaurant => <ProfileForm restaurant={restaurant} owner={owner} reload={profile.reload} />}</QueryResult>
     <QueryResult {...settings}>{data => <SettingsForm settings={data} reload={settings.reload} />}</QueryResult>
   </Page>;
 }
 
 function ProfileForm({ restaurant, owner, reload }: { restaurant: RestaurantResponse; owner: boolean; reload(): void }) {
+  const uploadImage = useImageUpload();
   const [fields, setFields] = useState({ name: restaurant.name, description: restaurant.description ?? "", phone: restaurant.phone ?? "", address: restaurant.address ?? "",
     houseNo: restaurant.houseNo ?? "", street: restaurant.street ?? "", ward: restaurant.ward ?? "", township: restaurant.township ?? "", city: restaurant.city ?? "",
     latitude: restaurant.latitude?.toString() ?? "", longitude: restaurant.longitude?.toString() ?? "" });
@@ -50,7 +51,7 @@ function ProfileForm({ restaurant, owner, reload }: { restaurant: RestaurantResp
     <FormStatus error={validation ?? mutation.error} message={mutation.message} />
     <Action title={mutation.busy ? "Saving…" : "Save profile"} disabled={mutation.busy} onPress={save} />
     {owner ? <><Body>Logo: PNG, JPEG or WebP, up to 5 MB.</Body><Action title="Choose and upload logo" secondary disabled={mutation.busy} onPress={() => {
-      setValidation(null); void mutation.run(() => pickAndUploadImage(file => getOperationsApi().uploadRestaurantLogo(file)), uploaded => { if (uploaded) reload(); });
+      setValidation(null); void mutation.run(() => uploadImage((api, file) => api.uploadRestaurantLogo(file)), uploaded => { if (uploaded) reload(); });
     }} /></> : null}
   </Card>;
 }

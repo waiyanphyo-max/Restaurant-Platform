@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
   const slug = guestRouteSlug(request.nextUrl.pathname);
   if (slug) request.headers.set(GUEST_ROUTE_SLUG_HEADER, slug);
 
-  const response = request.nextUrl.pathname.startsWith("/auth/")
+  const response = request.nextUrl.pathname.startsWith("/auth/") && !request.nextUrl.pathname.startsWith("/auth/customer-confirmation/")
     ? await refreshGuestAuthSession(request)
     : NextResponse.next({ request: { headers: request.headers } });
   response.headers.set("Cache-Control", "private, no-store");

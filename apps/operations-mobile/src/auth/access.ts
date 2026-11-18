@@ -25,19 +25,22 @@ interface MembershipPort {
 export function createOperationsAccessController(
   auth: NativeSessionController,
   api: MembershipPort,
-  restaurantId: string
+  restaurantId: string,
+  cleanupDevice?: () => Promise<void>
 ) {
   let state: OperationsAccessState = { status: "loading" };
   let userId: string | null = null;
   let generation = 0;
   let disposed = false;
   let started = false;
+  let signingOut = false;
   let suspended = false;
   let online = true;
   let request: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let unsubscribe: (() => void) | null = null;
   const listeners = new Set<(value: OperationsAccessState) => void>();
+  const pendingChecks = new Set<() => void>();
 
   function publish(value: OperationsAccessState) {
     if (disposed) return;
@@ -88,7 +91,7 @@ export function createOperationsAccessController(
   }
 
   function receive(snapshot: AuthSnapshot) {
-    if (disposed) return;
+    if (disposed || signingOut) return;
     if (snapshot.status === "signed_out") {
       userId = null;
       invalidate();
@@ -108,8 +111,45 @@ export function createOperationsAccessController(
     timer = setTimeout(() => { timer = null; void validate(identity); }, 0);
   }
 
+  function assertAccess(expectedUserId: string, expectedRole: OperationsRole) {
+    if (disposed || signingOut || suspended || !online || state.status !== "ready" ||
+      state.userId !== expectedUserId || state.membership.role !== expectedRole) throw new TenantAccessError();
+  }
+
+  async function verifyAccess(expectedUserId: string, expectedRole: OperationsRole) {
+    if (disposed || signingOut || !online || userId !== expectedUserId) throw new TenantAccessError();
+    if (suspended || state.status === "checking_membership") {
+      // Android may return the picker result before its active/membership events finish.
+      await new Promise<void>((resolve, reject) => {
+        const finish = (error?: Error) => {
+          clearTimeout(timeout);
+          listeners.delete(receiveCheck);
+          pendingChecks.delete(cancel);
+          if (error) reject(error); else resolve();
+        };
+        const cancel = () => finish(new TenantAccessError());
+        const receiveCheck = (next: OperationsAccessState) => {
+          if (next.status === "checking_membership" && next.userId === expectedUserId) return;
+          try { assertAccess(expectedUserId, expectedRole); finish(); }
+          catch { cancel(); }
+        };
+        const timeout = setTimeout(cancel, 30_000);
+        listeners.add(receiveCheck);
+        pendingChecks.add(cancel);
+        receiveCheck(state);
+      });
+    } else {
+      // Recheck even on platforms that do not emit a background event for their picker.
+      assertAccess(expectedUserId, expectedRole);
+      await validate(expectedUserId);
+    }
+    assertAccess(expectedUserId, expectedRole);
+  }
+
   return {
     getState: () => state,
+    assertAccess,
+    verifyAccess,
     subscribe(listener: (value: OperationsAccessState) => void) {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
@@ -129,7 +169,7 @@ export function createOperationsAccessController(
       }
     },
     async retryMembership() {
-      if (disposed) return;
+      if (disposed || signingOut) return;
       suspended = false;
       if (!online) return;
       if (userId) await validate(userId);
@@ -153,14 +193,22 @@ export function createOperationsAccessController(
       }
     },
     async signOut() {
+      if (signingOut) return;
+      signingOut = true;
       userId = null;
       invalidate();
-      publish({ status: "signed_out" });
-      await auth.signOut();
+      publish({ status: "loading" });
+      try {
+        // Device deactivation needs the current bearer. Secure logout still runs offline.
+        await cleanupDevice?.().catch(() => undefined);
+        await auth.signOut();
+        publish({ status: "signed_out" });
+      } finally { signingOut = false; }
     },
     dispose() {
       disposed = true;
       invalidate();
+      for (const cancel of pendingChecks) cancel();
       unsubscribe?.();
       listeners.clear();
     }

@@ -4,6 +4,7 @@ export type * from "./api-common.js";
 export type * from "./platform-api.js";
 export type * from "./member-api.js";
 export type * from "./customer-api.js";
+export type * from "./locations.js";
 export type * from "./accounting-procurement.js";
 export type * from "./accounting-report.js";
 export type * from "./accounting-sales.js";

@@ -1,3 +1,6 @@
+import { customerPasswordPolicy, normalizeEmail, validEmail, validPassword } from "./validation";
+import { authErrorMetadata } from "./errors";
+
 /** A narrow port around Supabase Auth. Spring Boot still authorizes every API call. */
 export interface NativeSession {
   access_token: string;
@@ -9,6 +12,9 @@ export interface NativeAuthPort {
   getSession(): Promise<NativeSession | null>;
   signInWithPassword(email: string, password: string): Promise<NativeSession>;
   signUpWithPassword?(email: string, password: string): Promise<NativeSession | null>;
+  resendConfirmation?(email: string): Promise<void>;
+  requestPasswordReset?(email: string): Promise<void>;
+  resetPassword?(email: string, token: string, password: string): Promise<void>;
   phoneOtpEnabled?(): Promise<boolean>;
   requestPhoneOtp?(phone: string): Promise<void>;
   verifyPhoneOtp?(phone: string, token: string): Promise<NativeSession>;
@@ -29,7 +35,7 @@ export type AuthSnapshot =
   | { status: "signed_in"; userId: string };
 
 export class NativeAuthError extends Error {
-  constructor(readonly code: "invalid_input" | "invalid_session" | "identity_changed") {
+  constructor(readonly code: "invalid_input" | "invalid_session" | "identity_changed" | "request_in_progress" | "request_cooldown" | "recovery_unavailable") {
     super(`Native authentication failed: ${code}`);
     this.name = "NativeAuthError";
   }
@@ -69,7 +75,14 @@ export function createNativeSessionController(
   let refreshGeneration = -1;
   let requestedPhone: string | null = null;
   let requestedPhoneAt = 0;
+  let lastEmailAt: number | null = null;
+  let requestingEmail = false;
   const listeners = new Set<(value: AuthSnapshot) => void>();
+  function checkedAuthenticated(session: NativeSession): NativeSession {
+    const checked = checkedSession(session);
+    if (checked.expires_at === undefined || checked.expires_at * 1000 <= now()) throw new NativeAuthError("invalid_session");
+    return checked;
+  }
 
   function publish(session: NativeSession | null): AuthSnapshot {
     snapshot = session
@@ -95,6 +108,8 @@ export function createNativeSessionController(
     if (disposed || !acceptSessionEvents || (signingIn && session)) return;
     try {
       if (session) {
+        // INITIAL_SESSION can precede restore/refresh. Never publish an expired identity.
+        if (session.expires_at === undefined || session.expires_at * 1000 <= now()) return;
         const identity = checkedSession(session).user.id.toLowerCase();
         if (expectedIdentity && identity !== expectedIdentity) {
           identityChanged = true;
@@ -114,13 +129,24 @@ export function createNativeSessionController(
     const startedAt = generation;
     refreshGeneration = startedAt;
     refreshPromise = (async () => {
-      const result = await auth.refreshSession();
+      let result: NativeSession | null;
+      try { result = await auth.refreshSession(); }
+      catch (error) {
+        const { code } = authErrorMetadata(error);
+        if (startedAt === generation && ["refresh_token_not_found", "refresh_token_already_used", "session_not_found", "session_expired", "user_banned"].includes(code)) {
+          acceptSessionEvents = false;
+          try { await auth.signOut(); } finally { publish(null); }
+          return null;
+        }
+        throw error;
+      }
       if (startedAt !== generation || disposed || !acceptSessionEvents) return null;
       if (!result) {
         publish(null);
         return null;
       }
       const next = checkedSession(result);
+      if (next.expires_at === undefined || next.expires_at * 1000 <= now()) throw new NativeAuthError("invalid_session");
       if (next.user.id.toLowerCase() !== expectedUserId.toLowerCase()) {
         try {
           await auth.signOut();
@@ -135,6 +161,22 @@ export function createNativeSessionController(
       if (refreshGeneration === startedAt) refreshPromise = null;
     });
     return refreshPromise;
+  }
+
+  async function emailRequest(email: string, operation: ((email: string) => Promise<void>) | undefined): Promise<void> {
+    if (disposed || snapshot.status === "signed_in" || !operation) throw new NativeAuthError("recovery_unavailable");
+    if (!validEmail(email)) throw new NativeAuthError("invalid_input");
+    if (requestingEmail) throw new NativeAuthError("request_in_progress");
+    if (lastEmailAt !== null && now() - lastEmailAt < 60_000) throw new NativeAuthError("request_cooldown");
+    requestingEmail = true;
+    lastEmailAt = now();
+    try { await operation(normalizeEmail(email)); } finally { requestingEmail = false; }
+  }
+  async function discardFailedLogin(startedAt: number) {
+    if (startedAt !== generation) return;
+    acceptSessionEvents = false;
+    expectedIdentity = null;
+    try { await auth.signOut(); } finally { publish(null); }
   }
 
   return {
@@ -163,23 +205,36 @@ export function createNativeSessionController(
       return publish(session);
     },
     async signUpWithPassword(email: string, password: string): Promise<{ authenticated: boolean }> {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || password.length < 8) {
+      if (!validEmail(email) || !validPassword(password, customerPasswordPolicy())) {
         throw new NativeAuthError("invalid_input");
       }
+      if (signingIn) throw new NativeAuthError("request_in_progress");
       if (disposed || snapshot.status === "signed_in" || !auth.signUpWithPassword) throw new NativeAuthError("invalid_session");
       const startedAt = ++generation;
       signingIn = true;
       acceptSessionEvents = true;
       try {
-        const result = await auth.signUpWithPassword(email.trim(), password);
+        const result = await auth.signUpWithPassword(normalizeEmail(email), password);
         if (startedAt !== generation) return { authenticated: false };
         if (!result) { publish(null); return { authenticated: false }; }
-        const session = checkedSession(result);
+        const session = checkedAuthenticated(result);
         expectedIdentity = session.user.id.toLowerCase();
         identityChanged = false;
         publish(session);
         return { authenticated: true };
+      } catch (error) {
+        try { await discardFailedLogin(startedAt); } catch { /* Preserve the provider's safe diagnostic code. */ }
+        throw error;
       } finally { signingIn = false; }
+    },
+    resendConfirmation(email: string): Promise<void> { return emailRequest(email, auth.resendConfirmation); },
+    requestPasswordReset(email: string): Promise<void> { return emailRequest(email, auth.requestPasswordReset); },
+    async resetPassword(email: string, token: string, password: string): Promise<void> {
+      if (disposed || snapshot.status === "signed_in" || !auth.resetPassword) throw new NativeAuthError("recovery_unavailable");
+      if (!validEmail(email) || !/^\d{6,10}$/.test(token) || !validPassword(password, customerPasswordPolicy())) throw new NativeAuthError("invalid_input");
+      if (signingIn) throw new NativeAuthError("request_in_progress");
+      signingIn = true;
+      try { await auth.resetPassword(normalizeEmail(email), token, password); } finally { signingIn = false; }
     },
     async phoneOtpEnabled(): Promise<boolean> {
       return !disposed && !!auth.phoneOtpEnabled && await auth.phoneOtpEnabled();
@@ -206,7 +261,7 @@ export function createNativeSessionController(
       signingIn = true;
       acceptSessionEvents = true;
       try {
-        const session = checkedSession(await auth.verifyPhoneOtp(phone, token));
+        const session = checkedAuthenticated(await auth.verifyPhoneOtp(phone, token));
         requestedPhone = null;
         if (startedAt !== generation) return snapshot;
         const providerStillEnabled = await auth.phoneOtpEnabled();
@@ -228,16 +283,20 @@ export function createNativeSessionController(
     },
     async signInWithPassword(email: string, password: string): Promise<AuthSnapshot> {
       if (!email.trim() || !password) throw new NativeAuthError("invalid_input");
+      if (signingIn) throw new NativeAuthError("request_in_progress");
       if (disposed) throw new NativeAuthError("invalid_session");
       const startedAt = ++generation;
       signingIn = true;
       acceptSessionEvents = true;
       try {
-        const session = checkedSession(await auth.signInWithPassword(email.trim(), password));
+        const session = checkedAuthenticated(await auth.signInWithPassword(normalizeEmail(email), password));
         if (startedAt !== generation) return snapshot;
         expectedIdentity = session.user.id.toLowerCase();
         identityChanged = false;
         return publish(session);
+      } catch (error) {
+        try { await discardFailedLogin(startedAt); } catch { /* Preserve the provider's safe diagnostic code. */ }
+        throw error;
       } finally {
         signingIn = false;
       }
@@ -278,10 +337,10 @@ export function createNativeSessionController(
         throw new NativeAuthError("identity_changed");
       }
       expectedIdentity = session.user.id.toLowerCase();
-      publish(session);
       if (session.expires_at === undefined || session.expires_at * 1000 <= now() + refreshMarginMs) {
         return refresh(session.user.id);
       }
+      publish(session);
       return session.access_token;
     },
     async refreshAccessToken(): Promise<string | null> {

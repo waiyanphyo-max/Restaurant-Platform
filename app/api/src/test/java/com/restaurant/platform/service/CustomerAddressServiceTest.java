@@ -26,7 +26,9 @@ class CustomerAddressServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(CustomerAddressRepository.class);
-        service = new CustomerAddressService(repository);
+        var locations = mock(GeographicLocationService.class);
+        when(locations.resolve(any(),any(),any(),any(),any())).thenAnswer(call -> new GeographicLocationService.Hierarchy(UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),((String)call.getArgument(3)).trim(),"District",((String)call.getArgument(4)).trim()));
+        service = new CustomerAddressService(repository,locations);
     }
 
     @Test

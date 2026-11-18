@@ -1,5 +1,6 @@
 import type { CreateOrderItemRequest, IsoDateTime, Uuid } from "./api.js";
 import type { OrderItemDetailDto } from "./member-api.js";
+import type { CanonicalLocation } from "./locations.js";
 
 export interface CustomerProfileResponse {
   id: Uuid;
@@ -18,10 +19,11 @@ export interface CustomerProfileRequest {
   preferredLanguage: "my-MM" | "en";
 }
 
-export interface CustomerAddressResponse {
+export interface CustomerAddressResponse extends CanonicalLocation {
   id: Uuid;
   label: string;
   recipientName: string | null;
+  recipientPhone?: string | null;
   houseNo: string | null;
   street: string | null;
   ward: string | null;
@@ -35,9 +37,10 @@ export interface CustomerAddressResponse {
   updatedAt: IsoDateTime;
 }
 
-export interface CustomerAddressRequest {
+export interface CustomerAddressRequest extends CanonicalLocation {
   label: string;
   recipientName?: string | null;
+  recipientPhone?: string | null;
   houseNo?: string | null;
   street?: string | null;
   ward?: string | null;
@@ -49,7 +52,7 @@ export interface CustomerAddressRequest {
   makeDefault: boolean;
 }
 
-export interface DeliveryZoneDto {
+export interface DeliveryZoneDto extends CanonicalLocation {
   id: Uuid;
   name: string;
   deliveryFee: number;
@@ -68,17 +71,23 @@ export interface CreateDeliveryOrderRequest {
   items: CreateOrderItemRequest[];
 }
 
-export type TemporaryLocationSource = "MANUAL_MAP" | "GPS_CONFIRMED";
+export type TemporaryLocationSource = "MANUAL_TEXT" | "MANUAL_MAP" | "GPS_CONFIRMED";
 export type DeliveryLocationSource = "SAVED_ADDRESS" | TemporaryLocationSource;
 
-export interface TemporaryDeliveryDestination {
-  source: TemporaryLocationSource;
+interface DeliveryAddressDetails extends CanonicalLocation {
   address: string;
   city: string;
   township: string;
-  latitude: number;
-  longitude: number;
+  ward?: string | null;
+  street?: string | null;
+  houseNo?: string | null;
 }
+
+/** Text destinations need no pin; map/GPS destinations retain their confirmed coordinate pair. */
+export type TemporaryDeliveryDestination = DeliveryAddressDetails & (
+  | { source: "MANUAL_TEXT"; latitude?: number | null; longitude?: number | null }
+  | { source: "MANUAL_MAP" | "GPS_CONFIRMED"; latitude: number; longitude: number }
+);
 
 export type DeliveryQuoteRequest = {
   recipientName: string;
@@ -99,8 +108,10 @@ export interface DeliveryQuoteResponse {
   discountAmount: number;
   totalAmount: number;
   paymentMethod: "CASH_ON_DELIVERY";
-  destination: Omit<TemporaryDeliveryDestination, "source"> & {
+  destination: DeliveryAddressDetails & {
     source: DeliveryLocationSource;
+    latitude: number | null;
+    longitude: number | null;
     addressId: Uuid | null;
     recipientName: string;
     recipientPhone: string;
@@ -131,6 +142,14 @@ export interface CustomerOrderSummaryDto {
 }
 
 export interface CustomerOrderDetailDto extends CustomerOrderSummaryDto {
+  deliveryRegionId?: Uuid | null;
+  deliveryDistrictId?: Uuid | null;
+  deliveryTownshipId?: Uuid | null;
+  deliveryRegionName?: string | null;
+  deliveryDistrictName?: string | null;
+  deliveryWard?: string | null;
+  deliveryStreet?: string | null;
+  deliveryHouseNo?: string | null;
   deliveryName: string | null;
   deliveryPhone: string | null;
   deliveryAddress: string | null;

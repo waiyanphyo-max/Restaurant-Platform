@@ -4,6 +4,7 @@ import com.restaurant.platform.dto.restaurant.RestaurantResponse;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 /** Does not contain QR credentials, invite tokens, or Auth provider credentials. */
 public record PlatformRestaurantDetailResponse(
@@ -17,5 +18,10 @@ public record PlatformRestaurantDetailResponse(
         String ownerWorkspaceUrl,
         String qrSetupUrl,
         List<String> setupInstructions) {
-    public record Owner(UUID userId, String email, String fullName, String invitationStatus) {}
+    public record Owner(UUID userId, String email, String fullName, String invitationStatus,
+            String onboardingStatus, OffsetDateTime onboardingCompletedAt) {
+        public Owner(UUID userId, String email, String fullName, String invitationStatus) {
+            this(userId, email, fullName, invitationStatus, "UNKNOWN", null);
+        }
+    }
 }

@@ -57,11 +57,24 @@ describe("Admin SSR session refresh", () => {
 
   it("keeps the access status and login routes available without a session", async () => {
     mocks.getClaims.mockResolvedValue({ data: null, error: null });
-    for (const path of ["/login", "/access", "/auth/callback", "/auth/accept-invite"]) {
+    for (const path of ["/login", "/access", "/auth/callback", "/auth/accept-invite", "/auth/recover"]) {
       const response = await refreshAdminSession(new NextRequest(`https://admin.example.test${path}`));
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toBe("private, no-store");
     }
+  });
+
+  it("prevents auth link credentials leaking through referrers or search indexing", async () => {
+    mocks.getClaims.mockResolvedValue({ data: null, error: null });
+    for (const path of ["/auth/accept-invite?token_hash=private&type=recovery", "/auth/callback?code=private"]) {
+      const response = await refreshAdminSession(new NextRequest(`https://admin.example.test${path}`));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    }
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "");
+    const response = await refreshAdminSession(new NextRequest("https://admin.example.test/auth/accept-invite"));
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
   });
 
   it("rejects a malformed subject even when Auth returned no error", async () => {

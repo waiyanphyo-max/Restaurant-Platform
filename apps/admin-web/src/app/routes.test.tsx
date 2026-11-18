@@ -37,7 +37,7 @@ const android = { displayName: null, stagingApplicationId: null, productionAppli
 const detail: PlatformRestaurantDetailResponse = {
   restaurant: { id: restaurantId, name: selected.name, slug: selected.slug, description: null, phone: "+959123456789", address: "123 Test St", houseNo: null, street: null, ward: null, township: selected.township, city: selected.city, latitude: null, longitude: null, logoUrl: null, active: true, createdAt: selected.createdAt, updatedAt: selected.createdAt },
   currency: "MMK", timezone: "Asia/Yangon", memberCount: 27, orderCount: 1538,
-  owners: [{ userId, email: selected.ownerEmail, fullName: selected.ownerFullName, invitationStatus: "INVITED" }],
+  owners: [{ userId, email: selected.ownerEmail, fullName: selected.ownerFullName, invitationStatus: "INVITED", onboardingStatus: "UNKNOWN", onboardingCompletedAt: null }],
   configuration: { primaryColor: "#234D3C", secondaryColor: null, guestDomains: { staging: [], production: ["selected.example.com"] }, android: { operations: android, customer: android } },
   ownerWorkspaceUrl: `https://guest.example.com/workspace?restaurantId=${restaurantId}`, qrSetupUrl: `https://guest.example.com/workspace?restaurantId=${restaurantId}&setup=qr`, setupInstructions: ["Accept the email invitation.", "Configure menus and QR ordering in Operations."],
 };
@@ -159,7 +159,23 @@ describe("actual protected admin routes", () => {
     for (const value of ["Selected restaurant", "Selected owner", "selected@example.test", "Yangon", "Bahan", "1,538"]) expect(html).toContain(value);
     expect(html).not.toContain("Other restaurant");
     expect(html).not.toContain("other@example.test");
-    for (const text of ["Guest Website", "Operations Android", "Customer Android", "awaiting acceptance", "selected.example.com", "QR setup instructions"]) expect(html).toContain(text);
+    for (const text of ["Guest Website", "Operations Android", "Customer Android", "Setup not confirmed", "Resend owner invitation", "selected.example.com", "QR setup instructions"]) expect(html).toContain(text);
+  });
+
+  it("shows completed owners a recovery path without another invitation action", async () => {
+    mocks.getRestaurant.mockResolvedValue({ ...detail, owners: [{ ...detail.owners[0], invitationStatus: "ACCEPTED", onboardingStatus: "COMPLETE", onboardingCompletedAt: "2026-11-11T00:00:00Z" }] });
+    const html = renderToStaticMarkup(await RestaurantDetailsPage(params({ id: restaurantId })));
+    expect(html).toContain("Owner setup completed");
+    expect(html).toContain('href="/auth/recover"');
+    expect(html).not.toContain("Resend owner invitation");
+  });
+
+  it("shows provider-unavailable status without an active resend action", async () => {
+    mocks.getRestaurant.mockResolvedValue({ ...detail, owners: [{ ...detail.owners[0], invitationStatus: "PROVIDER_UNAVAILABLE", onboardingStatus: "UNAVAILABLE", email: null }] });
+    const html = renderToStaticMarkup(await RestaurantDetailsPage(params({ id: restaurantId })));
+    expect(html).toContain("Invitation unavailable");
+    expect(html).not.toContain("Resend owner invitation");
+    expect(html).not.toContain("Setup not confirmed");
   });
 
   it("does not fabricate detail data when the selected record is missing", async () => {

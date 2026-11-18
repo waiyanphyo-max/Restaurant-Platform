@@ -16,9 +16,11 @@ import java.util.UUID;
 public class CustomerAddressService {
 
     private final CustomerAddressRepository addressRepository;
+    private final GeographicLocationService locations;
 
-    public CustomerAddressService(CustomerAddressRepository addressRepository) {
+    public CustomerAddressService(CustomerAddressRepository addressRepository, GeographicLocationService locations) {
         this.addressRepository = addressRepository;
+        this.locations = locations;
     }
 
     @Transactional(readOnly = true)
@@ -98,8 +100,18 @@ public class CustomerAddressService {
         address.setHouseNo(clean(request.houseNo()));
         address.setStreet(clean(request.street()));
         address.setWard(clean(request.ward()));
-        address.setTownship(request.township().trim());
-        address.setCity(request.city().trim());
+        var location = locations.resolve(request.regionId(),request.districtId(),request.townshipId(),request.city(),request.township());
+        address.setRegionId(location.regionId());
+        address.setDistrictId(location.districtId());
+        address.setTownshipId(location.townshipId());
+        address.setRegionName(location.regionName());
+        address.setDistrictName(location.districtName());
+        address.setTownship(location.townshipName());
+        address.setCity(location.regionName());
+        String phone = clean(request.recipientPhone());
+        if (phone != null && DeliveryRecipientPhone.normalize(phone) == null)
+            throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_DELIVERY_PHONE","error.delivery.invalid-phone");
+        address.setRecipientPhone(phone == null ? null : DeliveryRecipientPhone.normalize(phone));
         address.setLatitude(request.latitude());
         address.setLongitude(request.longitude());
         address.setDeliveryNote(clean(request.deliveryNote()));
@@ -116,7 +128,8 @@ public class CustomerAddressService {
                 address.getTownship(), address.getCity(), address.getLatitude(),
                 address.getLongitude(), address.getDeliveryNote(),
                 Boolean.TRUE.equals(address.getIsDefault()),
-                address.getCreatedAt(), address.getUpdatedAt());
+                address.getCreatedAt(), address.getUpdatedAt(),address.getRegionId(),address.getDistrictId(),address.getTownshipId(),
+                address.getRegionName(),address.getDistrictName(),address.getRecipientPhone());
     }
 
     private ApiException addressNotFound() {

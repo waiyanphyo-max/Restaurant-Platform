@@ -126,6 +126,7 @@ public class DeliveryService {
     boolean canViewOrderDeliveryDetails(Order order) {
         UUID actorUserId = authorization.requireAuthenticatedUserId();
         return authorization.hasPermission(order.getRestaurantId(), RestaurantPermission.DELIVERY_ASSIGN)
+                || authorization.hasPermission(order.getRestaurantId(), RestaurantPermission.ORDER_DELIVERY_DETAILS_READ)
                 || deliveryRepository.existsByOrderIdAndDriverUserId(order.getId(), actorUserId);
     }
 
@@ -623,7 +624,9 @@ public class DeliveryService {
                 delivery.getDeliveredAt(),
                 delivery.getFailureReason(),
                 delivery.getCreatedAt(),
-                delivery.getUpdatedAt());
+                delivery.getUpdatedAt(),
+                order.getDeliveryCity(),
+                order.getDeliveryTownship());
     }
 
     private ApiException deliveryNotFound() {

@@ -32,7 +32,17 @@ class DeliveryZoneManagementServiceTest {
         settingsRepository = mock(RestaurantSettingsRepository.class);
         authorization = mock(RestaurantAuthorization.class);
         service = new DeliveryZoneManagementService(
-                zoneRepository, settingsRepository, authorization);
+                zoneRepository, settingsRepository, authorization, locationService());
+    }
+
+    private GeographicLocationService locationService() {
+        var locations=mock(GeographicLocationService.class);
+        when(locations.resolve(any(),any(),any(),any(),any())).thenAnswer(call -> {
+            String city=call.getArgument(3),township=call.getArgument(4);
+            if(city==null || township==null || city.isBlank() || township.isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"CANONICAL_LOCATION_REQUIRED","error.location.canonical-required");
+            return new GeographicLocationService.Hierarchy(UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),city.trim(),"District",township.trim());
+        });
+        return locations;
     }
 
     @Test
@@ -46,7 +56,7 @@ class DeliveryZoneManagementServiceTest {
                 });
 
         var response = service.create(restaurantId, userId,
-                new DeliveryZoneRequest("Nearby", 500L, 1000L, null, null, null));
+                new DeliveryZoneRequest("Nearby", 500L, 1000L, null, "Yangon", "Tamwe"));
 
         assertEquals(zoneId, response.id());
         assertEquals(restaurantId, response.restaurantId());

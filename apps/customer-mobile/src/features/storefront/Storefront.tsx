@@ -4,6 +4,7 @@ import { Image, ScrollView, StyleSheet } from "react-native";
 import { getCustomerPublicApi } from "../../api";
 import { Action, Body, Card, FormField, Page, StateView } from "../../components/ui";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import { accountFailureTitle, apiFailureMessage } from "../../hooks/apiFailure";
 import { queryStateLabel, useCustomerLanguage, useCustomerText } from "../../i18n";
 import { readEmbeddedTenant } from "../../tenant";
 import { productAvailable, productPriceRange } from "../cart/cart";
@@ -29,7 +30,8 @@ export function HomeScreen() {
         : t("Set up an address now or add it later from Profile.", "ယခု လိပ်စာထည့်ပါ သို့မဟုတ် ပရိုဖိုင်တွင် နောက်မှ ထည့်နိုင်ပါသည်။")}</Body>
       <Action title={address ? t("Change Home Address", "အိမ်လိပ်စာ ပြင်ရန်") : t("Set up Home Address", "အိမ်လိပ်စာ ထည့်ရန်")}
         secondary onPress={() => account.editAddress(address)} />
-    </Card> : <StateView kind={account.state.status} title={queryStateLabel(account.state.status, t)} onRetry={account.reload} retryLabel={retry} />}
+    </Card> : <StateView kind={account.state.status} title={account.state.status === "error" ? accountFailureTitle(account.state.failure, t) : queryStateLabel(account.state.status, t)}
+      message={account.state.status === "loading" ? undefined : apiFailureMessage(account.state.failure, t)} onRetry={account.reload} retryLabel={retry} />}
   </Page>;
 }
 

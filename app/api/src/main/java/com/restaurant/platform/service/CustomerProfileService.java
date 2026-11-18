@@ -40,14 +40,20 @@ public class CustomerProfileService {
         this.storageClient = storageClient;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public CustomerProfileResponse getMyProfile(UUID userId) {
         authorization.requireAuthenticatedUserMatches(userId);
         Profile profile = profileRepository.findById(userId)
-                .orElseThrow(() -> new ApiException(
+                .orElseGet(() -> {
+                    // Auth and public profile creation can become out of sync if
+                    // the signup trigger was missing. Repair only a real, active
+                    // Auth identity; the unique key makes concurrent reads safe.
+                    profileRepository.restoreMissingFromAuthUser(userId);
+                    return profileRepository.findById(userId).orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND,
                         "CUSTOMER_PROFILE_NOT_FOUND",
                         "error.customer-profile.not-found"));
+                });
         return toResponse(profile);
     }
 
@@ -80,7 +86,18 @@ public class CustomerProfileService {
         String avatarUrl = profile.getAvatarUrl();
         if (profile.getAvatarPath() != null && !profile.getAvatarPath().isBlank()
                 && storageClient != null) {
-            avatarUrl = storageClient.createSignedAvatarUrl(profile.getAvatarPath());
+            // An optional private photo must not prevent profile/address loading
+            // and checkout when Storage is unavailable. Keep its durable path so
+            // a later profile request can sign it again after service recovery.
+            avatarUrl = null;
+            try {
+                avatarUrl = storageClient.createSignedAvatarUrl(profile.getAvatarPath());
+            } catch (ApiException exception) {
+                if (!Set.of("MEDIA_STORAGE_NOT_CONFIGURED", "MEDIA_STORAGE_OPERATION_FAILED")
+                        .contains(exception.getCode())) {
+                    throw exception;
+                }
+            }
         }
         return new CustomerProfileResponse(
                 profile.getId(), profile.getFullName(), profile.getPhone(),

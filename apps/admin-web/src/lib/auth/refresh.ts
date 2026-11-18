@@ -2,6 +2,16 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { publicSupabaseConfig } from "./public-config";
 import { isPublicAdminPath, loginPath, safeReturnTo } from "./route-policy";
+import { authCookieOptions } from "./cookies";
+
+function privateResponse(response: NextResponse, path: string): NextResponse {
+  response.headers.set("Cache-Control", "private, no-store");
+  if (path === "/auth/accept-invite" || path === "/auth/callback" || path === "/auth/recover") {
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+  return response;
+}
 
 /** Next 15 middleware refreshes cookies before Server Components read claims. */
 export async function refreshAdminSession(request: NextRequest): Promise<NextResponse> {
@@ -9,13 +19,12 @@ export async function refreshAdminSession(request: NextRequest): Promise<NextRes
   request.headers.set("x-admin-return-path", safeReturnTo(request.nextUrl.pathname + request.nextUrl.search));
   const config = publicSupabaseConfig();
   if (!config) {
-    const response = NextResponse.next({ request });
-    response.headers.set("Cache-Control", "private, no-store");
-    return response;
+    return privateResponse(NextResponse.next({ request }), request.nextUrl.pathname);
   }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(config.url, config.publishableKey, {
+    cookieOptions: authCookieOptions({ APP_STAGE: process.env.APP_STAGE, ADMIN_WEB_ORIGIN: process.env.ADMIN_WEB_ORIGIN }),
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -39,7 +48,7 @@ export async function refreshAdminSession(request: NextRequest): Promise<NextRes
   } catch {
     // An Auth outage must not grant access to protected routes.
   }
-  response.headers.set("Cache-Control", "private, no-store");
+  privateResponse(response, request.nextUrl.pathname);
 
   const path = request.nextUrl.pathname;
   if (!subject && !isPublicAdminPath(path)) {

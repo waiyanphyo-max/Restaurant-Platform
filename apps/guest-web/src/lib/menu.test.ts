@@ -90,6 +90,27 @@ describe("restaurant-scoped public menu loading", () => {
     expect(JSON.stringify(result)).not.toContain("internalNotes");
   });
 
+  it("keeps optional variant descriptions while accepting older responses without them", async () => {
+    const data = menu();
+    data.categories[0].products[0].variants = [
+      { id: variantId, name: "Small", price: 1500, imageUrl: null, available: true, description: "လူတစ်ယောက်အတွက်\nSingle serving." },
+      { id: groupId, name: "Large", price: 2500, imageUrl: null, available: true }
+    ];
+    const result = await loadGuestMenu({ restaurantId: restaurantA }, {
+      baseUrl: "https://api.example.test", fetchImpl: responseFetch(data)
+    });
+    expect(result.kind).toBe("ready");
+    if (result.kind !== "ready") throw new Error("Menu should be ready");
+    expect(result.menu.categories[0].products[0].variants.map(variant => variant.description))
+      .toEqual(["လူတစ်ယောက်အတွက်\nSingle serving.", null]);
+    const invalid = { ...data, categories: [{ ...data.categories[0], products: [{ ...data.categories[0].products[0],
+      variants: [{ ...data.categories[0].products[0].variants[0], description: 42 }]
+    }] }] };
+    expect(await loadGuestMenu({ restaurantId: restaurantA }, {
+      baseUrl: "https://api.example.test", fetchImpl: responseFetch(invalid)
+    })).toEqual({ kind: "error" });
+  });
+
   it.each([404, 410])("keeps configured tenant unavailable for backend status %i without another tenant fallback", async status => {
     const result = await loadGuestMenu({ restaurantId: restaurantA }, {
       baseUrl: "https://api.example.test", fetchImpl: responseFetch({ message: "sensitive backend text" }, status),

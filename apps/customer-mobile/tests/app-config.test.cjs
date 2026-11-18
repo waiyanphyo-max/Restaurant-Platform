@@ -8,7 +8,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 function withEnvironment(values, callback) {
-  const names = ["MOBILE_ENV", "RESTAURANT_SLUG", "PUBLIC_API_BASE_URL", "CUSTOMER_GOOGLE_MAPS_ANDROID_API_KEY", "CUSTOMER_PHONE_OTP_ENABLED", "CUSTOMER_NOTIFICATIONS_ENABLED", "CUSTOMER_GOOGLE_SERVICES_FILE", "CUSTOMER_MAP_INITIAL_LATITUDE", "CUSTOMER_MAP_INITIAL_LONGITUDE"];
+  const names = ["MOBILE_ENV", "RESTAURANT_SLUG", "PUBLIC_API_BASE_URL", "CUSTOMER_GOOGLE_MAPS_ANDROID_API_KEY", "CUSTOMER_PHONE_OTP_ENABLED", "CUSTOMER_NOTIFICATIONS_ENABLED", "CUSTOMER_GOOGLE_SERVICES_FILE", "CUSTOMER_MAP_INITIAL_LATITUDE", "CUSTOMER_MAP_INITIAL_LONGITUDE", "MOBILE_FIREBASE_PROJECT_ID"];
   const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
   try {
     for (const name of names) {
@@ -88,7 +88,16 @@ test("phone and push require explicit configuration and cannot inherit arbitrary
 test("notification native configuration requires matching Android client JSON and rejects service accounts", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "m11-client-config-"));
   const file = path.join(directory, "google-services.json");
-  const client = { project_info: { project_id: "test-project", project_number: "123" }, client: [{ client_info: { android_client_info: { package_name: "dev.restaurantplatform.starter.customer.staging.dev" } } }] };
+  const client = {
+    project_info: { project_id: "test-project", project_number: "123" },
+    client: [{
+      client_info: {
+        mobilesdk_app_id: "1:123:android:aaa",
+        android_client_info: { package_name: "dev.restaurantplatform.starter.customer.staging.dev" }
+      },
+      api_key: [{ current_key: "AIza" + "A".repeat(35) }]
+    }]
+  };
   try {
     for (const [value, expected] of [[client, true], [{ ...client, type: "service_account", private_key: "synthetic-noncredential" }, false], [{ ...client, client: [{ client_info: { android_client_info: { package_name: "another.package" } } }] }, false]]) {
       fs.writeFileSync(file, JSON.stringify(value));
@@ -98,6 +107,11 @@ test("notification native configuration requires matching Android client JSON an
         assert.equal(result.android.googleServicesFile, expected ? file : undefined);
       });
     }
+    fs.writeFileSync(file, JSON.stringify(client));
+    assert.throws(() => configure.inspect({
+      ...development, CUSTOMER_NOTIFICATIONS_ENABLED: "true", CUSTOMER_GOOGLE_SERVICES_FILE: file,
+      MOBILE_FIREBASE_PROJECT_ID: "another-project"
+    }), /CUSTOMER_GOOGLE_SERVICES_FILE.*MOBILE_FIREBASE_PROJECT_ID/);
   } finally { fs.unlinkSync(file); fs.rmdirSync(directory); }
 });
 

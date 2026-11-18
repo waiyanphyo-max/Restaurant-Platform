@@ -7,6 +7,8 @@ import com.restaurant.platform.service.CustomerProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 
 import java.util.UUID;
 
@@ -19,15 +21,17 @@ public class CustomerProfileController {
     private final RestaurantAuthorization authorization;
 
     @GetMapping
-    public CustomerProfileResponse getMyProfile() {
+    public ResponseEntity<CustomerProfileResponse> getMyProfile() {
         UUID userId = authorization.requireAuthenticatedUserId();
-        return profileService.getMyProfile(userId);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(profileService.getMyProfile(userId));
     }
 
     @PutMapping
-    public CustomerProfileResponse updateMyProfile(
+    public ResponseEntity<CustomerProfileResponse> updateMyProfile(
             @Valid @RequestBody CustomerProfileRequest request) {
         UUID userId = authorization.requireAuthenticatedUserId();
-        return profileService.updateMyProfile(userId, request);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(profileService.updateMyProfile(userId, request));
     }
 }

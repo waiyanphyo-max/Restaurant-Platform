@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "expo-router";
 import type { DeliveryTaskDto, DeliveryZoneResponse } from "@restaurant-platform/shared-types";
+import type { LocationSelection } from "@restaurant-platform/shared-types";
+import { LocationSelector } from "../../components/LocationSelector";
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
 import { QueryResult } from "../../components/QueryResult";
@@ -92,6 +94,7 @@ function ManagementDeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDt
     <Body>{delivery.status.replaceAll("_", " ")} · Order {delivery.orderStatus}</Body>
     <Body>{delivery.customerName ?? "Name unavailable"} · {delivery.customerPhone ?? "Phone unavailable"}</Body>
     <Body>{delivery.deliveryAddress ?? "Address unavailable"}</Body>
+    <Body>City: {delivery.deliveryCity ?? "Unavailable"} · Township: {delivery.deliveryTownship ?? "Unavailable"}</Body>
     {delivery.driverUserId === userId ? <AssignedDeliveryLink deliveryId={delivery.id} /> : null}
     <Action title={expanded ? "Hide delivery details" : "Delivery details and actions"} secondary onPress={() => setExpanded(value => !value)} />
     {expanded ? <>
@@ -158,8 +161,9 @@ function ZoneEditor({ zone, reload }: { zone?: DeliveryZoneResponse; reload(): v
   const [name, setName] = useState(zone?.name ?? "");
   const [fee, setFee] = useState(String(zone?.deliveryFee ?? 0));
   const [minimum, setMinimum] = useState(String(zone?.minimumOrder ?? 0));
-  const [city, setCity] = useState(zone?.coverageCity ?? "");
-  const [township, setTownship] = useState(zone?.coverageTownship ?? "");
+  const emptyLocation: LocationSelection = { regionId: "", districtId: "", townshipId: "", regionName: "", districtName: "", township: "" };
+  const [location, setLocation] = useState<LocationSelection>({ regionId: zone?.regionId ?? "", districtId: zone?.districtId ?? "", townshipId: zone?.townshipId ?? "",
+    regionName: zone?.regionName ?? "", districtName: zone?.districtName ?? "", township: zone?.coverageTownship ?? "" });
   const [active, setActive] = useState(zone?.active ?? true);
   const [confirm, setConfirm] = useState(false);
   const mutation = useApiMutation();
@@ -168,18 +172,20 @@ function ZoneEditor({ zone, reload }: { zone?: DeliveryZoneResponse; reload(): v
     {open ? <><FormField label="Zone name" value={name} onChangeText={setName} maxLength={100} />
       <FormField label="Delivery fee (whole amount)" value={fee} onChangeText={setFee} keyboardType="number-pad" />
       <FormField label="Minimum order (whole amount)" value={minimum} onChangeText={setMinimum} keyboardType="number-pad" />
-      <FormField label="Coverage city (both coverage fields or neither)" value={city} onChangeText={setCity} maxLength={100} />
-      <FormField label="Coverage township" value={township} onChangeText={setTownship} maxLength={100} />
+      {zone && !zone.townshipId ? <Body>Review this legacy coverage before saving: {zone.coverageTownship}, {zone.coverageCity}</Body> : null}
+      <LocationSelector value={location} onChange={setLocation} disabled={mutation.busy} />
       <FormToggle label="Active zone" value={active} onChange={setActive} />
       <MutationFeedback {...mutation} /><Action title="Save delivery zone" disabled={mutation.busy} onPress={() => setConfirm(true)} />
     </> : <Body>Fee {operationalAmount(zone?.deliveryFee ?? 0)} · Minimum {operationalAmount(zone?.minimumOrder ?? 0)}</Body>}
     <ConfirmDialog visible={confirm} title="Save zone" message="Update delivery coverage and fees? Checkout uses the current zone configuration." confirmLabel="Save" onCancel={() => setConfirm(false)} onConfirm={() => {
       setConfirm(false); void mutation.run(async () => {
         if (!name.trim()) throw new FormValidationError("Enter a zone name.");
-        if (!!city.trim() !== !!township.trim()) throw new FormValidationError("Enter both coverage city and township, or leave both blank.");
-        const body = { name: name.trim(), deliveryFee: wholeAmount(fee), minimumOrder: wholeAmount(minimum), active, coverageCity: city.trim() || null, coverageTownship: township.trim() || null };
+        if (!location.regionId || !location.districtId || !location.townshipId) throw new FormValidationError("Select Region / State, District and Township.");
+        const body = { name: name.trim(), deliveryFee: wholeAmount(fee), minimumOrder: wholeAmount(minimum), active,
+          regionId: location.regionId, districtId: location.districtId, townshipId: location.townshipId,
+          coverageCity: location.regionName, coverageTownship: location.township };
         return zone ? getOperationsApi().updateDeliveryZone(zone.id, body) : getOperationsApi().createDeliveryZone(body);
-      }, () => { if (!zone) { setName(""); setCity(""); setTownship(""); setOpen(false); } reload(); });
+      }, () => { if (!zone) { setName(""); setLocation(emptyLocation); setOpen(false); } reload(); });
     }} />
   </Card>;
 }

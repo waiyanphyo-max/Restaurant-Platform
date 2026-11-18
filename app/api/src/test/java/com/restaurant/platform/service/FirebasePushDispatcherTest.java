@@ -6,6 +6,8 @@ import com.restaurant.platform.service.PushNotificationOutboxRepository.OutboxIt
 import com.restaurant.platform.service.PushNotificationOutboxRepository.PushPayload;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -35,7 +37,7 @@ class FirebasePushDispatcherTest {
     @Test
     void successfulSendMarksOnlyThatDeviceOutboxRowSent() throws Exception {
         OutboxItem item = item(1);
-        PushPayload payload = payload(true);
+        PushPayload payload = payload("IOS", true);
         when(outbox.claimBatch(20, 8)).thenReturn(List.of(item));
         when(outbox.findPayload(item.id())).thenReturn(Optional.of(payload));
         when(firebaseMessaging.send(any(Message.class))).thenReturn("projects/test/messages/123");
@@ -53,12 +55,13 @@ class FirebasePushDispatcherTest {
         verify(outbox, never()).markRetry(any(), any(), anyLong(), anyBoolean());
     }
 
-    @Test
-    void customerDeliverySendExposesOnlyGenericTextEvenIfQueuedWithPrivateContent() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void androidSendExposesOnlyGenericTextEvenIfQueuedWithPrivateContent(boolean customerDelivery) throws Exception {
         OutboxItem item = item(1);
         var payload = new PushPayload(item.id(), item.notificationId(), item.userId(), item.deviceId(),
-                "ORDER_READY", "Your order is ready", "Order 123 is ready at Restaurant A.",
-                "do-not-log-this-token", "ANDROID", true, true);
+                "ORDER_READY", "Order ready", "Order 123 is ready at Restaurant A.",
+                "do-not-log-this-token", "ANDROID", true, customerDelivery);
         when(outbox.claimBatch(20, 8)).thenReturn(List.of(item));
         when(outbox.findPayload(item.id())).thenReturn(Optional.of(payload));
 
@@ -78,7 +81,7 @@ class FirebasePushDispatcherTest {
     void inactiveDeviceIsSkippedWithoutCallingFirebase() throws Exception {
         OutboxItem item = item(1);
         when(outbox.claimBatch(20, 8)).thenReturn(List.of(item));
-        when(outbox.findPayload(item.id())).thenReturn(Optional.of(payload(false)));
+        when(outbox.findPayload(item.id())).thenReturn(Optional.of(payload("ANDROID", false)));
 
         dispatcher.dispatchPending();
 
@@ -90,7 +93,7 @@ class FirebasePushDispatcherTest {
     void transientWorkerFailureSchedulesRetryWithoutLoggingToken() throws Exception {
         OutboxItem item = item(1);
         when(outbox.claimBatch(20, 8)).thenReturn(List.of(item));
-        when(outbox.findPayload(item.id())).thenReturn(Optional.of(payload(true)));
+        when(outbox.findPayload(item.id())).thenReturn(Optional.of(payload("ANDROID", true)));
         when(firebaseMessaging.send(any(Message.class)))
                 .thenThrow(new IllegalStateException("test failure"));
 
@@ -107,10 +110,10 @@ class FirebasePushDispatcherTest {
                 UUID.randomUUID(), attempts);
     }
 
-    private PushPayload payload(boolean active) {
+    private PushPayload payload(String platform, boolean active) {
         return new PushPayload(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), "DELIVERY_ASSIGNED", "Delivery assigned", "Order 123 is ready for delivery.",
-                "do-not-log-this-token", "ANDROID", active, false);
+                "do-not-log-this-token", platform, active, false);
     }
 }

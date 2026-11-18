@@ -1,11 +1,15 @@
-import type { DeliveryTaskDto, ManagerOrderDetailDto, OrderSummaryDto, UpdateOrderStatusRequest } from "@restaurant-platform/shared-types";
+import type { DeliveryTaskDto, ManagerOrderDetailDto, OrderSummaryDto, OrderAction } from "@restaurant-platform/shared-types";
 export const ORDER_STATUSES = ["PENDING", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "COMPLETED", "CANCELLED"] as const;
 export const DELIVERY_STATUSES = ["WAITING_ASSIGNMENT", "ASSIGNED", "PICKED_UP", "DELIVERED", "FAILED", "CANCELLED"] as const;
 /** Mirrors ManagerOrderService. Delivery progress uses its own API for COD confirmation. */
-export function orderActions(order: Pick<ManagerOrderDetailDto, "status" | "orderType">, role: string): UpdateOrderStatusRequest["status"][] {
+export function orderActions(order: Pick<ManagerOrderDetailDto, "status" | "orderType"> & { queueTicketId?: string | null; availableActions?: OrderAction[] }, role: string): OrderAction[] {
   if (!["OWNER", "MANAGER", "STAFF"].includes(role)) return [];
-  const next: UpdateOrderStatusRequest["status"][] = order.status === "PENDING" ? ["ACCEPTED"] : order.status === "ACCEPTED" ? ["PREPARING"] : order.status === "PREPARING" ? ["READY"] : order.status === "READY" && order.orderType !== "DELIVERY" ? ["COMPLETED"] : [];
-  if (["OWNER", "MANAGER"].includes(role) && ["PENDING", "ACCEPTED", "PREPARING"].includes(order.status)) next.push("CANCELLED");
+  if (order.availableActions) return order.availableActions.filter(action => ["ACCEPT", "COMPLETE", "CANCEL"].includes(action));
+  const next: OrderAction[] = order.status === "PENDING" ? ["ACCEPT"]
+    : ["ACCEPTED", "PREPARING"].includes(order.status) ? ["COMPLETE"]
+      : order.status === "READY" && order.orderType !== "DELIVERY" && !order.queueTicketId ? ["COMPLETE"] : [];
+  if ((["OWNER", "MANAGER"].includes(role) && ["PENDING", "ACCEPTED", "PREPARING"].includes(order.status))
+    || role === "STAFF" && ["PENDING", "ACCEPTED"].includes(order.status)) next.push("CANCEL");
   return next;
 }
 export function deliveryActions(delivery: DeliveryTaskDto, role: string, userId: string): string[] {

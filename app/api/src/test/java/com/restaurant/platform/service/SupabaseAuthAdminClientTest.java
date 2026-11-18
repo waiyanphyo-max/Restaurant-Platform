@@ -95,4 +95,49 @@ class SupabaseAuthAdminClientTest {
         assertTrue(assertThrows(SupabaseAuthAdminException.class,
                 () -> unconfigured.inviteByEmail("owner@example.com", null)).isConfigurationError());
     }
+
+    @Test
+    void existingAccountEmailUsesRecoveryAndSameHttpsRedirectWithoutGeneratingRawLinks() {
+        server.expect(requestTo("https://project.supabase.co/auth/v1/recover?redirect_to=https://guest.example/auth/accept-invite"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("apikey", "server-only-test-key"))
+                .andExpect(header("Authorization", "Bearer server-only-test-key"))
+                .andExpect(content().json("{\"email\":\"owner@example.com\"}"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        client.requestRecoveryEmail("owner@example.com");
+        server.verify();
+    }
+
+    @Test
+    void emailRequiresExplicitHttpsAcceptanceUrlBeforeProviderRequest() {
+        for (String redirect : java.util.List.of("", "http://localhost:3000/auth/accept-invite",
+                "https://localhost/auth/accept-invite", "https://guest.example/wrong",
+                "https://user@guest.example/auth/accept-invite", "https://guest.example/auth/accept-invite?next=https://evil.test",
+                "https://guest.example/auth/accept-invite#token", "not a url")) {
+            var invalid = new SupabaseAuthAdminClient(RestClient.create(), "https://project.supabase.co", "key", redirect);
+            assertTrue(assertThrows(SupabaseAuthAdminException.class,
+                    () -> invalid.inviteByEmail("owner@example.com", null)).isConfigurationError());
+            assertTrue(assertThrows(SupabaseAuthAdminException.class,
+                    () -> invalid.requestRecoveryEmail("owner@example.com")).isConfigurationError());
+        }
+    }
+
+    @Test
+    void providerOriginCannotSendPrivilegedCredentialsOverHttp() {
+        var invalid = new SupabaseAuthAdminClient(RestClient.create(), "http://project.supabase.co", "key",
+                "https://guest.example/auth/accept-invite");
+        assertTrue(assertThrows(SupabaseAuthAdminException.class,
+                () -> invalid.getUserById(userId)).isConfigurationError());
+    }
+
+    @Test
+    void recoveryProviderErrorAndRateLimitDoNotReportSuccess() {
+        server.expect(anything()).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                .body("private email/token details"));
+        var failure = assertThrows(SupabaseAuthAdminException.class,
+                () -> client.requestRecoveryEmail("owner@example.com"));
+        assertTrue(failure.isRateLimited());
+        assertFalse(failure.getMessage().contains("private"));
+        server.verify();
+    }
 }

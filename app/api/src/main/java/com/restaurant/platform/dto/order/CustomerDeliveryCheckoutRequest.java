@@ -25,8 +25,16 @@ public record CustomerDeliveryCheckoutRequest(
             @Size(max = 100) String city,
             @Size(max = 100) String township,
             BigDecimal latitude,
-            BigDecimal longitude
-    ) {}
+            BigDecimal longitude,
+            UUID regionId, UUID districtId, UUID townshipId,
+            @Size(max = 100) String ward,
+            @Size(max = 100) String street,
+            @Size(max = 50) String houseNo
+    ) {
+        public TemporaryDestination(TemporarySource source,String address,String city,String township,BigDecimal latitude,BigDecimal longitude) {
+            this(source,address,city,township,latitude,longitude,null,null,null,null,null,null);
+        }
+    }
 
-    public enum TemporarySource { MANUAL_MAP, GPS_CONFIRMED }
+    public enum TemporarySource { MANUAL_TEXT, MANUAL_MAP, GPS_CONFIRMED }
 }

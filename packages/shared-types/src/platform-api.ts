@@ -105,12 +105,31 @@ export interface PlatformRestaurantConfiguration {
 }
 
 export type PlatformOwnerInvitationStatus = "INVITED" | "ACCEPTED" | "NOT_INVITED" | "PROVIDER_UNAVAILABLE";
+/** Only a server-recorded password login proves completion; legacy accounts are UNKNOWN. */
+export type PlatformOwnerOnboardingStatus = "UNKNOWN" | "COMPLETE" | "UNAVAILABLE";
 
 export interface PlatformRestaurantOwnerResponse {
   userId: Uuid;
   email: string | null;
   fullName: string | null;
   invitationStatus: PlatformOwnerInvitationStatus;
+  onboardingStatus: PlatformOwnerOnboardingStatus;
+  onboardingCompletedAt: string | null;
+}
+
+export interface PlatformOwnerInvitationResponse {
+  restaurantId: Uuid;
+  ownerUserId: Uuid;
+  onboardingStatus: "UNKNOWN";
+  /** Supabase accepted the email request. This does not confirm inbox delivery. */
+  emailStatus: "REQUESTED";
+  requestedAt: string;
+  nextAllowedAt: string;
+}
+
+export interface OwnerOnboardingCompletionResponse {
+  onboardingStatus: "COMPLETE";
+  completedAt: string;
 }
 
 export interface PlatformRestaurantDetailResponse {

@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CustomerAddressResponse, CustomerProfileResponse } from "@restaurant-platform/shared-types";
 import type { QueryState } from "../../hooks/useApiQuery";
+import { ApiHttpError } from "@restaurant-platform/api-client";
 
 interface Account { profile: CustomerProfileResponse; addresses: CustomerAddressResponse[]; }
 const harness = vi.hoisted(() => ({
@@ -118,18 +119,32 @@ describe("first-time customer account onboarding", () => {
   });
 
   it("keeps account loading atomic when address retrieval fails", async () => {
-    harness.listAddresses.mockRejectedValue(new Error("Address access denied")); render();
-    await expect(harness.query!(new AbortController().signal)).rejects.toThrow("Address access denied");
+    harness.listAddresses.mockRejectedValue(new ApiHttpError(403, "ACCESS_DENIED")); render();
+    await expect(harness.query!(new AbortController().signal)).rejects.toMatchObject({
+      failure: { operation: "addresses", kind: "forbidden", status: 403, code: "ACCESS_DENIED" }
+    });
+  });
+
+  it("identifies a missing application profile separately from address failures", async () => {
+    harness.getProfile.mockRejectedValue(new ApiHttpError(404, "CUSTOMER_PROFILE_NOT_FOUND")); render();
+    await expect(harness.query!(new AbortController().signal)).rejects.toMatchObject({
+      failure: { operation: "profile", kind: "missing_profile", code: "CUSTOMER_PROFILE_NOT_FOUND" }
+    });
   });
 
   it("rejects a profile whose server response identity differs from the authenticated customer", async () => {
     harness.getProfile.mockResolvedValue({ ...profile, id: "00000000-0000-4000-8000-000000000099" }); render();
-    await expect(harness.query!(new AbortController().signal)).rejects.toMatchObject({ name: "ApiProtocolError" });
+    await expect(harness.query!(new AbortController().signal)).rejects.toMatchObject({ failure: { operation: "profile", kind: "protocol" } });
   });
 
   it("rejects malformed profiles before publishing any account data", async () => {
     harness.getProfile.mockResolvedValue(null); render();
-    await expect(harness.query!(new AbortController().signal)).rejects.toMatchObject({ name: "ApiProtocolError" });
+    await expect(harness.query!(new AbortController().signal)).rejects.toMatchObject({ failure: { operation: "profile", kind: "protocol" } });
+  });
+
+  it.each([null, {}, [null], [{ ...address, label: null }], [{ ...address, latitude: 200 }]])("rejects malformed saved-address responses before rendering the account", async value => {
+    harness.listAddresses.mockResolvedValue(value); render();
+    await expect(harness.query!(new AbortController().signal)).rejects.toMatchObject({ failure: { operation: "addresses", kind: "protocol" } });
   });
 
   it("resumes opted-in notifications once per customer provider mount without affecting account access", async () => {

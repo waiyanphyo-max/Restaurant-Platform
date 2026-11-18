@@ -73,4 +73,12 @@ describe("assigned delivery read and update preflight", () => {
     expect(assignedDeliveryUpdate(pickedUp, "DELIVERY_DRIVER", userId, { ...complete, cashCollected: true })).toMatchObject({ cashCollected: true });
     expect(assignedDeliveryUpdate({ ...pickedUp, cashCollectionRequired: false }, "DELIVERY_DRIVER", userId, complete)).toMatchObject({ cashCollected: false });
   });
+
+  it("keeps authorized pickup and COD completion available for a text-only destination", () => {
+    const textOnly = { ...detail, destination: { latitude: null, longitude: null } };
+    expect(assignedDeliveryUpdate(textOnly, "DELIVERY_DRIVER", userId, pickup)).toMatchObject({ status: "PICKED_UP" });
+    const pickedUp = { ...textOnly, task: { ...textOnly.task, status: "PICKED_UP", orderStatus: "OUT_FOR_DELIVERY" } };
+    expect(assignedDeliveryUpdate(pickedUp, "DELIVERY_DRIVER", userId, { ...pickup, status: "DELIVERED", cashCollected: true }))
+      .toMatchObject({ status: "DELIVERED", cashCollected: true, expectedUpdatedAt: detail.task.updatedAt });
+  });
 });

@@ -41,7 +41,7 @@ class CustomerAddressLocalPostgresTest {
     @EnableAutoConfiguration(exclude = OAuth2ResourceServerAutoConfiguration.class)
     @EntityScan(basePackageClasses = CustomerAddress.class)
     @EnableJpaRepositories(basePackageClasses = CustomerAddressRepository.class)
-    @Import(CustomerAddressService.class)
+    @Import({CustomerAddressService.class,com.restaurant.platform.service.GeographicLocationService.class})
     static class DatabaseApplication { }
 
     @Autowired private JdbcTemplate jdbc;

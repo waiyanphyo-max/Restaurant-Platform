@@ -6,7 +6,7 @@
 
 Supabase Auth remains the identity provider. Spring Boot validates the bearer JWT signature, issuer, audience, expiry, and UUID subject. Spring is the enforcement boundary for platform administrator allowlists, restaurant membership/roles, customer ownership, and delivery assignment policy; any remaining backend authorization gaps must be resolved there. A frontend role label or restaurant hint never grants access. `docs/api.md` remains the HTTP contract.
 
-The backend invitation flow uses the server-side values `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_INVITE_REDIRECT_URL`. The Auth Admin client sends the redirect value as `redirect_to`. The default in `app/api/src/main/resources/application.yml` is `http://localhost:3000/auth/accept-invite`; this is a local source default, not evidence that production has been migrated. Service-role and database credentials must never enter a browser/mobile bundle or `NEXT_PUBLIC_*` variable.
+The backend invitation flow uses the server-side values `SUPABASE_PROJECT_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_INVITE_REDIRECT_URL`. The Auth Admin client sends the redirect value as `redirect_to`. The redirect now has no fallback and requires an exact public HTTPS `/auth/accept-invite` URL. Service-role and database credentials must never enter a browser/mobile bundle or `NEXT_PUBLIC_*` variable. The current implementation, unapplied onboarding migration, existing-owner resend flow, and external setup steps are documented in [Owner invitation and password setup](owner-invitation-onboarding.md).
 
 ## M2 browser configuration
 
@@ -38,13 +38,13 @@ The prior local-development examples were `http://localhost:3000/auth/callback` 
 
 Do not remove old allowlist entries or point `SUPABASE_INVITE_REDIRECT_URL` at an unverified replacement. The backend must keep sending invitations to a working `/auth/accept-invite` URL. Once a replacement passes staging acceptance, set the server variable to its exact HTTPS route, add that route to the allowlist first, then restart/redeploy the API in a controlled cutover. Previously emailed invitations still need their original landing route.
 
-Keep Supabase's **Invite user** email template using `{{ .ConfirmationURL }}` so Supabase verifies the one-time invitation before redirecting to the configured app route. If a custom `/auth/v1/verify` URL is constructed, use `{{ .RedirectTo }}` as its target instead of `{{ .SiteURL }}`. Do not hand-build an application URL with raw access tokens.
+For the current owner setup workflow, configure **Invite user** and **Reset password** templates with `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite` and `type=recovery` respectively. This lets the official SDK verify the one-use token in a phone or desktop browser without an initiating PKCE verifier. The redirect must have no query or fragment. Existing supported `ConfirmationURL` flows remain compatible. Do not hand-build an application URL with raw access tokens. See the exact templates in the [owner setup runbook](owner-invitation-onboarding.md).
 
 ## Replacement callback and invitation acceptance
 
 A production implementation must support the callback forms used by existing Supabase email flows: PKCE code, supported email token hash, and the invitation session fragment. Pass credentials to the official SDK, remove callback credentials from browser history immediately, and never log or forward them to the Spring API. The invitation flow must handle expired/used links safely, let the invited user establish a password according to the configured Supabase policy, and return to an authorized destination after backend membership checks.
 
-Email/password and future phone/SMS onboarding are separate features. Matching email or phone text alone must not attach a restaurant membership to a different Auth UUID. [Phone authentication and linking design](phone-auth-design.md) specifies the closed gate, same-UUID linking flow, and proposed server claim contract. The current platform provisioning endpoint's existing-email lookup is an [incompatible identity contract](api-coverage-gap-report.md) and is omitted from the callable M2 Platform Admin client.
+Email/password and future phone/SMS onboarding are separate features. Matching email or phone text alone must not attach a restaurant membership to a different Auth UUID. [Phone authentication and linking design](phone-auth-design.md) specifies the closed gate, same-UUID linking flow, and proposed server claim contract. Current provisioning and resend resolve exact persisted Auth UUIDs. A fresh password login plus backend OWNER membership records setup completion; email confirmation alone does not.
 
 ## Staging acceptance before changing production URLs
 

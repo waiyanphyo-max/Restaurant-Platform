@@ -18,6 +18,8 @@ public record CustomerAddressResponse(
         String deliveryNote,
         boolean isDefault,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        UUID regionId, UUID districtId, UUID townshipId,
+        String regionName, String districtName, String recipientPhone
 ) {
 }

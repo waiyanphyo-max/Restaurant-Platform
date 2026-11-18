@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "expo-router";
-import type { ManagerOrderDetailDto, UpdateOrderStatusRequest } from "@restaurant-platform/shared-types";
+import type { ManagerOrderDetailDto, OrderAction } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
 import { QueryResult } from "../../components/QueryResult";
@@ -10,24 +10,17 @@ import { useApiQuery } from "../../hooks/useApiQuery";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { exactTimestamp, operationalAmount } from "./format";
 import { canCollectPayment, orderActions } from "./workflows";
-
-const statusLabels: Record<UpdateOrderStatusRequest["status"], string> = {
-  ACCEPTED: "Accept order",
-  PREPARING: "Start preparation",
-  READY: "Mark ready",
-  OUT_FOR_DELIVERY: "Mark out for delivery",
-  COMPLETED: "Complete order",
-  CANCELLED: "Cancel order"
-};
+import { OrderAddress } from "./OrderAddress";
+import { completeMeaning, orderActionLabels } from "./OrderCardActions";
 
 type OrderConfirmation = (
-  | { kind: "status"; status: UpdateOrderStatusRequest["status"]; note: string | null }
+  | { kind: "status"; status: OrderAction; note: string | null }
   | { kind: "payment"; paymentId: string }
 ) & { orderStatus: string; message: string };
 
 function cancellationMessage(order: Pick<ManagerOrderDetailDto, "orderChannel" | "orderType" | "status">): string {
   if (order.orderType !== "DELIVERY" || order.orderChannel !== "CUSTOMER_APP") {
-    return "Cancel this order? Pending counter payments will be cancelled. Historical records and collected cash remain. Review stock and any required refund separately.";
+    return "Cancel this unpaid order? Pending counter payments will be cancelled. Collected payments require separate financial review; kitchen cancellation is unavailable. Historical records remain; review counter stock separately.";
   }
   const stock = order.status === "PREPARING"
     ? "Stock is retained because preparation has started."
@@ -66,17 +59,19 @@ export function OrderDetailScreen({ orderId }: { orderId: string }) {
         {order.queueTicketId ? <Link href="/queue">View pickup queue</Link> : null}
         {order.orderChannel === "STAFF" && order.orderType !== "DELIVERY" && order.deliveryNote ? <Body>Order note: {order.deliveryNote}</Body> : null}
         {order.orderType === "DELIVERY" ? <>
-          {management ? <><Body>{order.deliveryName} · {order.deliveryPhone}</Body><Body>{order.deliveryAddress}</Body><Body>{order.deliveryNote}</Body></> : null}
+          {order.deliveryDestination ? <OrderAddress destination={order.deliveryDestination} />
+            : order.deliveryAddress ? <><Body>{order.deliveryName} · {order.deliveryPhone}</Body><Body>{order.deliveryAddress}</Body>
+              <Body>Region / State: {order.deliveryCity ?? "Unavailable"} · Township: {order.deliveryTownship ?? "Unavailable"}</Body><Body>{order.deliveryNote}</Body></> : null}
           <Link href="/deliveries">{management ? "Manage delivery and cash on delivery" : "Open your assigned deliveries"}</Link>
         </> : null}
       </Card>
       <Card title="Order actions">
-        {orderActions(order, role).length ? <FormField label="Status note (optional)" value={note} onChangeText={setNote} maxLength={500} editable={!mutation.busy} />
+        {orderActions(order, role).length ? <FormField label="Note / cancellation reason (10–500 characters required to cancel)" value={note} onChangeText={setNote} maxLength={500} editable={!mutation.busy} multiline />
           : <Body>{order.orderType === "DELIVERY" ? "Manage delivery progress from Deliveries." : "No order status action is available."}</Body>}
-        {orderActions(order, role).map(status => <Action key={status} title={statusLabels[status]} disabled={mutation.busy}
+        {orderActions(order, role).map(status => <Action key={status} title={orderActionLabels[status]} disabled={mutation.busy || status === "CANCEL" && note.trim().length < 10}
           onPress={() => setConfirmation({
             kind: "status", status, note: note.trim() || null, orderStatus: order.status,
-            message: status === "CANCELLED" ? cancellationMessage(order) : `Change this order from ${order.status} to ${status}?`
+            message: status === "CANCEL" ? cancellationMessage(order) : status === "COMPLETE" ? completeMeaning(order) : "Accept this order after reviewing the items and delivery address?"
           })} />)}
       </Card>
       {order.items.map(item => <Card key={item.id} title={item.productName}>
@@ -106,7 +101,8 @@ export function OrderDetailScreen({ orderId }: { orderId: string }) {
       const order = query.state.data;
       if (pending.kind === "status") {
         if (!orderActions(order, role).includes(pending.status)) return;
-        void mutation.run(() => getOperationsApi().updateOrderStatus(orderId, { status: pending.status, note: pending.note }),
+        if (pending.status === "CANCEL" && (!pending.note || pending.note.length < 10)) return;
+        void mutation.run(() => getOperationsApi().executeOrderAction(orderId, { action: pending.status, expectedStatus: pending.orderStatus, reason: pending.note }),
           () => { setNote(""); refresh(); }, refresh);
       } else if (paymentQuery.state.status === "ready" && paymentQuery.state.data.some(payment =>
         payment.id === pending.paymentId && canCollectPayment(payment, order.status))) {

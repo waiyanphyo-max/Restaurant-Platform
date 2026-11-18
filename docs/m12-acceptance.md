@@ -2,6 +2,8 @@
 
 Reviewed on 2026-11-07 in Asia/Bangkok on `rebuild/m12-complete-customer-mobile`.
 
+The 2026-11-16 [text-only delivery update](text-only-delivery-checkout.md) supersedes this historical record's coordinate requirement and unrestricted-zone fallback for the Customer Android quote/checkout routes. Saved and temporary text addresses can now have null coordinates, and checkout requires an explicit configured City/Township pair. See that handoff for the forward migration and current acceptance steps.
+
 ## Customer and delivery workflows
 
 | Flow | Implementation |

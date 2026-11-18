@@ -45,5 +45,5 @@ export function classifyAdminError(error: unknown): AdminErrorState {
 }
 
 export function isPublicAdminPath(path: string): boolean {
-  return path === "/login" || path === "/access" || path === "/auth/callback" || path === "/auth/accept-invite";
+  return path === "/login" || path === "/access" || path === "/auth/callback" || path === "/auth/accept-invite" || path === "/auth/recover";
 }

@@ -5,6 +5,13 @@ import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.common.error.GlobalExceptionHandler;
 import com.restaurant.platform.controller.PlatformAdminDashboardController;
 import com.restaurant.platform.controller.PlatformRestaurantProvisioningController;
+import com.restaurant.platform.controller.PlatformOwnerInvitationController;
+import com.restaurant.platform.controller.OwnerOnboardingController;
+import com.restaurant.platform.service.OwnerOnboardingService;
+import com.restaurant.platform.repository.OwnerOnboardingRepository;
+import com.restaurant.platform.repository.RestaurantMemberRepository;
+import com.restaurant.platform.entity.RestaurantMember;
+import com.restaurant.platform.security.RestaurantRole;
 import com.restaurant.platform.security.PlatformAdminAuthorization;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.PlatformAdminDashboardService;
@@ -31,6 +38,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,7 +54,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = {
                 PlatformAdminDashboardController.class,
-                PlatformRestaurantProvisioningController.class
+                PlatformRestaurantProvisioningController.class,
+                PlatformOwnerInvitationController.class,
+                OwnerOnboardingController.class
         },
         properties = {
                 "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.test/auth/v1",
@@ -89,10 +101,67 @@ class PlatformAdminEndpointsHttpIntegrationTest {
     @Autowired private SupabaseAuthAdminClient authAdminClient;
     @Autowired private RestaurantManagementService restaurantManagementService;
     @Autowired private ProfileRepository profileRepository;
+    @Autowired private RestaurantMemberRepository ownerMembers;
+    @Autowired private OwnerOnboardingRepository ownerState;
 
     @BeforeEach
     void resetCollaborators() {
-        reset(authAdminClient, restaurantManagementService, profileRepository);
+        reset(authAdminClient, restaurantManagementService, profileRepository, ownerMembers, ownerState);
+    }
+
+    @Test
+    void ownerInvitationRouteRejectsUnauthenticatedAndNonAdminOwnersBeforeEmail() throws Exception {
+        String route = "/api/v1/platform/restaurants/" + RESTAURANT_ID + "/owners/" + OWNER_USER_ID + "/invitation";
+        mockMvc.perform(post(route)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post(route).with(SecurityMockMvcRequestPostProcessors.jwt()
+                .jwt(token -> token.subject(OWNER_USER_ID.toString())))).andExpect(status().isForbidden());
+        verifyNoInteractions(authAdminClient, ownerState, ownerMembers);
+    }
+
+    @Test
+    void platformAdminResendsForExistingMembershipButCannotSelectCrossTenantOwnerOrRecipient() throws Exception {
+        String route = "/api/v1/platform/restaurants/" + RESTAURANT_ID + "/owners/" + OWNER_USER_ID + "/invitation";
+        var identity = SecurityMockMvcRequestPostProcessors.jwt().jwt(token -> token.subject(ADMIN_USER_ID.toString()));
+        mockMvc.perform(post(route).with(identity)).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESTAURANT_OWNER_NOT_FOUND"));
+        verifyNoInteractions(authAdminClient, ownerState);
+        RestaurantMember member = new RestaurantMember();
+        member.setRestaurantId(RESTAURANT_ID);
+        member.setUserId(OWNER_USER_ID);
+        member.setRole(RestaurantRole.OWNER);
+        when(ownerMembers.findByRestaurantIdAndUserId(RESTAURANT_ID, OWNER_USER_ID)).thenReturn(Optional.of(member));
+        var now = OffsetDateTime.now();
+        when(ownerState.reserve(RESTAURANT_ID, OWNER_USER_ID, ADMIN_USER_ID)).thenReturn(
+                new OwnerOnboardingRepository.Reservation(UUID.randomUUID(), now, now.plusSeconds(60)));
+        when(authAdminClient.getUserById(OWNER_USER_ID)).thenReturn(
+                new SupabaseAuthAdminClient.AuthUser(OWNER_USER_ID, "authoritative@example.test"));
+        mockMvc.perform(post(route).with(identity).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"unrelated@example.test\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.emailStatus").value("REQUESTED"))
+                .andExpect(jsonPath("$.onboardingStatus").value("UNKNOWN"))
+                .andExpect(jsonPath("$.ownerUserId").value(OWNER_USER_ID.toString()))
+                .andExpect(jsonPath("$.token").doesNotExist()).andExpect(jsonPath("$.email").doesNotExist());
+        verify(authAdminClient).requestRecoveryEmail("authoritative@example.test");
+        verify(authAdminClient, never()).inviteByEmail(any(), any());
+        verify(ownerMembers, never()).save(any());
+    }
+
+    @Test
+    void ownerCanCompleteWithPasswordProofButStillCannotAccessPlatformRoutes() throws Exception {
+        mockMvc.perform(post("/api/v1/owner-onboarding/complete")).andExpect(status().isUnauthorized());
+        var owner = SecurityMockMvcRequestPostProcessors.jwt().jwt(token -> token.subject(OWNER_USER_ID.toString()));
+        mockMvc.perform(post("/api/v1/owner-onboarding/complete").with(owner))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("OWNER_PASSWORD_PROOF_REQUIRED"));
+        RestaurantMember member = new RestaurantMember();
+        member.setUserId(OWNER_USER_ID);
+        member.setRole(RestaurantRole.OWNER);
+        when(ownerMembers.findByUserId(OWNER_USER_ID)).thenReturn(List.of(member));
+        when(ownerState.complete(OWNER_USER_ID)).thenReturn(OffsetDateTime.now());
+        var passwordOwner = SecurityMockMvcRequestPostProcessors.jwt().jwt(token -> token.subject(OWNER_USER_ID.toString())
+                .claim("amr", List.of(Map.of("method", "password", "timestamp", java.time.Instant.now().getEpochSecond()))));
+        mockMvc.perform(post("/api/v1/owner-onboarding/complete").with(passwordOwner))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.onboardingStatus").value("COMPLETE"));
+        mockMvc.perform(get("/api/v1/platform/overview").with(passwordOwner)).andExpect(status().isForbidden());
     }
 
     @Test
@@ -216,5 +285,12 @@ class PlatformAdminEndpointsHttpIntegrationTest {
         @Bean SupabaseAuthAdminClient authAdminClient() { return mock(SupabaseAuthAdminClient.class); }
         @Bean ProfileRepository profileRepository() { return mock(ProfileRepository.class); }
         @Bean RestaurantManagementService restaurantManagementService() { return mock(RestaurantManagementService.class); }
+        @Bean RestaurantMemberRepository ownerMembers() { return mock(RestaurantMemberRepository.class); }
+        @Bean OwnerOnboardingRepository ownerState() { return mock(OwnerOnboardingRepository.class); }
+        @Bean OwnerOnboardingService ownerOnboardingService(PlatformAdminAuthorization admin,
+                RestaurantAuthorization identity, RestaurantMemberRepository members,
+                SupabaseAuthAdminClient provider, OwnerOnboardingRepository state) {
+            return new OwnerOnboardingService(admin, identity, members, provider, state);
+        }
     }
 }

@@ -17,6 +17,7 @@ export function ProductConfigurator({ product, currency }: { product: MenuProduc
   const [options, setOptions] = useState<Record<string, number>>({});
   const [feedback, setFeedback] = useState<"added" | "invalid" | null>(null);
   const available = isProductAvailable(product);
+  const selectedVariant = product.variants.find(variant => variant.id === variantId);
   const canAdd = state.phase === "ready" && !!actions && available;
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -42,12 +43,13 @@ export function ProductConfigurator({ product, currency }: { product: MenuProduc
         <legend className="visually-hidden">{product.name}</legend>
         {product.variants.length > 0 && <label className="order-field" htmlFor={`${formId}-variant`}>
           <span>{text.variant} <span className="choice-label">{text.required}</span></span>
-          <select id={`${formId}-variant`} value={variantId} required onChange={event => setVariantId(event.target.value)}>
+          <select id={`${formId}-variant`} value={variantId} required aria-describedby={selectedVariant?.description ? `${formId}-variant-description` : undefined} onChange={event => setVariantId(event.target.value)}>
             <option value="">{text.chooseVariant}</option>
             {product.variants.map(variant => <option key={variant.id} value={variant.id} disabled={!variant.available || variant.price === null}>
               {variant.name}{variant.price === null ? "" : ` · ${formatMenuPrice(variant.price, currency, locale)}`}{variant.available ? "" : ` · ${text.unavailable}`}
             </option>)}
           </select>
+          {selectedVariant?.description && <span id={`${formId}-variant-description`} className="variant-description">{selectedVariant.description}</span>}
         </label>}
         {product.modifierGroups.map(group => <fieldset key={group.id} className="order-modifier-group">
           <legend>{group.name} <span className="choice-label">{group.required ? text.required : text.optional}</span></legend>

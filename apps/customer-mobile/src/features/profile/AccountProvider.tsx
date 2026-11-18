@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState, type PropsWithChildren } from "react";
 import { usePathname, useRouter } from "expo-router";
 import type { CustomerAddressResponse, CustomerProfileResponse } from "@restaurant-platform/shared-types";
-import { ApiProtocolError } from "@restaurant-platform/api-client";
+import { MissingAccessTokenError } from "@restaurant-platform/api-client";
 import { getCustomerApi } from "../../api";
 import { useCustomerAuth } from "../../auth/AuthProvider";
 import { useApiQuery, type QueryState } from "../../hooks/useApiQuery";
+import { accountOperation } from "../../hooks/apiFailure";
 import { resumeCustomerNotifications } from "../../notifications/native";
+import { checkedAddresses, checkedProfile } from "./account";
 
 export interface CustomerAccount { profile: CustomerProfileResponse; addresses: CustomerAddressResponse[]; }
 interface AccountContext {
@@ -26,11 +28,12 @@ export function homeAddress(addresses: readonly CustomerAddressResponse[]): Cust
 export function CustomerAccountProvider({ children }: PropsWithChildren) {
   const { state: auth } = useCustomerAuth();
   const query = useApiQuery(async signal => {
-    const api = getCustomerApi();
-    const [profile, addresses] = await Promise.all([api.getProfile({ signal }), api.listAddresses({ signal })]);
-    if (auth.status !== "signed_in" || typeof profile?.id !== "string" || profile.id.toLowerCase() !== auth.userId.toLowerCase()) {
-      throw new ApiProtocolError();
-    }
+    if (auth.status !== "signed_in") throw new MissingAccessTokenError();
+    const api = getCustomerApi(auth.userId);
+    const [profile, addresses] = await Promise.all([
+      accountOperation("profile", async () => checkedProfile(await api.getProfile({ signal }), auth.userId)),
+      accountOperation("addresses", async () => checkedAddresses(await api.listAddresses({ signal })))
+    ]);
     return { profile, addresses };
   }, "account");
   const [dismissed, setDismissed] = useState(false);

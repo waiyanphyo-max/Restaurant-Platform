@@ -16,6 +16,14 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     java.util.Optional<Payment> findByIdAndOrderId(UUID paymentId, UUID orderId);
 
+    @Query("""
+            select distinct p.orderId from Payment p, Order o
+            where p.orderId = o.id and o.restaurantId = :restaurantId and p.orderId in :orderIds
+              and (p.status in ('PAID', 'REFUNDED', 'PARTIALLY_REFUNDED')
+                   or p.paidAt is not null or p.collectedByUserId is not null)
+            """)
+    List<UUID> findSettledOrderIds(@Param("restaurantId") UUID restaurantId, @Param("orderIds") List<UUID> orderIds);
+
     @Query(value = """
             select coalesce(sum(p.amount), 0)
             from public.payments p

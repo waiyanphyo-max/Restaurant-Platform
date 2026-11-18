@@ -336,7 +336,13 @@ function listMobileBuildConfigs() {
   return configs;
 }
 
-function requireOrigin(value, environment, label, guestSlug) {
+function isPrivateIPv4(host) {
+  if (isIP(host) !== 4) return false;
+  const [first, second] = host.split(".").map(Number);
+  return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
+}
+
+function requireOrigin(value, environment, label, guestSlug, allowPrivateIp = false) {
   const text = requireText(value, label);
   let parsed;
   try { parsed = new URL(text); } catch { throw new Error(`${label} must be an absolute URL`); }
@@ -344,9 +350,10 @@ function requireOrigin(value, environment, label, guestSlug) {
     throw new Error(`${label} must be an origin without credentials, path, query, or fragment`);
   }
   const localHost = ["localhost", "127.0.0.1", "10.0.2.2", "[::1]"].includes(parsed.hostname) ||
-    (guestSlug !== undefined && parsed.hostname === `${guestSlug}.localhost`);
+    (guestSlug !== undefined && parsed.hostname === `${guestSlug}.localhost`) ||
+    (allowPrivateIp && isPrivateIPv4(parsed.hostname));
   if (parsed.protocol !== "https:" && !(environment === "development" && parsed.protocol === "http:" && localHost)) {
-    throw new Error(`${label} must use HTTPS or a loopback development origin`);
+    throw new Error(`${label} must use HTTPS or a ${allowPrivateIp ? "loopback or private-LAN" : "loopback"} development origin`);
   }
   return parsed.origin;
 }
@@ -378,7 +385,10 @@ function getMobileBuildConfig(kind, environmentVariables = process.env, {
     throw new Error("selected restaurant app does not match EAS_BUILD_PROJECT_ID");
   }
   const profile = restaurant.mobileProfiles?.[environment];
-  const apiBaseUrl = profile?.apiBaseUrl ?? requireOrigin(environmentVariables.PUBLIC_API_BASE_URL, environment, "PUBLIC_API_BASE_URL");
+  const developmentApiOverride = environment === "development" ? environmentVariables.MOBILE_DEVELOPMENT_API_BASE_URL : undefined;
+  const apiBaseUrl = developmentApiOverride
+    ? requireOrigin(developmentApiOverride, environment, "MOBILE_DEVELOPMENT_API_BASE_URL", undefined, true)
+    : profile?.apiBaseUrl ?? requireOrigin(environmentVariables.PUBLIC_API_BASE_URL, environment, "PUBLIC_API_BASE_URL");
   const appLinkOrigin = environment === "development" ? null : `https://${restaurant.guestDomains[environment][0]}`;
   const guestBaseUrl = appLinkOrigin ?? profile?.guestBaseUrl ??
     (environmentVariables.PUBLIC_GUEST_BASE_URL

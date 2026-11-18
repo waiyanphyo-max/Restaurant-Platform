@@ -10,9 +10,10 @@ import type {
   PlatformRestaurantSummaryResponse, PlatformRestaurantDetailResponse,
   PlatformRestaurantProvisionRequest, PlatformRestaurantProvisionResponse,
   PlatformRestaurantConfigurationRequest, PlatformRestaurantStatusRequest,
+  PlatformOwnerInvitationResponse, OwnerOnboardingCompletionResponse,
   PublicMenuResponse, PublicModifierGroupResponse,
   QueueTicketManagerDto, QueueTrackingResponse, RestaurantResponse, SpringPage,
-  UpdateDeliveryStatusRequest, UpdateOrderStatusRequest
+  UpdateDeliveryStatusRequest, UpdateOrderStatusRequest, OrderActionRequest
 } from "@restaurant-platform/shared-types";
 import type {
   CategoryRequest, ProductRequest, ProductVariantRequest, ProductVariantResponse,
@@ -110,6 +111,17 @@ export function createPlatformAdminApiClient(options: AuthenticatedApiTransportO
     async getRestaurant(id: string, o?: ApiRequestOptions): Promise<PlatformRestaurantDetailResponse> {
       return checkedDetail(await read(transport, restaurantPath(id), o), id);
     },
+    async resendOwnerInvitation(id: string, ownerId: string, o?: ApiRequestOptions): Promise<PlatformOwnerInvitationResponse> {
+      const restaurantId = requireUuid(id, "restaurantId");
+      const ownerUserId = requireUuid(ownerId, "ownerUserId");
+      const response = await transport.request<PlatformOwnerInvitationResponse>({ method: "POST",
+        path: `${restaurantPath(restaurantId)}/owners/${ownerUserId}/invitation`, options: o });
+      checkedRestaurantResponse(response, restaurantId, "restaurantId");
+      if (response.ownerUserId?.toLowerCase() !== ownerUserId || response.onboardingStatus !== "UNKNOWN" ||
+          response.emailStatus !== "REQUESTED" || !Number.isFinite(Date.parse(response.requestedAt)) ||
+          !Number.isFinite(Date.parse(response.nextAllowedAt))) throw new ApiProtocolError();
+      return response;
+    },
     async provisionRestaurant(body: PlatformRestaurantProvisionRequest, o?: ApiRequestOptions): Promise<PlatformRestaurantProvisionResponse> {
       if (body.ownerUserId != null) requireUuid(body.ownerUserId, "ownerUserId");
       const response = await transport.request<PlatformRestaurantProvisionResponse>({ method: "POST", path: prefix, body, options: o });
@@ -129,6 +141,21 @@ export function createPlatformAdminApiClient(options: AuthenticatedApiTransportO
     },
     async updateRestaurantConfiguration(id: string, body: PlatformRestaurantConfigurationRequest, o?: ApiRequestOptions): Promise<PlatformRestaurantDetailResponse> {
       return checkedDetail(await transport.request({ method: "PUT", path: `${restaurantPath(id)}/configuration`, body, options: o }), id);
+    },
+  };
+}
+
+/** Public setup page uses an authenticated session; the backend requires fresh password proof and OWNER membership. */
+export function createOwnerOnboardingApiClient(options: AuthenticatedApiTransportOptions) {
+  const transport = createAuthenticatedTransport(options);
+  return {
+    async complete(o?: ApiRequestOptions): Promise<OwnerOnboardingCompletionResponse> {
+      const response = await transport.request<OwnerOnboardingCompletionResponse>({ method: "POST",
+        path: "/api/v1/owner-onboarding/complete", options: o });
+      if (response?.onboardingStatus !== "COMPLETE" || !Number.isFinite(Date.parse(response.completedAt))) {
+        throw new ApiProtocolError();
+      }
+      return response;
     },
   };
 }
@@ -242,6 +269,8 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
       await read<ManagerOrderDetailDto>(transport, orderPath(id), o), restaurantId, "restaurantId"),
     updateOrderStatus: (id: string, body: UpdateOrderStatusRequest, o?: ApiRequestOptions): Promise<OrderSummaryDto> =>
       transport.request({ method: "PATCH", path: `${orderPath(id)}/status`, body, options: o }),
+    executeOrderAction: (id: string, body: OrderActionRequest, o?: ApiRequestOptions): Promise<OrderSummaryDto> =>
+      transport.request({ method: "POST", path: `${orderPath(id)}/actions`, body, options: o }),
     getStaffOrderOptions: (o?: ApiRequestOptions) => read<StaffOrderOptions>(transport, `${prefix}/orders/staff/options`, o),
     createStaffOrder: (body: CreateStaffOrderRequest, o?: ApiRequestOptions): Promise<CreateStaffOrderResponse> =>
       transport.request({ method: "POST", path: `${prefix}/orders/staff`, body, options: o }),
@@ -286,6 +315,7 @@ export function createCustomerApiClient(options: CustomerApiClientOptions) {
     getDeliveryZones: (o?: ApiRequestOptions) => read<DeliveryZoneDto[]>(transport, `${restaurant}/delivery-zones`, o),
     createDeliveryOrder: (body: CreateDeliveryOrderRequest, o?: ApiRequestOptions): Promise<CreateOrderResponse> =>
       transport.request({ method: "POST", path: checkout, body, options: o }),
+    // Forward the destination unchanged: MANUAL_TEXT intentionally has no navigation pin.
     quoteDelivery: async (body: DeliveryQuoteRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
       await transport.request<DeliveryQuoteResponse>({ method: "POST", path: `${checkout}/quote`, body, options: o }),
       restaurantId, "restaurantId"),

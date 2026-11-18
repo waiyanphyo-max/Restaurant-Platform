@@ -39,4 +39,19 @@ public class DeliveryZone {
     @Column(name = "coverage_township", length = 100)
     private String coverageTownship;
 
+    @Column(name = "region_id")
+    private UUID regionId;
+
+    @Column(name = "district_id")
+    private UUID districtId;
+
+    @Column(name = "township_id")
+    private UUID townshipId;
+
+    @Column(name = "region_name", length = 150)
+    private String regionName;
+
+    @Column(name = "district_name", length = 150)
+    private String districtName;
+
 }

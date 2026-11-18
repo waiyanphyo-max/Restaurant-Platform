@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiHttpError, ApiNetworkError, ApiTimeoutError, MissingAccessTokenError } from "@restaurant-platform/api-client";
 import { useCustomerAuth } from "../auth/AuthProvider";
+import { apiFailure, logApiFailure, type ApiFailure } from "./apiFailure";
 
-export type QueryState<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "offline" | "error" | "denied" };
+export type QueryState<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "offline" | "error" | "denied"; failure?: ApiFailure };
 export function queryFailure(error: unknown): "offline" | "error" | "denied" {
-  if (error instanceof MissingAccessTokenError || error instanceof ApiHttpError && [401, 403].includes(error.status)) return "denied";
-  return error instanceof ApiNetworkError || error instanceof ApiTimeoutError ? "offline" : "error";
+  const { kind } = apiFailure(error, "query");
+  return kind === "expired" || kind === "forbidden" ? "denied" : kind === "network" ? "offline" : "error";
 }
 /** Identity-scoped memory only; abort and hide old data immediately when the account changes. */
 export function useApiQuery<T>(query: (signal: AbortSignal) => Promise<T>, queryKey: string, keepDataWhileRefreshing = false) {
@@ -24,7 +24,11 @@ export function useApiQuery<T>(query: (signal: AbortSignal) => Promise<T>, query
         const data = await queryRef.current(controller.signal);
         if (!controller.signal.aborted) setResult({ key, state: { status: "ready", data } });
       } catch (error) {
-        if (!controller.signal.aborted) setResult({ key, state: { status: queryFailure(error) } });
+        if (!controller.signal.aborted) {
+          const failure = apiFailure(error, queryKey);
+          logApiFailure(failure);
+          setResult({ key, state: { status: queryFailure(error), failure } });
+        }
       }
     }
     if (identity) void load();

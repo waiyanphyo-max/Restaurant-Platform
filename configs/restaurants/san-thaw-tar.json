@@ -1,0 +1,62 @@
+
+{
+  "schemaVersion": 2,
+  "slug": "san-thaw-tar",
+  "restaurantId": "2c62c49f-2310-4999-961f-81f79b868b0c",
+  "branding": {
+    "displayName": "စန်းသော်တာ",
+    "primaryColor": "#234D3C",
+    "secondaryColor": "#E8EEDB",
+    "backgroundColor": "#FFFFFF",
+    "logoUrl": "https://vdxbyopgewuvgxjxyezh.supabase.co/storage/v1/object/public/restaurant-branding/san-thaw-tar/logo.jpg",
+    "logoPath": "assets/san-thaw-tar/logo.png"
+  },
+  "guestDomains": {
+    "staging": [
+      "catalogue-sponsors-raleigh-solve.trycloudflare.com"
+    ],
+    "production": [
+      "example.com"
+    ]
+  },
+  "mobileProfiles": {
+    "development": {
+      "apiBaseUrl": "http://127.0.0.1:8080",
+      "guestBaseUrl": "https://catalogue-sponsors-raleigh-solve.trycloudflare.com"
+    },
+    "staging": {
+      "apiBaseUrl": "https://staging-api.example.invalid"
+    },
+    "production": {
+      "apiBaseUrl": "https://api.example.invalid"
+    }
+  },
+  "android": {
+    "operations": {
+      "displayName": "စန်းသော်တာ ဝန်ထမ်း",
+      "developmentApplicationId": "com.restaurantplatform.santhawtar.operations.dev",
+      "stagingApplicationId": "com.restaurantplatform.santhawtar.operations.staging",
+      "productionApplicationId": "com.restaurantplatform.santhawtar.operations",
+      "iconPath": "assets/san-thaw-tar/operations-icon.png",
+      "splashPath": "assets/san-thaw-tar/operations-splash.png",
+      "splashBackgroundColor": "#FFFFFF",
+      "release": {
+        "versionName": "1.0.0",
+        "versionCode": 1
+      }
+    },
+    "customer": {
+      "displayName": "စန်းသော်တာ",
+      "developmentApplicationId": "com.restaurantplatform.santhawtar.customer.dev",
+      "stagingApplicationId": "com.restaurantplatform.santhawtar.customer.staging",
+      "productionApplicationId": "com.restaurantplatform.santhawtar.customer",
+      "iconPath": "assets/san-thaw-tar/customer-icon.png",
+      "splashPath": "assets/san-thaw-tar/customer-splash.png",
+      "splashBackgroundColor": "#FFFFFF",
+      "release": {
+        "versionName": "1.0.0",
+        "versionCode": 1
+      }
+    }
+  }
+}

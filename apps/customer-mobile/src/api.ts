@@ -14,6 +14,7 @@ export function getCustomerApi(expectedOwner?: string) {
   }
   return createCustomerApiClient({
     baseUrl: tenant.apiBaseUrl,
+    allowPrivateLanHttp: tenant.allowPrivateLanHttp,
     restaurantId: tenant.restaurantId,
     async getAccessToken() {
       if (!isOwner()) return null;
@@ -25,5 +26,5 @@ export function getCustomerApi(expectedOwner?: string) {
 
 export function getCustomerPublicApi() {
   const tenant = readEmbeddedTenant();
-  return createPublicRestaurantApiClient({ baseUrl: tenant.apiBaseUrl, restaurantId: tenant.restaurantId });
+  return createPublicRestaurantApiClient({ baseUrl: tenant.apiBaseUrl, allowPrivateLanHttp: tenant.allowPrivateLanHttp, restaurantId: tenant.restaurantId });
 }

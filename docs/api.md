@@ -577,15 +577,32 @@ All three routes require the customer JWT and use its subject for address, recei
 | POST | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery/checkout` | Revalidate and place the reviewed COD order, or replay its receipt on a retry |
 | GET | `/api/v1/customer/restaurants/{restaurantId}/orders/delivery/checkout` | Recover the original receipt with the `Idempotency-Key` header or return 404 |
 
-The quote body uses the same `items` array as legacy delivery checkout and exactly one destination. For a saved location, send `addressId`. The owned address must have a complete address, city, township and valid map point. For a temporary location, send `temporaryDestination` with `source` (`MANUAL_MAP` or `GPS_CONFIRMED`), `address` (building, street and locality), `city`, `township`, `latitude` and `longitude`. The server combines the address and area into the display address. Both choices support `recipientName`, `recipientPhone` and `deliveryNote` at the top level. If contact fields are omitted, the server uses the saved recipient or customer profile where available and requires the resolved name and phone. Temporary checkout leaves the address book untouched.
+The quote body uses the same `items` array as legacy delivery checkout and exactly one destination. For a saved location, send `addressId`. The owned address must have street/building/ward detail, city and township; its coordinates may both be null. For a temporary location, send `temporaryDestination` with `source`, `address` (building, street or ward detail), `city` and `township`. `MANUAL_TEXT` permits omitted or null coordinates. Existing `MANUAL_MAP` and `GPS_CONFIRMED` sources require a complete valid `latitude`/`longitude` pair. All supplied coordinate pairs are range-validated, including saved and text addresses; incomplete pairs are rejected. No coordinates are generated for text addresses. The server combines the address and area into the display address. Both choices support `recipientName`, `recipientPhone` and optional `deliveryNote` at the top level. If contact fields are omitted, the server uses the saved recipient or customer profile where available and requires the resolved name and a valid normalized phone. Temporary checkout leaves the address book untouched.
 
-The quote returns `restaurantId`, `restaurantName`, `currency`, `subtotal`, `deliveryFee`, `discountAmount`, `totalAmount`, `paymentMethod`, `destination`, `lines`, `confirmationToken` and `idempotencyKey`. `destination` includes the normalized coordinates (seven decimal places of storage precision), address, city, township, contact, note, source and nullable `addressId`. A quoted line carries product and variant IDs and names, quantity, base `unitPrice`, `subtotal` including modifiers, and the quoted `modifiers` with IDs, names, quantities and additional prices.
+For example, a text-only quote uses actual product IDs returned by this restaurant's menu:
 
-The restaurant must accept delivery orders. Coverage matches the declared city and township against active configured zones after trimming and ignoring case. Among specific matches, the server uses the lowest-fee zone that meets the cart minimum. An unrestricted legacy zone can cover a destination with no specific match. `DELIVERY_ADDRESS_OUTSIDE_ZONE` means there is no matching zone. `MINIMUM_ORDER_NOT_MET` means the cart fails the applicable restaurant or zone minimum. `DELIVERY_COORDINATES_REQUIRED` means the destination needs a valid coordinate pair.
+```json
+{
+  "temporaryDestination": {
+    "source": "MANUAL_TEXT",
+    "address": "Building 12, Main Road, Ward 3",
+    "city": "Yangon",
+    "township": "Tamwe"
+  },
+  "recipientName": "Example Customer",
+  "recipientPhone": "09123456789",
+  "deliveryNote": "Call at the gate",
+  "items": [{ "productId": "00000000-0000-0000-0000-000000000000", "quantity": 1 }]
+}
+```
+
+The quote returns `restaurantId`, `restaurantName`, `currency`, `subtotal`, `deliveryFee`, `discountAmount`, `totalAmount`, `paymentMethod`, `destination`, `lines`, `confirmationToken` and `idempotencyKey`. `destination` includes coordinates (both null for a text-only destination, otherwise normalized to seven decimal places of storage precision), address, city, township, contact, note, source and nullable `addressId`. A quoted line carries product and variant IDs and names, quantity, base `unitPrice`, `subtotal` including modifiers, and the quoted `modifiers` with IDs, names, quantities and additional prices.
+
+The restaurant must accept delivery orders. Coverage matches the declared city and township against active configured zones after trimming and ignoring case. Both coverage fields must be configured. Among matches, the server uses the lowest-fee zone that meets the cart minimum. Unrestricted legacy zones do not qualify for these quote/checkout routes; their legacy endpoint behavior is preserved. `DELIVERY_ADDRESS_OUTSIDE_ZONE` means there is no explicit matching area. `MINIMUM_ORDER_NOT_MET` means the cart fails the applicable restaurant or zone minimum. `DELIVERY_COORDINATES_REQUIRED` means a map/GPS destination lacks its point. `INVALID_DELIVERY_COORDINATES` means a supplied coordinate pair is incomplete or out of range. Coverage is a text match; geographic proximity is not verified.
 
 After the customer reviews the destination and totals, submit the same quote body with its `confirmationToken` and put its `idempotencyKey` in the `Idempotency-Key` header. The server recalculates the quote before reserving stock. A changed destination or amount returns `409 DELIVERY_QUOTE_CHANGED`; item, stock, coverage and restaurant availability errors can also require changes before a fresh quote. Retrying the same request with the same key returns the original receipt without a second order, stock reservation or notification. Reusing a committed key with a different body returns `409 IDEMPOTENCY_KEY_REUSED`. The receipt describes order creation, including its initial `PENDING` state. Fetch order details for current delivery and cash-collection status.
 
-M12 uses the existing restaurant, customer, payment and delivery relationships. The checkout transaction inserts a pending COD payment and stores the confirmed destination on the order. The order's creation timestamp records confirmation. A saved-address identifier is retained as historical provenance after edits or deletion. `20261107100000_add_customer_delivery_checkout_snapshot.sql` adds snapshot provenance and checkout receipt metadata while preserving legacy orders and their existing routes.
+M12 uses the existing restaurant, customer, payment and delivery relationships. The checkout transaction inserts a pending COD payment and stores the confirmed destination on the order. The order's creation timestamp records confirmation. A saved-address identifier is retained as historical provenance after edits or deletion. `20261107100000_add_customer_delivery_checkout_snapshot.sql` adds snapshot provenance and checkout receipt metadata while preserving legacy orders and their existing routes. The forward migration `20261116090000_allow_text_only_customer_delivery_checkout.sql` permits the `MANUAL_TEXT` source and null-coordinate saved/text snapshots while retaining map/GPS coordinate requirements and existing coordinate-pair, ownership, immutability and uniqueness protections. Apply it through the normal reviewed database release before enabling the updated checkout; application startup does not apply it.
 
 ## Customer order history
 
@@ -657,6 +674,8 @@ The backend includes an optional Firebase Admin sender and a durable per-device 
 4. Keep credentials out of Git, browser variables, logs, and API responses.
 
 The sender is disabled by default. An addressed `IN_APP` notification queues one outbox row per eligible active device. A restaurant-scoped Android device accepts customer delivery events for that restaurant and account. M12 checkout events require a matching scoped device. The dispatcher checks this scope again before sending, including for rows queued before a device upgraded. The outbox tracks delivery per device and retries transient failures with bounded backoff. FCM `UNREGISTERED` errors deactivate the stale device. Tokens stay in device records. Public queue tickets use their existing polling flow.
+
+Android push alerts use generic text. The apps retrieve details from their authenticated inboxes. Operations uses the account-owned device route for events such as delivery assignment. Operations device routing is account-wide, while its inbox requires current membership in the requested restaurant. [Android FCM device build and test](android-fcm-device-build.md)
 
 If Firebase is disabled, in-app notifications continue to work, but no external push message is sent. Outbox rows are retained for dispatch when enabled and should be monitored until Firebase is configured. Client-side sound playback remains a separate client feature.
 
@@ -838,3 +857,25 @@ Do not expose the Supabase service-role/secret key to the browser or mobile app.
 ## Shared accounting
 
 Accounting routes live under `/api/v1/restaurants/{restaurantId}/accounting`. The backend checks `FINANCE_READ` for records, reports, private attachments and CSV exports, and `FINANCE_MANAGE` for writes, including expense corrections and cash closings. Both grants are explicit for Owner and Manager within their current restaurant memberships. See [accounting.md](accounting.md) for contracts, date and sorting filters, and idempotency.
+## Owner account setup and invitation resend
+
+`POST /api/v1/platform/restaurants/{restaurantId}/owners/{ownerUserId}/invitation` requires an allowlisted Platform Admin. It has no request body. Recipient identity is resolved from the restaurant's authoritative OWNER membership and the exact Supabase Auth UUID. Existing users receive a recovery/setup email through Supabase, preserving their account and membership. The configured redirect must be an exact public HTTPS `/auth/accept-invite` URL. A successful response means the provider accepted the request, not confirmed inbox delivery:
+
+```json
+{
+  "restaurantId": "2c62c49f-2310-4999-961f-81f79b868b0c",
+  "ownerUserId": "<existing-owner-auth-uuid>",
+  "onboardingStatus": "UNKNOWN",
+  "emailStatus": "REQUESTED",
+  "requestedAt": "2026-11-12T00:00:00Z",
+  "nextAllowedAt": "2026-11-12T00:01:00Z"
+}
+```
+
+The backend reserves attempts durably before contacting Supabase. Owner cooldown is 60 seconds, with at most 5 owner attempts/hour and 20 operator attempts/hour. Provider failures consume limits. Completion returns 409 `OWNER_ONBOARDING_COMPLETE`; rate limits return 429 `OWNER_INVITATION_RATE_LIMITED`; missing HTTPS/provider/storage configuration returns 503 `OWNER_INVITATION_NOT_CONFIGURED`; provider failures return 502 `OWNER_INVITATION_PROVIDER_ERROR`. Authorization and owner/restaurant mismatch are rejected before requesting email. No invitation tokens or recipient overrides are returned.
+
+Restaurant detail owners now include `onboardingStatus` (`UNKNOWN`, `COMPLETE`, `UNAVAILABLE`) and nullable `onboardingCompletedAt`, separately from invitation/email confirmation state. Legacy accounts without trusted proof remain `UNKNOWN`. Email confirmation is never proof of a user-set password.
+
+`POST /api/v1/owner-onboarding/complete` has no request body and requires a verified bearer JWT, recent signed password authentication proof, and an eligible OWNER membership. It records completion for the authenticated subject and returns `{"onboardingStatus":"COMPLETE","completedAt":"<timestamp>"}`. Missing/stale password proof returns 403 `OWNER_PASSWORD_PROOF_REQUIRED`. The public Admin acceptance page calls this through a same-origin authenticated server action without granting Platform Admin access.
+
+Review the unapplied onboarding migration before testing. See [Owner invitation and password setup](owner-invitation-onboarding.md) for configuration, templates, manual testing, and operational limits.

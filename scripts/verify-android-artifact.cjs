@@ -122,6 +122,7 @@ function verifyEmbeddedExpoConfig(config, expected) {
   assertEqual("embedded app kind", extra?.appKind, expected.appKind);
   assertEqual("embedded environment", extra?.mobileEnvironment, expected.environment);
   assertEqual("embedded API origin", extra?.apiBaseUrl, expected.apiBaseUrl);
+  assertEqual("embedded private-LAN HTTP opt-in", extra?.allowPrivateLanHttp, expected.allowPrivateLanHttp);
   assertEqual("embedded guest origin", extra?.guestBaseUrl ?? null, expected.guestBaseUrl);
   assertEqual("embedded routing", {
     scheme: extra?.routing?.scheme,
@@ -134,6 +135,23 @@ function verifyEmbeddedExpoConfig(config, expected) {
   });
   assertEqual("embedded release package", extra?.release?.applicationId, expected.applicationId);
   assertEqual("embedded build fingerprint", extra?.release?.fingerprint, expected.fingerprint);
+  if (expected.firebase) {
+    assertEqual("embedded Firebase configuration", extra?.release?.firebase, expected.firebase);
+    assertEqual("embedded notifications flag", extra?.features?.notificationsEnabled, true);
+  }
+}
+
+function verifyApkFirebaseResources(resources, expected) {
+  const required = {
+    project_id: expected.projectId,
+    google_app_id: expected.appId,
+    gcm_defaultSenderId: expected.senderId
+  };
+  for (const [name, value] of Object.entries(required)) {
+    const entry = new RegExp(`^ +resource 0x[\\da-f]+ string/${name}(?: .*)?\\r?\\n +\\(\\) ("[^"\\r\\n]+")\\r?$`, "im");
+    const quoted = entry.exec(resources)?.[1];
+    assertEqual(`Firebase resource ${name}`, quoted ? JSON.parse(quoted) : undefined, value);
+  }
 }
 
 function readEmbeddedExpoConfig(artifact, extension) {
@@ -163,6 +181,10 @@ async function verifyAndroidArtifact(artifactPath, expected) {
     const aapt2 = process.env.AAPT2 || "aapt2";
     manifest = parseApkManifest(runTool(aapt2, ["dump", "xmltree", artifact, "--file", "AndroidManifest.xml"], "AAPT2 manifest inspection"));
     displayName = parseApkLabel(runTool(aapt2, ["dump", "badging", artifact], "AAPT2 application label inspection"));
+    if (expected.firebase) {
+      const resources = runTool(aapt2, ["dump", "resources", artifact], "AAPT2 Firebase resource inspection");
+      verifyApkFirebaseResources(resources, expected.firebase);
+    }
   } else {
     if (!process.env.BUNDLETOOL_JAR) throw new Error("Set BUNDLETOOL_JAR to the standalone bundletool JAR to verify an AAB.");
     const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", process.platform === "win32" ? "java.exe" : "java") : "java";
@@ -179,4 +201,4 @@ async function verifyAndroidArtifact(artifactPath, expected) {
   return { ...expected, artifact };
 }
 
-module.exports = { verifyAndroidArtifact, verifyAndroidManifest, verifyEmbeddedExpoConfig, parseApkLabel, FINGERPRINT_META_DATA };
+module.exports = { verifyAndroidArtifact, verifyAndroidManifest, verifyEmbeddedExpoConfig, verifyApkFirebaseResources, parseApkLabel, FINGERPRINT_META_DATA };

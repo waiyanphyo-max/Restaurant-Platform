@@ -16,6 +16,16 @@ export function purchaseWholeAmount(value:string,positive=false):string {
   if(!/^\d+$/.test(value)||value.length>19||BigInt(value)>9223372036854775807n||(positive&&BigInt(value)===0n))throw new Error("Enter a valid whole-currency amount.");
   return BigInt(value).toString();
 }
+
+/** Exact purchase valuation for review; Spring validates every amount again. */
+export function purchaseLineTotal(quantity: string, unitCost: string): string {
+  purchaseQuantity(quantity); purchaseWholeAmount(unitCost);
+  const [whole, fraction = ""] = quantity.split(".");
+  const divisor = 10n ** BigInt(fraction.length);
+  const scaled = BigInt(whole + fraction) * BigInt(unitCost);
+  if (scaled % divisor !== 0n) throw new Error("The purchase line total must be whole currency. Check the quantity and actual unit cost.");
+  return purchaseWholeAmount((scaled / divisor).toString());
+}
 export function purchaseTimestamp(value:string):string {
   const timestamp=value.trim();
   if(!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/.test(timestamp)||!isIsoDate(timestamp.slice(0,10))||Number.isNaN(Date.parse(timestamp)))throw new Error("Enter a timestamp with timezone, such as 2026-11-02T09:30:00+06:30.");

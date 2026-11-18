@@ -18,6 +18,7 @@ export interface EmbeddedMobileTenant {
   readonly slug: string;
   readonly branding: Readonly<MobileBranding>;
   readonly apiBaseUrl: string;
+  readonly allowPrivateLanHttp?: boolean;
   readonly guestBaseUrl: string | null;
   readonly environment: MobileEnvironment;
   readonly routing: MobileRouting;
@@ -33,11 +34,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function origin(value: unknown, environment: MobileEnvironment, guestSlug?: string): string {
+function origin(value: unknown, environment: MobileEnvironment, guestSlug?: string, allowPrivateLanHttp = false): string {
   if (typeof value !== "string") throw new Error("Missing mobile origin");
   const url = new URL(value);
   const localHost = ["localhost", "127.0.0.1", "10.0.2.2", "[::1]"].includes(url.hostname) ||
-    (guestSlug !== undefined && url.hostname === `${guestSlug}.localhost`);
+    (guestSlug !== undefined && url.hostname === `${guestSlug}.localhost`) ||
+    (allowPrivateLanHttp && /^(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)(?:\.\d{1,3}){2}$/.test(url.hostname));
   const local = environment === "development" && url.protocol === "http:" && localHost;
   if ((url.protocol !== "https:" && !local) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
     throw new Error("Unsafe mobile origin");
@@ -112,12 +114,14 @@ export function parseEmbeddedMobileTenant(extra: unknown, kind: MobileAppKind): 
     throw new Error("Invalid mobile environment");
   }
   const guestBaseUrl = extra.guestBaseUrl == null ? null : origin(extra.guestBaseUrl, environment, tenant.slug);
+  const allowPrivateLanHttp = environment === "development" && extra.allowPrivateLanHttp === true;
   return Object.freeze({
     restaurantId: tenant.restaurantId.toLowerCase(),
     slug: tenant.slug,
     branding: parseBranding(tenant.branding),
     environment,
-    apiBaseUrl: origin(extra.apiBaseUrl, environment),
+    apiBaseUrl: origin(extra.apiBaseUrl, environment, undefined, allowPrivateLanHttp),
+    ...(allowPrivateLanHttp ? { allowPrivateLanHttp } : {}),
     guestBaseUrl,
     routing: parseRouting(extra.routing, kind, tenant.slug, environment, guestBaseUrl),
     phoneOtpRequested: isRecord(extra.features) && extra.features.phoneOtpRequested === true

@@ -5,6 +5,7 @@ import { readEmbeddedTenant } from "../../tenant";
 export function getSalesApi() {
   const tenant=readEmbeddedTenant();
   return createSalesAccountingApiClient({ baseUrl:tenant.apiBaseUrl,restaurantId:tenant.restaurantId,
+    allowPrivateLanHttp:tenant.allowPrivateLanHttp,
     getAccessToken:()=>getOperationsAuth().getAccessToken() });
 }
 /** Formatting only: exact decimal strings never pass through binary floating point. */

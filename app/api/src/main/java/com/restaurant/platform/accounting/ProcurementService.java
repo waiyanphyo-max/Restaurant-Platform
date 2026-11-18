@@ -104,7 +104,7 @@ public class ProcurementService {
     @Transactional
     public Item saveItem(UUID restaurant, UUID id, String key, ItemInput input) {
         UUID actor=support.write(restaurant); support.lock(restaurant);
-        String name=text(input.name(),150), unit=text(input.defaultUnit(),30);
+        String name=text(input.name(),150), unit=optional(input.defaultUnit(),30);
         if(input.defaultQuantity()!=null) quantity(input.defaultQuantity());
         supplierName(restaurant,input.supplierId());
         UUID result=support.once(restaurant,"shopping-item:"+id,key,input,()->{
@@ -149,7 +149,7 @@ public class ProcurementService {
                 """,(rs,n)->{
                     UUID purchase=uuid(rs,"purchase_id");
                     return new Sheet(id,rs.getObject("shopping_date",LocalDate.class),rs.getString("state"),purchase==null?"UNPURCHASED":purchaseSummary(restaurant,purchase).paymentStatus(),purchase,
-                        jdbc.query("SELECT * FROM public.accounting_shopping_lines WHERE restaurant_id=? AND sheet_id=? ORDER BY id",this::planLine,restaurant,id),
+                        jdbc.query("SELECT * FROM public.accounting_shopping_plan_lines WHERE restaurant_id=? AND sheet_id=? ORDER BY position,id",this::planLine,restaurant,id),
                         uuid(rs,"created_by"),time(rs,"created_at"),uuid(rs,"updated_by"),time(rs,"updated_at"));
                 },restaurant,id).stream().findFirst().orElseThrow(()->missing("SHOPPING_SHEET_NOT_FOUND"));
     }
@@ -158,7 +158,7 @@ public class ProcurementService {
     public Sheet saveSheet(UUID restaurant, UUID id,String key,SheetInput input) {
         UUID actor=support.write(restaurant); support.lock(restaurant);
         if(input.shoppingDate()==null||input.shoppingDate().getYear()<1900||input.shoppingDate().getYear()>9998) throw invalid("SHOPPING_DATE_REQUIRED");
-        List<Line> lines=prepareLines(restaurant,input.lines(),null,false);
+        List<PlanLine> lines=preparePlanLines(restaurant,input.lines());
         UUID result=support.once(restaurant,"shopping-sheet:"+id,key,input,()->{
             UUID target=id==null?UUID.randomUUID():id;
             if(id==null) jdbc.update("INSERT INTO public.accounting_shopping_sheets(id,restaurant_id,shopping_date,created_by,updated_by) VALUES (?,?,?,?,?)",target,restaurant,input.shoppingDate(),actor,actor);
@@ -166,10 +166,11 @@ public class ProcurementService {
                 text(input.reason(),1000);
                 if(Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM public.accounting_purchases WHERE restaurant_id=? AND sheet_id=?)",Boolean.class,restaurant,id))) throw conflict("SHOPPING_SHEET_ALREADY_POSTED");
                 if(jdbc.update("UPDATE public.accounting_shopping_sheets SET shopping_date=?,updated_by=?,updated_at=now() WHERE restaurant_id=? AND id=?",input.shoppingDate(),actor,restaurant,id)!=1) throw missing("SHOPPING_SHEET_NOT_FOUND");
-                jdbc.update("DELETE FROM public.accounting_shopping_lines WHERE restaurant_id=? AND sheet_id=?",restaurant,id);
+                jdbc.update("DELETE FROM public.accounting_shopping_plan_lines WHERE restaurant_id=? AND sheet_id=?",restaurant,id);
             }
-            for(Line line:lines) jdbc.update("INSERT INTO public.accounting_shopping_lines(id,restaurant_id,sheet_id,item_id,item_name,quantity,unit,unit_cost,line_total,supplier_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    line.id(),restaurant,target,line.itemId(),line.itemName(),line.quantity(),line.unit(),line.unitCost(),line.lineTotal(),line.supplierId());
+            int position=0;
+            for(PlanLine line:lines) jdbc.update("INSERT INTO public.accounting_shopping_plan_lines(id,restaurant_id,sheet_id,item_id,item_name,quantity,unit,position) VALUES (?,?,?,?,?,?,?,?)",
+                    line.id(),restaurant,target,line.itemId(),line.itemName(),line.quantity(),line.unit(),position++);
             support.audit(restaurant,actor,"SHOPPING_SHEET",target,id==null?"CREATE_PLAN":"CORRECT_PLAN",input.reason(),input);
             return target;
         });
@@ -403,7 +404,7 @@ public class ProcurementService {
     }
     private String supplierName(UUID restaurant,UUID id){return id==null?null:findSupplier(restaurant,id).name();}
     private Line purchaseLine(ResultSet rs,int n)throws SQLException{return new Line(uuid(rs,"id"),uuid(rs,"item_id"),rs.getString("item_name"),rs.getBigDecimal("quantity"),rs.getString("unit"),rs.getLong("unit_cost"),rs.getLong("line_total"),null);}
-    private Line planLine(ResultSet rs,int n)throws SQLException{return new Line(uuid(rs,"id"),uuid(rs,"item_id"),rs.getString("item_name"),rs.getBigDecimal("quantity"),rs.getString("unit"),rs.getLong("unit_cost"),rs.getLong("line_total"),uuid(rs,"supplier_id"));}
+    private PlanLine planLine(ResultSet rs,int n)throws SQLException{return new PlanLine(uuid(rs,"id"),uuid(rs,"item_id"),rs.getString("item_name"),rs.getBigDecimal("quantity"),rs.getString("unit"));}
     private Payment payment(ResultSet rs,int n)throws SQLException{return new Payment(uuid(rs,"id"),rs.getLong("amount"),rs.getString("method"),time(rs,"paid_at"),uuid(rs,"created_by"),time(rs,"created_at"),uuid(rs,"reversal_id"),rs.getString("reversal_reason"),uuid(rs,"reversed_by"),time(rs,"reversed_at"));}
     private static UUID uuid(ResultSet rs,String key)throws SQLException{return rs.getObject(key,UUID.class);}
     private static OffsetDateTime time(ResultSet rs,String key)throws SQLException{return rs.getObject(key,OffsetDateTime.class);}
@@ -412,6 +413,20 @@ public class ProcurementService {
     private static String optional(String value,int max){return value==null||value.isBlank()?null:text(value,max);}
     private static String searchPattern(String value){if(value!=null&&value.length()>150)throw invalid("SEARCH_TOO_LONG");return "%"+(value==null?"":value.trim())+"%";}
     private record Filter(String sql,Map<String,Object> args) { }
+
+    List<PlanLine> preparePlanLines(UUID restaurant,List<PlanLineInput> inputs) {
+        if(inputs==null||inputs.isEmpty()||inputs.size()>200)throw invalid("INVALID_SHOPPING_LINES");
+        Set<UUID> items=new HashSet<>();
+        List<PlanLine> lines=new ArrayList<>();
+        for(PlanLineInput input:inputs) {
+            if(input==null||input.itemId()==null)throw invalid("SHOPPING_ITEM_REQUIRED");
+            if(!items.add(input.itemId()))throw invalid("DUPLICATE_SHOPPING_ITEM");
+            Item item=itemById(restaurant,input.itemId());
+            quantity(input.quantity());
+            lines.add(new PlanLine(UUID.randomUUID(),input.itemId(),item.name(),input.quantity(),text(input.unit(),30)));
+        }
+        return lines;
+    }
 
     List<Line> prepareLines(UUID restaurant,List<LineInput> inputs,UUID supplier,boolean purchase) {
         if(inputs==null||inputs.isEmpty()||inputs.size()>200)throw invalid("INVALID_PURCHASE_LINES");

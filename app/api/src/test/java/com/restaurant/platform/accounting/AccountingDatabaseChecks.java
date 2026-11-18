@@ -30,6 +30,7 @@ public final class AccountingDatabaseChecks {
     private AccountingDatabaseChecks() { }
     public static void verify(DataSource dataSource) throws Exception {
         plansSuggestionsAndPurchaseSnapshots(dataSource);
+        independentDailyPlansAndExplicitPurchases(dataSource);
         sharedManagerAccounting(dataSource);
         salesCashClosingAndReport(dataSource);
         expenseCorrectionsAndCashHistory(dataSource);
@@ -151,7 +152,7 @@ public final class AccountingDatabaseChecks {
     public static void plansSuggestionsAndPurchaseSnapshots(DataSource dataSource) {
         var f = new Fixture(dataSource);
         var item = f.item();
-        var line = new ProcurementDtos.LineInput(item.id(), new BigDecimal("2.500000"), "kg", 100L, null);
+        var line = new ProcurementDtos.PlanLineInput(item.id(), new BigDecimal("2.500000"), "kg");
         var sheet = f.tx(() -> f.purchases.saveSheet(f.restaurant, null, "plan", new ProcurementDtos.SheetInput(f.today, List.of(line), null)));
         assertEquals("PLANNED", sheet.status());
         assertEquals(0, f.count("accounting_purchases"));
@@ -176,6 +177,74 @@ public final class AccountingDatabaseChecks {
         assertEquals(250, historical.lines().getFirst().lineTotal());
         assertEquals(1, f.purchases.purchase(f.restaurant, recent.purchase().id()).cancellations().size());
         assertEquals(1, f.purchases.items(f.restaurant, "Renamed", false, 0, 20).totalElements());
+    }
+
+    public static void independentDailyPlansAndExplicitPurchases(DataSource dataSource) {
+        var f = new Fixture(dataSource);
+        var rice = f.tx(() -> f.purchases.saveItem(f.restaurant, null, "rice-without-fixed-quantity",
+                new ProcurementDtos.ItemInput("Rice", null, null, null, false, null)));
+        var oil = f.tx(() -> f.purchases.saveItem(f.restaurant, null, "oil",
+                new ProcurementDtos.ItemInput("Cooking Oil", "bottle", null, null, false, null)));
+        assertNull(rice.defaultQuantity());
+        assertNull(rice.defaultUnit());
+        var yesterdayBody = new ProcurementDtos.SheetInput(f.today.minusDays(1), List.of(
+                new ProcurementDtos.PlanLineInput(rice.id(), new BigDecimal("5"), "kg"),
+                new ProcurementDtos.PlanLineInput(oil.id(), new BigDecimal("2"), "bottle")), null);
+        var yesterday = f.tx(() -> f.purchases.saveSheet(f.restaurant, null, "yesterday", yesterdayBody));
+        assertEquals(yesterday.id(), f.tx(() -> f.purchases.saveSheet(f.restaurant, null, "yesterday", yesterdayBody)).id());
+        var today = f.tx(() -> f.purchases.saveSheet(f.restaurant, null, "today", new ProcurementDtos.SheetInput(f.today,
+                List.of(new ProcurementDtos.PlanLineInput(rice.id(), new BigDecimal("2"), "kg")), null)));
+        assertEquals(1, today.lines().size(), "Unselected catalog items must stay absent from this day's sheet");
+        assertEquals(0, f.count("accounting_purchases"));
+        assertEquals(0, f.count("accounting_purchase_payments"));
+        assertEquals(0, f.count("accounting_shopping_lines"), "New plans must not add fake prices to the valuation archive");
+        assertEquals(3, f.count("accounting_shopping_plan_lines"));
+        assertEquals(0, f.purchases.payables(f.restaurant, 0, 20).totalElements());
+
+        var copied = f.tx(() -> f.purchases.saveSheet(f.restaurant, null, "explicit-copy",
+                new ProcurementDtos.SheetInput(f.today.plusDays(1), yesterday.lines().stream()
+                        .map(line -> new ProcurementDtos.PlanLineInput(line.itemId(), line.quantity(), line.unit())).toList(), null)));
+        assertNotEquals(yesterday.id(), copied.id());
+        assertNotEquals(yesterday.lines().getFirst().id(), copied.lines().getFirst().id());
+        f.tx(() -> f.purchases.saveSheet(f.restaurant, copied.id(), "edit-copy", new ProcurementDtos.SheetInput(f.today.plusDays(1),
+                List.of(new ProcurementDtos.PlanLineInput(rice.id(), new BigDecimal("1.5"), "kg")), "Adjust independent copied plan")));
+        assertEquals(0, new BigDecimal("5").compareTo(f.purchases.sheet(f.restaurant, yesterday.id()).lines().getFirst().quantity()));
+        assertEquals(0, new BigDecimal("2").compareTo(f.purchases.sheet(f.restaurant, today.id()).lines().getFirst().quantity()));
+        var reopenedCopy = f.purchases.sheet(f.restaurant, copied.id());
+        assertEquals(1, reopenedCopy.lines().size());
+        assertEquals(0, new BigDecimal("1.5").compareTo(reopenedCopy.lines().getFirst().quantity()));
+        f.tx(() -> f.purchases.saveItem(f.restaurant, rice.id(), "edit-catalog",
+                new ProcurementDtos.ItemInput("Renamed rice", "bag", null, null, false, "Catalog name and default unit changed")));
+        var original = f.purchases.sheet(f.restaurant, yesterday.id()).lines().getFirst();
+        assertEquals("Rice", original.itemName());
+        assertEquals("kg", original.unit());
+        assertEquals(0, new BigDecimal("5").compareTo(original.quantity()));
+
+        var explicit = f.tx(() -> f.purchases.confirmPurchase(f.restaurant, "explicit-purchase-from-plan", new ProcurementDtos.PurchaseInput(
+                f.today, f.now.minusMinutes(1), null,
+                List.of(new ProcurementDtos.LineInput(rice.id(), new BigDecimal("4"), "kg", 100L, null)),
+                yesterday.id(), null, null, "ACTUAL-QUANTITY", null, null)));
+        assertEquals(400, explicit.purchase().totalAmount());
+        assertEquals(0, new BigDecimal("4").compareTo(explicit.lines().getFirst().quantity()));
+        assertEquals(0, new BigDecimal("5").compareTo(f.purchases.sheet(f.restaurant, yesterday.id()).lines().getFirst().quantity()),
+                "Actual purchased quantity may differ without rewriting the planning record");
+        assertEquals(0, f.count("accounting_purchase_payments"));
+        assertEquals(1, f.count("accounting_purchases"));
+
+        var other = new Fixture(dataSource);
+        var foreign = other.item();
+        assertEquals("SHOPPING_ITEM_NOT_FOUND", assertThrows(ApiException.class, () -> f.tx(() -> f.purchases.saveSheet(
+                f.restaurant, null, "foreign-item", new ProcurementDtos.SheetInput(f.today,
+                        List.of(new ProcurementDtos.PlanLineInput(foreign.id(), BigDecimal.ONE, "kg")), null)))).getCode());
+        assertEquals("SHOPPING_SHEET_NOT_FOUND", assertThrows(ApiException.class,
+                () -> other.purchases.sheet(other.restaurant, yesterday.id())).getCode());
+        assertThrows(DataIntegrityViolationException.class, () -> f.jdbc.update("""
+                INSERT INTO public.accounting_shopping_plan_lines(id,restaurant_id,sheet_id,item_id,item_name,quantity,unit,position)
+                VALUES(?,?,?,?,?,1,'kg',0)
+                """, UUID.randomUUID(), f.restaurant, today.id(), foreign.id(), "Foreign item"));
+        assertEquals(3, f.purchases.sheets(f.restaurant, f.today.minusDays(1), f.today.plusDays(1), 0, 20).totalElements());
+        assertEquals(0, other.count("accounting_shopping_sheets"));
+        assertTrue(f.jdbc.queryForObject("SELECT count(*) > 0 FROM public.accounting_audit WHERE restaurant_id=? AND action='CORRECT_PLAN'", Boolean.class, f.restaurant));
     }
 
     public static void salesCashClosingAndReport(DataSource dataSource) {

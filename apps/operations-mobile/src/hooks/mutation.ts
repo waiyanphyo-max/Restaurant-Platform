@@ -10,6 +10,10 @@ export class MutationGate {
 export function mutationError(error: unknown): string {
   if (error instanceof MissingAccessTokenError || error instanceof ApiHttpError && error.status === 401) return "Your session expired. Sign in again.";
   if (error instanceof ApiHttpError) {
+    if (error.code === "MEDIA_STORAGE_NOT_CONFIGURED") return "Image storage is not configured. Ask your administrator to enable image uploads, then try again.";
+    if (error.code === "MEDIA_STORAGE_OPERATION_FAILED") return "The image could not be saved to storage. Ask your administrator to check image storage, then try again.";
+    if (error.status === 413) return "Choose an image no larger than 5 MB.";
+    if (["UNSUPPORTED_IMAGE_TYPE", "IMAGE_CONTENT_MISMATCH", "INVALID_IMAGE_FILE", "IMAGE_FILE_READ_FAILED"].includes(error.code)) return "This image could not be read. Choose a PNG, JPEG or WebP image and try again.";
     if (error.code === "MEMBER_INVITATION_NOT_CONFIGURED") return "The invitation provider is not configured. Ask your administrator to configure Supabase invitations.";
     if (error.code === "MEMBER_EMAIL_ALREADY_REGISTERED") return "This email already has an Auth account. Use the verified account onboarding process.";
     if (["MEMBER_INVITATION_PROVIDER_ERROR", "MEMBER_INVITATION_INVALID_PROVIDER_RESPONSE", "MEMBER_INVITATION_PROFILE_MISSING"].includes(error.code)) return "The invitation provider or account synchronization failed. Refresh the team before retrying.";

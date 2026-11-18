@@ -4,7 +4,7 @@ import type { CategoryResponse, ModifierGroupResponse, ModifierOptionResponse, P
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
 import { QueryResult } from "../../components/QueryResult";
-import { pickAndUploadImage } from "../../components/imageUpload";
+import { useImageUpload } from "../../components/useImageUpload";
 import { Action, Body, Card, ConfirmDialog, FormField, Page } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useApiQuery } from "../../hooks/useApiQuery";
@@ -51,8 +51,8 @@ export function MenuScreen() {
       api.listProducts({ signal }), api.listCategories({ signal }), api.listModifierGroups({ signal }), canManage ? api.getSettings({ signal }) : Promise.resolve(null)
     ]);
     return { products, categories, groups, currency: settings?.currency ?? null };
-  }, `owner-menu:${canManage}`);
-  return <Page title="Menu" subtitle="Products, categories, variants and extras" onRefresh={query.reload} refreshing={query.state.status === "loading"}>
+  }, `owner-menu:${canManage}`, { keepPreviousData: true });
+  return <Page title="Menu" subtitle="Products, categories, variants and extras" onRefresh={query.reload} refreshing={query.state.status === "loading" || query.refreshing}>
     <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>{(["products", "categories", "modifiers"] as const).map(tab =>
       <Action key={tab} title={tab[0].toUpperCase() + tab.slice(1)} secondary={view !== tab} onPress={() => setView(tab)} />)}</View>
     {!canManage ? <Body>Your restaurant role can browse the menu. Menu changes require Owner or Manager access.</Body> : null}
@@ -72,7 +72,7 @@ function Categories({ categories, canManage, refresh }: { categories: CategoryRe
   const mutation = useApiMutation();
   return <>
     <Feedback mutation={mutation} />
-    {editor ? <CategoryForm key={editor === "new" ? "new" : editor.id} category={editor === "new" ? undefined : editor} done={refresh} cancel={() => setEditor(null)} /> : <>
+    {editor ? <CategoryForm key={editor === "new" ? "new" : editor.id} category={editor === "new" ? undefined : editor} done={() => { setEditor(null); refresh(); }} cancel={() => setEditor(null)} /> : <>
       {canManage ? <Action title="Create category" onPress={() => setEditor("new")} /> : null}
       {!categories.length ? <Card><Body>No categories yet. Create a category before adding products.</Body></Card> : null}
       {categories.map(category => <Card key={category.id} title={category.name}>
@@ -122,7 +122,7 @@ function Products({ products, categories, groups, canManage, refresh }: {
   const listing = productPage(products, search, categoryId, availability, page);
   const selected = products.find(product => product.id === selectedId);
   if (editor) return <ProductForm key={editor === "new" ? "new" : editor.id} product={editor === "new" ? undefined : editor} categories={categories}
-    done={refresh} cancel={() => setEditor(null)} />;
+    done={() => { setEditor(null); refresh(); }} cancel={() => setEditor(null)} />;
   if (selected) return <><Action title="Back to products" secondary onPress={() => setSelectedId(null)} />
     <ProductDetail product={selected} categories={categories} groups={groups} canManage={canManage} edit={() => setEditor(selected)} refresh={refresh} /></>;
   return <>
@@ -185,11 +185,12 @@ function ProductDetail({ product, categories, groups, canManage, edit, refresh }
   const [variantEditor, setVariantEditor] = useState<ProductVariantResponse | "new" | null>(null);
   const [unlinking, setUnlinking] = useState<ModifierGroupResponse | null>(null);
   const mutation = useApiMutation();
+  const uploadImage = useImageUpload();
   const query = useApiQuery(async signal => {
     const api = getOperationsApi();
     const [variants, linked] = await Promise.all([api.listVariants(product.id, { signal }), api.getProductModifierGroups(product.id, { signal })]);
     return { variants, linked };
-  }, `menu-product:${product.id}`);
+  }, `menu-product:${product.id}`, { keepPreviousData: true });
   return <>
     <Card title={product.name}><Picture key={product.imageUrl} url={product.imageUrl} name={product.name} />
       <Body>{product.description || "No description"}</Body>
@@ -198,7 +199,24 @@ function ProductDetail({ product, categories, groups, canManage, edit, refresh }
       <Feedback mutation={mutation} />
       {canManage ? <><Action title="Edit product and stock" onPress={edit} disabled={mutation.busy} />
         <Action title={mutation.busy ? "Uploading…" : "Upload product image"} secondary disabled={mutation.busy} onPress={() => void mutation.run(
-          () => pickAndUploadImage(form => getOperationsApi().uploadProductImage(product.id, form)),
+          () => uploadImage(async (api, form) => {
+            console.log("[IMAGE UPLOAD] Backend request START");
+
+            try {
+              const result = await api.uploadProductImage(
+                product.id,
+                form,
+                { timeoutMs: 60_000 }
+              );
+
+              console.log("[IMAGE UPLOAD] Backend request SUCCESS");
+              return result;
+
+            } catch (error) {
+              console.log("[IMAGE UPLOAD] Backend request FAILED", error);
+              throw error;
+            }
+          }),
           uploaded => { if (uploaded) refresh(); else mutation.reset(); }
         )} /></> : null}
     </Card>
@@ -207,10 +225,11 @@ function ProductDetail({ product, categories, groups, canManage, edit, refresh }
         {!variants.length ? <Body>No variants. Orders use the standard product price.</Body> : null}
         {variants.map(variant => <View key={variant.id} style={{ gap: 10, borderTopWidth: 1, borderTopColor: "#e2e8f0", paddingTop: 12 }}>
           <Body>{variant.name} · {operationalAmount(variant.price)} · {variant.available ? "Available" : "Unavailable"}</Body>
+          {variant.description ? <Body>{variant.description}</Body> : null}
           {variant.imageUrl ? <Picture key={variant.imageUrl} url={variant.imageUrl} name={variant.name} /> : null}
           {canManage ? <><Action title={`Edit variant ${variant.name}`} secondary disabled={mutation.busy} onPress={() => setVariantEditor(variant)} />
             <Action title={`Upload ${variant.name} image`} secondary disabled={mutation.busy} onPress={() => void mutation.run(
-              () => pickAndUploadImage(form => getOperationsApi().uploadVariantImage(product.id, variant.id, form)),
+              () => uploadImage((api, form) => api.uploadVariantImage(product.id, variant.id, form)),
               uploaded => { if (uploaded) query.reload(); else mutation.reset(); }
             )} /></> : null}
         </View>)}
@@ -239,16 +258,19 @@ function ProductDetail({ product, categories, groups, canManage, edit, refresh }
 
 function VariantForm({ productId, variant, done, cancel }: { productId: string; variant?: ProductVariantResponse; done(): void; cancel(): void }) {
   const [name, setName] = useState(variant?.name ?? "");
+  const [description, setDescription] = useState(variant?.description ?? "");
   const [price, setPrice] = useState(variant && Number.isSafeInteger(variant.price) ? String(variant.price) : "");
   const [available, setAvailable] = useState(variant?.available ?? true);
   const mutation = useApiMutation();
   return <Card title={variant ? "Edit variant" : "New variant"}>
     <FormField label="Variant name" value={name} onChangeText={setName} maxLength={100} editable={!mutation.busy} />
+    <FormField label="Variant description (optional)" value={description} onChangeText={setDescription} multiline numberOfLines={4}
+      textAlignVertical="top" style={{ minHeight: 100, paddingVertical: 10 }} maxLength={5000} editable={!mutation.busy} />
     <FormField label="Variant price (whole currency amount)" value={price} onChangeText={setPrice} keyboardType="number-pad" editable={!mutation.busy} />
     <Toggle label="Variant available" value={available} onChange={setAvailable} disabled={mutation.busy} />
     <Feedback mutation={mutation} />
     <SaveAction title="Save variant" mutation={mutation} confirmMessage={variant?.available && !available ? "This variant will no longer be offered on new orders. Historical variants remain unchanged." : undefined} onSave={() => void mutation.run(async () => {
-      const request = variantRequest(name, price, available, variant?.imageUrl ?? null);
+      const request = variantRequest(name, price, available, variant?.imageUrl ?? null, description);
       return variant ? getOperationsApi().updateVariant(productId, variant.id, request) : getOperationsApi().createVariant(productId, request);
     }, done)} />
     <Action title="Cancel" secondary disabled={mutation.busy} onPress={cancel} />
@@ -259,8 +281,8 @@ function ModifierGroups({ groups, canManage, refresh }: { groups: ModifierGroupR
   const [editor, setEditor] = useState<ModifierGroupResponse | "new" | null>(null);
   const [option, setOption] = useState<{ groupId: string; option?: ModifierOptionResponse } | null>(null);
   const [search, setSearch] = useState("");
-  if (editor) return <GroupForm key={editor === "new" ? "new" : editor.id} group={editor === "new" ? undefined : editor} done={refresh} cancel={() => setEditor(null)} />;
-  if (option) return <OptionForm key={option.option?.id ?? option.groupId} groupId={option.groupId} option={option.option} done={refresh} cancel={() => setOption(null)} />;
+  if (editor) return <GroupForm key={editor === "new" ? "new" : editor.id} group={editor === "new" ? undefined : editor} done={() => { setEditor(null); refresh(); }} cancel={() => setEditor(null)} />;
+  if (option) return <OptionForm key={option.option?.id ?? option.groupId} groupId={option.groupId} option={option.option} done={() => { setOption(null); refresh(); }} cancel={() => setOption(null)} />;
   const matching = groups.filter(group => `${group.name} ${group.options.map(item => item.name).join(" ")}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   return <>
     <FormField label="Search groups and options" value={search} onChangeText={setSearch} />

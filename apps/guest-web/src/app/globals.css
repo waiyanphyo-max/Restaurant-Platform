@@ -91,6 +91,8 @@ img { max-width: 100%; }
 .choice-list>li { display: flex; align-items: center; gap: .75rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
 .choice-list>li>img { object-fit: cover; flex-shrink: 0; border-radius: 4px; }
 .choice-list strong { display: block; font-size: .875rem; font-weight: 500; }
+.choice-list>li>div { min-width: 0; flex: 1; }
+.variant-description { display: block; margin: .35rem 0; color: var(--muted); font-size: .875rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .choice-list .muted { display: block; font-size: .7rem; margin-top: .4rem; }
 .choice-price { margin-left: auto; font-size: .8rem; text-align: right; }
 .modifier-group { margin: 1.5rem 0; }

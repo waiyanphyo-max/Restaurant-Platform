@@ -2,7 +2,7 @@ import type { MyRestaurantResponse } from "@restaurant-platform/shared-types";
 
 export const OPERATIONS_ROLES = ["OWNER", "MANAGER", "STAFF", "DELIVERY_DRIVER"] as const;
 export type OperationsRole = typeof OPERATIONS_ROLES[number];
-export type ScreenId = "dashboard" | "orders" | "menu" | "shopping" | "sales-history"
+export type ScreenId = "dashboard" | "orders" | "menu" | "shopping" | "purchasing" | "sales-history"
   | "accounting" | "reports" | "team" | "settings" | "deliveries" | "profile" | "tables" | "queue" | "notifications";
 export type OperationsPermission = "RESTAURANT_READ" | "ORDER_READ" | "MENU_READ"
   | "FINANCE_READ" | "MEMBERS_MANAGE" | "SETTINGS_MANAGE" | "DELIVERY_READ" | "QUEUE_MANAGE";
@@ -41,7 +41,9 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   { id: "menu", label: "Menu", path: "/menu", status: "ready", roles: ["OWNER", "MANAGER", "STAFF"],
     requiredPermission: "MENU_READ", description: "Restaurant products and availability." },
   { id: "shopping", label: "Shopping", path: "/shopping", status: "ready", roles: financialRoles,
-    requiredPermission: "FINANCE_READ", description: "Shopping plans, confirmed purchase history and supplier payables." },
+    requiredPermission: "FINANCE_READ", description: "Reusable shopping items and independent daily quantity plans." },
+  { id: "purchasing", label: "Purchasing & Accounting", path: "/purchasing", status: "ready", roles: financialRoles,
+    requiredPermission: "FINANCE_READ", description: "Record actual purchases, payments, history, suppliers, payables and audit events." },
   { id: "sales-history", label: "Sales History", path: "/sales-history", status: "ready", roles: financialRoles,
     requiredPermission: "FINANCE_READ", description: "Historical sales ledger, filters, refunds and transaction details." },
   { id: "accounting", label: "Accounting", path: "/accounting", status: "ready", roles: financialRoles,

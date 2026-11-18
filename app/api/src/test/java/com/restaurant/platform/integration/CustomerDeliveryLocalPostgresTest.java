@@ -39,6 +39,8 @@ import com.restaurant.platform.service.SupabaseMediaStorageClient;
 import com.restaurant.platform.service.SupabaseStorageClient;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -84,7 +86,7 @@ class CustomerDeliveryLocalPostgresTest {
     @EntityScan(basePackageClasses = Order.class)
     @EnableJpaRepositories(basePackageClasses = OrderRepository.class)
     @EnableMethodSecurity
-    @Import({AccountingSupport.class, RestaurantAuthorization.class, AssignedDeliveryService.class,
+    @Import({com.restaurant.platform.service.GeographicLocationService.class,AccountingSupport.class, RestaurantAuthorization.class, AssignedDeliveryService.class,
             CashbookService.class, SalesAccountingService.class, CustomerDeliveryCheckoutService.class,
             CustomerOrderNotifications.class, CustomerOrderService.class, DeliveryService.class, ManagerOrderService.class,
             OrderCancellationService.class, OrderService.class, QrOrderIdempotencyService.class,
@@ -297,8 +299,8 @@ class CustomerDeliveryLocalPostgresTest {
                 """, restaurant, "checkout-recovery-" + restaurant);
         jdbc.update("INSERT INTO public.restaurant_settings(restaurant_id) VALUES (?)", restaurant);
         jdbc.update("""
-                INSERT INTO public.delivery_zones(restaurant_id, name, delivery_fee, coverage_city, coverage_township)
-                VALUES (?, 'Tamwe', 300, 'Yangon', 'Tamwe')
+                INSERT INTO public.delivery_zones(restaurant_id, name, delivery_fee, coverage_city, coverage_township,region_id,district_id,township_id)
+                SELECT ?, 'Tamwe', 300, 'Yangon', 'Tamwe',d.region_id,d.id,t.id FROM public.geo_townships t JOIN public.geo_districts d ON d.id=t.district_id WHERE t.code='carenet-v1-township-290'
                 """, restaurant);
         jdbc.update("INSERT INTO public.categories(id, restaurant_id, name) VALUES (?, ?, 'Food')", category, restaurant);
         jdbc.update("""
@@ -318,7 +320,74 @@ class CustomerDeliveryLocalPostgresTest {
     private record CheckoutRestaurant(UUID restaurant, UUID product) { }
 
     @Test
-    void concurrentCheckoutRetriesCreateOneOrderThatOperationsDeliversAndAccountsFor() throws Exception {
+    void savedTextAddressPersistsNullCoordinatesAndDatabaseKeepsSnapshotGuards() {
+        var fixture = checkoutRestaurant();
+        UUID customer = UUID.randomUUID();
+        UUID address = UUID.randomUUID();
+        jdbc.update("INSERT INTO auth.users(id) VALUES (?)", customer);
+        jdbc.update("""
+                INSERT INTO public.customer_addresses(id, user_id, label, house_no, street, township, city, recipient_name)
+                VALUES (?, ?, 'Home', '12', 'Garden Road', 'Tamwe', 'Yangon', 'Saved recipient')
+                """, address, customer);
+        var items = List.of(new CreateOrderItemRequest(fixture.product(), null, 1, null, List.of()));
+        var request = new CustomerDeliveryCheckoutRequest(address, null, null, "09123456", "Blue gate", items, null);
+        var quote = asUser(customer, () -> checkout.quote(fixture.restaurant(), customer, request));
+        assertNull(quote.destination().latitude());
+        assertNull(quote.destination().longitude());
+        var confirmed = new CustomerDeliveryCheckoutRequest(address, null, null, "09123456", "Blue gate", items,
+                quote.confirmationToken());
+        var receipt = asUser(customer, () -> checkout.checkout(fixture.restaurant(), customer,
+                quote.idempotencyKey().toString(), confirmed));
+        assertEquals(receipt, asUser(customer, () -> checkout.checkout(fixture.restaurant(), customer,
+                quote.idempotencyKey().toString(), confirmed)));
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT count(*) FROM public.orders WHERE id = ? AND delivery_location_source = 'SAVED_ADDRESS'
+                    AND delivery_address_id = ? AND delivery_latitude IS NULL AND delivery_longitude IS NULL
+                    AND delivery_address = '12, Garden Road, Tamwe, East Yangon, Yangon Region' AND delivery_name = 'Saved recipient'
+                """, Integer.class, receipt.orderId(), address));
+        try (var entityManager = entityManagers.createEntityManager()) {
+            var stored = entityManager.find(Order.class, receipt.orderId());
+            assertNull(stored.getDeliveryLatitude());
+            assertNull(stored.getDeliveryLongitude());
+            assertEquals("Yangon Region", stored.getDeliveryCity());
+            assertEquals("Tamwe", stored.getDeliveryTownship());
+        }
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("UPDATE public.orders SET delivery_address = 'Changed' WHERE id = ?", receipt.orderId()));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("UPDATE public.orders SET delivery_latitude = 16, delivery_longitude = 96 WHERE id = ?",
+                        receipt.orderId()));
+
+        // The forward migration permits null pairs only where the declared source supports text.
+        UUID zone = jdbc.queryForObject("SELECT delivery_zone_id FROM public.orders WHERE id = ?", UUID.class, receipt.orderId());
+        for (String invalidSource : List.of("MANUAL_MAP", "GPS_CONFIRMED", "UNRECOGNIZED")) {
+            assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                    () -> insertSnapshot(fixture.restaurant(), customer, zone, invalidSource, null, null));
+        }
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> insertSnapshot(fixture.restaurant(), customer, zone, "MANUAL_TEXT", new BigDecimal("16"), null));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> insertSnapshot(fixture.restaurant(), customer, zone, "MANUAL_TEXT", new BigDecimal("91"), new BigDecimal("96")));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> insertSnapshot(fixture.restaurant(), customer, zone, "MANUAL_TEXT", new BigDecimal("16"), new BigDecimal("181")));
+    }
+
+    private void insertSnapshot(UUID restaurant, UUID customer, UUID zone, String source,
+                                BigDecimal latitude, BigDecimal longitude) {
+        jdbc.update("""
+                INSERT INTO public.orders (restaurant_id, customer_id, delivery_zone_id, order_number, order_type,
+                    order_channel, subtotal, total_amount, delivery_name, delivery_phone, delivery_address,
+                    delivery_city, delivery_township, delivery_location_source, delivery_latitude, delivery_longitude,
+                    delivery_checkout_key, delivery_checkout_request_hash, delivery_checkout_currency)
+                VALUES (?, ?, ?, ?, 'DELIVERY', 'CUSTOMER_APP', 1000, 1000, 'Recipient', '+959123456',
+                    '12 Garden Road, Tamwe, Yangon', 'Yangon', 'Tamwe', ?, ?, ?, ?, ?, 'MMK')
+                """, restaurant, customer, zone, "guard-" + UUID.randomUUID().toString().substring(0, 12),
+                source, latitude, longitude, UUID.randomUUID(), "0".repeat(64));
+    }
+
+    @ParameterizedTest
+    @EnumSource(TemporarySource.class)
+    void concurrentCheckoutRetriesCreateOneOrderThatOperationsDeliversAndAccountsFor(TemporarySource source) throws Exception {
         UUID restaurant = UUID.randomUUID();
         UUID customer = UUID.randomUUID();
         UUID driver = UUID.randomUUID();
@@ -343,8 +412,8 @@ class CustomerDeliveryLocalPostgresTest {
                 VALUES (?, ?, 'Home', 'Home Street', 'Tamwe', 'Yangon', 15.5, 96.5, true)
                 """, address, customer);
         jdbc.update("""
-                INSERT INTO public.delivery_zones(restaurant_id, name, delivery_fee, coverage_city, coverage_township)
-                VALUES (?, 'Tamwe', 300, 'Yangon', 'Tamwe')
+                INSERT INTO public.delivery_zones(restaurant_id, name, delivery_fee, coverage_city, coverage_township,region_id,district_id,township_id)
+                SELECT ?, 'Tamwe', 300, 'Yangon', 'Tamwe',d.region_id,d.id,t.id FROM public.geo_townships t JOIN public.geo_districts d ON d.id=t.district_id WHERE t.code='carenet-v1-township-290'
                 """, restaurant);
         jdbc.update("INSERT INTO public.categories(id, restaurant_id, name) VALUES (?, ?, 'Food')", category, restaurant);
         jdbc.update("""
@@ -352,8 +421,9 @@ class CustomerDeliveryLocalPostgresTest {
                 VALUES (?, ?, ?, 'Tea', 1000, true, 4)
                 """, product, restaurant, category);
 
-        var point = new TemporaryDestination(TemporarySource.MANUAL_MAP, "Friend's Street", "Yangon", "Tamwe",
-                new BigDecimal("16.12345678"), new BigDecimal("96.12345678"));
+        var point = new TemporaryDestination(source, "Friend's Street", "Yangon", "Tamwe",
+                source == TemporarySource.MANUAL_TEXT ? null : new BigDecimal("16.12345678"),
+                source == TemporarySource.MANUAL_TEXT ? null : new BigDecimal("96.12345678"));
         var items = List.of(new CreateOrderItemRequest(product, null, 2, null, List.of()));
         var request = new CustomerDeliveryCheckoutRequest(null, point, "Recipient", "09123456", "Use side gate", items, null);
         var quote = asUser(customer, () -> checkout.quote(restaurant, customer, request));
@@ -375,6 +445,19 @@ class CustomerDeliveryLocalPostgresTest {
         UUID order = receipt.orderId();
         assertEquals(2300L, receipt.totalAmount());
         assertEquals("PENDING", receipt.status());
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT count(*) FROM public.orders
+                WHERE restaurant_id = ? AND customer_id = ? AND delivery_checkout_key = ?
+                """, Integer.class, restaurant, customer, quote.idempotencyKey()));
+        assertEquals(source.name(), jdbc.queryForObject(
+                "SELECT delivery_location_source FROM public.orders WHERE id = ?", String.class, order));
+        if (source == TemporarySource.MANUAL_TEXT) {
+            assertEquals(1, jdbc.queryForObject("""
+                    SELECT count(*) FROM public.orders WHERE id = ? AND delivery_latitude IS NULL
+                      AND delivery_longitude IS NULL AND delivery_city = 'Yangon Region' AND delivery_township = 'Tamwe'
+                      AND delivery_name = 'Recipient' AND delivery_phone = '+959123456' AND delivery_note = 'Use side gate'
+                    """, Integer.class, order));
+        }
         assertEquals(receipt, asUser(customer, () -> checkout.getReceipt(restaurant, customer,
                 quote.idempotencyKey().toString()).orElseThrow()));
         assertTrue(asUser(staff, () -> checkout.getReceipt(restaurant, staff, quote.idempotencyKey().toString())).isEmpty());
@@ -402,7 +485,12 @@ class CustomerDeliveryLocalPostgresTest {
         assertEquals(0, detail.pickup().longitude().compareTo(new BigDecimal("96.1")));
         assertEquals(quote.destination().latitude(), detail.destination().latitude());
         assertEquals(quote.destination().longitude(), detail.destination().longitude());
-        assertEquals("Friend's Street, Tamwe, Yangon", detail.task().deliveryAddress());
+        assertEquals("Friend's Street, Tamwe, East Yangon, Yangon Region", detail.task().deliveryAddress());
+        assertEquals("Yangon Region", detail.task().deliveryCity());
+        assertEquals("Tamwe", detail.task().deliveryTownship());
+        assertEquals("Recipient", detail.task().customerName());
+        assertEquals("+959123456", detail.task().customerPhone());
+        assertEquals("Use side gate", detail.task().deliveryNote());
         assertTrue(detail.cashCollectionRequired());
         assertEquals("DELIVERY_NOT_FOUND", assertThrows(ApiException.class,
                 () -> asUser(staff, () -> assignedDelivery.getDetail(restaurant, delivery))).getCode());
