@@ -31,9 +31,7 @@ public class OrderCancellationService {
     @Transactional(propagation = Propagation.MANDATORY)
     String settleUnpaidOrder(Order order) {
         var orderPayments = payments.findByOrderIdOrderByCreatedAtDesc(order.getId());
-        if (orderPayments.stream().anyMatch(payment -> "PAID".equals(payment.getStatus()))) {
-            throw new ApiException(HttpStatus.CONFLICT, "REFUND_REQUIRED", "error.customer-order.refund-required");
-        }
+        requireUnpaidPayments(orderPayments);
 
         String stockNote = "PENDING".equals(order.getStatus()) || "ACCEPTED".equals(order.getStatus())
                 ? releaseReservations(order)
@@ -41,10 +39,31 @@ public class OrderCancellationService {
         return stockNote + " " + closePendingPayments(orderPayments);
     }
 
-    /** Counter cancellations leave collected cash and stock for the existing review workflow. */
+    /** Narrow staff permission never includes cancelling collected cash or issuing refunds. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    void requireUnpaid(Order order) {
+        requireUnpaidPayments(payments.findByOrderIdOrderByCreatedAtDesc(order.getId()));
+    }
+
+    private void requireUnpaidPayments(List<Payment> orderPayments) {
+        if (orderPayments.stream()
+                .anyMatch(payment -> payment.getPaidAt() != null || payment.getCollectedByUserId() != null
+                        || List.of("PAID", "REFUNDED", "PARTIALLY_REFUNDED").contains(payment.getStatus()))) {
+            throw new ApiException(HttpStatus.CONFLICT, "REFUND_REQUIRED", "error.customer-order.refund-required");
+        }
+    }
+
+    java.util.Set<UUID> settledOrderIds(UUID restaurantId, List<UUID> orderIds) {
+        return orderIds.isEmpty() ? java.util.Set.of()
+                : java.util.Set.copyOf(payments.findSettledOrderIds(restaurantId, orderIds));
+    }
+
+    /** Collected cash requires the separate refund workflow; stock follows the existing counter review policy. */
     @Transactional(propagation = Propagation.MANDATORY)
     String closePendingCounterPayments(Order order) {
-        var counterPayments = payments.findByOrderIdOrderByCreatedAtDesc(order.getId()).stream()
+        var orderPayments = payments.findByOrderIdOrderByCreatedAtDesc(order.getId());
+        requireUnpaidPayments(orderPayments);
+        var counterPayments = orderPayments.stream()
                 .filter(payment -> "CASH_AT_COUNTER".equals(payment.getMethod()))
                 .toList();
         return closePendingPayments(counterPayments);

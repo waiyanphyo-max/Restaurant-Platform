@@ -4,6 +4,7 @@ import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.order.ManagerOrderDetailDto;
 import com.restaurant.platform.dto.order.OrderSummaryDto;
 import com.restaurant.platform.dto.order.UpdateOrderStatusRequest;
+import com.restaurant.platform.dto.order.OrderActionRequest;
 import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.OrderItem;
 import com.restaurant.platform.entity.OrderItemModifier;
@@ -213,6 +214,8 @@ class ManagerOrderServiceTest {
         order.setDeliveryName("Recipient");
         order.setDeliveryPhone("0000");
         order.setDeliveryAddress("Saved order destination");
+        order.setDeliveryCity("Yangon");
+        order.setDeliveryTownship("Tamwe");
         order.setDeliveryNote("Use side entrance");
         when(orderRepository.findByIdAndRestaurantId(orderId, restaurantId)).thenReturn(Optional.of(order));
         when(deliveryService.canViewOrderDeliveryDetails(order)).thenReturn(canViewDeliveryDetails);
@@ -244,6 +247,8 @@ class ManagerOrderServiceTest {
         assertEquals(canViewDeliveryDetails ? order.getDeliveryName() : null, detail.deliveryName());
         assertEquals(canViewDeliveryDetails ? order.getDeliveryPhone() : null, detail.deliveryPhone());
         assertEquals(canViewDeliveryDetails ? order.getDeliveryAddress() : null, detail.deliveryAddress());
+        assertEquals(canViewDeliveryDetails ? order.getDeliveryCity() : null, detail.deliveryCity());
+        assertEquals(canViewDeliveryDetails ? order.getDeliveryTownship() : null, detail.deliveryTownship());
         assertEquals(canViewDeliveryDetails ? order.getDeliveryNote() : null, detail.deliveryNote());
         assertEquals(canViewDeliveryDetails ? event.getNote() : null, detail.statusHistory().getFirst().note());
     }
@@ -330,7 +335,7 @@ class ManagerOrderServiceTest {
         pending.setStatus("PENDING");
         Payment collected = new Payment();
         collected.setMethod("CASH_AT_COUNTER");
-        collected.setStatus("PAID");
+        collected.setStatus("FAILED");
         Payment otherMethod = new Payment();
         otherMethod.setMethod("ONLINE");
         otherMethod.setStatus("PENDING");
@@ -343,7 +348,7 @@ class ManagerOrderServiceTest {
 
         verify(authorization).requirePermission(restaurantId, RestaurantPermission.ORDER_CANCEL);
         assertEquals("CANCELLED", pending.getStatus());
-        assertEquals("PAID", collected.getStatus());
+        assertEquals("FAILED", collected.getStatus());
         assertEquals("PENDING", otherMethod.getStatus());
         verify(payments).save(pending);
         verify(payments, never()).save(collected);
@@ -398,7 +403,7 @@ class ManagerOrderServiceTest {
         when(payments.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(cod));
 
         var error = assertThrows(ApiException.class, () -> service.updateStatus(restaurantId, orderId, userId,
-                new UpdateOrderStatusRequest("CANCELLED", null)));
+                new UpdateOrderStatusRequest("CANCELLED", "Delivery cannot be fulfilled")));
 
         assertEquals("REFUND_REQUIRED", error.getCode());
         assertEquals("PENDING", order.getStatus());
@@ -455,6 +460,195 @@ class ManagerOrderServiceTest {
         assertEquals("INVALID_ORDER_STATUS_TRANSITION", exception.getCode());
         verify(orderRepository, never()).save(any());
         verifyNoInteractions(historyRepository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ACCEPTED", "PREPARING"})
+    void completeDeliveryIsOneAtomicReadyTransitionWithoutCashCollection(String state) {
+        Order order = order(state, "DELIVERY");
+        order.setOrderChannel("CUSTOMER_APP");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+
+        var result = service.executeAction(restaurantId, orderId, userId, new OrderActionRequest("COMPLETE", state, null));
+
+        assertEquals("READY", result.status());
+        verify(historyRepository, times(1)).save(argThat(event -> "READY".equals(event.getStatus())
+                && event.getNote().contains("ready for handoff")));
+        verify(deliveryService).ensureForReadyOrder(order, userId);
+        verify(deliveryService, never()).synchronizeManagerOrderStatus(any(), any(), any());
+        verifyNoInteractions(payments, products);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DINE_IN", "TAKEAWAY"})
+    void completeNonQueueFulfillmentLeavesPaymentUnchanged(String type) {
+        Order order = order("ACCEPTED", type);
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+        assertEquals("COMPLETED", service.executeAction(restaurantId, orderId, userId,
+                new OrderActionRequest("COMPLETE", "ACCEPTED", null)).status());
+        verify(historyRepository, times(1)).save(argThat(event -> "COMPLETED".equals(event.getStatus())));
+        verifyNoInteractions(payments, products, deliveryService);
+    }
+
+    @Test
+    void completeQueuePreparationNotifiesReadyAndPreservesPickup() {
+        Order order = order("ACCEPTED", "TAKEAWAY");
+        UUID ticketId = UUID.randomUUID();
+        order.setQueueTicketId(ticketId);
+        var ticket = new com.restaurant.platform.entity.QueueTicket();
+        ticket.setId(ticketId);
+        ticket.setStatus("WAITING");
+        ticket.setDisplayCode("Q-101");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+        when(queueTicketRepository.findByIdAndRestaurantIdForUpdate(ticketId, restaurantId)).thenReturn(Optional.of(ticket));
+        assertEquals("READY", service.executeAction(restaurantId, orderId, userId,
+                new OrderActionRequest("COMPLETE", "ACCEPTED", null)).status());
+        assertEquals("READY", ticket.getStatus());
+        assertNull(ticket.getCompletedAt());
+        verify(notificationRepository).save(argThat(notice -> "QUEUE_READY".equals(notice.getNotificationType())));
+        verifyNoInteractions(payments, products);
+    }
+
+    @Test
+    void staleActionCannotWriteDuplicateHistoryOrReleaseStock() {
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order("CANCELLED", "DELIVERY")));
+        var error = assertThrows(ApiException.class, () -> service.executeAction(restaurantId, orderId, userId,
+                new OrderActionRequest("CANCEL", "PENDING", "Address outside practical service area")));
+        assertEquals("ORDER_ACTION_STALE", error.getCode());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(historyRepository, payments, products, notificationRepository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"READY", "OUT_FOR_DELIVERY", "COMPLETED", "CANCELLED", "PENDING"})
+    void kitchenCompleteCannotDispatchDeliverOrSkipAcceptance(String state) {
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order(state, "DELIVERY")));
+        assertThrows(ApiException.class, () -> service.executeAction(restaurantId, orderId, userId,
+                new OrderActionRequest("COMPLETE", state, null)));
+        verifyNoInteractions(historyRepository, payments, products, deliveryService, notificationRepository);
+    }
+
+    @Test
+    void staffEarlyUnpaidCancellationReleasesOnlyRecordedReservations() {
+        Order order = order("ACCEPTED", "DELIVERY");
+        order.setOrderChannel("CUSTOMER_APP");
+        order.setCustomerId(UUID.randomUUID());
+        var item = new OrderItem();
+        item.setProductId(UUID.randomUUID());
+        item.setReservedStockQuantity(2);
+        var payment = new Payment();
+        payment.setStatus("PENDING");
+        payment.setMethod("CASH_ON_DELIVERY");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+        when(payments.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(payment));
+        when(orderItemRepository.findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(orderId, restaurantId)).thenReturn(List.of(item));
+        when(products.releaseStock(item.getProductId(), restaurantId, 2)).thenReturn(1);
+        assertEquals("CANCELLED", service.executeAction(restaurantId, orderId, userId,
+                new OrderActionRequest("CANCEL", "ACCEPTED", "Delivery address outside our practical service area.")).status());
+        verify(authorization).requirePermission(restaurantId, RestaurantPermission.ORDER_CANCEL_EARLY_UNPAID);
+        verify(authorization, never()).requirePermission(restaurantId, RestaurantPermission.ORDER_CANCEL);
+        verify(products, times(1)).releaseStock(item.getProductId(), restaurantId, 2);
+        assertEquals("CANCELLED", payment.getStatus());
+        verify(notificationRepository).save(argThat(notice -> "ORDER_CANCELLED".equals(notice.getNotificationType())));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void staffAndManagementCannotCancelCollectedCounterPayment(boolean management) {
+        var order = order("PENDING", "DINE_IN");
+        var payment = new Payment();
+        payment.setStatus("PAID");
+        payment.setMethod("CASH_AT_COUNTER");
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId)).thenReturn(Optional.of(order));
+        when(payments.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(payment));
+        when(authorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL)).thenReturn(management);
+        assertEquals("REFUND_REQUIRED", assertThrows(ApiException.class, () -> service.executeAction(restaurantId, orderId, userId,
+                new OrderActionRequest("CANCEL", "PENDING", "Order cannot be fulfilled"))).getCode());
+        verifyNoInteractions(historyRepository, products, notificationRepository);
+        verify(payments, never()).save(any());
+    }
+
+    @Test
+    void staffCannotCancelPreparationAlreadyStarted() {
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order("PREPARING", "DINE_IN")));
+        assertEquals("EARLY_CANCELLATION_ONLY", assertThrows(ApiException.class, () -> service.executeAction(restaurantId, orderId, userId,
+                new OrderActionRequest("CANCEL", "PREPARING", "Order cannot be fulfilled"))).getCode());
+        verifyNoInteractions(historyRepository, payments, products, notificationRepository);
+    }
+
+    @Test
+    void cancellationNeedsMeaningfulReasonBeforeWrites() {
+        when(orderRepository.findByIdAndRestaurantIdForUpdate(orderId, restaurantId))
+                .thenReturn(Optional.of(order("PENDING", "DELIVERY")));
+        when(authorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL)).thenReturn(true);
+        assertEquals("CANCELLATION_REASON_REQUIRED", assertThrows(ApiException.class, () -> service.executeAction(restaurantId, orderId, userId,
+                new OrderActionRequest("CANCEL", "PENDING", "   "))).getCode());
+        verifyNoInteractions(historyRepository, payments, products, notificationRepository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void listBatchesSnapshotsAndDisclosesDestinationsOnlyToOrderHandlers(boolean authorized) {
+        var first = order("PENDING", "DELIVERY");
+        first.setDeliveryAddress("No 12 Main Road Ward 3");
+        first.setDeliveryName("Recipient");
+        first.setDeliveryPhone("Private phone");
+        var second = order("ACCEPTED", "DINE_IN");
+        second.setId(UUID.randomUUID());
+        var item = new OrderItem();
+        item.setId(UUID.randomUUID());
+        item.setOrderId(first.getId());
+        item.setProductName("Historical noodle name");
+        item.setVariantName("Large");
+        item.setQuantity(2);
+        item.setUnitPrice(1000L);
+        item.setSubtotal(2000L);
+        item.setSpecialInstruction("No peanuts");
+        var modifier = new OrderItemModifier();
+        modifier.setId(UUID.randomUUID());
+        modifier.setOrderItemId(item.getId());
+        modifier.setName("Extra egg");
+        modifier.setAdditionalPrice(500L);
+        modifier.setQuantity(1);
+        when(orderRepository.findByRestaurantId(eq(restaurantId), any())).thenReturn(new PageImpl<>(List.of(first, second)));
+        when(orderItemRepository.findByOrderIdInAndRestaurantIdOrderByCreatedAtAsc(List.of(first.getId(), second.getId()), restaurantId))
+                .thenReturn(List.of(item));
+        when(orderItemModifierRepository.findByOrderItemIdInAndRestaurantIdOrderByIdAsc(List.of(item.getId()), restaurantId))
+                .thenReturn(List.of(modifier));
+        when(authorization.hasPermission(restaurantId, RestaurantPermission.ORDER_DELIVERY_DETAILS_READ)).thenReturn(authorized);
+        when(authorization.hasPermission(restaurantId, RestaurantPermission.ORDER_STATUS_UPDATE)).thenReturn(true);
+        when(authorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL)).thenReturn(true);
+
+        var summaries = service.listOrders(restaurantId, userId, null, PageRequest.of(0, 20)).getContent();
+
+        assertEquals("Historical noodle name", summaries.getFirst().items().getFirst().productName());
+        assertEquals("Large", summaries.getFirst().items().getFirst().variantName());
+        assertEquals("No peanuts", summaries.getFirst().items().getFirst().specialInstruction());
+        assertEquals("Extra egg", summaries.getFirst().items().getFirst().modifiers().getFirst().name());
+        if (authorized) assertEquals("Private phone", summaries.getFirst().deliveryDestination().recipientPhone());
+        else assertNull(summaries.getFirst().deliveryDestination());
+        assertTrue(summaries.get(1).items().isEmpty());
+        assertNull(summaries.get(1).deliveryDestination());
+        assertEquals(List.of("ACCEPT", "CANCEL"), summaries.getFirst().availableActions());
+        verify(orderItemRepository, times(1)).findByOrderIdInAndRestaurantIdOrderByCreatedAtAsc(anyList(), eq(restaurantId));
+        verify(orderItemModifierRepository, times(1)).findByOrderItemIdInAndRestaurantIdOrderByIdAsc(anyList(), eq(restaurantId));
+        verify(payments, times(1)).findSettledOrderIds(eq(restaurantId), anyList());
+        verifyNoInteractions(historyRepository, deliveryService);
+    }
+
+    @Test
+    void settledOrderSummaryHidesCancellationWithoutExposingPaymentRows() {
+        when(orderRepository.findByRestaurantId(eq(restaurantId), any()))
+                .thenReturn(new PageImpl<>(List.of(order("PENDING", "TAKEAWAY"))));
+        when(authorization.hasPermission(restaurantId, RestaurantPermission.ORDER_STATUS_UPDATE)).thenReturn(true);
+        when(authorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL_EARLY_UNPAID)).thenReturn(true);
+        when(payments.findSettledOrderIds(restaurantId, List.of(orderId))).thenReturn(List.of(orderId));
+        assertEquals(List.of("ACCEPT"), service.listOrders(restaurantId, userId, null, PageRequest.of(0, 20))
+                .getContent().getFirst().availableActions());
+        verify(payments, never()).findByOrderIdOrderByCreatedAtDesc(any());
     }
 
     private Order order(String status, String type) {

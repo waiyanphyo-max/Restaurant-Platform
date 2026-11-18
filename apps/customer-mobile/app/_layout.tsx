@@ -16,7 +16,7 @@ function Navigation() {
     ownsNotifications: customerNotifications.ownsNotifications,
     openInbox
   });
-  return <Stack screenOptions={{ headerShown: false }}><Stack.Screen name="index" /><Stack.Screen name="open" />
+  return <Stack screenOptions={{ headerShown: false }}><Stack.Screen name="index" /><Stack.Screen name="open" /><Stack.Screen name="email-confirmation" />
     <Stack.Protected guard={state.status === "signed_in"}><Stack.Screen name="(store)" /></Stack.Protected>
     <Stack.Screen name="+not-found" />
   </Stack>;

@@ -123,7 +123,21 @@ class CustomerDeliveryCheckoutTest {
                         List.of(invocation.getArgument(1), invocation.getArgument(2)), invocation.getArgument(3)) ? 1 : 0);
         checkout = new CustomerDeliveryCheckoutService(authorization, service, orderRepository,
                 addressRepository, profileRepository, zoneRepository, accounting, notifications,
-                JsonMapper.builder().build(), jdbc);
+                JsonMapper.builder().build(), jdbc, locationService());
+        service.setGeographicLocationService(locationService());
+        when(zoneRepository.findByRestaurantIdAndTownshipIdAndIsActiveTrue(any(),any())).thenAnswer(call ->
+            zoneRepository.findByRestaurantIdAndIsActiveTrue(call.getArgument(0)).stream().filter(zone -> call.getArgument(1).equals(zone.getTownshipId())).toList());
+    }
+
+    private static UUID townshipId(String name) { return UUID.nameUUIDFromBytes(name.trim().toLowerCase(java.util.Locale.ROOT).getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+    private GeographicLocationService locationService() {
+        var locations=mock(GeographicLocationService.class);
+        when(locations.resolve(any(),any(),any(),any(),any())).thenAnswer(call -> {
+            String city=call.getArgument(3),township=call.getArgument(4);
+            if(city==null || township==null || city.isBlank() || township.isBlank()) throw new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST,"CANONICAL_LOCATION_REQUIRED","error.location.canonical-required");
+            return new GeographicLocationService.Hierarchy(townshipId(city),townshipId("district"),townshipId("Other city".equals(city)?city+township:township),city.trim(),"District",township.trim());
+        });
+        return locations;
     }
 
     @ParameterizedTest
@@ -145,7 +159,7 @@ class CustomerDeliveryCheckoutTest {
         assertEquals(quote.totalAmount(), original.totalAmount());
         assertEquals(source.name(), order.getValue().getDeliveryLocationSource());
         assertEquals(quote.destination().latitude(), order.getValue().getDeliveryLatitude());
-        assertEquals("Friend's house, Garden Road, Tamwe, Yangon", order.getValue().getDeliveryAddress());
+        assertEquals("Friend's house, Garden Road, Tamwe, District, Yangon", order.getValue().getDeliveryAddress());
         assertEquals("Tamwe", order.getValue().getDeliveryTownship());
         assertEquals("Yangon", order.getValue().getDeliveryCity());
         assertEquals("Blue gate", order.getValue().getDeliveryNote());
@@ -171,6 +185,105 @@ class CustomerDeliveryCheckoutTest {
         verify(orderRepository, times(1)).saveAndFlush(any());
         verify(notifications).orderCreated(order.getValue());
         verifyNoInteractions(addressRepository);
+    }
+
+    @Test
+    void textOnlyTemporaryCheckoutPersistsFullSnapshotAndCashPaymentAndReplaysOnlyOnce() {
+        Product product = givenOrderableProduct();
+        var request = textRequest(product, "16 Garden Road, Ward 2", " Yangon ", " tamwe ", "Recipient", "09123456");
+        var quote = checkout.quote(restaurantId, userId, request);
+        assertEquals("MANUAL_TEXT", quote.destination().source());
+        assertNull(quote.destination().latitude());
+        assertNull(quote.destination().longitude());
+        assertEquals("16 Garden Road, Ward 2, tamwe, District, Yangon", quote.destination().address());
+        assertEquals(250L, quote.deliveryFee());
+        assertEquals(2250L, quote.totalAmount());
+        var confirmed = confirm(request, quote);
+        var original = checkout.checkout(restaurantId, userId, quote.idempotencyKey().toString(), confirmed);
+        var order = org.mockito.ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).saveAndFlush(order.capture());
+        assertNull(order.getValue().getDeliveryLatitude());
+        assertNull(order.getValue().getDeliveryLongitude());
+        assertEquals("MANUAL_TEXT", order.getValue().getDeliveryLocationSource());
+        assertEquals("Yangon", order.getValue().getDeliveryCity());
+        assertEquals("tamwe", order.getValue().getDeliveryTownship());
+        assertEquals("Blue gate", order.getValue().getDeliveryNote());
+        assertEquals("+959123456", order.getValue().getDeliveryPhone());
+        verify(paymentRepository).save(argThat(payment -> "CASH_ON_DELIVERY".equals(payment.getMethod())
+                && "PENDING".equals(payment.getStatus()) && payment.getAmount() == 2250L));
+        when(orderRepository.findByRestaurantIdAndCustomerIdAndDeliveryCheckoutKey(restaurantId, userId, quote.idempotencyKey()))
+                .thenReturn(Optional.of(order.getValue()));
+        assertEquals(original, checkout.checkout(restaurantId, userId, quote.idempotencyKey().toString(), confirmed));
+        var changed = new CustomerDeliveryCheckoutRequest(null, request.temporaryDestination(), "Different recipient",
+                request.recipientPhone(), request.deliveryNote(), request.items(), quote.confirmationToken());
+        assertCheckoutError("IDEMPOTENCY_KEY_REUSED", quote, changed);
+        verify(orderRepository, times(1)).saveAndFlush(any());
+        verify(notifications, times(1)).orderCreated(any());
+    }
+
+    @Test
+    void savedTextOnlyAddressCanBeQuotedAndConfirmedWithoutEditingAddress() {
+        Product product = givenOrderableProduct();
+        var saved = new CustomerAddress();
+        saved.setId(addressId);
+        saved.setUserId(userId);
+        saved.setHouseNo("Building 12");
+        saved.setWard("Ward 3");
+        saved.setCity("Yangon");
+        saved.setTownship("Tamwe");
+        saved.setRecipientName("Saved recipient");
+        when(addressRepository.findByIdAndUserId(addressId, userId)).thenReturn(Optional.of(saved));
+        var request = new CustomerDeliveryCheckoutRequest(addressId, null, null, "09123456", null,
+                List.of(new CreateOrderItemRequest(product.getId(), null, 1, null, List.of())), null);
+        var quote = checkout.quote(restaurantId, userId, request);
+        assertEquals("SAVED_ADDRESS", quote.destination().source());
+        assertNull(quote.destination().latitude());
+        assertNull(quote.destination().longitude());
+        assertEquals("Building 12, Ward 3, Tamwe, District, Yangon", quote.destination().address());
+        checkout.checkout(restaurantId, userId, quote.idempotencyKey().toString(), confirm(request, quote));
+        verify(orderRepository).saveAndFlush(argThat(order -> addressId.equals(order.getDeliveryAddressId())
+                && order.getDeliveryLatitude() == null && order.getDeliveryLongitude() == null));
+        verify(addressRepository, never()).save(any());
+
+        saved.setHouseNo(null);
+        saved.setWard(null);
+        assertQuoteError("DELIVERY_ADDRESS_LOCATION_REQUIRED", request);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {
+            "|Yangon|Tamwe|Recipient|09123456|DELIVERY_ADDRESS_LOCATION_REQUIRED",
+            "16 Garden Road||Tamwe|Recipient|09123456|DELIVERY_ADDRESS_LOCATION_REQUIRED",
+            "16 Garden Road|Yangon||Recipient|09123456|DELIVERY_ADDRESS_LOCATION_REQUIRED",
+            "16 Garden Road|Yangon|Tamwe||09123456|DELIVERY_CONTACT_REQUIRED",
+            "16 Garden Road|Yangon|Tamwe|Recipient|call-me|INVALID_DELIVERY_PHONE",
+            "16 Garden Road|Other city|Tamwe|Recipient|09123456|DELIVERY_ADDRESS_OUTSIDE_ZONE",
+            "16 Garden Road|Yangon|Other township|Recipient|09123456|DELIVERY_ADDRESS_OUTSIDE_ZONE"
+    }, delimiter = '|')
+    void textOnlyDestinationRequiresDetailContactAndAnExplicitSupportedArea(
+            String address, String city, String township, String name, String phone, String error) {
+        assertQuoteError(error, textRequest(givenOrderableProduct(), address, city, township, name, phone));
+        verifyNoInteractions(paymentRepository, notifications);
+        verify(orderRepository, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"MANUAL_TEXT,16,", "MANUAL_TEXT,,96", "MANUAL_TEXT,91,96", "MANUAL_TEXT,16,181",
+            "MANUAL_MAP,16,", "GPS_CONFIRMED,,96"})
+    void allSourcesRejectIncompleteOrOutOfRangeCoordinatePairs(TemporarySource source, BigDecimal latitude, BigDecimal longitude) {
+        var draft = textRequest(givenOrderableProduct(), "16 Garden Road", "Yangon", "Tamwe", "Recipient", "09123456");
+        var point = new TemporaryDestination(source, "16 Garden Road", "Yangon", "Tamwe", latitude, longitude);
+        assertQuoteError("INVALID_DELIVERY_COORDINATES", new CustomerDeliveryCheckoutRequest(null, point,
+                draft.recipientName(), draft.recipientPhone(), null, draft.items(), null));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"MANUAL_MAP", "GPS_CONFIRMED"})
+    void mapSourcesStillRequireCoordinates(TemporarySource source) {
+        var draft = textRequest(givenOrderableProduct(), "16 Garden Road", "Yangon", "Tamwe", "Recipient", "09123456");
+        var point = new TemporaryDestination(source, "16 Garden Road", "Yangon", "Tamwe", null, null);
+        assertQuoteError("DELIVERY_COORDINATES_REQUIRED", new CustomerDeliveryCheckoutRequest(null, point,
+                draft.recipientName(), draft.recipientPhone(), null, draft.items(), null));
     }
 
     @Test
@@ -221,7 +334,7 @@ class CustomerDeliveryCheckoutTest {
         saved.setIsDefault(false);
         assertEquals("SAVED_ADDRESS", order.getValue().getDeliveryLocationSource());
         assertEquals(addressId, order.getValue().getDeliveryAddressId());
-        assertEquals("Original street, Tamwe, Yangon", order.getValue().getDeliveryAddress());
+        assertEquals("Original street, Tamwe, District, Yangon", order.getValue().getDeliveryAddress());
         assertEquals("Original instructions", order.getValue().getDeliveryNote());
         assertEquals(BigDecimal.valueOf(17), order.getValue().getDeliveryLatitude());
         verify(addressRepository, never()).save(any());
@@ -265,9 +378,9 @@ class CustomerDeliveryCheckoutTest {
         Product product = givenOrderableProduct();
         assertQuoteError("DELIVERY_ADDRESS_OUTSIDE_ZONE",
                 temporaryRequest(TemporarySource.MANUAL_MAP, "Other township", BigDecimal.ZERO, product));
-        assertQuoteError("DELIVERY_COORDINATES_REQUIRED",
+        assertQuoteError("INVALID_DELIVERY_COORDINATES",
                 temporaryRequest(TemporarySource.GPS_CONFIRMED, "Tamwe", BigDecimal.valueOf(91), product));
-        assertQuoteError("DELIVERY_COORDINATES_REQUIRED",
+        assertQuoteError("INVALID_DELIVERY_COORDINATES",
                 temporaryRequest(TemporarySource.GPS_CONFIRMED, "Tamwe", null, product));
         assertQuoteError("DELIVERY_ADDRESS_LOCATION_REQUIRED",
                 temporaryRequest(TemporarySource.MANUAL_MAP, " ", BigDecimal.ZERO, product));
@@ -297,7 +410,7 @@ class CustomerDeliveryCheckoutTest {
     }
 
     @Test
-    void quoteChoosesTheLowestFeeForAnEligibleSpecificZoneBeforeAnUnrestrictedFallback() {
+    void quoteChoosesAnEligibleSpecificZoneAndRejectsUnknownAreasDespiteLegacyUnrestrictedZone() {
         Product product = givenOrderableProduct();
         var cheaper = zoneRepository.findByRestaurantIdAndIsActiveTrue(restaurantId).getFirst();
         cheaper.setMinimumOrder(2001L);
@@ -305,6 +418,7 @@ class CustomerDeliveryCheckoutTest {
         eligible.setId(UUID.randomUUID());
         eligible.setCoverageCity(" yangon ");
         eligible.setCoverageTownship("TAMWE");
+        eligible.setTownshipId(townshipId("TAMWE"));
         eligible.setDeliveryFee(300L);
         var fallback = new DeliveryZone();
         fallback.setId(UUID.randomUUID());
@@ -313,8 +427,8 @@ class CustomerDeliveryCheckoutTest {
 
         assertEquals(300L, checkout.quote(restaurantId, userId,
                 temporaryRequest(TemporarySource.MANUAL_MAP, "Tamwe", BigDecimal.ZERO, product)).deliveryFee());
-        assertEquals(50L, checkout.quote(restaurantId, userId,
-                temporaryRequest(TemporarySource.MANUAL_MAP, "Different township", BigDecimal.ZERO, product)).deliveryFee());
+        assertQuoteError("DELIVERY_ADDRESS_OUTSIDE_ZONE",
+                temporaryRequest(TemporarySource.MANUAL_MAP, "Different township", BigDecimal.ZERO, product));
     }
 
     @Test
@@ -350,6 +464,40 @@ class CustomerDeliveryCheckoutTest {
         verify(orderRepository, times(1)).saveAndFlush(any());
     }
 
+    @Test
+    void customerDeliveryZonesExposeCanonicalIdsAndNamesForCheckoutSelectors() {
+        givenOrderableProduct();
+        var zone=zoneRepository.findByRestaurantIdAndIsActiveTrue(restaurantId).getFirst();
+        zone.setRegionId(townshipId("Yangon"));
+        zone.setDistrictId(townshipId("East Yangon"));
+        zone.setRegionName("Yangon Region");
+        zone.setDistrictName("East Yangon");
+        var response=service.listCustomerDeliveryZones(restaurantId,userId).getFirst();
+        assertEquals(zone.getRegionId(),response.regionId());
+        assertEquals(zone.getDistrictId(),response.districtId());
+        assertEquals(zone.getTownshipId(),response.townshipId());
+        assertEquals("Yangon Region",response.regionName());
+        assertEquals("East Yangon",response.districtName());
+        assertEquals("Tamwe",response.coverageTownship());
+        assertEquals(250L,response.deliveryFee());
+        verify(authorization).requireAuthenticatedUserMatches(userId);
+    }
+
+    @Test
+    void historicalLabelsTakePrecedenceOverCanonicalSnapshotFallbacks() {
+        var order=new Order();
+        assertNull(order.getDeliveryCity());
+        assertNull(order.getDeliveryTownship());
+        order.setDeliveryRegionName("Yangon Region");
+        order.setDeliveryTownshipName("Tamwe");
+        assertEquals("Yangon Region",order.getDeliveryCity());
+        assertEquals("Tamwe",order.getDeliveryTownship());
+        order.setDeliveryCity("Historical city text");
+        order.setDeliveryTownship("Historical township text");
+        assertEquals("Historical city text",order.getDeliveryCity());
+        assertEquals("Historical township text",order.getDeliveryTownship());
+    }
+
     private Product givenOrderableProduct() {
         Restaurant restaurant = new Restaurant();
         restaurant.setName("Fixture restaurant");
@@ -359,6 +507,7 @@ class CustomerDeliveryCheckoutTest {
         zone.setId(zoneId);
         zone.setCoverageCity("Yangon");
         zone.setCoverageTownship("Tamwe");
+        zone.setTownshipId(townshipId("Tamwe"));
         zone.setDeliveryFee(250L);
         when(zoneRepository.findByRestaurantIdAndIsActiveTrue(restaurantId)).thenReturn(List.of(zone));
 
@@ -390,6 +539,14 @@ class CustomerDeliveryCheckoutTest {
         return new CustomerDeliveryCheckoutRequest(null, new TemporaryDestination(source,
                 "Friend's house, Garden Road", "Yangon", township, latitude, BigDecimal.ZERO),
                 "Recipient", "09123456", "Blue gate",
+                List.of(new CreateOrderItemRequest(product.getId(), null, 2, null, List.of())), null);
+    }
+
+    private CustomerDeliveryCheckoutRequest textRequest(Product product, String address, String city, String township,
+                                                        String name, String phone) {
+        return new CustomerDeliveryCheckoutRequest(null,
+                new TemporaryDestination(TemporarySource.MANUAL_TEXT, address, city, township, null, null),
+                name, phone, "Blue gate",
                 List.of(new CreateOrderItemRequest(product.getId(), null, 2, null, List.of())), null);
     }
 
@@ -435,6 +592,7 @@ class CustomerDeliveryCheckoutTest {
         zone.setName("Hlaing");
         zone.setCoverageCity("Yangon");
         zone.setCoverageTownship("Hlaing");
+        zone.setTownshipId(townshipId("Hlaing"));
         when(zoneRepository.findByIdAndRestaurantIdAndIsActiveTrue(zoneId, restaurantId))
                 .thenReturn(Optional.of(zone));
 
@@ -477,6 +635,7 @@ class CustomerDeliveryCheckoutTest {
         zone.setName("Tamwe");
         zone.setCoverageCity("Yangon");
         zone.setCoverageTownship("Tamwe");
+        zone.setTownshipId(townshipId("Tamwe"));
         when(zoneRepository.findByIdAndRestaurantIdAndIsActiveTrue(zoneId, restaurantId))
                 .thenReturn(Optional.of(zone));
 
@@ -530,6 +689,7 @@ class CustomerDeliveryCheckoutTest {
         zone.setMinimumOrder(0L);
         zone.setCoverageCity("City");
         zone.setCoverageTownship("Township");
+        zone.setTownshipId(townshipId("Township"));
         when(zoneRepository.findByIdAndRestaurantIdAndIsActiveTrue(zoneId, restaurantId))
                 .thenReturn(Optional.of(zone));
 
@@ -597,7 +757,11 @@ class CustomerDeliveryCheckoutTest {
         assertEquals(userId, savedOrder.getCustomerId());
         assertEquals(userId, savedOrder.getCreatedByUserId());
         assertEquals(zoneId, savedOrder.getDeliveryZoneId());
-        assertEquals("12, Main Road, Township, City", savedOrder.getDeliveryAddress());
+        assertEquals("12, Main Road, Township, District, City", savedOrder.getDeliveryAddress());
+        assertEquals("Township",savedOrder.getDeliveryTownship());
+        assertEquals("Township",savedOrder.getDeliveryTownshipName());
+        assertEquals("City",savedOrder.getDeliveryCity());
+        assertEquals(townshipId("Township"),savedOrder.getDeliveryTownshipId());
         assertEquals("Ring bell", savedOrder.getDeliveryNote());
 
         var paymentCaptor = org.mockito.ArgumentCaptor.forClass(

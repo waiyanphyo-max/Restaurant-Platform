@@ -34,6 +34,7 @@ vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "C
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => harness.tenant }));
 vi.mock("../../i18n", () => ({ useCustomerLanguage: () => "en", useCustomerText: () => (english: string) => english }));
 vi.mock("../../api", () => ({ getCustomerApi: () => ({ createAddress: harness.createAddress, updateAddress: harness.updateAddress }) }));
+vi.mock("../../components/LocationSelector", () => ({ LocationSelector: "LocationSelector" }));
 vi.mock("./AddressMap", () => ({ AddressMap: "AddressMap" }));
 vi.mock("./native-location", () => ({ suggestCurrentLocation: harness.locate }));
 
@@ -55,6 +56,10 @@ function field(tree: ReactNode, label: string) {
   if (!found) throw new Error(`Field missing: ${label}`);
   return found.props as { onChangeText(value: string): void };
 }
+function chooseLocation(tree: ReactNode, township = "Dagon") {
+  const selector = elements(tree).find(item => item.type === "LocationSelector")!;
+  (selector.props.onChange as (value: unknown) => void)({ regionId: "region", districtId: "district", townshipId: "township", regionName: "Yangon", districtName: "East Yangon", township });
+}
 function map(tree: ReactNode) {
   const found = elements(tree).find(element => element.type === "AddressMap");
   if (!found) throw new Error("Map missing");
@@ -67,7 +72,7 @@ function textContent(node: ReactNode): string {
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 const saved: CustomerAddressResponse = {
-  id: "00000000-0000-4000-8000-000000000001", label: "Home", recipientName: "Customer", houseNo: null,
+  id: "00000000-0000-4000-8000-000000000001", regionId: "region", districtId: "district", townshipId: "township", regionName: "Yangon", districtName: "East Yangon", label: "Home", recipientName: "Customer", houseNo: null,
   street: "Main Street", ward: null, township: "Dagon", city: "Yangon", latitude: 16.8, longitude: 96.1,
   deliveryNote: null, isDefault: true, createdAt: "2026-11-05T00:00:00Z", updatedAt: "2026-11-05T00:00:00Z"
 };
@@ -103,8 +108,7 @@ describe("address screen integration", () => {
   it("opens Google map without requesting GPS, requires pin confirmation, then saves the selected pin", async () => {
     const view = screen();
     let tree = view.render();
-    field(tree, "Township or Area").onChangeText("Dagon");
-    field(tree, "City").onChangeText("Yangon");
+    chooseLocation(tree);
     tree = view.render();
     action(tree, "Choose Location on Map").onPress();
     tree = view.render();
@@ -156,7 +160,24 @@ describe("address screen integration", () => {
     action(tree, "Use My Current Location").onPress(); await tick();
     expect(harness.locate).not.toHaveBeenCalled();
     expect(textContent(tree)).toContain("Google Maps is unavailable");
-    expect(field(tree, "City")).toBeDefined();
+    expect(elements(tree).some(item => item.type === "LocationSelector")).toBe(true);
+    expect(elements(tree).some(item => item.props.label === "City")).toBe(false);
+  });
+
+  it("saves and reviews a complete text address without coordinates when Maps is disabled", async () => {
+    harness.tenant.mapsConfigured = false;
+    const view = screen(); let tree = view.render();
+    field(tree, "Recipient Name (Optional)").onChangeText("Customer");
+    field(tree, "Street or Detailed Address (Optional)").onChangeText("Room 4, Main Road, Ward 1");
+    chooseLocation(tree, "Tamwe");
+    tree = view.render(); action(tree, "Review Address").onPress();
+    tree = view.render();
+    expect(textContent(tree)).toContain("Text address without a map pin");
+    action(tree, "Save as Home Address").onPress(); await tick();
+    expect(harness.createAddress).toHaveBeenCalledWith(expect.objectContaining({ recipientName: "Customer", street: "Room 4, Main Road, Ward 1",
+      city: "Yangon", township: "Tamwe", latitude: null, longitude: null }), expect.anything());
+    expect(harness.locate).not.toHaveBeenCalled();
+    expect(view.onSaved).toHaveBeenCalledOnce();
   });
 
   it("does not replace a manually selected pin with a late GPS suggestion", async () => {

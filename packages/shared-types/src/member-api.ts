@@ -83,6 +83,27 @@ export interface OrderSummaryDto {
   deliveryFee: number;
   totalAmount: number;
   createdAt: IsoDateTime;
+  queueTicketId?: Uuid | null;
+  items?: OrderItemDetailDto[];
+  deliveryDestination?: OrderDeliveryAddressDto | null;
+  orderNote?: string | null;
+  availableActions?: OrderAction[];
+}
+
+export interface OrderDeliveryAddressDto {
+  regionId: Uuid | null;
+  districtId: Uuid | null;
+  townshipId: Uuid | null;
+  region: string | null;
+  district: string | null;
+  township: string | null;
+  ward: string | null;
+  street: string | null;
+  houseNo: string | null;
+  formattedAddress: string | null;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  instructions: string | null;
 }
 
 export interface OrderItemModifierDto {
@@ -134,10 +155,14 @@ export interface ManagerOrderDetailDto {
   deliveryPhone: string | null;
   deliveryAddress: string | null;
   deliveryNote: string | null;
+  deliveryCity?: string | null;
+  deliveryTownship?: string | null;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
   items: OrderItemDetailDto[];
   statusHistory: OrderStatusHistoryDto[];
+  deliveryDestination?: OrderDeliveryAddressDto | null;
+  availableActions?: OrderAction[];
 }
 
 export interface CreateStaffOrderRequest {
@@ -173,6 +198,13 @@ export interface UpdateOrderStatusRequest {
   note?: string | null;
 }
 
+export type OrderAction = "ACCEPT" | "COMPLETE" | "CANCEL";
+export interface OrderActionRequest {
+  action: OrderAction;
+  expectedStatus: string;
+  reason?: string | null;
+}
+
 export interface QueueTicketManagerDto {
   ticketId: Uuid;
   orderId?: Uuid | null;
@@ -196,6 +228,8 @@ export interface DeliveryTaskDto {
   customerPhone: string | null;
   deliveryAddress: string | null;
   deliveryNote: string | null;
+  deliveryCity?: string | null;
+  deliveryTownship?: string | null;
   totalAmount: number;
   assignedAt: IsoDateTime | null;
   pickedUpAt: IsoDateTime | null;
@@ -269,6 +303,8 @@ export interface TransferRestaurantOwnershipResponse {
 }
 export interface DeliveryZoneRequest {
   name: string; deliveryFee: number; minimumOrder: number; active?: boolean;
+  regionId?: Uuid | null; districtId?: Uuid | null; townshipId?: Uuid | null;
+  regionName?: string | null; districtName?: string | null;
   coverageCity?: string | null; coverageTownship?: string | null;
 }
 export interface DeliveryZoneResponse extends DeliveryZoneRequest { id: Uuid; restaurantId: Uuid; active: boolean; coverageCity: string | null; coverageTownship: string | null; }

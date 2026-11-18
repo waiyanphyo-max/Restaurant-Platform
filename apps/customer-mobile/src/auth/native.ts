@@ -1,6 +1,7 @@
 import "react-native-url-polyfill/auto";
 
 import { createClient, processLock } from "@supabase/supabase-js";
+import { completeCustomerConfirmation, customerConfirmationRedirect, type CustomerConfirmationInput } from "@restaurant-platform/restaurant-config/customer-confirmation";
 import * as SecureStore from "expo-secure-store";
 import { AppState, Platform } from "react-native";
 import { readEmbeddedTenant } from "../tenant";
@@ -83,13 +84,15 @@ export function getCustomerAuth(): NativeSessionController {
       return data.session;
     },
     async signUpWithPassword(email, password) {
+      const emailRedirectTo = customerConfirmationRedirect(tenant, process.env.EXPO_PUBLIC_CUSTOMER_CONFIRMATION_URL);
       await storage.prepareSignIn();
-      const { data, error } = await client.auth.signUp({ email, password });
+      const { data, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo } });
       if (error) throw error;
       return data.session;
     },
     async resendConfirmation(email) {
-      const { error } = await client.auth.resend({ type: "signup", email });
+      const emailRedirectTo = customerConfirmationRedirect(tenant, process.env.EXPO_PUBLIC_CUSTOMER_CONFIRMATION_URL);
+      const { error } = await client.auth.resend({ type: "signup", email, options: { emailRedirectTo } });
       if (error) throw error;
     },
     async requestPasswordReset(email) {
@@ -168,4 +171,15 @@ export function getCustomerAuth(): NativeSessionController {
   };
   singleton = createNativeSessionController(port, lifecycle);
   return singleton;
+}
+
+/** Confirmation credentials cannot become a persistent shopping/recovery session. */
+export async function confirmCustomerEmail(input: CustomerConfirmationInput) {
+  if (input.kind !== "token-hash") return input.kind === "provider-return" ? "returned" as const : "invalid" as const;
+  const client = createClient(
+    checkedSupabaseOrigin(process.env.EXPO_PUBLIC_SUPABASE_URL),
+    checkedPublishableKey(process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+  );
+  return completeCustomerConfirmation(client.auth, input);
 }

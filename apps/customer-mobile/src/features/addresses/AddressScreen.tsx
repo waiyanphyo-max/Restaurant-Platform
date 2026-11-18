@@ -4,6 +4,7 @@ import type { CustomerAddressResponse } from "@restaurant-platform/shared-types"
 import { Switch, Text, View } from "react-native";
 import { getCustomerApi } from "../../api";
 import { Action, Body, Card, FormField, Page } from "../../components/ui";
+import { LocationSelector } from "../../components/LocationSelector";
 import { useCustomerLanguage, useCustomerText } from "../../i18n";
 import { readEmbeddedTenant } from "../../tenant";
 import { addressRequest, initialAddressForm, savedPin, validateAddress, type AddressForm } from "./address";
@@ -123,11 +124,12 @@ export function AddressScreen({ address, onSaved, onCancel }: {
       subtitle={t("Save a delivery address now, or complete this step later from Profile.", "ပို့ဆောင်ရန်လိပ်စာကို ယခု သိမ်းနိုင်ပါသည်။ ပရိုဖိုင်တွင် နောက်မှလည်း ထည့်နိုင်ပါသည်။")}>
       {mode === "review" ? <Card title={t("Confirm Address Details", "လိပ်စာအချက်အလက် အတည်ပြုရန်")}>
         <Body>{form.label} · {form.recipientName || t("Recipient not provided", "လက်ခံသူအမည် မထည့်ထားပါ")}</Body>
-        <Body>{[form.houseNo, form.street, form.ward, form.township, form.city].filter(Boolean).join(", ")}</Body>
+        <Body>{[form.houseNo, form.street, form.ward, form.township, form.districtName, form.regionName || form.city].filter(Boolean).join(", ")}</Body>
+        {form.recipientPhone ? <Body>{form.recipientPhone}</Body> : null}
         {form.deliveryNote ? <Body>{form.deliveryNote}</Body> : null}
         {coordinates ? <Body>{t("Confirmed pin", "အတည်ပြုထားသော နေရာ")} · {coordinates.latitude.toFixed(7)}, {coordinates.longitude.toFixed(7)}</Body>
-          : <Body>{t("No map location saved. Delivery checkout will require an eligible confirmed address.",
-            "မြေပုံနေရာ မသိမ်းထားပါ။ ပို့ဆောင်မှုမှာယူရန် အတည်ပြုထားသော လိပ်စာ လိုအပ်ပါသည်။")}</Body>}
+          : <Body>{t("Text address without a map pin. Checkout requires address details, a selected Region / State, District and Township, and recipient contact information.",
+            "မြေပုံနေရာမပါဘဲ လိပ်စာ သိမ်းထားပါသည်။ မှာယူရန် လမ်း၊ တိုက် သို့မဟုတ် ရပ်ကွက်အသေးစိတ်၊ ပို့ဆောင်နိုင်သော မြို့နှင့် မြို့နယ်၊ လက်ခံသူအမည်နှင့် ဖုန်းနံပါတ် လိုပါသည်။")}</Body>}
         <Body>{form.makeDefault ? t("Use as default address", "မူလလိပ်စာအဖြစ် သုံးရန်") : t("Keep existing default preference", "လက်ရှိ မူလလိပ်စာကို ဆက်သုံးရန်")}</Body>
         {error ? <Text accessibilityRole="alert" style={{ color: "#b91c1c" }}>{error}</Text> : null}
         <Action title={saving ? t("Saving Address…", "လိပ်စာ သိမ်းနေပါသည်…") : form.label.trim().toLowerCase() === "home"
@@ -145,8 +147,8 @@ export function AddressScreen({ address, onSaved, onCancel }: {
           <Action title={t("Choose Location on Map", "မြေပုံပေါ်တွင် နေရာရွေးရန်")} onPress={() => { setNotice(null); setMode("map"); }} disabled={!tenant.mapsConfigured} />
           <Action title={t("Use My Current Location", "လက်ရှိတည်နေရာ သုံးရန်")} onPress={() => void locate()} disabled={!tenant.mapsConfigured || locating} secondary />
           <Action title={t("Manual Address Entry", "လိပ်စာ ကိုယ်တိုင်ဖြည့်ရန်")} onPress={() => {
-            setMode("details"); setNotice(t("Enter your address in the fields below. A map pin is optional during account setup.",
-              "အောက်တွင် လိပ်စာဖြည့်ပါ။ အကောင့် စတင်သတ်မှတ်ချိန်တွင် မြေပုံနေရာ မဖြစ်မနေ မလိုအပ်ပါ။"));
+            setMode("details"); setNotice(t("Enter street, building or ward details below. A map pin is optional for saving and delivery checkout.",
+              "အောက်တွင် လမ်း၊ တိုက် သို့မဟုတ် ရပ်ကွက်အသေးစိတ် ဖြည့်ပါ။ လိပ်စာသိမ်းရန်နှင့် ပို့ဆောင်မှုမှာယူရန် မြေပုံနေရာ မလိုအပ်ပါ။"));
           }} secondary />
           {notice ? <Body>{notice}</Body> : null}
           {coordinates ? <>
@@ -165,14 +167,14 @@ export function AddressScreen({ address, onSaved, onCancel }: {
           </View>
           <FormField label={t("Address Label", "လိပ်စာအမည်")} value={form.label} onChangeText={value => update("label", value)} maxLength={50} />
           <FormField label={t("Recipient Name (Optional)", "လက်ခံသူအမည် (လိုပါက)")} value={form.recipientName} onChangeText={value => update("recipientName", value)} maxLength={150} />
+          <FormField label={t("Recipient Phone (Optional)", "လက်ခံသူ ဖုန်းနံပါတ် (လိုပါက)")} value={form.recipientPhone} onChangeText={value => update("recipientPhone", value)} maxLength={30} keyboardType="phone-pad" />
+          {address && !address.townshipId ? <Body>{t("Saved address needs location review. Original location:", "သိမ်းထားသော လိပ်စာ၏ နေရာကို ပြန်ရွေးပါ။")} {address.township}, {address.city}</Body> : null}
+          <LocationSelector value={form} disabled={saving} onChange={location => { setForm(previous => ({ ...previous, ...location, city: location.regionName })); setError(null); }} />
           <FormField label={t("Building, Floor or Room (Optional)", "တိုက်၊ အထပ် သို့မဟုတ် အခန်း (လိုပါက)")} value={form.houseNo} onChangeText={value => update("houseNo", value)} maxLength={50} />
           <FormField label={t("Street or Detailed Address (Optional)", "လမ်း သို့မဟုတ် လိပ်စာအသေးစိတ် (လိုပါက)")} value={form.street} onChangeText={value => update("street", value)} maxLength={100} />
           <FormField label={t("Ward or Neighborhood (Optional)", "ရပ်ကွက် (လိုပါက)")} value={form.ward} onChangeText={value => update("ward", value)} maxLength={100} />
-          <FormField label={t("Township or Area", "မြို့နယ် သို့မဟုတ် ဧရိယာ")} value={form.township} onChangeText={value => update("township", value)} maxLength={100} />
-          <FormField label={t("City", "မြို့")} value={form.city} onChangeText={value => update("city", value)} maxLength={100} />
           <FormField label={t("Delivery Landmark and Instructions (Optional)", "အနီးရှိ အမှတ်အသားနှင့် မှာကြားချက် (လိုပါက)")} value={form.deliveryNote}
             onChangeText={value => update("deliveryNote", value)} maxLength={2000} multiline />
-          <Body>{t("Contact phone is managed separately in your account details.", "ဆက်သွယ်ရန် ဖုန်းနံပါတ်ကို ပရိုဖိုင်တွင် ပြင်နိုင်ပါသည်။")}</Body>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <Body>{t("Use as default address", "မူလလိပ်စာအဖြစ် သုံးရန်")}</Body>
             <Switch accessibilityLabel={t("Use as default address", "မူလလိပ်စာအဖြစ် သုံးရန်")} value={form.makeDefault} onValueChange={value => update("makeDefault", value)} />

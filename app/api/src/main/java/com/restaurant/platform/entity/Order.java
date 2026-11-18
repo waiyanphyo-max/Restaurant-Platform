@@ -118,4 +118,40 @@ public class Order {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+    @Column(name = "delivery_region_id")
+    private UUID deliveryRegionId;
+
+    @Column(name = "delivery_district_id")
+    private UUID deliveryDistrictId;
+
+    @Column(name = "delivery_township_id")
+    private UUID deliveryTownshipId;
+
+    @Column(name = "delivery_region_name", length = 150)
+    private String deliveryRegionName;
+
+    @Column(name = "delivery_district_name", length = 150)
+    private String deliveryDistrictName;
+
+    @Column(name = "delivery_township_name", length = 150, updatable = false)
+    private String deliveryTownshipName;
+
+    /** Preserve historical checkout labels; legacy-route canonical snapshots use separate immutable names. */
+    public String getDeliveryTownship() {
+        return deliveryTownship == null ? deliveryTownshipName : deliveryTownship;
+    }
+
+    public String getDeliveryCity() {
+        return deliveryCity == null ? deliveryRegionName : deliveryCity;
+    }
+
+    @Column(name = "delivery_ward", length = 100)
+    private String deliveryWard;
+
+    @Column(name = "delivery_street", length = 100)
+    private String deliveryStreet;
+
+    @Column(name = "delivery_house_no", length = 50)
+    private String deliveryHouseNo;
+
 }

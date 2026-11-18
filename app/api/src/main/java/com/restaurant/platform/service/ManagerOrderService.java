@@ -8,6 +8,8 @@ import com.restaurant.platform.dto.order.OrderItemModifierDto;
 import com.restaurant.platform.dto.order.OrderStatusHistoryDto;
 import com.restaurant.platform.dto.order.OrderSummaryDto;
 import com.restaurant.platform.dto.order.UpdateOrderStatusRequest;
+import com.restaurant.platform.dto.order.OrderActionRequest;
+import com.restaurant.platform.dto.order.OrderDeliveryAddressDto;
 import com.restaurant.platform.entity.AppNotification;
 import com.restaurant.platform.entity.Order;
 import com.restaurant.platform.entity.OrderItem;
@@ -159,7 +161,22 @@ public class ManagerOrderService {
                     );
         }
 
-        return orders.map(this::toSummaryDto);
+        // Bounded page, item, modifier and settled-payment queries; no per-order detail/history fetch.
+        List<UUID> orderIds = orders.getContent().stream().map(Order::getId).toList();
+        List<OrderItem> items = orderIds.isEmpty() ? List.of() : orderItemRepository
+                .findByOrderIdInAndRestaurantIdOrderByCreatedAtAsc(orderIds, restaurantId);
+        Map<UUID, List<OrderItem>> itemsByOrder = items.stream().collect(Collectors.groupingBy(OrderItem::getOrderId));
+        Map<UUID, List<OrderItemModifier>> modifiers = loadModifiers(items, restaurantId);
+        boolean showDelivery = restaurantAuthorization.hasPermission(restaurantId,
+                RestaurantPermission.ORDER_DELIVERY_DETAILS_READ);
+        boolean canUpdate = restaurantAuthorization.hasPermission(restaurantId, RestaurantPermission.ORDER_STATUS_UPDATE);
+        boolean canCancel = restaurantAuthorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL);
+        boolean canCancelEarly = restaurantAuthorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL_EARLY_UNPAID);
+        Set<UUID> settledOrders = canUpdate && (canCancel || canCancelEarly)
+                ? cancellation.settledOrderIds(restaurantId, orderIds) : Set.of();
+        return orders.map(order -> toSummaryDto(order,
+                itemDtos(itemsByOrder.getOrDefault(order.getId(), List.of()), modifiers), showDelivery,
+                availableActions(order, canUpdate, canCancel, canCancelEarly, settledOrders.contains(order.getId()))));
     }
 
     @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_READ)")
@@ -253,7 +270,11 @@ public class ManagerOrderService {
                 order.getCreatedAt(),
                 order.getUpdatedAt(),
                 itemDtos,
-                historyDtos);
+                historyDtos,
+                showDeliveryDetails ? order.getDeliveryCity() : null,
+                showDeliveryDetails ? order.getDeliveryTownship() : null,
+                showDeliveryDetails ? deliveryDestination(order) : null,
+                availableActions(order));
     }
 
     @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_STATUS_UPDATE)")
@@ -264,6 +285,21 @@ public class ManagerOrderService {
             UUID userId,
             UpdateOrderStatusRequest request
     ) {
+        return updateStatusInternal(restaurantId, orderId, userId, request, null);
+    }
+
+    @PreAuthorize("@restaurantAuthorization.hasPermission(#p0, T(com.restaurant.platform.security.RestaurantPermission).ORDER_STATUS_UPDATE)")
+    @Transactional
+    public OrderSummaryDto executeAction(UUID restaurantId, UUID orderId, UUID userId, OrderActionRequest request) {
+        if (request == null || request.action() == null || request.expectedStatus() == null
+                || !List.of("ACCEPT", "COMPLETE", "CANCEL").contains(request.action())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_ORDER_ACTION", "invalid-order-status-filter");
+        }
+        return updateStatusInternal(restaurantId, orderId, userId, null, request);
+    }
+
+    private OrderSummaryDto updateStatusInternal(UUID restaurantId, UUID orderId, UUID userId,
+                                                UpdateOrderStatusRequest request, OrderActionRequest actionRequest) {
         // 1. Verify the authenticated user.
         restaurantAuthorization.requireAuthenticatedUserMatches(userId);
 
@@ -275,9 +311,9 @@ public class ManagerOrderService {
 
         // 3. Validate the requested status.
         if (accounting != null) accounting.lock(restaurantId);
-        if (request == null
+        if (actionRequest == null && (request == null
                 || request.status() == null
-                || request.status().isBlank()) {
+                || request.status().isBlank())) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "ORDER_STATUS_REQUIRED",
@@ -285,7 +321,7 @@ public class ManagerOrderService {
             );
         }
 
-        String nextStatus = request.status().trim();
+        String nextStatus = actionRequest == null ? request.status().trim() : "ACCEPTED";
 
         if (!VALID_ORDER_STATUSES.contains(nextStatus)) {
             throw new ApiException(
@@ -306,9 +342,25 @@ public class ManagerOrderService {
 
         String currentStatus = order.getStatus();
         String orderType = order.getOrderType();
+        boolean simplifiedComplete = false;
+        if (actionRequest != null) {
+            if (!currentStatus.equals(actionRequest.expectedStatus())) {
+                throw new ApiException(HttpStatus.CONFLICT, "ORDER_ACTION_STALE", "invalid-order-status-transition",
+                        actionRequest.expectedStatus(), currentStatus);
+            }
+            nextStatus = switch (actionRequest.action()) {
+                case "ACCEPT" -> "ACCEPTED";
+                case "CANCEL" -> "CANCELLED";
+                case "COMPLETE" -> "DELIVERY".equals(orderType) || order.getQueueTicketId() != null
+                        ? "READY" : "COMPLETED";
+                default -> throw new IllegalStateException("Validated order action");
+            };
+            simplifiedComplete = "COMPLETE".equals(actionRequest.action())
+                    && List.of("ACCEPTED", "PREPARING").contains(currentStatus);
+        }
 
         // 5. Validate the status transition.
-        if (!isAllowedTransition(
+        if (!simplifiedComplete && !isAllowedTransition(
                 currentStatus,
                 nextStatus,
                 orderType
@@ -324,10 +376,19 @@ public class ManagerOrderService {
 
         // 6. Cancellation requires its own permission.
         if ("CANCELLED".equals(nextStatus)) {
-            restaurantAuthorization.requirePermission(
-                    restaurantId,
-                    RestaurantPermission.ORDER_CANCEL
-            );
+            if (actionRequest == null || restaurantAuthorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL)) {
+                restaurantAuthorization.requirePermission(restaurantId, RestaurantPermission.ORDER_CANCEL);
+            } else {
+                restaurantAuthorization.requirePermission(restaurantId, RestaurantPermission.ORDER_CANCEL_EARLY_UNPAID);
+                if (!List.of("PENDING", "ACCEPTED").contains(currentStatus)) {
+                    throw new ApiException(HttpStatus.FORBIDDEN, "EARLY_CANCELLATION_ONLY", "error.authorization.permission_denied");
+                }
+                cancellation.requireUnpaid(order);
+            }
+            String reason = actionRequest == null ? request.note() : actionRequest.reason();
+            if (reason == null || reason.trim().length() < 10 || reason.trim().length() > 500) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "CANCELLATION_REASON_REQUIRED", "error.order.cancellation-reason-required");
+            }
         }
 
         // 7. Delivery-specific status transitions need permission.
@@ -362,7 +423,12 @@ public class ManagerOrderService {
             deliveryService.synchronizeManagerOrderStatus(order, userId, nextStatus);
         }
 
-        String historyNote = request.note();
+        String historyNote = actionRequest == null ? request.note() : actionRequest.reason();
+        if (actionRequest != null && "COMPLETE".equals(actionRequest.action())) {
+            String meaning = "READY".equals(nextStatus) ? "Preparation completed; ready for handoff."
+                    : "Restaurant fulfillment completed; payment collection remains separate.";
+            historyNote = historyNote == null || historyNote.isBlank() ? meaning : historyNote.trim() + "\n" + meaning;
+        }
         if ("CANCELLED".equals(nextStatus)) {
             String disposition = "DELIVERY".equals(orderType) && "CUSTOMER_APP".equals(order.getOrderChannel())
                     ? cancellation.settleUnpaidOrder(order)
@@ -457,6 +523,11 @@ public class ManagerOrderService {
     }
 
     private OrderSummaryDto toSummaryDto(Order order) {
+        return toSummaryDto(order, List.of(), restaurantAuthorization.hasPermission(order.getRestaurantId(),
+                RestaurantPermission.ORDER_DELIVERY_DETAILS_READ), availableActions(order));
+    }
+
+    private OrderSummaryDto toSummaryDto(Order order, List<OrderItemDetailDto> items, boolean showDelivery, List<String> actions) {
         return new OrderSummaryDto(
                 order.getId(),
                 order.getOrderNumber(),
@@ -466,8 +537,62 @@ public class ManagerOrderService {
                 order.getSubtotal(),
                 order.getDeliveryFee(),
                 order.getTotalAmount(),
-                order.getCreatedAt()
+                order.getCreatedAt(),
+                order.getQueueTicketId(),
+                items,
+                showDelivery ? deliveryDestination(order) : null,
+                !"DELIVERY".equals(order.getOrderType()) ? order.getDeliveryNote() : null,
+                actions
         );
+    }
+
+    private List<String> availableActions(Order order) {
+        UUID restaurantId = order.getRestaurantId();
+        if (!restaurantAuthorization.hasPermission(restaurantId, RestaurantPermission.ORDER_STATUS_UPDATE)) return List.of();
+        return availableActions(order,
+                true,
+                restaurantAuthorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL),
+                restaurantAuthorization.hasPermission(restaurantId, RestaurantPermission.ORDER_CANCEL_EARLY_UNPAID),
+                cancellation.settledOrderIds(restaurantId, List.of(order.getId())).contains(order.getId()));
+    }
+
+    private List<String> availableActions(Order order, boolean canUpdate, boolean canCancel,
+                                          boolean canCancelEarly, boolean settled) {
+        if (!canUpdate) return List.of();
+        var actions = new java.util.ArrayList<String>();
+        String state = order.getStatus();
+        if ("PENDING".equals(state)) actions.add("ACCEPT");
+        if (List.of("ACCEPTED", "PREPARING").contains(state)
+                || "READY".equals(state) && !"DELIVERY".equals(order.getOrderType()) && order.getQueueTicketId() == null) {
+            actions.add("COMPLETE");
+        }
+        boolean fullCancellation = canCancel && !settled && List.of("PENDING", "ACCEPTED", "PREPARING").contains(state);
+        if (fullCancellation || canCancelEarly && !settled && List.of("PENDING", "ACCEPTED").contains(state)) actions.add("CANCEL");
+        return List.copyOf(actions);
+    }
+
+    private OrderDeliveryAddressDto deliveryDestination(Order order) {
+        if (!"DELIVERY".equals(order.getOrderType())) return null;
+        return new OrderDeliveryAddressDto(order.getDeliveryRegionId(), order.getDeliveryDistrictId(),
+                order.getDeliveryTownshipId(), order.getDeliveryRegionName() == null ? order.getDeliveryCity() : order.getDeliveryRegionName(),
+                order.getDeliveryDistrictName(), order.getDeliveryTownship(), order.getDeliveryWard(),
+                order.getDeliveryStreet(), order.getDeliveryHouseNo(), order.getDeliveryAddress(),
+                order.getDeliveryName(), order.getDeliveryPhone(), order.getDeliveryNote());
+    }
+
+    private Map<UUID, List<OrderItemModifier>> loadModifiers(List<OrderItem> items, UUID restaurantId) {
+        if (items.isEmpty()) return Map.of();
+        return orderItemModifierRepository.findByOrderItemIdInAndRestaurantIdOrderByIdAsc(
+                items.stream().map(OrderItem::getId).toList(), restaurantId).stream()
+                .collect(Collectors.groupingBy(OrderItemModifier::getOrderItemId));
+    }
+
+    private List<OrderItemDetailDto> itemDtos(List<OrderItem> items, Map<UUID, List<OrderItemModifier>> modifiers) {
+        return items.stream().map(item -> new OrderItemDetailDto(item.getId(), item.getProductId(), item.getVariantId(),
+                item.getProductName(), item.getVariantName(), item.getUnitPrice(), item.getQuantity(), item.getSubtotal(),
+                item.getSpecialInstruction(), modifiers.getOrDefault(item.getId(), List.of()).stream()
+                .map(modifier -> new OrderItemModifierDto(modifier.getId(), modifier.getModifierOptionId(),
+                        modifier.getName(), modifier.getAdditionalPrice(), modifier.getQuantity())).toList())).toList();
     }
 
     private boolean isAllowedTransition(

@@ -120,6 +120,6 @@ class AssignedDeliveryControllerHttpTest {
     private DeliveryTaskDto task() {
         return new DeliveryTaskDto(deliveryId, UUID.randomUUID(), "ORD-101", "READY", "ASSIGNED",
                 userId, "Recipient", "Test phone", "Confirmed address", null,
-                1000L, null, null, null, null, null, null);
+                1000L, null, null, null, null, null, null, "Yangon", "Tamwe");
     }
 }

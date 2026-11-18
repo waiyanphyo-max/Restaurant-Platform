@@ -9,5 +9,6 @@ import java.util.List;
 public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
     List<OrderItem> findByOrderIdOrderByCreatedAtAsc(UUID orderId);
     List<OrderItem> findByOrderIdAndRestaurantIdOrderByCreatedAtAsc(UUID orderId, UUID restaurantId);
+    List<OrderItem> findByOrderIdInAndRestaurantIdOrderByCreatedAtAsc(List<UUID> orderIds, UUID restaurantId);
     List<OrderItem> findByProductIdOrderByCreatedAtDesc(UUID productId);
 }

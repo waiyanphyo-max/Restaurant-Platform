@@ -27,10 +27,15 @@ public record ManagerOrderDetailDto(
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         List<OrderItemDetailDto> items,
-        List<OrderStatusHistoryDto> statusHistory
+        List<OrderStatusHistoryDto> statusHistory,
+        String deliveryCity,
+        String deliveryTownship,
+        OrderDeliveryAddressDto deliveryDestination,
+        List<String> availableActions
 ) {
     public ManagerOrderDetailDto {
         items = items == null ? List.of() : List.copyOf(items);
         statusHistory = statusHistory == null ? List.of() : List.copyOf(statusHistory);
+        availableActions = availableActions == null ? List.of() : List.copyOf(availableActions);
     }
 }

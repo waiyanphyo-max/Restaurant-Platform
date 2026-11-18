@@ -36,7 +36,9 @@ public record CustomerOrderDetailDto(
         UUID deliveryAddressId,
         OffsetDateTime destinationConfirmedAt,
         boolean canCancel,
-        String currency
+        String currency,
+        UUID deliveryRegionId,UUID deliveryDistrictId,UUID deliveryTownshipId,
+        String deliveryRegionName,String deliveryDistrictName,String deliveryWard,String deliveryStreet,String deliveryHouseNo
 ) {
     public CustomerOrderDetailDto {
         items = items == null ? List.of() : List.copyOf(items);

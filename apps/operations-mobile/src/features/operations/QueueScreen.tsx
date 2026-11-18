@@ -10,7 +10,7 @@ import { exactTimestamp } from "./format";
 
 export function QueueScreen() {
   const [status, setStatus] = useState("ACTIVE");
-  const [calling, setCalling] = useState<{ id: string; code: string } | null>(null);
+  const [calling, setCalling] = useState<{ id: string; code: string; orderId?: string; collect?: boolean } | null>(null);
   const mutation = useApiMutation();
   const query = useApiQuery(signal => getOperationsApi().listQueue(status === "ACTIVE" ? undefined : status, { signal }), `queue:${status}`);
   function refresh() {
@@ -27,17 +27,26 @@ export function QueueScreen() {
       {ticket.completedAt ? <Body>Completed {exactTimestamp(ticket.completedAt)}</Body> : null}
       {ticket.orderId ? <Link href={{ pathname: "/order/[orderId]", params: { orderId: ticket.orderId } }}>Open order for ticket {ticket.displayCode}</Link> : null}
       {ticket.status === "READY" ? <Action title="Call for pickup" disabled={mutation.busy} onPress={() => setCalling({ id: ticket.ticketId, code: ticket.displayCode })} /> : null}
+      {ticket.orderId && ["READY", "CALLED"].includes(ticket.status) ? <Action title="Confirm pickup" disabled={mutation.busy}
+        onPress={() => setCalling({ id: ticket.ticketId, code: ticket.displayCode, orderId: ticket.orderId ?? undefined, collect: true })} /> : null}
     </Card>) : <Card><Body>No tickets match this status today.</Body></Card>}
-      <Body>Mark linked orders ready or completed from Orders. Calling a ready ticket sends the existing pickup notification.</Body>
+      <Body>Complete preparation from Orders. Call a ready ticket, then confirm physical pickup here. Payment collection remains separate.</Body>
     </>}</QueryResult>
     <Action title="Refresh queue" secondary disabled={mutation.busy} onPress={refresh} />
-    <ConfirmDialog visible={calling !== null} title="Call for pickup"
-      message={calling ? `Notify the customer for ticket ${calling.code} that their order is ready for pickup?` : ""}
-      confirmLabel="Call customer" onCancel={() => setCalling(null)} onConfirm={() => {
+    <ConfirmDialog visible={calling !== null} title={calling?.collect ? "Confirm pickup" : "Call for pickup"}
+      message={calling ? calling.collect ? `Confirm the customer physically collected ticket ${calling.code}? Payment status stays unchanged.` : `Notify the customer for ticket ${calling.code} that their order is ready for pickup?` : ""}
+      confirmLabel={calling?.collect ? "Confirm collected" : "Call customer"} onCancel={() => setCalling(null)} onConfirm={() => {
       const pending = calling;
       setCalling(null);
-      if (pending && query.state.status === "ready" && query.state.data.some(ticket => ticket.ticketId === pending.id && ticket.status === "READY")) {
-        void mutation.run(() => getOperationsApi().callQueueTicket(pending.id), refresh, refresh);
+      if (pending && query.state.status === "ready" && query.state.data.some(ticket => ticket.ticketId === pending.id
+        && (pending.collect ? ["READY", "CALLED"].includes(ticket.status) && ticket.orderId === pending.orderId : ticket.status === "READY"))) {
+        void mutation.run(async () => {
+          if (pending.collect && pending.orderId) {
+            await getOperationsApi().updateOrderStatus(pending.orderId, { status: "COMPLETED", note: "Physical pickup confirmed at collection counter." });
+          } else {
+            await getOperationsApi().callQueueTicket(pending.id);
+          }
+        }, refresh, refresh);
       }
     }} />
   </Page>;

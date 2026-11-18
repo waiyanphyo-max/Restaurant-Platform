@@ -20,6 +20,8 @@ public record DeliveryTaskDto(
         OffsetDateTime deliveredAt,
         String failureReason,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        String deliveryCity,
+        String deliveryTownship
 ) {
 }

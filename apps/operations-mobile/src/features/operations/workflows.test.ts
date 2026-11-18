@@ -11,11 +11,11 @@ const delivery: DeliveryTaskDto = {
 
 describe("Owner order actions against ManagerOrderService transitions", () => {
   it.each([
-    ["PENDING", "DINE_IN", ["ACCEPTED", "CANCELLED"]],
-    ["ACCEPTED", "TAKEAWAY", ["PREPARING", "CANCELLED"]],
-    ["PREPARING", "DELIVERY", ["READY", "CANCELLED"]],
-    ["READY", "DINE_IN", ["COMPLETED"]],
-    ["READY", "TAKEAWAY", ["COMPLETED"]],
+    ["PENDING", "DINE_IN", ["ACCEPT", "CANCEL"]],
+    ["ACCEPTED", "TAKEAWAY", ["COMPLETE", "CANCEL"]],
+    ["PREPARING", "DELIVERY", ["COMPLETE", "CANCEL"]],
+    ["READY", "DINE_IN", ["COMPLETE"]],
+    ["READY", "TAKEAWAY", ["COMPLETE"]],
     ["COMPLETED", "DINE_IN", []],
     ["CANCELLED", "TAKEAWAY", []],
     ["UNKNOWN", "DINE_IN", []]
@@ -29,15 +29,25 @@ describe("Owner order actions against ManagerOrderService transitions", () => {
     expect(orderActions({ status: "OUT_FOR_DELIVERY", orderType: "DELIVERY" }, "MANAGER")).toEqual([]);
   });
 
-  it("does not offer cancellation to Staff or order mutations to Drivers or unknown roles", () => {
-    expect(orderActions({ status: "PENDING", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["ACCEPTED"]);
-    expect(orderActions({ status: "ACCEPTED", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["PREPARING"]);
-    expect(orderActions({ status: "PREPARING", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["READY"]);
-    expect(orderActions({ status: "READY", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["COMPLETED"]);
+  it("limits Staff cancellation to early unpaid orders and withholds order mutations from Drivers", () => {
+    expect(orderActions({ status: "PENDING", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["ACCEPT", "CANCEL"]);
+    expect(orderActions({ status: "ACCEPTED", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["COMPLETE", "CANCEL"]);
+    expect(orderActions({ status: "PREPARING", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["COMPLETE"]);
+    expect(orderActions({ status: "READY", orderType: "TAKEAWAY" }, "STAFF")).toEqual(["COMPLETE"]);
     expect(orderActions({ status: "READY", orderType: "DELIVERY" }, "STAFF")).toEqual([]);
     for (const role of ["DELIVERY_DRIVER", "PLATFORM_ADMIN", "CUSTOMER", "", "owner"]) {
       expect(orderActions({ status: "PENDING", orderType: "DINE_IN" }, role)).toEqual([]);
     }
+  });
+
+  it("keeps completed preparation for pickup read-only in Orders", () => {
+    expect(orderActions({ status: "READY", orderType: "TAKEAWAY", queueTicketId: "ticket" }, "STAFF")).toEqual([]);
+  });
+
+  it("uses server payment eligibility and withholds cancellation for settled early orders", () => {
+    expect(orderActions({ status: "PENDING", orderType: "TAKEAWAY", availableActions: ["ACCEPT"] }, "STAFF")).toEqual(["ACCEPT"]);
+    expect(orderActions({ status: "ACCEPTED", orderType: "DELIVERY", availableActions: [] }, "MANAGER")).toEqual([]);
+    expect(orderActions({ status: "PENDING", orderType: "TAKEAWAY", availableActions: ["ACCEPT"] }, "DELIVERY_DRIVER")).toEqual([]);
   });
 });
 

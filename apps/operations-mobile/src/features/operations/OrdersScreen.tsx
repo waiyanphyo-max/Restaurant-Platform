@@ -9,6 +9,8 @@ import { useApiQuery } from "../../hooks/useApiQuery";
 import { exactTimestamp, operationalAmount } from "./format";
 import { ORDER_STATUSES, searchOrders } from "./workflows";
 import { CounterOrderPanel } from "./CounterOrderPanel";
+import { OrderAddress } from "./OrderAddress";
+import { OrderCardActions } from "./OrderCardActions";
 
 const ORDER_CHANNELS = ["ALL", "TABLE_QR", "COMMON_QR", "CUSTOMER_APP", "STAFF"] as const;
 
@@ -33,6 +35,15 @@ export function OrdersScreen({ history = false }: { history?: boolean }) {
         {orders.map(order => <Card key={order.id} title={order.orderNumber}>
           <Body>{order.status} · {order.orderType} · {order.orderChannel}</Body><Body>{exactTimestamp(order.createdAt)}</Body>
           <Body>Order total: {operationalAmount(order.totalAmount)} · Payment status is shown in details.</Body>
+          {(order.items ?? []).map(item => <Card key={item.id} title={`${item.productName} × ${item.quantity}`}>
+            {item.variantName ? <Body>Variant: {item.variantName}</Body> : null}
+            {item.modifiers.map(modifier => <Body key={modifier.id}>{modifier.name} × {modifier.quantity}</Body>)}
+            {item.specialInstruction ? <Body>Instruction: {item.specialInstruction}</Body> : null}
+          </Card>)}
+          {order.orderNote ? <Body>Order instructions: {order.orderNote}</Body> : null}
+          {order.deliveryDestination ? <><OrderAddress destination={order.deliveryDestination} />
+            <Body>Delivery fee: {operationalAmount(order.deliveryFee)}</Body></> : null}
+          {!history ? <OrderCardActions order={order} role={state.status === "ready" ? state.membership.role : ""} onChanged={query.reload} /> : null}
           <Link href={{ pathname: "/order/[orderId]", params: { orderId: order.id } }}>View order</Link>
         </Card>)}
         {!orders.length ? <Card><Body>No matching orders on this page.</Body></Card> : null}

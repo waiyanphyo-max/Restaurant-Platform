@@ -101,6 +101,12 @@ describe("customer authentication interface", () => {
     expect(harness.auth.resendConfirmation).toHaveBeenCalledWith("customer@example.test");
     expect(content(render())).toContain("If this email needs confirmation");
   });
+  it("lets a customer returning from an expired link resend confirmation without a password", async () => {
+    enter("Email address", " Customer@Example.Test "); press("Resend confirmation email"); await settle();
+    expect(harness.auth.resendConfirmation).toHaveBeenCalledExactlyOnceWith("customer@example.test");
+    expect(harness.auth.signInWithPassword).not.toHaveBeenCalled();
+    expect(content(render())).toContain("If this email needs confirmation");
+  });
   it("requests and verifies reset codes, matching passwords and returns to sign-in", async () => {
     press("Forgot password?"); enter("Email address", " Customer@Example.Test "); press("Send reset email"); await settle();
     expect(harness.auth.requestPasswordReset).toHaveBeenCalledWith("customer@example.test");

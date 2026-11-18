@@ -1,7 +1,6 @@
 package com.restaurant.platform.service;
 
 import com.restaurant.platform.accounting.AccountingSupport;
-import com.restaurant.platform.common.GeoCoordinates;
 import com.restaurant.platform.common.error.ApiException;
 import com.restaurant.platform.dto.order.CreateOrderItemRequest;
 import com.restaurant.platform.dto.order.CreateOrderResponse;
@@ -50,6 +49,7 @@ public class CustomerDeliveryCheckoutService {
     private final CustomerOrderNotifications notifications;
     private final JsonMapper json;
     private final JdbcTemplate jdbc;
+    private final GeographicLocationService locations;
 
     @Transactional
     public CustomerDeliveryQuote quote(UUID restaurantId, UUID userId, CustomerDeliveryCheckoutRequest request) {
@@ -175,16 +175,25 @@ public class CustomerDeliveryCheckoutService {
                     .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
                             "INVALID_CUSTOMER_ADDRESS", "error.address.not-found"));
             String streetAddress = firstNonBlank(saved.getHouseNo(), saved.getStreet(), saved.getWard());
-            return destination("SAVED_ADDRESS", saved.getId(), streetAddress == null ? null : formatAddress(saved),
-                    saved.getCity(), saved.getTownship(), saved.getLatitude(), saved.getLongitude(),
+            var location=locations.resolve(saved.getRegionId(),saved.getDistrictId(),saved.getTownshipId(),saved.getCity(),saved.getTownship());
+            return destination("SAVED_ADDRESS", saved.getId(), streetAddress == null ? null : detailedAddress(saved.getHouseNo(),saved.getStreet(),saved.getWard()),
+                    location, saved.getWard(),saved.getStreet(),saved.getHouseNo(),saved.getLatitude(), saved.getLongitude(),
                     firstNonBlank(request.recipientName(), saved.getRecipientName(), profileName(profile)),
-                    firstNonBlank(request.recipientPhone(), profilePhone(profile)),
+                    firstNonBlank(request.recipientPhone(), saved.getRecipientPhone(), profilePhone(profile)),
                     request.deliveryNote() == null ? saved.getDeliveryNote() : request.deliveryNote());
         }
 
         var temporary = request.temporaryDestination();
-        return destination(temporary.source().name(), null, temporary.address(), temporary.city(),
-                temporary.township(), temporary.latitude(), temporary.longitude(),
+        if (temporary.source() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DELIVERY_DESTINATION_REQUIRED",
+                    "error.delivery.destination-required");
+        }
+        if (temporary.regionId()==null && temporary.districtId()==null && temporary.townshipId()==null
+                && (firstNonBlank(temporary.city())==null || firstNonBlank(temporary.township())==null))
+            throw new ApiException(HttpStatus.BAD_REQUEST,"DELIVERY_ADDRESS_LOCATION_REQUIRED","error.delivery.destination-address-required");
+        var location=locations.resolve(temporary.regionId(),temporary.districtId(),temporary.townshipId(),temporary.city(),temporary.township());
+        return destination(temporary.source().name(), null, firstNonBlank(temporary.address(),detailedAddress(temporary.houseNo(),temporary.street(),temporary.ward())),location,
+                temporary.ward(),temporary.street(),temporary.houseNo(),temporary.latitude(), temporary.longitude(),
                 firstNonBlank(request.recipientName(), profileName(profile)),
                 firstNonBlank(request.recipientPhone(), profilePhone(profile)), request.deliveryNote());
     }
@@ -198,18 +207,26 @@ public class CustomerDeliveryCheckoutService {
     }
 
     private static CustomerDeliveryQuote.Destination destination(
-            String source, UUID addressId, String address, String city, String township,
+            String source, UUID addressId, String address, GeographicLocationService.Hierarchy location,
+            String ward,String street,String houseNo,
             BigDecimal latitude, BigDecimal longitude, String name, String phone, String note) {
-        var point = new GeoCoordinates(latitude, longitude);
-        if (point.latitude() == null) {
+        // Do not use GeoCoordinates here: it intentionally discards malformed historical
+        // points for display, whereas new checkout input must fail instead of losing data.
+        if ((latitude == null) != (longitude == null)
+                || (latitude != null && (latitude.abs().compareTo(BigDecimal.valueOf(90)) > 0
+                || longitude.abs().compareTo(BigDecimal.valueOf(180)) > 0))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DELIVERY_COORDINATES",
+                    "error.delivery.invalid-coordinates");
+        }
+        if (latitude == null && ("MANUAL_MAP".equals(source) || "GPS_CONFIRMED".equals(source))) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DELIVERY_COORDINATES_REQUIRED",
                     "error.delivery.coordinates-required");
         }
-        if (firstNonBlank(address) == null || firstNonBlank(city) == null || firstNonBlank(township) == null) {
+        if (firstNonBlank(address) == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DELIVERY_ADDRESS_LOCATION_REQUIRED",
                     "error.delivery.destination-address-required");
         }
-        if (name == null || phone == null || name.length() > 150) {
+        if (firstNonBlank(name) == null || firstNonBlank(phone) == null || name.trim().length() > 150) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DELIVERY_CONTACT_REQUIRED", "error.delivery.contact-required");
         }
         String normalizedPhone = DeliveryRecipientPhone.normalize(phone);
@@ -217,22 +234,27 @@ public class CustomerDeliveryCheckoutService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DELIVERY_PHONE", "error.delivery.invalid-phone");
         }
 
-        String fullAddress = addressId == null
-                ? String.join(", ", address.trim(), township.trim(), city.trim()) : address.trim();
-        return new CustomerDeliveryQuote.Destination(source, addressId, fullAddress, city.trim(), township.trim(),
-                storedCoordinate(point.latitude()), storedCoordinate(point.longitude()), name, normalizedPhone, firstNonBlank(note));
+        String fullAddress=String.join(", ",address.trim(),location.townshipName(),location.districtName(),location.regionName());
+        return new CustomerDeliveryQuote.Destination(source, addressId, fullAddress, location.regionName(), location.townshipName(),
+                storedCoordinate(latitude), storedCoordinate(longitude), name.trim(), normalizedPhone, firstNonBlank(note),
+                location.regionId(),location.districtId(),location.townshipId(),location.regionName(),location.districtName(),
+                firstNonBlank(ward),firstNonBlank(street),firstNonBlank(houseNo));
+    }
+
+    private static String detailedAddress(String houseNo,String street,String ward) {
+        return java.util.stream.Stream.of(houseNo,street,ward).filter(value->value!=null&&!value.isBlank())
+                .map(String::trim).collect(java.util.stream.Collectors.joining(", "));
     }
 
     private static BigDecimal storedCoordinate(BigDecimal coordinate) {
+        if (coordinate == null) return null;
         return coordinate.abs().compareTo(HALF_COORDINATE_UNIT) < 0
                 ? BigDecimal.ZERO : coordinate.setScale(7, RoundingMode.HALF_UP).stripTrailingZeros();
     }
 
     private List<DeliveryZone> coveringZones(UUID restaurantId, CustomerDeliveryQuote.Destination destination) {
-        var zones = zoneRepository.findByRestaurantIdAndIsActiveTrue(restaurantId).stream()
-                .filter(zone -> OrderService.deliveryZoneCovers(zone, destination.city(), destination.township()))
-                .sorted(Comparator.comparing((DeliveryZone zone) -> zone.getCoverageCity() == null)
-                        .thenComparingLong(DeliveryZone::getDeliveryFee)
+        var zones = zoneRepository.findByRestaurantIdAndTownshipIdAndIsActiveTrue(restaurantId,destination.townshipId()).stream()
+                .sorted(Comparator.comparingLong(DeliveryZone::getDeliveryFee)
                         .thenComparingLong(DeliveryZone::getMinimumOrder)
                         .thenComparing(DeliveryZone::getId))
                 .toList();
@@ -240,9 +262,7 @@ public class CustomerDeliveryCheckoutService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DELIVERY_ADDRESS_OUTSIDE_ZONE",
                     "error.delivery.destination-outside-zone");
         }
-        // Unrestricted legacy zones remain the fallback where no specific coverage is configured.
-        return zones.getFirst().getCoverageCity() == null ? zones
-                : zones.stream().filter(zone -> zone.getCoverageCity() != null).toList();
+        return zones;
     }
 
     private String digest(Object value) {

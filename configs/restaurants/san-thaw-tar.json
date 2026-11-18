@@ -13,7 +13,7 @@
   },
   "guestDomains": {
     "staging": [
-      "gardening-enemies-robinson-solo.trycloudflare.com"
+      "catalogue-sponsors-raleigh-solve.trycloudflare.com"
     ],
     "production": [
       "example.com"
@@ -22,7 +22,7 @@
   "mobileProfiles": {
     "development": {
       "apiBaseUrl": "http://127.0.0.1:8080",
-      "guestBaseUrl": "https://gardening-enemies-robinson-solo.trycloudflare.com"
+      "guestBaseUrl": "https://catalogue-sponsors-raleigh-solve.trycloudflare.com"
     },
     "staging": {
       "apiBaseUrl": "https://staging-api.example.invalid"

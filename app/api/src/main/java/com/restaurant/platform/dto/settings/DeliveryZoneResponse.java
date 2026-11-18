@@ -10,6 +10,8 @@ public record DeliveryZoneResponse(
         long minimumOrder,
         boolean active,
         String coverageCity,
-        String coverageTownship
+        String coverageTownship,
+        UUID regionId, UUID districtId, UUID townshipId,
+        String regionName, String districtName
 ) {
 }

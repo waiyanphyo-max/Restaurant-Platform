@@ -186,7 +186,8 @@ public class CustomerOrderService {
                 order.getDeliveryTownship(), order.getDeliveryCity(), order.getDeliveryLocationSource(),
                 order.getDeliveryAddressId(), order.getDeliveryLocationSource() == null ? null : order.getCreatedAt(),
                 "PENDING".equals(order.getStatus()) && payments.stream().noneMatch(payment -> "PAID".equals(payment.status())),
-                order.getDeliveryCheckoutCurrency());
+                order.getDeliveryCheckoutCurrency(),order.getDeliveryRegionId(),order.getDeliveryDistrictId(),order.getDeliveryTownshipId(),
+                order.getDeliveryRegionName(),order.getDeliveryDistrictName(),order.getDeliveryWard(),order.getDeliveryStreet(),order.getDeliveryHouseNo());
     }
 
     /**

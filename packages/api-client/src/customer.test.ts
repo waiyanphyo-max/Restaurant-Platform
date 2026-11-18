@@ -20,6 +20,51 @@ function setup() {
 }
 
 describe("restaurant- and identity-scoped customer delivery transport", () => {
+  it.each([undefined, null])("quotes and confirms MANUAL_TEXT with %s coordinates using the same destination and retry key", async coordinate => {
+    const { api, fetchImpl } = setup();
+    const destination = {
+      source: "MANUAL_TEXT" as const, address: "12 Main Rd, Ward 3", city: "Yangon", township: "Tamwe",
+      ...(coordinate === null ? { latitude: null, longitude: null } : {})
+    };
+    const request: DeliveryQuoteRequest = {
+      temporaryDestination: destination, recipientName: "Customer", recipientPhone: "0912345678",
+      deliveryNote: "Call at the gate", items: body.items
+    };
+    const quote = {
+      restaurantId, destination: { ...destination, latitude: null, longitude: null },
+      paymentMethod: "CASH_ON_DELIVERY", confirmationToken: "a".repeat(64), idempotencyKey: key
+    };
+    fetchImpl.mockResolvedValueOnce(Response.json(quote));
+    await expect(api.quoteDelivery(request)).resolves.toMatchObject(quote);
+    fetchImpl.mockRejectedValueOnce(new Error("lost checkout response"));
+    const confirmed = { ...request, confirmationToken: quote.confirmationToken };
+    await api.checkoutDelivery(confirmed, quote.idempotencyKey);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    for (const [, init] of fetchImpl.mock.calls) {
+      const sent = JSON.parse(String(init?.body));
+      expect(sent.temporaryDestination).toEqual(destination);
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer customer-jwt");
+    }
+    for (const [, init] of fetchImpl.mock.calls.slice(1)) {
+      expect(JSON.parse(String(init?.body))).toEqual(confirmed);
+      expect(new Headers(init?.headers).get("Idempotency-Key")).toBe(key);
+    }
+  });
+
+  it("quotes an owned saved address without requiring coordinates in the request", async () => {
+    const { api, fetchImpl } = setup();
+    const request: DeliveryQuoteRequest = {
+      addressId: orderId, recipientName: "Customer", recipientPhone: "0912345678", items: body.items
+    };
+    const quote = { restaurantId, destination: {
+      source: "SAVED_ADDRESS", addressId: orderId, address: "12 Main Rd", city: "Yangon", township: "Tamwe",
+      latitude: null, longitude: null
+    } };
+    fetchImpl.mockResolvedValueOnce(Response.json(quote));
+    await expect(api.quoteDelivery(request)).resolves.toMatchObject(quote);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))).toEqual(request);
+  });
+
   it("uses the configured tenant and sends the temporary destination only in the quote body", async () => {
     const { api, fetchImpl } = setup();
     await api.quoteDelivery(body);

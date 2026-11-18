@@ -145,6 +145,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // Global geography has no customer/tenant data and exposes no mutation route.
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/locations/regions",
+                                "/api/v1/locations/regions/*/districts",
+                                "/api/v1/locations/districts/*/townships").permitAll()
                         // Whitelist only the public routes that currently exist. New endpoints
                         // remain authenticated unless explicitly reviewed and added here.
                         .requestMatchers(HttpMethod.GET,

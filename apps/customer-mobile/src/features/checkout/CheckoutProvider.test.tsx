@@ -37,6 +37,11 @@ const attempt: CheckoutAttempt = {
   body: { addressId: "home", recipientName: "Customer", recipientPhone: "0912345678", items: mocks.items, confirmationToken: "confirmed-quote" },
   quote: { idempotencyKey: "opaque-attempt-key" } as DeliveryQuoteResponse
 };
+const textAttempt: CheckoutAttempt = {
+  ...attempt,
+  body: { recipientName: "Customer", recipientPhone: "+959942123456", items: mocks.items, confirmationToken: "text-quote",
+    temporaryDestination: { source: "MANUAL_TEXT", address: "Room 4, Main Road, Ward 1", city: "Yangon", township: "Tamwe" } }
+};
 const order: CreateOrderResponse = {
   orderId: "order", orderNumber: "ORD-1", orderType: "DELIVERY", orderChannel: "CUSTOMER_APP", status: "PENDING",
   currency: "MMK", subtotal: 8000, deliveryFee: 1000, discountAmount: 0, totalAmount: 9000, queue: null
@@ -59,27 +64,27 @@ describe("COD checkout and receipt recovery", () => {
     mocks.abandon.mockResolvedValue(undefined);
   });
 
-  it("writes only the opaque key before creating a pending COD order and suppresses duplicate taps", async () => {
+  it.each([attempt, textAttempt])("writes only the opaque key before creating a pending COD order and suppresses duplicate taps for %j", async confirmed => {
     render(); await tick();
     const { submit } = render();
-    await Promise.all([submit(attempt), submit(attempt)]);
+    await Promise.all([submit(confirmed), submit(confirmed)]);
     expect(mocks.put).toHaveBeenCalledExactlyOnceWith(storage, "opaque-attempt-key");
     expect(mocks.put).toHaveBeenCalledBefore(mocks.submit);
-    expect(mocks.submit).toHaveBeenCalledExactlyOnceWith(attempt.body, attempt.quote.idempotencyKey, { signal: expect.any(AbortSignal) });
+    expect(mocks.submit).toHaveBeenCalledExactlyOnceWith(confirmed.body, confirmed.quote.idempotencyKey, { signal: expect.any(AbortSignal) });
     expect(render().state).toEqual({ status: "created", order });
     expect(mocks.clear).toHaveBeenCalledOnce();
   });
 
-  it("keeps an ambiguous checkout and retries exactly the confirmed request", async () => {
+  it.each([attempt, textAttempt])("keeps an ambiguous checkout and retries exactly the confirmed request for %j", async confirmed => {
     mocks.submit.mockRejectedValueOnce(new ApiNetworkError());
     render(); await tick();
-    await render().submit(attempt);
-    expect(render().state).toMatchObject({ status: "uncertain", attempt });
-    await render().submit({ ...attempt });
+    await render().submit(confirmed);
+    expect(render().state).toMatchObject({ status: "uncertain", attempt: confirmed });
+    await render().submit({ ...confirmed });
     expect(mocks.submit).toHaveBeenCalledTimes(1);
-    await render().submit(attempt);
+    await render().submit(confirmed);
     expect(mocks.submit.mock.calls.map(([body, key]) => ({ body, key }))).toEqual([
-      { body: attempt.body, key: attempt.quote.idempotencyKey }, { body: attempt.body, key: attempt.quote.idempotencyKey }
+      { body: confirmed.body, key: confirmed.quote.idempotencyKey }, { body: confirmed.body, key: confirmed.quote.idempotencyKey }
     ]);
     expect(render().state.status).toBe("created");
   });

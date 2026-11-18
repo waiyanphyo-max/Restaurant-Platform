@@ -4,23 +4,31 @@ import { addressRequest, initialAddressForm, savedPin, validateAddress } from ".
 import { confirmPin, emptyPin, selectPin } from "./location";
 
 const saved: CustomerAddressResponse = {
-  id: "00000000-0000-4000-8000-000000000001", label: "Home", recipientName: "Customer",
+  id: "00000000-0000-4000-8000-000000000001", regionId: "region", districtId: "district", townshipId: "township", regionName: "Yangon", districtName: "East Yangon", label: "Home", recipientName: "Customer",
   houseNo: "Room 4", street: "Main Street", ward: null, township: "Dagon", city: "Yangon",
   latitude: 16.8409, longitude: 96.1735, deliveryNote: "Near the school", isDefault: true,
   createdAt: "2026-11-05T00:00:00Z", updatedAt: "2026-11-05T00:00:00Z"
 };
 
 describe("customer address onboarding", () => {
+  it("preserves legacy address text and requires explicit canonical review before resaving", () => {
+    const legacy = { ...saved, regionId: null, districtId: null, townshipId: null };
+    const form = initialAddressForm(legacy);
+    expect(form.city).toBe(legacy.city);
+    expect(form.township).toBe(legacy.township);
+    expect(validateAddress(form, savedPin(legacy))).toContain("Review legacy addresses");
+    expect(() => addressRequest(form, savedPin(legacy))).toThrow("Select Region / State");
+  });
   it("starts with Home and default preference without requiring GPS", () => {
     const form = initialAddressForm();
     expect(form.label).toBe("Home");
     expect(form.makeDefault).toBe(true);
     expect(savedPin()).toEqual(emptyPin);
-    expect(validateAddress(form, emptyPin)).toMatch(/township/);
+    expect(validateAddress(form, emptyPin)).toMatch(/Township/);
   });
 
   it("supports manual address setup without location permission or coordinates", () => {
-    const form = { ...initialAddressForm(), township: " Dagon ", city: " Yangon " };
+    const form = { ...initialAddressForm(saved), township: " Dagon ", city: " Yangon " };
     expect(validateAddress(form, emptyPin)).toBeNull();
     expect(addressRequest(form, emptyPin)).toMatchObject({ label: "Home", township: "Dagon", city: "Yangon", latitude: null, longitude: null });
   });
@@ -42,7 +50,7 @@ describe("customer address onboarding", () => {
   it("never adds customer identity, restaurant identity, or profile phone to mutations", () => {
     const request = addressRequest(initialAddressForm(saved), savedPin(saved));
     expect(Object.keys(request).sort()).toEqual([
-      "city", "deliveryNote", "houseNo", "label", "latitude", "longitude", "makeDefault", "recipientName", "street", "township", "ward"
+      "city", "deliveryNote", "districtId", "houseNo", "label", "latitude", "longitude", "makeDefault", "recipientName", "recipientPhone", "regionId", "street", "township", "townshipId", "ward"
     ]);
   });
 
@@ -57,7 +65,7 @@ describe("customer address onboarding", () => {
   });
 
   it.each([
-    { label: "" }, { label: " " }, { township: "" }, { city: " " },
+    { label: "" }, { label: " " }, { townshipId: "" }, { regionId: "" }, { districtId: "" },
     { recipientName: "x".repeat(151) }, { label: "x".repeat(51) }, { houseNo: "x".repeat(51) },
     { street: "x".repeat(101) }, { ward: "x".repeat(101) }, { township: "x".repeat(101) },
     { city: "x".repeat(101) }, { deliveryNote: "x".repeat(2001) }

@@ -1,9 +1,10 @@
-import type { CustomerAddressRequest, CustomerAddressResponse } from "@restaurant-platform/shared-types";
+import type { CustomerAddressRequest, CustomerAddressResponse, LocationSelection } from "@restaurant-platform/shared-types";
 import { emptyPin, validCoordinates, type PinSelection } from "./location";
 
-export interface AddressForm {
+export interface AddressForm extends LocationSelection {
   label: string;
   recipientName: string;
+  recipientPhone: string;
   houseNo: string;
   street: string;
   ward: string;
@@ -17,6 +18,12 @@ export function initialAddressForm(address?: CustomerAddressResponse): AddressFo
   return {
     label: address?.label ?? "Home",
     recipientName: address?.recipientName ?? "",
+    recipientPhone: address?.recipientPhone ?? "",
+    regionId: address?.regionId ?? "",
+    districtId: address?.districtId ?? "",
+    townshipId: address?.townshipId ?? "",
+    regionName: address?.regionName ?? "",
+    districtName: address?.districtName ?? "",
     houseNo: address?.houseNo ?? "",
     street: address?.street ?? "",
     ward: address?.ward ?? "",
@@ -34,9 +41,10 @@ export function savedPin(address?: CustomerAddressResponse): PinSelection {
 }
 
 export function validateAddress(form: AddressForm, pin: PinSelection): string | null {
-  if (!form.label.trim() || !form.township.trim() || !form.city.trim()) return "Enter an address label, township or area, and city.";
-  const limits: Record<Exclude<keyof AddressForm, "makeDefault">, number> = {
-    label: 50, recipientName: 150, houseNo: 50, street: 100, ward: 100, township: 100, city: 100, deliveryNote: 2000
+  if (!form.label.trim()) return "Enter an address label.";
+  if (!form.regionId || !form.districtId || !form.townshipId) return "Select Region / State, District and Township. Review legacy addresses before saving.";
+  const limits = {
+    label: 50, recipientName: 150, recipientPhone: 30, houseNo: 50, street: 100, ward: 100, township: 100, city: 100, deliveryNote: 2000
   };
   if ((Object.keys(limits) as (keyof typeof limits)[]).some(key => form[key].trim().length > limits[key])) {
     return "One or more address fields exceed the supported length. Shorten the address and try again.";
@@ -52,6 +60,10 @@ export function addressRequest(form: AddressForm, pin: PinSelection): CustomerAd
   return {
     label: form.label.trim(),
     recipientName: form.recipientName.trim() || null,
+    recipientPhone: form.recipientPhone.trim() || null,
+    regionId: form.regionId,
+    districtId: form.districtId,
+    townshipId: form.townshipId,
     houseNo: form.houseNo.trim() || null,
     street: form.street.trim() || null,
     ward: form.ward.trim() || null,

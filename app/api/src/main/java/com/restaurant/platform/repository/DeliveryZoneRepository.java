@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface DeliveryZoneRepository extends JpaRepository<DeliveryZone, UUID> {
     List<DeliveryZone> findByRestaurantIdAndIsActiveTrue(UUID restaurantId);
 
+    List<DeliveryZone> findByRestaurantIdAndTownshipIdAndIsActiveTrue(UUID restaurantId,UUID townshipId);
+
     Optional<DeliveryZone> findByIdAndRestaurantIdAndIsActiveTrue(
             UUID id, UUID restaurantId);
 

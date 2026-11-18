@@ -39,6 +39,7 @@ const detail: AssignedDeliveryDetailDto = {
   task: {
     id: "delivery", orderId: "order", orderNumber: "R-012", orderStatus: "READY", status: "ASSIGNED",
     driverUserId: "current-user", customerName: "Recipient", customerPhone: "555-0123", deliveryAddress: "Order-specific address",
+    deliveryCity: "Yangon", deliveryTownship: "Kamayut",
     deliveryNote: "Ring the bell", totalAmount: 3500, assignedAt: null, pickedUpAt: null, deliveredAt: null, failureReason: null,
     createdAt: "2026-11-03T10:00:00Z", updatedAt: "2026-11-03T10:00:00Z"
   },
@@ -69,15 +70,33 @@ describe("assigned delivery detail", () => {
     expect(html).not.toContain("Open restaurant order");
   });
 
-  it("lets staff use the regular order route and retains the text when the destination has no coordinates", () => {
+  it("lets staff process a text-only delivery with the full destination and no unavailable navigation actions", () => {
     scenario.role = "STAFF";
     scenario.detail = { ...detail, destination: { latitude: null, longitude: null } };
     const html = renderToStaticMarkup(<DeliveryDetailScreen deliveryId="delivery" />);
     expect(html).toContain("Open restaurant order");
     expect(html).toContain("Order-specific address");
-    expect(html).toContain("This location has no verified coordinates.");
-    expect(html).toContain('<button disabled="">Navigate to Customer</button>');
+    expect(html).toContain("City: Yangon · Township: Kamayut");
+    expect(html).toContain("Recipient: Recipient");
+    expect(html).toContain("Phone: 555-0123");
+    expect(html).toContain("Delivery instructions: Ring the bell");
+    expect(html).toContain("No map pin is available for this address.");
+    expect(html).not.toContain("Navigate to Customer");
+    expect(html).not.toContain("View Delivery Location");
     expect(html).toContain("<button>Navigate to Pickup</button>");
+    expect(html).toContain("<button>Mark picked up</button>");
+  });
+
+  it("lets a driver complete text-only cash-on-delivery without requiring a map pin", () => {
+    scenario.detail = { ...detail, task: { ...detail.task, status: "PICKED_UP", orderStatus: "OUT_FOR_DELIVERY" },
+      pickup: { ...detail.pickup, latitude: null, longitude: null }, destination: { latitude: null, longitude: null } };
+    const html = renderToStaticMarkup(<DeliveryDetailScreen deliveryId="delivery" />);
+    expect(html).toContain("Order-specific address");
+    expect(html).toContain("City: Yangon · Township: Kamayut");
+    expect(html).toContain("I collected the cash due for this delivery");
+    expect(html).toContain('<button disabled="">Mark delivered</button>');
+    expect(html).not.toContain("Navigate to");
+    expect(html).not.toContain("Travel mode");
   });
 
   it("shows a reassignment state without private information once the task is revoked", () => {

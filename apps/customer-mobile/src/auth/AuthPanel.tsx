@@ -8,7 +8,7 @@ import { customerPasswordPolicy, normalizeEmail, passwordRequirement, validEmail
 
 type Mode = "login" | "signup" | "phone" | "reset";
 type Fields = Partial<Record<"email" | "password" | "confirmation" | "phone" | "code", string>>;
-const confirmationMessage: [string, string] = ["If this email can be registered, check your inbox to confirm your account, then return and sign in. You can also reset your password.", "ဤအီးမေးလ်ဖြင့် စာရင်းသွင်းနိုင်ပါက ဝင်စာတွင် အကောင့်ကို အတည်ပြုပြီး ပြန်ဝင်ပါ။ စကားဝှက်ပြန်သတ်မှတ်ခြင်းလည်း လုပ်နိုင်ပါသည်။"];
+const confirmationMessage: [string, string] = ["If this email can be registered, check your inbox to confirm your account, then return to this Customer App and sign in. If it does not open automatically, open the app manually. You can also reset your password.", "ဤအီးမေးလ်ဖြင့် စာရင်းသွင်းနိုင်ပါက ဝင်စာတွင် အကောင့်ကို အတည်ပြုပြီး ပြန်ဝင်ပါ။ စကားဝှက်ပြန်သတ်မှတ်ခြင်းလည်း လုပ်နိုင်ပါသည်။"];
 const resetMessage: [string, string] = ["If this email can receive a reset, a verification code has been sent. Check your inbox and spam folder.", "ဤအီးမေးလ်သို့ ပြန်သတ်မှတ်စာ ပို့နိုင်ပါက အတည်ပြုကုဒ် ပို့ပြီးပါပြီ။ ဝင်စာနှင့် spam ဖိုင်တွဲကို စစ်ပါ။"];
 const resendMessage: [string, string] = ["If this email needs confirmation, a message has been sent. Check your inbox and spam folder, then sign in.", "ဤအီးမေးလ်ကို အတည်ပြုရန်လိုပါက စာပို့ပြီးပါပြီ။ ဝင်စာနှင့် spam ဖိုင်တွဲကို စစ်ပြီး အကောင့်ဝင်ပါ။"];
 export function AuthPanel() {
@@ -26,7 +26,9 @@ export function AuthPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<[string, string] | null>(null);
   const [errors, setErrors] = useState<Fields>({});
-  const [confirmationOffered, setConfirmationOffered] = useState(false);
+  // A customer returning from an expired email can request another without first
+  // submitting a password or receiving a failed login response.
+  const [confirmationOffered, setConfirmationOffered] = useState(true);
   const [cooldown, setCooldown] = useState(0);
   const submitting = useRef(false);
   const t = (english: string, burmese: string) => localize(language, english, burmese);

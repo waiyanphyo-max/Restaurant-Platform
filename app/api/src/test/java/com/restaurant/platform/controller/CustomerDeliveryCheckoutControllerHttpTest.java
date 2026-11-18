@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -95,6 +96,45 @@ class CustomerDeliveryCheckoutControllerHttpTest {
         verify(checkout).quote(eq(restaurant), eq(customer), request.capture());
         assertEquals(product, request.getValue().items().getFirst().productId());
         assertEquals("16 Garden Road", request.getValue().temporaryDestination().address());
+        verifyNoInteractions(memberships, deliveries, legacyOrders);
+    }
+
+    @Test
+    void manualTextQuoteAndConfirmationAcceptOmittedCoordinatesWithTheSameDestination() throws Exception {
+        var destination = new CustomerDeliveryQuote.Destination("MANUAL_TEXT", null, "16 Garden Road, Tamwe, Yangon",
+                "Yangon", "Tamwe", null, null, "Recipient", "+959123456", "Blue gate");
+        when(checkout.quote(eq(restaurant), eq(customer), any())).thenReturn(new CustomerDeliveryQuote(
+                restaurant, "Restaurant", "MMK", 1000, 250, 0, 1250, "CASH_ON_DELIVERY", destination,
+                List.of(), "a".repeat(64), key));
+        when(checkout.checkout(eq(restaurant), eq(customer), eq(key.toString()), any())).thenReturn(
+                new CreateOrderResponse(UUID.randomUUID(), "ORD-TEXT", "DELIVERY", "CUSTOMER_APP", "PENDING",
+                        "MMK", 1000, 250, 0, 1250, null));
+        var textBody = """
+                {"temporaryDestination":{"source":"MANUAL_TEXT","address":"16 Garden Road",
+                    "city":"Yangon","township":"Tamwe"}, "recipientName":"Recipient",
+                  "recipientPhone":"09123456", "deliveryNote":"Blue gate",
+                  "items":[{"productId":"%s","quantity":1}], "confirmationToken":"%s"}
+                """.formatted(product, "a".repeat(64));
+        var auth = jwt().jwt(token -> token.subject(customer.toString()));
+        mvc.perform(post(base + "/quote").with(auth).contentType(MediaType.APPLICATION_JSON).content(textBody))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(jsonPath("$.destination.source").value("MANUAL_TEXT"))
+                .andExpect(jsonPath("$.destination.latitude").doesNotExist())
+                .andExpect(jsonPath("$.destination.longitude").doesNotExist())
+                .andExpect(jsonPath("$.paymentMethod").value("CASH_ON_DELIVERY"));
+        mvc.perform(post(base + "/checkout").with(auth).header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON).content(textBody))
+                .andExpect(status().isCreated());
+        var quoteRequest = ArgumentCaptor.forClass(CustomerDeliveryCheckoutRequest.class);
+        var confirmedRequest = ArgumentCaptor.forClass(CustomerDeliveryCheckoutRequest.class);
+        verify(checkout).quote(eq(restaurant), eq(customer), quoteRequest.capture());
+        verify(checkout).checkout(eq(restaurant), eq(customer), eq(key.toString()), confirmedRequest.capture());
+        assertEquals(CustomerDeliveryCheckoutRequest.TemporarySource.MANUAL_TEXT,
+                quoteRequest.getValue().temporaryDestination().source());
+        assertNull(quoteRequest.getValue().temporaryDestination().latitude());
+        assertNull(quoteRequest.getValue().temporaryDestination().longitude());
+        assertEquals(quoteRequest.getValue(), confirmedRequest.getValue());
         verifyNoInteractions(memberships, deliveries, legacyOrders);
     }
 

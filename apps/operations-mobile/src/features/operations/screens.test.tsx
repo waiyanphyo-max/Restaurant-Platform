@@ -6,6 +6,7 @@ const scenario = vi.hoisted(() => ({
   role: "MANAGER", status: "ready", restaurantId: "11111111-1111-4111-8111-111111111111",
   reload: vi.fn(),
   orderType: "TAKEAWAY", orderStatus: "PREPARING", busy: false,
+  orderCards: false,
   daily: { reportDate: "2026-11-03", timezone: "Asia/Bangkok", totalOrders: 2, completedOrders: 1, cancelledOrders: 0, orderAmountExcludingCancelled: 2500, paidAmount: 1000 } as object | null
 }));
 vi.mock("react-native", () => ({ Image: "img", Text: "span", View: "div", StyleSheet: { create: (styles: unknown) => styles } }));
@@ -20,11 +21,20 @@ vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: (_load: unknown, key: s
   let data: unknown = { content: [], number: 0, totalPages: 0, totalElements: 0, first: true, last: true };
   if (key.startsWith("dashboard:")) {
     data = { restaurant: null, orders: null, queue: [], deliveries: { totalElements: 0, content: [] }, notifications: [], daily: scenario.daily };
+  } else if (key.startsWith("orders:") && scenario.orderCards) {
+    data = { content: [{ id: "order-17", orderNumber: "Delivery-17", orderType: "DELIVERY", orderChannel: "CUSTOMER_APP", status: "PENDING",
+      createdAt: "2026-11-03T09:00:00Z", subtotal: 2500, deliveryFee: 500, totalAmount: 3000, availableActions: ["ACCEPT", "CANCEL"],
+      items: [{ id: "item", productName: "Chicken Fried Rice", variantName: "Large", quantity: 2, specialInstruction: "No peanuts",
+        modifiers: [{ id: "modifier", name: "Extra egg", quantity: 1 }] }],
+      deliveryDestination: { region: "Yangon Region", district: "East Yangon", township: "Tamwe", ward: "Ward 3", street: "Main Road", houseNo: "No 12",
+        formattedAddress: "No 12, Main Road, Ward 3, Tamwe", recipientName: "Recipient", recipientPhone: "Contact phone", instructions: "Use side entrance" }
+    }], number: 0, totalPages: 1, totalElements: 1, first: true, last: true };
   } else if (key.startsWith("order:")) {
     data = {
       orderNumber: "T-17", orderType: scenario.orderType, orderChannel: "COMMON_QR", status: scenario.orderStatus,
       createdAt: "2026-11-03T09:00:00Z", subtotal: 2500, discountAmount: 0, deliveryFee: 0, totalAmount: 2500,
       queueTicketId: "queue-17", deliveryName: "Private recipient", deliveryAddress: "Private address",
+      deliveryCity: "Yangon", deliveryTownship: "Kamayut",
       deliveryPhone: "Private phone", deliveryNote: "Private instruction", statusHistory: [],
       items: [{ id: "item", productName: "Noodles", quantity: 1, unitPrice: 2500, subtotal: 2500, specialInstruction: "No peanuts", modifiers: [] }]
     };
@@ -70,6 +80,7 @@ beforeEach(() => {
   scenario.orderType = "TAKEAWAY";
   scenario.orderStatus = "PREPARING";
   scenario.busy = false;
+  scenario.orderCards = false;
   scenario.daily = daily;
 });
 
@@ -79,20 +90,20 @@ describe("Staff order and pickup workflow", () => {
   it("shows preparation instructions, the permitted next step and counter cash collection", () => {
     const html = renderToStaticMarkup(<OrderDetailScreen orderId="order-17" />);
     expect(html).toContain("No peanuts");
-    expect(html).toContain("Mark ready");
+    expect(html).toContain(">Complete<");
     expect(html).toContain("View pickup queue");
     expect(html).toContain("Confirm cash collected");
     expect(html).not.toContain("Cancel order");
     expect(html).not.toContain("Sales History");
   });
 
-  it("keeps delivery destination and lifecycle actions in assigned Deliveries", () => {
+  it("shows the backend-authorized destination to restaurant handlers and keeps driver actions separate", () => {
     scenario.orderType = "DELIVERY";
     scenario.orderStatus = "READY";
     const html = renderToStaticMarkup(<OrderDetailScreen orderId="order-17" />);
     expect(html).toContain("Open your assigned deliveries");
-    expect(html).not.toContain("Private");
-    expect(html).not.toContain("Complete order");
+    expect(html).toContain("Private address");
+    expect(html).not.toContain(">Complete<");
     expect(html).not.toContain("Confirm cash collected");
   });
 
@@ -115,6 +126,29 @@ describe("Staff order and pickup workflow", () => {
 });
 
 describe("Manager operational screens", () => {
+  it("shows item and full delivery snapshots immediately on the paginated order card", () => {
+    scenario.orderCards = true;
+    const html = renderToStaticMarkup(<OrdersScreen />);
+    for (const text of ["Chicken Fried Rice × 2", "Large", "Extra egg", "No peanuts", "Yangon Region", "East Yangon", "Tamwe",
+      "Ward 3", "Main Road", "No 12", "Recipient", "Contact phone", "Use side entrance", "Delivery fee: 500", ">Accept<", ">Cancel<"]) {
+      expect(html).toContain(text);
+    }
+    expect(html).toContain("Township coverage is preliminary");
+    expect(html).toContain("Cancellation reason (required to cancel");
+    expect(html).not.toContain("Start preparation");
+    expect(html).not.toContain("Mark ready");
+  });
+  it("shows the complete text delivery address and contact details to management", () => {
+    scenario.orderType = "DELIVERY";
+    const html = renderToStaticMarkup(<OrderDetailScreen orderId="order-17" />);
+    expect(html).toContain("Private recipient");
+    expect(html).toContain("Private phone");
+    expect(html).toContain("Private address");
+    expect(html).toContain("Region / State: Yangon · Township: Kamayut");
+    expect(html).toContain("Private instruction");
+    expect(html).toContain("Manage delivery and cash on delivery");
+  });
+
   it("separates daily operations from shared accounting and labels the restaurant's local day", () => {
     const html = renderToStaticMarkup(<DashboardScreen />);
     expect(html).toContain("2026-11-03 · Asia/Bangkok");

@@ -2,6 +2,7 @@ package com.restaurant.platform.controller;
 
 import com.restaurant.platform.dto.order.OrderSummaryDto;
 import com.restaurant.platform.dto.order.UpdateOrderStatusRequest;
+import com.restaurant.platform.dto.order.OrderActionRequest;
 import com.restaurant.platform.security.RestaurantAuthorization;
 import com.restaurant.platform.service.ManagerOrderService;
 
@@ -59,6 +60,15 @@ class ManagerOrderControllerTest {
 
         assertSame(expected, actual);
         verify(service).updateStatus(restaurantId, orderId, userId, request);
+    }
+
+    @Test
+    void actionUsesAuthenticatedActorAndRestaurantScope() {
+        var request = new OrderActionRequest("COMPLETE", "ACCEPTED", null);
+        when(authorization.requireAuthenticatedUserId()).thenReturn(userId);
+        when(service.executeAction(restaurantId, orderId, userId, request)).thenReturn(summary());
+        assertEquals(orderId, controller.executeAction(restaurantId, orderId, request).id());
+        verify(service).executeAction(restaurantId, orderId, userId, request);
     }
 
     private OrderSummaryDto summary() {

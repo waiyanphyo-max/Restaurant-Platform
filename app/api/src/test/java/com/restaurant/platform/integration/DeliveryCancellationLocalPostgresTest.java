@@ -70,7 +70,7 @@ class DeliveryCancellationLocalPostgresTest {
     @EntityScan(basePackageClasses = Order.class)
     @EnableJpaRepositories(basePackageClasses = OrderRepository.class)
     @EnableMethodSecurity
-    @Import({AccountingSupport.class, RestaurantAuthorization.class, CatalogManagementService.class,
+    @Import({com.restaurant.platform.service.GeographicLocationService.class,AccountingSupport.class, RestaurantAuthorization.class, CatalogManagementService.class,
             CustomerOrderNotifications.class, CustomerOrderService.class, DeliveryService.class,
             ManagerOrderService.class, OrderCancellationService.class, OrderService.class, PaymentService.class,
             QrOrderIdempotencyService.class, QueueManagementService.class, QueueTrackingService.class})
@@ -173,6 +173,25 @@ class DeliveryCancellationLocalPostgresTest {
     }
 
     @Test
+    void legacyCheckoutStoresCanonicalNamesWithoutManufacturingQuoteMetadata() {
+        Fixture data=seed();
+        UUID order=place(data,List.of(line(data.trackedProduct())));
+        assertEquals(1,jdbc.queryForObject("""
+                SELECT count(*) FROM public.orders WHERE id=?
+                  AND delivery_township_name='Tamwe' AND delivery_region_name='Yangon Region'
+                  AND delivery_district_name='East Yangon' AND delivery_township_id IS NOT NULL
+                  AND delivery_city IS NULL AND delivery_township IS NULL
+                  AND delivery_location_source IS NULL AND delivery_checkout_key IS NULL
+                """,Integer.class,order));
+        var detail=asUser(data.customer(),()->customerOrders.getMyDeliveryOrder(data.restaurant(),data.customer(),order));
+        assertEquals("Tamwe",detail.deliveryTownship());
+        assertEquals("Yangon Region",detail.deliveryCity());
+        assertEquals("East Yangon",detail.deliveryDistrictName());
+        assertThrows(DataIntegrityViolationException.class,()->jdbc.update(
+                "UPDATE public.orders SET delivery_township_name='Changed' WHERE id=?",order));
+    }
+
+    @Test
     void tableQrAndStaffOrdersUseTheSameCounterPaymentDisposition() {
         Fixture data = seed();
         UUID table = UUID.randomUUID();
@@ -208,10 +227,15 @@ class DeliveryCancellationLocalPostgresTest {
         UUID payment = jdbc.queryForObject("SELECT id FROM public.payments WHERE order_id = ?", UUID.class, order);
         var begin = new CountDownLatch(1);
         String collection;
+        String cancellation;
         try (var workers = Executors.newFixedThreadPool(2)) {
             var cancel = workers.submit(() -> {
                 assertTrue(begin.await(10, TimeUnit.SECONDS));
-                return changeStatus(data, order, "CANCELLED", null);
+                try {
+                    return changeStatus(data, order, "CANCELLED", null);
+                } catch (ApiException error) {
+                    return error.getCode();
+                }
             });
             var collect = workers.submit(() -> {
                 assertTrue(begin.await(10, TimeUnit.SECONDS));
@@ -223,19 +247,22 @@ class DeliveryCancellationLocalPostgresTest {
                 }
             });
             begin.countDown();
-            assertEquals("CANCELLED", cancel.get(15, TimeUnit.SECONDS));
+            cancellation = cancel.get(15, TimeUnit.SECONDS);
             collection = collect.get(15, TimeUnit.SECONDS);
         }
         assertTrue(Set.of("PAID", "CANCELLED_ORDER_PAYMENT").contains(collection));
+        assertEquals("PAID".equals(collection) ? "REFUND_REQUIRED" : "CANCELLED", cancellation);
         assertEquals("PAID".equals(collection) ? "PAID" : "CANCELLED", paymentStatus(order));
         assertEquals("PAID".equals(collection) ? data.manager() : null,
                 jdbc.queryForObject("SELECT collected_by_user_id FROM public.payments WHERE id = ?", UUID.class, payment));
-        assertEquals(1, jdbc.queryForObject("""
+        assertEquals("PAID".equals(collection) ? 0 : 1, jdbc.queryForObject("""
                 SELECT count(*) FROM public.order_status_history WHERE order_id = ? AND status = 'CANCELLED'
                 """, Integer.class, order));
-        assertEquals("CANCELLED_ORDER_PAYMENT", assertThrows(ApiException.class, () ->
-                asUser(data.manager(), () -> payments.collectCashAtCounter(data.restaurant(), order, payment, data.manager())))
-                .getCode());
+        if (!"PAID".equals(collection)) {
+            assertEquals("CANCELLED_ORDER_PAYMENT", assertThrows(ApiException.class, () ->
+                    asUser(data.manager(), () -> payments.collectCashAtCounter(data.restaurant(), order, payment, data.manager())))
+                    .getCode());
+        }
     }
 
     @ParameterizedTest
@@ -371,7 +398,7 @@ class DeliveryCancellationLocalPostgresTest {
                 INSERT INTO public.customer_addresses(id, user_id, label, street, township, city)
                 VALUES (?, ?, 'Home', 'Home Street', 'Tamwe', 'Yangon')
                 """, data.address(), data.customer());
-        jdbc.update("INSERT INTO public.delivery_zones(id, restaurant_id, name, delivery_fee) VALUES (?, ?, 'Local', 300)",
+        jdbc.update("INSERT INTO public.delivery_zones(id, restaurant_id, name, delivery_fee,region_id,district_id,township_id) SELECT ?, ?, 'Local', 300,d.region_id,d.id,t.id FROM public.geo_townships t JOIN public.geo_districts d ON d.id=t.district_id WHERE t.code='carenet-v1-township-290'",
                 data.zone(), data.restaurant());
         jdbc.update("INSERT INTO public.categories(id, restaurant_id, name) VALUES (?, ?, 'Drinks')",
                 data.category(), data.restaurant());
@@ -395,7 +422,8 @@ class DeliveryCancellationLocalPostgresTest {
 
     private String changeStatus(Fixture data, UUID order, String status, String note) {
         return asUser(data.manager(), () -> managerOrders.updateStatus(data.restaurant(), order,
-                data.manager(), new UpdateOrderStatusRequest(status, note)).status());
+                data.manager(), new UpdateOrderStatusRequest(status,
+                        "CANCELLED".equals(status) && note == null ? "Operational cancellation requested" : note)).status());
     }
 
     private Integer stock(UUID product) {

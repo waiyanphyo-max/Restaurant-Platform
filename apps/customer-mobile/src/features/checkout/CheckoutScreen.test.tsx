@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CustomerAddressResponse, DeliveryQuoteRequest } from "@restaurant-platform/shared-types";
+import type { CustomerAddressResponse, DeliveryQuoteRequest, DeliveryQuoteResponse } from "@restaurant-platform/shared-types";
+import { ApiHttpError } from "@restaurant-platform/api-client";
 import type { CustomerAccount } from "../profile/AccountProvider";
 import type { CheckoutAttempt } from "./CheckoutProvider";
 import type { QueryState } from "../../hooks/useApiQuery";
@@ -9,6 +10,7 @@ const harness = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], state: 0, ref: 0,
   quote: vi.fn(), submit: vi.fn(), abandon: vi.fn(), reset: vi.fn(), locate: vi.fn(), reloadZones: vi.fn(), map: true, language: "en",
   zoneState: { status: "loading" } as QueryState<unknown[]>,
+  addresses: null as CustomerAddressResponse[] | null,
   checkoutState: { status: "idle" } as { status: "idle" } | { status: "uncertain"; attempt: CheckoutAttempt }
 }));
 vi.mock("react", async load => ({
@@ -32,6 +34,7 @@ vi.mock("../../i18n", () => ({ useCustomerLanguage: () => harness.language, useC
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => ({ mapsConfigured: harness.map, branding: { displayName: "Restaurant" } }) }));
 vi.mock("../../api", () => ({ getCustomerApi: () => ({ quoteDelivery: harness.quote }) }));
 vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: () => ({ state: harness.zoneState, reload: harness.reloadZones }) }));
+vi.mock("../../components/LocationSelector", () => ({ LocationSelector: "LocationSelector" }));
 vi.mock("../addresses/AddressMap", () => ({ AddressMap: "AddressMap" }));
 vi.mock("../addresses/DestinationPin", () => ({ DestinationPin: "DestinationPin" }));
 vi.mock("../addresses/native-location", () => ({ suggestCurrentLocation: harness.locate }));
@@ -46,7 +49,7 @@ import { LocationSelectionError, type Coordinates, type PinSelection } from "../
 import { CheckoutScreen } from "./CheckoutScreen";
 import { normalizeRecipientPhone } from "./destination";
 
-const home = Object.freeze<CustomerAddressResponse>({ id: "home", label: "Home", recipientName: "Customer", houseNo: "12",
+const home = Object.freeze<CustomerAddressResponse>({ regionId: "region", districtId: "district", townshipId: "township", regionName: "Yangon", districtName: "East Yangon", id: "home", label: "Home", recipientName: "Customer", houseNo: "12",
   street: "Main Rd", ward: "Ward 1", township: "Tamwe", city: "Yangon", latitude: 16.8, longitude: 96.1, deliveryNote: "Home gate",
   isDefault: true, createdAt: "", updatedAt: "" });
 const work = { ...home, id: "work", label: "Work", isDefault: false, deliveryNote: "Office" };
@@ -57,7 +60,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
 function render() {
   harness.state = 0; harness.ref = 0;
-  return CheckoutScreen({ account, onCart: vi.fn(), onOrders: vi.fn(), onOrder: vi.fn() });
+  return CheckoutScreen({ account: { ...account, addresses: harness.addresses ?? account.addresses }, onCart: vi.fn(), onOrders: vi.fn(), onOrder: vi.fn() });
 }
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
@@ -82,10 +85,13 @@ function map() {
   };
 }
 
+function chooseLocation(township = "Tamwe") {
+  const selector = elements(render()).find(item => item.type === "LocationSelector")!;
+  (selector.props.onChange as (value: unknown) => void)({ regionId: "region", districtId: "district", townshipId: "township", regionName: "Yangon", districtName: "East Yangon", township });
+}
 function fillAddress() {
-  field("Full address (building, floor, street and ward)", "5 Friend Street");
-  field("Township or area", "Tamwe");
-  field("City", "Yangon");
+  field("Street", "5 Friend Street");
+  chooseLocation();
   field("Landmark or delivery instructions", "Blue door");
 }
 
@@ -93,11 +99,15 @@ describe("customer checkout destination selection", () => {
   beforeEach(() => {
     harness.states = []; harness.refs = []; harness.map = true; harness.language = "en";
     harness.zoneState = { status: "loading" };
+    harness.addresses = null;
     harness.checkoutState = { status: "idle" };
     vi.resetAllMocks();
     harness.quote.mockImplementation(async (request: DeliveryQuoteRequest) => ({
       confirmationToken: "server-quote", idempotencyKey: "server-key", totalAmount: 8500,
-      destination: { address: request.temporaryDestination?.address ?? "12 Main Rd" }
+      restaurantName: "Restaurant", currency: "MMK", subtotal: 7500, deliveryFee: 1000, discountAmount: 0, lines: [],
+      destination: { address: request.temporaryDestination?.address ?? "12 Main Rd", city: "Yangon", township: "Tamwe",
+        recipientName: request.recipientName, recipientPhone: request.recipientPhone, deliveryNote: request.deliveryNote,
+        latitude: request.temporaryDestination?.latitude ?? null, longitude: request.temporaryDestination?.longitude ?? null }
     }));
   });
 
@@ -151,7 +161,7 @@ describe("customer checkout destination selection", () => {
 
   it("explains an invalid recipient phone before requesting a quote", () => {
     field("Contact phone", "call-me");
-    press("Check delivery and review total");
+    expect(elements(render()).find(element => element.props.title === "Check delivery and review total")?.props.disabled).toBe(true);
     expect(harness.quote).not.toHaveBeenCalled();
     expect(elements(render()).find(element => element.props.accessibilityRole === "alert")?.props.children)
       .toContain("Enter a Myanmar phone number");
@@ -178,7 +188,7 @@ describe("customer checkout destination selection", () => {
     await tick();
     const request = harness.quote.mock.calls[0][0];
     expect(request.addressId).toBeUndefined();
-    expect(request.temporaryDestination).toEqual({ ...point, source: "MANUAL_MAP", address: "5 Friend Street", city: "Yangon", township: "Tamwe" });
+    expect(request.temporaryDestination).toEqual({ ...point, source: "MANUAL_MAP", address: "5 Friend Street", city: "Yangon", township: "Tamwe", regionId: "region", districtId: "district", townshipId: "township", ward: null, street: "5 Friend Street", houseNo: null });
     expect(request.deliveryNote).toBe("Blue door");
     expect(home).toMatchObject({ latitude: 16.8, longitude: 96.1, isDefault: true, deliveryNote: "Home gate" });
   });
@@ -209,15 +219,70 @@ describe("customer checkout destination selection", () => {
     expect(harness.quote.mock.calls[0][0].temporaryDestination.source).toBe("MANUAL_MAP");
   });
 
-  it("disables map actions when Maps is unavailable and keeps saved address checkout in Burmese", async () => {
+  it("hides map actions when Maps is unavailable and keeps saved address checkout in Burmese", async () => {
     harness.language = "my-MM";
     harness.map = false;
     const tree = elements(render());
-    expect(tree.find(el => el.props.title === "မြေပုံပေါ်တွင် နေရာအသစ်ရွေးရန်")?.props.disabled).toBe(true);
-    expect(tree.find(el => el.props.title === "လက်ရှိတည်နေရာ သုံးရန်")?.props.disabled).toBe(true);
+    expect(tree.find(el => el.props.title === "မြေပုံပေါ်တွင် နေရာအသစ်ရွေးရန်")).toBeUndefined();
+    expect(tree.find(el => el.props.title === "လက်ရှိတည်နေရာ သုံးရန်")).toBeUndefined();
     press("ပို့ဆောင်နိုင်မှုနှင့် စုစုပေါင်းငွေ စစ်ရန်");
     await tick();
     expect(harness.quote.mock.calls[0][0]).toMatchObject({ addressId: "home" });
+  });
+
+  it("quotes a saved text address with Maps disabled without requesting GPS", async () => {
+    harness.map = false;
+    harness.addresses = [{ ...home, latitude: null, longitude: null }];
+    press("Check delivery and review total"); await tick();
+    expect(harness.quote).toHaveBeenCalledWith(expect.objectContaining({ addressId: "home" }), expect.anything());
+    expect(harness.locate).not.toHaveBeenCalled();
+    expect(elements(render()).some(element => element.type === "AddressMap")).toBe(false);
+  });
+
+  it("completes text-only quote, review and COD confirmation using a configured area with Maps disabled", async () => {
+    harness.map = false;
+    harness.addresses = [];
+    harness.zoneState = { status: "ready", data: [
+      { coverageCity: "Yangon", coverageTownship: "Tamwe" },
+      { coverageCity: null, coverageTownship: null }, { coverageCity: "Yangon", coverageTownship: null }
+    ] };
+    expect(elements(render()).find(element => element.props.title === "Check delivery and review total")?.props.disabled).toBe(true);
+    field("Street", "5 Friend Street");
+    field("Ward / Neighborhood", "Ward 2");
+    field("House / Building / Floor / Room", "Room 4");
+    chooseLocation();
+    field("Landmark or delivery instructions", "Blue door");
+    expect(elements(render()).some(element => element.props.label === "City")).toBe(false);
+    expect(elements(render()).find(element => element.type === "LocationSelector")?.props.value).toMatchObject({ townshipId: "township" });
+    press("Check delivery and review total"); await tick();
+    const request = harness.quote.mock.calls[0][0];
+    expect(request.temporaryDestination).toEqual({ source: "MANUAL_TEXT", address: "Room 4, 5 Friend Street, Ward 2", city: "Yangon", township: "Tamwe", regionId: "region", districtId: "district", townshipId: "township", ward: "Ward 2", street: "5 Friend Street", houseNo: "Room 4" });
+    expect(request.addressId).toBeUndefined();
+    const review = elements(render()).find(element => element.props.quote)!;
+    const reviewTree = (review.type as (props: { quote: DeliveryQuoteResponse; onSubmit(): void; onChange(): void }) => ReactNode)(review.props as never);
+    expect(elements(reviewTree).some(element => String(element.props.children).includes("Geographic proximity has not been verified"))).toBe(true);
+    expect(elements(reviewTree).some(element => element.props.children === "Cash on delivery")).toBe(true);
+    expect(elements(reviewTree).find(element => element.props.title === "Confirm and place order")).toBeDefined();
+    (review.props.onSubmit as () => void)();
+    expect(harness.submit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ body: { ...request, confirmationToken: "server-quote" } }));
+    expect(harness.locate).not.toHaveBeenCalled();
+    expect(elements(reviewTree).some(element => element.props.children instanceof Array && element.props.children.join("").includes("Tamwe,"))).toBe(true);
+  });
+
+  it("offers text entry even when Maps is configured", async () => {
+    press("Enter a text delivery address");
+    fillAddress();
+    press("Check delivery and review total"); await tick();
+    expect(harness.quote.mock.calls[0][0].temporaryDestination.source).toBe("MANUAL_TEXT");
+    expect(harness.locate).not.toHaveBeenCalled();
+  });
+
+  it("shows the authoritative rejection for an unsupported text City and Township", async () => {
+    harness.quote.mockRejectedValue(new ApiHttpError(400, "DELIVERY_ADDRESS_OUTSIDE_ZONE"));
+    press("Enter a text delivery address"); fillAddress(); chooseLocation("Unsupported");
+    press("Check delivery and review total"); await tick();
+    expect(elements(render()).find(element => element.props.accessibilityRole === "alert")?.props.children).toContain("Delivery is unavailable");
+    expect(harness.submit).not.toHaveBeenCalled();
   });
 });
 

@@ -21,14 +21,16 @@ public class DeliveryZoneManagementService {
     private final DeliveryZoneRepository zoneRepository;
     private final RestaurantSettingsRepository settingsRepository;
     private final RestaurantAuthorization authorization;
+    private final GeographicLocationService locations;
 
     public DeliveryZoneManagementService(
             DeliveryZoneRepository zoneRepository,
             RestaurantSettingsRepository settingsRepository,
-            RestaurantAuthorization authorization) {
+            RestaurantAuthorization authorization, GeographicLocationService locations) {
         this.zoneRepository = zoneRepository;
         this.settingsRepository = settingsRepository;
         this.authorization = authorization;
+        this.locations = locations;
     }
 
     @Transactional(readOnly = true)
@@ -105,16 +107,18 @@ public class DeliveryZoneManagementService {
 
     private void applyCoverage(
             DeliveryZone zone, DeliveryZoneRequest request, boolean creating) {
-        if (!creating && request.coverageCity() == null && request.coverageTownship() == null) {
+        if (!creating && request.coverageCity() == null && request.coverageTownship() == null
+                && request.regionId() == null && request.districtId() == null && request.townshipId() == null) {
             return;
         }
-        if (request.coverageCity() == null || request.coverageCity().isBlank()) {
-            zone.setCoverageCity(null);
-            zone.setCoverageTownship(null);
-            return;
-        }
-        zone.setCoverageCity(request.coverageCity().trim());
-        zone.setCoverageTownship(request.coverageTownship().trim());
+        var location=locations.resolve(request.regionId(),request.districtId(),request.townshipId(),request.coverageCity(),request.coverageTownship());
+        zone.setRegionId(location.regionId());
+        zone.setDistrictId(location.districtId());
+        zone.setTownshipId(location.townshipId());
+        zone.setRegionName(location.regionName());
+        zone.setDistrictName(location.districtName());
+        zone.setCoverageCity(location.regionName());
+        zone.setCoverageTownship(location.townshipName());
     }
 
     private void requireSettingsPermission(UUID restaurantId, UUID userId) {
@@ -135,6 +139,6 @@ public class DeliveryZoneManagementService {
                 zone.getId(), zone.getRestaurantId(), zone.getName(),
                 zone.getDeliveryFee(), zone.getMinimumOrder(),
                 Boolean.TRUE.equals(zone.getIsActive()),
-                zone.getCoverageCity(), zone.getCoverageTownship());
+                zone.getCoverageCity(), zone.getCoverageTownship(),zone.getRegionId(),zone.getDistrictId(),zone.getTownshipId(),zone.getRegionName(),zone.getDistrictName());
     }
 }

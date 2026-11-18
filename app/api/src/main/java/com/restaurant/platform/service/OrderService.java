@@ -48,6 +48,10 @@ public class OrderService {
     private final NamedParameterJdbcTemplate jdbc;
     private final QrOrderIdempotencyService qrOrderIdempotencyService;
     private AccountingSupport accounting;
+    private GeographicLocationService locations;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setGeographicLocationService(GeographicLocationService locations) { this.locations=locations; }
 
     @org.springframework.beans.factory.annotation.Autowired
     public void setAccountingSupport(AccountingSupport accounting) { this.accounting = accounting; }
@@ -142,7 +146,8 @@ public class OrderService {
                 .map(zone -> new DeliveryZoneDto(
                         zone.getId(), zone.getName(),
                         zone.getDeliveryFee(), zone.getMinimumOrder(),
-                        zone.getCoverageCity(), zone.getCoverageTownship()))
+                        zone.getCoverageCity(), zone.getCoverageTownship(),
+                        zone.getRegionId(),zone.getDistrictId(),zone.getTownshipId(),zone.getRegionName(),zone.getDistrictName()))
                 .toList();
     }
 
@@ -380,9 +385,14 @@ public class OrderService {
         }
 
         GeoCoordinates coordinates = new GeoCoordinates(address.getLatitude(), address.getLongitude());
-        var destination = new CustomerDeliveryQuote.Destination(null, null, formatAddress(address),
-                null, null, coordinates.latitude(), coordinates.longitude(), recipientName, recipientPhone,
-                firstNonBlank(request.deliveryNote(), address.getDeliveryNote()));
+        var location=locations.resolve(address.getRegionId(),address.getDistrictId(),address.getTownshipId(),address.getCity(),address.getTownship());
+        String canonicalAddress=java.util.stream.Stream.of(address.getHouseNo(),address.getStreet(),address.getWard(),
+                location.townshipName(),location.districtName(),location.regionName()).filter(value->value!=null&&!value.isBlank())
+                .map(String::trim).collect(java.util.stream.Collectors.joining(", "));
+        var destination = new CustomerDeliveryQuote.Destination(null, null, canonicalAddress,
+                location.regionName(), location.townshipName(), coordinates.latitude(), coordinates.longitude(), recipientName, recipientPhone,
+                firstNonBlank(request.deliveryNote(), address.getDeliveryNote()),location.regionId(),location.districtId(),location.townshipId(),
+                location.regionName(),location.districtName(),address.getWard(),address.getStreet(),address.getHouseNo());
         Order order = saveDeliveryOrder(restaurantId, userId, plan, destination, null, null);
         return deliveryReceipt(order, settings.getCurrency());
     }
@@ -490,6 +500,15 @@ public class OrderService {
         order.setDeliveryLatitude(destination.latitude());
         order.setDeliveryLongitude(destination.longitude());
         order.setDeliveryNote(destination.deliveryNote());
+        order.setDeliveryRegionId(destination.regionId());
+        order.setDeliveryDistrictId(destination.districtId());
+        order.setDeliveryTownshipId(destination.townshipId());
+        order.setDeliveryRegionName(destination.regionName());
+        order.setDeliveryDistrictName(destination.districtName());
+        order.setDeliveryTownshipName(destination.township());
+        order.setDeliveryWard(destination.ward());
+        order.setDeliveryStreet(destination.street());
+        order.setDeliveryHouseNo(destination.houseNo());
         if (checkoutKey != null) {
             order.setDeliveryAddressId(destination.addressId());
             order.setDeliveryCity(destination.city());
@@ -572,34 +591,20 @@ public class OrderService {
     }
 
     private void validateDeliveryZoneCoverage(CustomerAddress address, DeliveryZone zone) {
-        String requiredCity = zone.getCoverageCity();
-        String requiredTownship = zone.getCoverageTownship();
-        if (requiredCity == null && requiredTownship == null) {
-            // Existing zones stay broadly available until coverage is configured.
-            return;
-        }
-
-        if (address.getCity() == null || address.getCity().isBlank()
-                || address.getTownship() == null || address.getTownship().isBlank()) {
+        if (address.getRegionId()==null && address.getDistrictId()==null && address.getTownshipId()==null
+                && (firstNonBlank(address.getCity())==null || firstNonBlank(address.getTownship())==null))
+            throw new ApiException(HttpStatus.BAD_REQUEST,"DELIVERY_ADDRESS_LOCATION_REQUIRED","error.delivery.address-location-required");
+        if (zone.getTownshipId()==null) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "DELIVERY_ADDRESS_LOCATION_REQUIRED",
-                    "error.delivery.address-location-required");
+                    "CANONICAL_LOCATION_REQUIRED","error.location.canonical-required");
         }
 
-        if (!deliveryZoneCovers(zone, address.getCity(), address.getTownship())) {
+        var location=locations.resolve(address.getRegionId(),address.getDistrictId(),address.getTownshipId(),address.getCity(),address.getTownship());
+        if (!location.townshipId().equals(zone.getTownshipId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "DELIVERY_ADDRESS_OUTSIDE_ZONE",
                     "error.delivery.address-outside-zone");
         }
-    }
-
-    static boolean deliveryZoneCovers(DeliveryZone zone, String city, String township) {
-        String requiredCity = zone.getCoverageCity();
-        String requiredTownship = zone.getCoverageTownship();
-        return (requiredCity == null && requiredTownship == null)
-                || (requiredCity != null && requiredTownship != null
-                && requiredCity.trim().equalsIgnoreCase(city.trim())
-                && requiredTownship.trim().equalsIgnoreCase(township.trim()));
     }
 
     static String firstNonBlank(String... values) {

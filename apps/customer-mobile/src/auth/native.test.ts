@@ -18,7 +18,8 @@ vi.mock("react-native", () => ({
 vi.mock("expo-secure-store", () => ({ getItemAsync: sdk.get, setItemAsync: sdk.set, deleteItemAsync: sdk.remove }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: sdk.create, processLock: sdk.lock }));
 vi.mock("../tenant", () => ({ readEmbeddedTenant: () => ({
-  environment: "development", restaurantId: "restaurant-fixture", phoneOtpRequested: false
+  environment: "development", restaurantId: "restaurant-fixture", phoneOtpRequested: false,
+  slug: "cafe-one", guestBaseUrl: "https://guest.cafeone.com", routing: { scheme: "rp-cafe-one-customer-development" }
 }) }));
 
 const email = "customer@example.test";
@@ -36,6 +37,7 @@ beforeEach(() => {
   vi.stubEnv("EXPO_PUBLIC_CUSTOMER_EMAIL_OTP_RECOVERY_ENABLED", "true");
   vi.stubEnv("EXPO_PUBLIC_CUSTOMER_PASSWORD_MIN_LENGTH", "8");
   vi.stubEnv("EXPO_PUBLIC_CUSTOMER_PASSWORD_REQUIREMENTS", "");
+  vi.stubEnv("EXPO_PUBLIC_CUSTOMER_CONFIRMATION_URL", "");
   sdk.get.mockImplementation(async (key: string) => sdk.values.get(key) ?? null);
   sdk.set.mockImplementation(async (key: string, value: string) => { sdk.values.set(key, value); });
   sdk.remove.mockImplementation(async (key: string) => { sdk.values.delete(key); });
@@ -86,7 +88,7 @@ describe("customer Supabase native adapter", () => {
   it("keeps a confirmation-required signup signed out and passes only normalized email/password to Auth", async () => {
     const current = await auth();
     await expect(current.signUpWithPassword(" Customer@Example.test ", password)).resolves.toEqual({ authenticated: false });
-    expect(sdk.signUp).toHaveBeenCalledExactlyOnceWith({ email, password });
+    expect(sdk.signUp).toHaveBeenCalledExactlyOnceWith({ email, password, options: { emailRedirectTo: "rp-cafe-one-customer-development://email-confirmation" } });
     expect(current.getSnapshot()).toEqual({ status: "signed_out" });
   });
 
@@ -157,7 +159,37 @@ describe("customer Supabase native adapter", () => {
   it("uses the supported signup resend API while remaining signed out", async () => {
     const current = await auth();
     await current.resendConfirmation(email);
-    expect(sdk.resend).toHaveBeenCalledExactlyOnceWith({ type: "signup", email });
+    expect(sdk.resend).toHaveBeenCalledExactlyOnceWith({ type: "signup", email, options: { emailRedirectTo: "rp-cafe-one-customer-development://email-confirmation" } });
     expect(current.getSnapshot().status).toBe("signed_out");
+  });
+
+  it("uses the same reviewed HTTPS destination for initial and resent confirmation", async () => {
+    const callback = "https://guest.cafeone.com/auth/customer-confirmation/development/cafe-one";
+    vi.stubEnv("EXPO_PUBLIC_CUSTOMER_CONFIRMATION_URL", callback);
+    const current = await auth();
+    await current.signUpWithPassword(email, password);
+    await current.resendConfirmation(email);
+    expect(sdk.signUp).toHaveBeenCalledWith({ email, password, options: { emailRedirectTo: callback } });
+    expect(sdk.resend).toHaveBeenCalledWith({ type: "signup", email, options: { emailRedirectTo: callback } });
+  });
+
+  it("rejects an unauthorized confirmation host before signup or resend", async () => {
+    vi.stubEnv("EXPO_PUBLIC_CUSTOMER_CONFIRMATION_URL", "https://attacker.net/auth/customer-confirmation/development/cafe-one");
+    const current = await auth();
+    await expect(current.signUpWithPassword(email, password)).rejects.toThrow("reviewed stable tenant");
+    await expect(current.resendConfirmation(email)).rejects.toThrow("reviewed stable tenant");
+    expect(sdk.signUp).not.toHaveBeenCalled(); expect(sdk.resend).not.toHaveBeenCalled();
+  });
+
+  it("verifies signup in an isolated client and leaves the shopping session signed out", async () => {
+    const current = await auth();
+    sdk.verifyRecovery.mockResolvedValue({ data: { user: { ...session.user, email_confirmed_at: "2026-11-16T00:00:00Z" }, session }, error: null });
+    const { confirmCustomerEmail } = await import("./native");
+    expect(await confirmCustomerEmail({ kind: "token-hash", tokenHash: "synthetic-confirmation-hash" })).toBe("confirmed");
+    expect(sdk.create.mock.calls[1][2].auth).toEqual({ persistSession: false, autoRefreshToken: false, detectSessionInUrl: false });
+    expect(sdk.verifyRecovery).toHaveBeenCalledWith({ token_hash: "synthetic-confirmation-hash", type: "email" });
+    expect(sdk.recoverySignOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(current.getSnapshot()).toEqual({ status: "signed_out" });
+    expect(sdk.signIn).not.toHaveBeenCalled(); expect(sdk.set).not.toHaveBeenCalled();
   });
 });

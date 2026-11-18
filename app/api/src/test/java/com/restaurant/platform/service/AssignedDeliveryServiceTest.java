@@ -106,6 +106,24 @@ class AssignedDeliveryServiceTest {
         assertNull(detail.destination().longitude());
     }
 
+    @Test
+    void textOnlyAssignedDeliveryRetainsTheFullRecipientAndAreaWithoutNavigationCoordinates() {
+        givenAssignedWorker(RestaurantRole.DELIVERY_DRIVER);
+        order.setDeliveryLocationSource("MANUAL_TEXT");
+        order.setDeliveryName("Recipient");
+        order.setDeliveryCity("Yangon");
+        order.setDeliveryTownship("Tamwe");
+        var detail = service.getDetail(restaurantId, deliveryId);
+        assertEquals("Confirmed order address", detail.task().deliveryAddress());
+        assertEquals("Yangon", detail.task().deliveryCity());
+        assertEquals("Tamwe", detail.task().deliveryTownship());
+        assertEquals("Recipient", detail.task().customerName());
+        assertEquals("Recipient phone", detail.task().customerPhone());
+        assertEquals("Ring bell", detail.task().deliveryNote());
+        assertNull(detail.destination().latitude());
+        assertNull(detail.destination().longitude());
+    }
+
     @ParameterizedTest
     @EnumSource(RestaurantRole.class)
     void unassignedMemberCannotLoadLocationEvenWithManagementPermissions(RestaurantRole role) {

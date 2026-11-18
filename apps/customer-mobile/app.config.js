@@ -22,6 +22,7 @@ module.exports = createAndroidExpoConfig("customer", __dirname, (_selected, env)
       blockedPermissions: ["android.permission.ACCESS_BACKGROUND_LOCATION", "android.permission.FOREGROUND_SERVICE_LOCATION"]
     },
     extra: {
+      customerConfirmationUrl: env.EXPO_PUBLIC_CUSTOMER_CONFIRMATION_URL || null,
       mapsConfigured,
       ...(region ? { initialMapRegion: region } : {}),
       features: {

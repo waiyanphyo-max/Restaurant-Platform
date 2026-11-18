@@ -3,6 +3,7 @@ import { Text } from "react-native";
 import type { CustomerAddressResponse, DeliveryQuoteResponse } from "@restaurant-platform/shared-types";
 import { getCustomerApi } from "../../api";
 import { Action, Body, Card, FormField, Page, StateView } from "../../components/ui";
+import { LocationSelector } from "../../components/LocationSelector";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { apiFailureMessage } from "../../hooks/apiFailure";
 import { useCustomerLanguage, useCustomerText } from "../../i18n";
@@ -15,8 +16,7 @@ import { suggestCurrentLocation } from "../addresses/native-location";
 import { useCustomerCart } from "../cart/CartProvider";
 import type { CustomerAccount } from "../profile/AccountProvider";
 import { useCustomerCheckout, type CheckoutAttempt } from "./CheckoutProvider";
-import { addressText, checkoutError, defaultAddress, invalidRecipientPhoneMessage, normalizeRecipientPhone,
-  quoteRequest, type DestinationDetails } from "./destination";
+import { addressText, checkoutError, defaultAddress, destinationProblem, quoteRequest, type DestinationDetails } from "./destination";
 
 export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   account: CustomerAccount;
@@ -33,7 +33,7 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   const { state: zoneState, reload: reloadZones } = useApiQuery(signal => getCustomerApi().getDeliveryZones({ signal }), "checkout-zones");
   const [addressId, setAddressId] = useState(() => defaultAddress(addresses)?.id);
   const saved = addresses.find(address => address.id === addressId);
-  const [temporary, setTemporary] = useState(false);
+  const [temporary, setTemporary] = useState(() => !addresses.length);
   const [pin, setPin] = useState(emptyPin);
   const [draftPin, setDraftPin] = useState(emptyPin);
   const [mapOpen, setMapOpen] = useState(false);
@@ -48,8 +48,9 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   useEffect(() => () => { gps.current++; quoteInFlight.current?.abort(); }, []);
 
   function contact(address?: CustomerAddressResponse): DestinationDetails {
-    return { recipientName: address?.recipientName || profile.fullName || "", recipientPhone: profile.phone || "",
-      deliveryNote: address?.deliveryNote ?? "", address: "", township: "", city: "" };
+    return { recipientName: address?.recipientName || profile.fullName || "", recipientPhone: address?.recipientPhone || profile.phone || "",
+      deliveryNote: address?.deliveryNote ?? "", address: "", township: "", city: "", ward: "", street: "", houseNo: "",
+      regionId: "", districtId: "", townshipId: "", regionName: "", districtName: "" };
   }
 
   function resetReview() { setReview(null); setError(null); checkout.reset(); }
@@ -67,8 +68,16 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
     resetReview();
     setDetails(previous => ({ ...previous, [field]: value }));
   }
+  function useTextAddress() {
+    resetReview();
+    if (!temporary) setDetails(contact());
+    setTemporary(true);
+    setPin(emptyPin);
+    closeMap();
+  }
 
   function openMap() {
+    if (!tenant.mapsConfigured || quoting) return;
     setNotice(null);
     setDraftPin(temporary && pin.coordinates ? selectPin(pin.coordinates, "map") : emptyPin);
     setMapOpen(true);
@@ -79,6 +88,7 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
     setMapOpen(false);
   }
   async function locate() {
+    if (!tenant.mapsConfigured || quoting) return;
     const generation = ++gps.current;
     setNotice(null);
     setLocating(true);
@@ -115,12 +125,10 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   async function requestQuote() {
     if (quoteInFlight.current) return;
     resetReview();
-    const destination = temporary ? { pin } : saved ? { saved } : null;
+    const destination = temporary ? (pin.coordinates ? { pin } : { text: true as const }) : saved ? { saved } : null;
     const request = destination && quoteRequest(destination, details, cart.items);
     if (!request) {
-      setError(details.recipientPhone.trim() && !normalizeRecipientPhone(details.recipientPhone)
-        ? invalidRecipientPhoneMessage(t)
-        : t("Confirm a valid pin and fill in the delivery address, recipient name and phone.", "မှန်ကန်သော နေရာကို အတည်ပြုပြီး ပို့ဆောင်ရန်လိပ်စာ၊ လက်ခံသူအမည်နှင့် ဖုန်းနံပါတ် ဖြည့်ပါ။"));
+      setError(destinationProblem(destination, details, t));
       return;
     }
     const controller = new AbortController();
@@ -169,7 +177,7 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
     function finish() {
       const initial = defaultAddress(addresses);
       resetReview();
-      setTemporary(false);
+      setTemporary(!addresses.length);
       setPin(emptyPin);
       setDraftPin(emptyPin);
       setAddressId(initial?.id);
@@ -214,10 +222,11 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
   </Card></Page>;
 
   const coordinates = temporary ? pin.coordinates : savedPin(saved).coordinates;
-  const problem = checkout.state.status === "rejected" ? checkoutError(checkout.state.error, t) : error;
-  const areas = zoneState.status === "ready" ? zoneState.data.flatMap(zone =>
-    zone.coverageCity && zone.coverageTownship ? [{ city: zone.coverageCity, township: zone.coverageTownship }] : []) : [];
-  const distinctAreas = [...new Map(areas.map(area => [`${area.city}, ${area.township}`, area])).values()];
+  const destination = temporary ? (pin.coordinates ? { pin } : { text: true as const }) : saved ? { saved } : null;
+  const validation = destinationProblem(destination, details, t);
+  const problem = checkout.state.status === "rejected" ? checkoutError(checkout.state.error, t) : error ?? validation;
+  const areas = zoneState.status === "ready" ? zoneState.data.filter(zone => zone.townshipId) : [];
+  const distinctAreas = [...new Map(areas.map(area => [area.townshipId, area])).values()];
   return <>
     <Page title={title} subtitle={tenant.branding.displayName}>
       {zoneState.status !== "ready" && zoneState.status !== "loading" ? <StateView kind={zoneState.status}
@@ -229,30 +238,33 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
           title={`${t("Use saved address", "သိမ်းထားသည့်လိပ်စာသုံးရန်")} · ${address.label}${address.isDefault ? ` (${t("default", "မူလ")})` : ""}`}
           secondary={temporary || address.id !== addressId} selected={!temporary && address.id === addressId}
           disabled={quoting} onPress={() => useSaved(address)} />)}
-        <Action title={t("Choose another location on map", "မြေပုံပေါ်တွင် နေရာအသစ်ရွေးရန်")}
+        <Action title={t("Enter a text delivery address", "ပို့ဆောင်ရန်လိပ်စာ ကိုယ်တိုင်ဖြည့်ရန်")}
+          secondary={!temporary || !!coordinates} selected={temporary && !coordinates} disabled={quoting} onPress={useTextAddress} />
+        {tenant.mapsConfigured ? <><Action title={t("Choose another location on map", "မြေပုံပေါ်တွင် နေရာအသစ်ရွေးရန်")}
           secondary disabled={!tenant.mapsConfigured || quoting} onPress={openMap} />
         <Action title={t("Use my current location", "လက်ရှိတည်နေရာ သုံးရန်")}
-          secondary disabled={!tenant.mapsConfigured || quoting} onPress={() => { openMap(); void locate(); }} />
-        {!tenant.mapsConfigured ? <Body>{t("Google Maps is unavailable in this build. You can still use a saved address with a confirmed pin.",
-          "ဤအက်ပ်တွင် Google Maps အသုံးမပြုနိုင်ပါ။ နေရာအတည်ပြုထားသော သိမ်းဆည်းပြီးလိပ်စာကို သုံးနိုင်ပါသည်။")}</Body> : null}
+          secondary disabled={!tenant.mapsConfigured || quoting} onPress={() => { openMap(); void locate(); }} /></> :
+          <Body>{t("Enter a text address or use a saved address. No map pin or location permission is needed.",
+            "လိပ်စာကို ကိုယ်တိုင်ဖြည့်ပါ သို့မဟုတ် သိမ်းထားသည့်လိပ်စာကို သုံးပါ။ မြေပုံနေရာ သို့မဟုတ် တည်နေရာအသုံးပြုခွင့် မလိုပါ။")}</Body>}
         {temporary ? <Body>{temporaryLabel}</Body> : saved ? <Body>{addressText(saved)}</Body> : null}
         {coordinates ? <DestinationPin latitude={coordinates.latitude} longitude={coordinates.longitude} language={language} />
-          : saved ? <Body>{t("This address needs a confirmed map pin. Edit it in Profile or choose another location.",
-            "ဤလိပ်စာအတွက် မြေပုံနေရာ အတည်ပြုရန် လိုပါသည်။ ပရိုဖိုင်တွင် ပြင်ပါ သို့မဟုတ် နေရာအသစ်ရွေးပါ။")}</Body> : null}
+          : <Body>{t("Text address · no navigation coordinates. Township coverage is preliminary; the restaurant reviews the detailed address before accepting.",
+            "စာသားလိပ်စာ · လမ်းညွှန်တည်နေရာ မရှိပါ။ မြို့နှင့် မြို့နယ်အလိုက် ပို့ဆောင်နိုင်မှုကို စစ်ဆေးပါမည်။")}</Body>}
+        <Body>{t("Configured delivery areas", "သတ်မှတ်ထားသော ပို့ဆောင်မှု ဧရိယာများ")}</Body>
+        {zoneState.status === "loading" ? <Body>{t("Loading delivery areas…", "ပို့ဆောင်မှုဧရိယာများ ရယူနေပါသည်…")}</Body> : null}
+        {zoneState.status === "ready" && !distinctAreas.length ? <Body>{t("No canonical township delivery areas are configured. Delivery cannot be confirmed until an eligible area is configured.",
+          "မြို့နှင့် မြို့နယ်ပါသော ပို့ဆောင်မှုဧရိယာ မရှိသေးပါ။ ဧရိယာသတ်မှတ်ပြီးမှ ပို့ဆောင်နိုင်မှု အတည်ပြုနိုင်ပါမည်။")}</Body> : null}
+        {distinctAreas.map(area => <Body key={area.townshipId}>{area.coverageTownship}, {area.districtName}, {area.regionName || area.coverageCity}</Body>)}
       </Card>
       {temporary || saved ? <Card title={t("Delivery details", "ပို့ဆောင်မှု အချက်အလက်")}>
         {temporary ? <>
-          <FormField label={t("Full address (building, floor, street and ward)", "လိပ်စာအပြည့်အစုံ (တိုက်၊ အထပ်၊ လမ်းနှင့် ရပ်ကွက်)")}
-            value={details.address} onChangeText={value => update("address", value)} maxLength={500} editable={!quoting} multiline />
-          <FormField label={t("Township or area", "မြို့နယ် သို့မဟုတ် ဧရိယာ")} value={details.township}
-            onChangeText={value => update("township", value)} maxLength={100} editable={!quoting} />
-          <FormField label={t("City", "မြို့")} value={details.city} onChangeText={value => update("city", value)} maxLength={100} editable={!quoting} />
-          {distinctAreas.length ? <Body>{t("Configured delivery areas", "သတ်မှတ်ထားသော ပို့ဆောင်မှု ဧရိယာများ")}</Body> : null}
-          {distinctAreas.map(area => <Action key={`${area.city}, ${area.township}`} title={`${area.township}, ${area.city}`}
-            disabled={quoting} secondary onPress={() => {
-              resetReview();
-              setDetails(previous => ({ ...previous, ...area }));
-            }} />)}
+          <LocationSelector value={{ regionId: details.regionId ?? "", districtId: details.districtId ?? "", townshipId: details.townshipId ?? "",
+            regionName: details.regionName ?? "", districtName: details.districtName ?? "", township: details.township }} disabled={quoting}
+            onChange={location => { resetReview(); setDetails(previous => ({ ...previous, ...location, city: location.regionName })); }} />
+          <FormField label={t("Ward / Neighborhood", "ရပ်ကွက်")} value={details.ward} onChangeText={value => update("ward", value)} maxLength={100} editable={!quoting} />
+          <FormField label={t("Street", "လမ်း")} value={details.street} onChangeText={value => update("street", value)} maxLength={100} editable={!quoting} />
+          <FormField label={t("House / Building / Floor / Room", "အိမ်၊ တိုက်၊ အထပ်၊ အခန်း")} value={details.houseNo}
+            onChangeText={value => update("houseNo", value)} maxLength={50} editable={!quoting} multiline />
         </> : null}
         <FormField label={t("Recipient name", "လက်ခံသူအမည်")} value={details.recipientName}
           onChangeText={value => update("recipientName", value)} maxLength={150} editable={!quoting} />
@@ -263,7 +275,7 @@ export function CheckoutScreen({ account, onCart, onOrder, onOrders }: {
         <Body>{paymentLabel}</Body>
         {problem ? <Text accessibilityRole="alert" style={{ color: "#b91c1c" }}>{problem}</Text> : null}
         <Action title={quoting ? t("Checking delivery…", "ပို့ဆောင်နိုင်မှု စစ်ဆေးနေပါသည်…") : t("Check delivery and review total", "ပို့ဆောင်နိုင်မှုနှင့် စုစုပေါင်းငွေ စစ်ရန်")}
-          disabled={quoting || !coordinates} onPress={() => void requestQuote()} />
+          disabled={quoting || !!validation} onPress={() => void requestQuote()} />
       </Card> : null}
       <Action title={backToCart} secondary onPress={onCart} />
     </Page>
@@ -286,10 +298,13 @@ function QuoteReview({ quote, locationLabel, onSubmit, onChange }: {
     <Body>{quote.restaurantName}</Body>
     {locationLabel ? <Body>{locationLabel}</Body> : null}
     <Body>{destination.address}</Body>
+    <Body>{destination.township}, {destination.districtName}, {destination.regionName || destination.city}</Body>
     <Body>{destination.recipientName} · {destination.recipientPhone}</Body>
     {destination.deliveryNote ? <Body>{destination.deliveryNote}</Body> : null}
     <DestinationPin latitude={destination.latitude} longitude={destination.longitude} language={language} />
-    <Body>{t("Delivery available", "ပို့ဆောင်နိုင်ပါသည်")}</Body>
+    {destination.latitude == null || destination.longitude == null ? <Body>{t("Text address · no navigation coordinates. Geographic proximity has not been verified.",
+      "စာသားလိပ်စာ · လမ်းညွှန်တည်နေရာ မရှိပါ။ ပထဝီအကွာအဝေးကို မစစ်ဆေးထားပါ။")}</Body> : null}
+    <Body>{t("Township coverage confirmed. The restaurant will review your ward, street and building before accepting.", "စားသောက်ဆိုင်မှ လိပ်စာအသေးစိတ်ကို စစ်ဆေးပြီး လက်ခံပါမည်။")}</Body>
     {quote.lines.map((line, index) => <Body key={`${line.productId}:${index}`}>
       {[line.productName, line.variantName, ...line.modifiers.map(option => option.name)].filter(Boolean).join(" · ")} × {line.quantity} · {amount(line.subtotal)}
     </Body>)}

@@ -66,4 +66,22 @@ public class CustomerAddress {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "region_id")
+    private UUID regionId;
+
+    @Column(name = "district_id")
+    private UUID districtId;
+
+    @Column(name = "township_id")
+    private UUID townshipId;
+
+    @Column(name = "region_name", length = 150)
+    private String regionName;
+
+    @Column(name = "district_name", length = 150)
+    private String districtName;
+
+    @Column(name = "recipient_phone", length = 30)
+    private String recipientPhone;
+
 }

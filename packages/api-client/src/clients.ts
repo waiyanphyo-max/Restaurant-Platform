@@ -13,7 +13,7 @@ import type {
   PlatformOwnerInvitationResponse, OwnerOnboardingCompletionResponse,
   PublicMenuResponse, PublicModifierGroupResponse,
   QueueTicketManagerDto, QueueTrackingResponse, RestaurantResponse, SpringPage,
-  UpdateDeliveryStatusRequest, UpdateOrderStatusRequest
+  UpdateDeliveryStatusRequest, UpdateOrderStatusRequest, OrderActionRequest
 } from "@restaurant-platform/shared-types";
 import type {
   CategoryRequest, ProductRequest, ProductVariantRequest, ProductVariantResponse,
@@ -269,6 +269,8 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
       await read<ManagerOrderDetailDto>(transport, orderPath(id), o), restaurantId, "restaurantId"),
     updateOrderStatus: (id: string, body: UpdateOrderStatusRequest, o?: ApiRequestOptions): Promise<OrderSummaryDto> =>
       transport.request({ method: "PATCH", path: `${orderPath(id)}/status`, body, options: o }),
+    executeOrderAction: (id: string, body: OrderActionRequest, o?: ApiRequestOptions): Promise<OrderSummaryDto> =>
+      transport.request({ method: "POST", path: `${orderPath(id)}/actions`, body, options: o }),
     getStaffOrderOptions: (o?: ApiRequestOptions) => read<StaffOrderOptions>(transport, `${prefix}/orders/staff/options`, o),
     createStaffOrder: (body: CreateStaffOrderRequest, o?: ApiRequestOptions): Promise<CreateStaffOrderResponse> =>
       transport.request({ method: "POST", path: `${prefix}/orders/staff`, body, options: o }),
@@ -313,6 +315,7 @@ export function createCustomerApiClient(options: CustomerApiClientOptions) {
     getDeliveryZones: (o?: ApiRequestOptions) => read<DeliveryZoneDto[]>(transport, `${restaurant}/delivery-zones`, o),
     createDeliveryOrder: (body: CreateDeliveryOrderRequest, o?: ApiRequestOptions): Promise<CreateOrderResponse> =>
       transport.request({ method: "POST", path: checkout, body, options: o }),
+    // Forward the destination unchanged: MANUAL_TEXT intentionally has no navigation pin.
     quoteDelivery: async (body: DeliveryQuoteRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
       await transport.request<DeliveryQuoteResponse>({ method: "POST", path: `${checkout}/quote`, body, options: o }),
       restaurantId, "restaurantId"),
