@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,11 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, UUID> {
     long countByIsActiveFalse();
 
     Optional<Restaurant> findByIdAndIsActiveTrue(UUID id);
+
+    /** Serializes palette writes, including two concurrent attempts to create the first row. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Restaurant r where r.id = :id and r.isActive = true")
+    Optional<Restaurant> findActiveForBrandingUpdate(@Param("id") UUID id);
 
     @Modifying
     @Transactional

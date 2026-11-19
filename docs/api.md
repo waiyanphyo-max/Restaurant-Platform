@@ -14,6 +14,49 @@ The token must have a valid signature under the configured JWKS key/algorithm, t
 
 Restaurant permissions are resolved from `restaurant_members` for the authenticated subject and the `restaurantId` in the route. A client-supplied user ID is not accepted as proof of identity.
 
+## Runtime restaurant branding (UXI-02)
+
+| Method | Route | Authorization |
+|---|---|---|
+| GET | `/api/v1/public/restaurants/{restaurantId}/branding` | Public; active restaurant only |
+| PUT | `/api/v1/restaurants/{restaurantId}/branding` | JWT subject's Owner/Manager membership; `SETTINGS_MANAGE` |
+| POST | `/api/v1/platform/restaurants/{restaurantId}/branding` | Existing server UUID platform-admin allowlist; initialize once |
+
+All three return only this public DTO (the example UUID is synthetic):
+
+```json
+{
+  "restaurantId": "00000000-0000-0000-0000-000000000010",
+  "displayName": "Example Restaurant",
+  "logoUrl": "https://media.example.test/approved-logo.png",
+  "palette": { "primaryColor": "#184F91", "secondaryColor": "#DDEEFF", "backgroundColor": "#F4FAFF" },
+  "revision": 1
+}
+```
+
+`displayName`/`logoUrl` project the existing canonical restaurant name/logo. The logo projection accepts absolute HTTPS without user info or fragments; the only permitted query is the existing upload workflow's `v=<UUID>` cache-buster. Unsafe legacy URLs become `null`, including signed/token query URLs. No private settings, membership, owner, QR, financial or deployment fields are included. `restaurant_runtime_branding` is the sole editable runtime palette; platform configuration colors remain deployment metadata and are not copied into it.
+
+PUT and POST accept exactly:
+
+```json
+{
+  "expectedRevision": 0,
+  "palette": { "primaryColor": "#184F91", "secondaryColor": "#DDEEFF", "backgroundColor": "#F4FAFF" }
+}
+```
+
+All three colors are mandatory, exactly seven characters `#RRGGBB` (case insensitive, stored uppercase). Unknown fields at either level are rejected, including logo/actor/tenant fields. Revision is an integer from 0 through 9007199254740991. Invalid input returns 400 (`VALIDATION_FAILED` or `INVALID_REQUEST_BODY`; direct service validation uses `INVALID_RESTAURANT_PALETTE`). The active tenant row is locked and the whole palette is saved transactionally only if the expected revision matches. Missing branding is revision 0; first save becomes 1. Stale updates return `409 RESTAURANT_BRANDING_STALE` without overwriting the newer palette. Refetch, review and explicitly resubmit the new revision; never retry a save automatically. Exhausting the safe-integer revision range returns `409 RESTAURANT_BRANDING_REVISION_EXHAUSTED`.
+
+The admin POST returns 200 after initializing an active restaurant with no palette and `expectedRevision: 0`. It uses the same persistence and concurrency path, creates no memberships and cannot overwrite an initialized palette (409). Complete restaurant/owner provisioning remains the existing API; this separate resumable step makes no external Auth/Storage call. Nonallowlisted callers receive 403; missing admin allowlist receives 503. Anonymous writes receive 401. Staff, Delivery Driver and foreign-tenant members receive 403 regardless of claimed role, actor or header tenant.
+
+Responses, including errors, contain `Cache-Control: no-store`. There is no ETag/304 contract: revision versions only the palette, so name/logo updates still require a complete read. Consumers fetch on launch/foreground, after a successful save/upload/profile edit, and on explicit bounded retry. The client returns the saved DTO immediately; refresh does not require a native rebuild. UXI-02 supplies contracts and clients, not shell integration or editor UI.
+
+Absent/corrupt stored palettes return `palette: null` (missing row revision 0; invalid stored palette retains its revision for repair). Pass valid palette data to UXI-01 `resolveThemeTokens`/`ThemeProvider`; do not use one palette color directly as text on another. The shared resolver derives readable foreground, focus and status colors. On failed/offline refresh retain only a previously validated snapshot for the **same exact API base URL/environment and restaurant UUID**; otherwise use that tenant's reviewed embedded fallback, then neutral tokens. Do not key by name/slug alone, use platform deployment colors as runtime authority, or share mutable caches across clients. The typed client keeps no cache and validates response identity/revision before accepting it. Missing/invalid response palettes normalize to null; malformed identity/revision rejects the response.
+
+Existing profile PUT retains `logoUrl` only for compatibility: omission/null leaves the logo unchanged; an unchanged stored URL resend is accepted. A changed non-null value, including blank deletion, returns `403 RESTAURANT_LOGO_UPLOAD_REQUIRED` before profile mutation. Profile writes never assign the logo column. Owner-only `POST /restaurants/{restaurantId}/logo` remains the Spring-mediated upload workflow. Theme writes cannot change logos.
+
+Migration `20261119090000_add_restaurant_runtime_branding.sql` must be reviewed/applied before deploying the API; it is additive, enables RLS, revokes direct client/service-role table access, preserves existing UUIDs/data and seeds no palette. See [UXI-02 rollout and verification](uxi-02-runtime-branding.md).
+
 ## Public menu and QR-order routes
 
 | Method | Route | Purpose |

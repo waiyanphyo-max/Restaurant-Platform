@@ -11,7 +11,7 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 | Permission | Owner | Manager | Staff | Driver | Typical backend use |
 | --- | :---: | :---: | :---: | :---: | --- |
 | `RESTAURANT_READ` | ✓ | ✓ | ✓ | ✓ | Restaurant profile read |
-| `SETTINGS_MANAGE` | ✓ | ✓ | — | — | Profile/settings, tables, zones, default driver |
+| `SETTINGS_MANAGE` | ✓ | ✓ | — | — | Profile/settings, runtime palette, tables, zones, default driver |
 | `MEMBERS_MANAGE` | ✓ | — | — | — | Member list/invite/add/change/remove, ownership transfer |
 | `MENU_READ` | ✓ | ✓ | ✓ | — | Private catalog reads |
 | `MENU_MANAGE` | ✓ | ✓ | — | — | Catalog writes and image uploads |
@@ -43,6 +43,7 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 
 - `POST /api/v1/restaurants` allows any authenticated UUID to create a restaurant and become OWNER. This is separate from allowlisted Platform Admin provisioning at `POST /api/v1/platform/restaurants`.
 - `POST /api/v1/restaurants/{restaurantId}/logo` requires the actual OWNER member role, even though both Owner and Manager have `SETTINGS_MANAGE`.
+- Runtime palette PUT uses `SETTINGS_MANAGE` and accepts only three colors and an expected revision. The public branding GET exposes only name, approved logo, palette and UUID/revision. Platform-admin POST can initialize the same palette once through its UUID allowlist, without restaurant membership. Profile PUT accepts only unchanged logo resends; changed URLs require the Owner upload workflow.
 - Ownership transfer requires the current OWNER and an existing member as target. Adding/updating a member cannot assign `OWNER`; transfer uses its dedicated route.
 - Order status writes require `ORDER_STATUS_UPDATE`. Cancellation also requires `ORDER_CANCEL`, delivery transitions require `DELIVERY_STATUS_UPDATE`, and queue-changing transitions require `QUEUE_MANAGE`.
 - `GET /api/v1/restaurants/{restaurantId}/settings` requires `SETTINGS_MANAGE`, so Staff and Driver cannot read this management response. Public menu/branding must come from public endpoints and approved tenant config instead.

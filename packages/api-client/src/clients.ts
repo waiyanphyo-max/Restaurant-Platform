@@ -13,7 +13,8 @@ import type {
   PlatformOwnerInvitationResponse, OwnerOnboardingCompletionResponse,
   PublicMenuResponse, PublicModifierGroupResponse,
   QueueTicketManagerDto, QueueTrackingResponse, RestaurantResponse, SpringPage,
-  UpdateDeliveryStatusRequest, UpdateOrderStatusRequest, OrderActionRequest
+  UpdateDeliveryStatusRequest, UpdateOrderStatusRequest, OrderActionRequest,
+  RestaurantBrandingResponse, UpdateRestaurantBrandingRequest
 } from "@restaurant-platform/shared-types";
 import type {
   CategoryRequest, ProductRequest, ProductVariantRequest, ProductVariantResponse,
@@ -26,6 +27,7 @@ import type {
 import { ApiConfigurationError, ApiProtocolError, TenantAccessError } from "./errors.js";
 import { requireHeaderValue, requireUuid } from "./tenant.js";
 import { createTransport, createAuthenticatedTransport } from "./transport.js";
+import { checkedBrandingResponse, checkedBrandingUpdate } from "./branding.js";
 import type { ApiRequestOptions, ApiTransportOptions, AuthenticatedApiTransportOptions, ApiTransport } from "./transport.js";
 
 export interface PublicRestaurantApiClientOptions extends ApiTransportOptions { restaurantId: string; }
@@ -77,6 +79,8 @@ export function createPublicRestaurantApiClient(options: PublicRestaurantApiClie
   }
   return {
     restaurantId,
+    getBranding: async (o?: ApiRequestOptions): Promise<RestaurantBrandingResponse> => checkedBrandingResponse(
+      await read<unknown>(transport, `${prefix}/branding`, o), restaurantId),
     getPublicMenu: async (o?: ApiRequestOptions) => checkedRestaurantResponse(
       await read<PublicMenuResponse>(transport, `${prefix}/menu`, o), restaurantId, "restaurantId"),
     getProductModifierGroups: (id: string, o?: ApiRequestOptions) =>
@@ -104,6 +108,13 @@ export function createPlatformAdminApiClient(options: AuthenticatedApiTransportO
   }
   return {
     getOverview: (o?: ApiRequestOptions) => read<PlatformOverviewResponse>(transport, "/api/v1/platform/overview", o),
+    async initializeBranding(id: string, body: UpdateRestaurantBrandingRequest, o?: ApiRequestOptions): Promise<RestaurantBrandingResponse> {
+      const restaurantId = requireUuid(id, "restaurantId");
+      const request = checkedBrandingUpdate(body);
+      if (request.expectedRevision !== 0) throw new ApiConfigurationError("Initial branding requires expectedRevision zero");
+      return checkedBrandingResponse(await transport.request({ method: "POST",
+        path: `${restaurantPath(restaurantId)}/branding`, body: request, options: o }), restaurantId);
+    },
     listRestaurants(query: PlatformRestaurantQuery = {}, o?: ApiRequestOptions): Promise<SpringPage<PlatformRestaurantSummaryResponse>> {
       const { page, size } = pageQuery(query);
       return read(transport, prefix, o, { page, size, search: query.search ?? "" });
@@ -199,6 +210,8 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
       await read<RestaurantSettingsResponse>(transport, `${prefix}/settings`, o), restaurantId, "restaurantId"),
     updateRestaurantProfile: async (body: UpdateRestaurantRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
       await write<RestaurantResponse>("PUT", `${prefix}/profile`, body, o), restaurantId, "id"),
+    updateBranding: async (body: UpdateRestaurantBrandingRequest, o?: ApiRequestOptions): Promise<RestaurantBrandingResponse> => checkedBrandingResponse(
+      await write<unknown>("PUT", `${prefix}/branding`, checkedBrandingUpdate(body), o), restaurantId),
     uploadRestaurantLogo: async (formData: FormData, o?: ApiRequestOptions) => checkedRestaurantResponse(
       await upload<RestaurantLogoResponse>(`${prefix}/logo`, formData, o), restaurantId, "restaurantId"),
     updateSettings: async (body: RestaurantSettingsRequest, o?: ApiRequestOptions) => checkedRestaurantResponse(
