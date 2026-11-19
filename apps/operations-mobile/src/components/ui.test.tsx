@@ -125,8 +125,10 @@ describe("tenant-safe native foundations", () => {
 
   it("associates labels and error guidance while retaining input callbacks and large-text layout", () => {
     const onFocus = vi.fn(), onBlur = vi.fn(), onChangeText = vi.fn();
-    render(<FormField label="Name" error="Name is required" accessibilityHint="Use your full name" onFocus={onFocus} onBlur={onBlur} onChangeText={onChangeText} />);
+    const inputRef = React.createRef<React.ComponentRef<typeof import("react-native").TextInput>>();
+    render(<FormField label="Name" error="Name is required" inputRef={inputRef} accessibilityHint="Use your full name" onFocus={onFocus} onBlur={onBlur} onChangeText={onChangeText} />);
     const input = props("TextInput");
+    expect(input.ref).toBe(inputRef);
     expect(input.accessibilityLabel).toBe("Name");
     expect(input.accessibilityLabelledBy).toBe(props("Text", 0).nativeID);
     expect(input.accessibilityHint).toBe("Use your full name. Name is required");

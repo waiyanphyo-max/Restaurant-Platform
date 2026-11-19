@@ -7,7 +7,7 @@ import { readEmbeddedTenant } from "../tenant";
 type ThemeScope = { restaurantId: string; branding?: Partial<RestaurantBranding> | null };
 const ThemeContext = createContext<ThemeScope | null>(null);
 
-/** A presentation seam for a future runtime read; never selects a tenant or persists a palette. */
+/** Tenant-checked presentation only; runtime fetching and persistence belong to the caller. */
 export function ThemeProvider({ restaurantId, branding, children }: PropsWithChildren<ThemeScope>) {
   return <ThemeContext.Provider value={{ restaurantId, branding }}>{children}</ThemeContext.Provider>;
 }
@@ -57,13 +57,15 @@ export function Action({ title, onPress, disabled = false, secondary = false, se
     <Text allowFontScaling style={[styles.actionText, { color: foregroundColor }]}>{title}</Text>
   </Pressable>;
 }
-export function FormField({ label, error, accessibilityHint, onFocus, onBlur, ...props }: TextInputProps & { label: string; error?: string }) {
+export function FormField({ label, error, inputRef, accessibilityHint, onFocus, onBlur, ...props }: TextInputProps & {
+  label: string; error?: string; inputRef?: Ref<ComponentRef<typeof TextInput>>;
+}) {
   const { color } = useUiTheme();
   const id = useId();
   const [focused, setFocused] = useState(false);
   return <View style={styles.field}>
     <Text allowFontScaling nativeID={id} style={[styles.label, { color: color.foreground }]}>{label}</Text>
-    <TextInput {...props} allowFontScaling accessibilityLabel={props.accessibilityLabel ?? label} accessibilityLabelledBy={id}
+    <TextInput {...props} ref={inputRef} allowFontScaling accessibilityLabel={props.accessibilityLabel ?? label} accessibilityLabelledBy={id}
       accessibilityHint={[accessibilityHint, error].filter(Boolean).join(". ") || undefined}
       accessibilityState={{ ...props.accessibilityState, disabled: props.editable === false || props.accessibilityState?.disabled }}
       placeholderTextColor={props.placeholderTextColor ?? color.foregroundMuted} selectionColor={color.focus}

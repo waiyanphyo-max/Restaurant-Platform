@@ -18,5 +18,6 @@ export function getOperationsApi(expectedAccess?: OperationsRequestAccess) {
   };
   return { ...createRestaurantMemberApiClient(options), ...createFinancialReportsApiClient(options),
     ...createProcurementApiClient(options), ...createExpenseCashApiClient(options),
-    getPublicMenu: createPublicRestaurantApiClient(publicOptions).getPublicMenu };
+    getPublicMenu: createPublicRestaurantApiClient(publicOptions).getPublicMenu,
+    getBranding: createPublicRestaurantApiClient(publicOptions).getBranding };
 }
