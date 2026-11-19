@@ -3,26 +3,40 @@ import { Image } from "react-native";
 import type { RestaurantResponse, RestaurantSettingsRequest, RestaurantSettingsResponse, UpdateRestaurantRequest } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
+import { useRuntimeBranding } from "../../branding/RuntimeBrandingProvider";
 import { useImageUpload } from "../../components/useImageUpload";
 import { QueryResult } from "../../components/QueryResult";
-import { Action, Body, Card, ConfirmDialog, FormField, Page } from "../../components/ui";
+import { Action, Body, Card, ConfirmDialog, FormField, Page, StateView } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { FormStatus, Toggle } from "./controls";
 import { coordinate, optionalText, requiredText, wholeAmount } from "./validation";
+import { RuntimePaletteEditor } from "./RuntimePaletteEditor";
 
 export function SettingsScreen() {
+  const { state } = useOperationsAuth();
+  if (state.status !== "ready" || !["OWNER", "MANAGER"].includes(state.membership.role)) {
+    return <Page title="Restaurant"><StateView kind="forbidden" message="Only the restaurant Owner or Manager can edit restaurant settings." /></Page>;
+  }
+  return <ManagedSettings />;
+}
+
+function ManagedSettings() {
   const profile = useApiQuery(signal => getOperationsApi().getRestaurant({ signal }), "managed-profile", { keepPreviousData: true });
   const settings = useApiQuery(signal => getOperationsApi().getSettings({ signal }), "managed-settings");
   const { state } = useOperationsAuth();
+  const runtime = useRuntimeBranding();
   const owner = state.status === "ready" && state.membership.role === "OWNER";
-  return <Page title="Restaurant" subtitle="Profile, ordering and delivery preferences" onRefresh={() => { profile.reload(); settings.reload(); }} refreshing={profile.state.status === "loading" || profile.refreshing || settings.state.status === "loading"}>
-    <QueryResult {...profile}>{restaurant => <ProfileForm restaurant={restaurant} owner={owner} reload={profile.reload} />}</QueryResult>
+  return <Page title="Restaurant" subtitle="Profile, runtime palette, ordering and delivery preferences" onRefresh={() => { profile.reload(); settings.reload(); void runtime.refresh(); }} refreshing={profile.state.status === "loading" || profile.refreshing || settings.state.status === "loading" || runtime.refreshing}>
+    <RuntimePaletteEditor />
+    <QueryResult {...profile}>{restaurant => <ProfileForm key={runtime.scopeKey} restaurant={restaurant} owner={owner} reload={profile.reload} />}</QueryResult>
     <QueryResult {...settings}>{data => <SettingsForm settings={data} reload={settings.reload} />}</QueryResult>
   </Page>;
 }
 
 function ProfileForm({ restaurant, owner, reload }: { restaurant: RestaurantResponse; owner: boolean; reload(): void }) {
+  const { state, assertWorkspaceAccess } = useOperationsAuth();
+  const runtime = useRuntimeBranding();
   const uploadImage = useImageUpload();
   const [fields, setFields] = useState({ name: restaurant.name, description: restaurant.description ?? "", phone: restaurant.phone ?? "", address: restaurant.address ?? "",
     houseNo: restaurant.houseNo ?? "", street: restaurant.street ?? "", ward: restaurant.ward ?? "", township: restaurant.township ?? "", city: restaurant.city ?? "",
@@ -37,13 +51,15 @@ function ProfileForm({ restaurant, owner, reload }: { restaurant: RestaurantResp
         name: requiredText(fields.name, 150, "Restaurant name"), description: optionalText(fields.description, 4000, "Description"), phone: optionalText(fields.phone, 30, "Phone"),
         address: optionalText(fields.address, 2000, "Address"), houseNo: optionalText(fields.houseNo, 50, "House number"), street: optionalText(fields.street, 100, "Street"),
         ward: optionalText(fields.ward, 100, "Ward"), township: requiredText(fields.township, 100, "Township"), city: requiredText(fields.city, 100, "City"),
-        latitude: coordinate(fields.latitude, 90, "Latitude"), longitude: coordinate(fields.longitude, 180, "Longitude"), logoUrl: restaurant.logoUrl
+        latitude: coordinate(fields.latitude, 90, "Latitude"), longitude: coordinate(fields.longitude, 180, "Longitude")
       };
-      void mutation.run(() => getOperationsApi().updateRestaurantProfile(body), reload);
+      if (state.status !== "ready") return;
+      const { userId, membership: { role } } = state;
+      void mutation.run(() => getOperationsApi({ userId, assertCurrentAccess: () => assertWorkspaceAccess(userId, role) }).updateRestaurantProfile(body), () => { reload(); void runtime.refresh(); });
     } catch (error) { setValidation(error instanceof Error ? error.message : "Check the profile fields."); }
   }
   return <Card title="Restaurant profile">
-    {restaurant.logoUrl ? <Image accessibilityLabel={`${restaurant.name} logo`} source={{ uri: restaurant.logoUrl }} style={{ width: 88, height: 88, borderRadius: 12 }} /> : <Body>No restaurant logo uploaded.</Body>}
+    {runtime.logoUrl ? <Image accessibilityLabel={`${runtime.displayName} logo`} source={{ uri: runtime.logoUrl }} style={{ width: 88, height: 88, borderRadius: 12 }} /> : <Body>No safe restaurant logo is available.</Body>}
     <Body>Public slug: {restaurant.slug ?? "Unavailable"} · {restaurant.active ? "Active" : "Inactive"}</Body>
     {field("name", "Restaurant name", 150)}{field("description", "Description", 4000, true)}{field("phone", "Contact phone", 30)}{field("address", "Address", 2000, true)}
     {field("houseNo", "House number", 50)}{field("street", "Street", 100)}{field("ward", "Ward", 100)}{field("township", "Township", 100)}{field("city", "City", 100)}
@@ -51,8 +67,8 @@ function ProfileForm({ restaurant, owner, reload }: { restaurant: RestaurantResp
     <FormStatus error={validation ?? mutation.error} message={mutation.message} />
     <Action title={mutation.busy ? "Saving…" : "Save profile"} disabled={mutation.busy} onPress={save} />
     {owner ? <><Body>Logo: PNG, JPEG or WebP, up to 5 MB.</Body><Action title="Choose and upload logo" secondary disabled={mutation.busy} onPress={() => {
-      setValidation(null); void mutation.run(() => uploadImage((api, file) => api.uploadRestaurantLogo(file)), uploaded => { if (uploaded) reload(); });
-    }} /></> : null}
+      setValidation(null); void mutation.run(() => uploadImage((api, file) => api.uploadRestaurantLogo(file)), uploaded => { if (uploaded) { reload(); void runtime.refresh(); } });
+    }} /></> : <Body>The current logo is read-only. Only the Owner can upload a logo.</Body>}
   </Card>;
 }
 

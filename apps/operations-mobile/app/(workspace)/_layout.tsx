@@ -1,33 +1,34 @@
 import { Link, Redirect, Slot, usePathname } from "expo-router";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { resolveBrandTokens } from "@restaurant-platform/ui-tokens";
 import { useOperationsAuth } from "../../src/auth/AuthProvider";
 import { getNavigationItems } from "../../src/navigation/policy";
 import { readEmbeddedTenant } from "../../src/tenant";
 import { WorkspaceBoundary } from "../../src/auth/WorkspaceBoundary";
+import { RuntimeBrandingProvider, useRuntimeBranding } from "../../src/branding/RuntimeBrandingProvider";
+import { useUiTheme } from "../../src/components/ui";
 
 export default function WorkspaceLayout() {
-  return <WorkspaceBoundary><WorkspaceContent /></WorkspaceBoundary>;
+  return <RuntimeBrandingProvider><WorkspaceBoundary><WorkspaceContent /></WorkspaceBoundary></RuntimeBrandingProvider>;
 }
 
 function WorkspaceContent() {
   const { state } = useOperationsAuth();
   const pathname = usePathname();
+  const { color } = useUiTheme();
+  const { displayName, logoUrl } = useRuntimeBranding();
   if (state.status !== "ready") return <Redirect href="/" />;
   const tenant = readEmbeddedTenant();
-  const brand = resolveBrandTokens(tenant.branding);
-  const logo = tenant.branding.logoDataUri ?? tenant.branding.logoUrl;
   const navigation = getNavigationItems(state.membership, tenant.restaurantId);
-  return <SafeAreaView style={[styles.screen, { backgroundColor: tenant.branding.backgroundColor ?? "#f6f8fa" }]}>
-    <View style={[styles.header, { backgroundColor: brand.primaryColor }]}>
-      {logo ? <Image source={{ uri: logo }} accessibilityLabel={`${tenant.branding.displayName} logo`} style={styles.logo} /> : null}
-      <View style={styles.identity}><Text style={[styles.name, { color: brand.onPrimaryColor }]}>{tenant.branding.displayName}</Text>
-        <Text style={{ color: brand.onPrimaryColor }}>{state.membership.role.replaceAll("_", " ")}{tenant.environment !== "production" ? ` · ${tenant.environment}` : ""}</Text></View>
+  return <SafeAreaView style={[styles.screen, { backgroundColor: color.background }]}>
+    <View style={[styles.header, { backgroundColor: color.primary }]}>
+      {logoUrl ? <Image source={{ uri: logoUrl }} accessibilityLabel={`${displayName} logo`} style={styles.logo} /> : null}
+      <View style={styles.identity}><Text allowFontScaling style={[styles.name, { color: color.onPrimary }]}>{displayName}</Text>
+        <Text allowFontScaling style={{ color: color.onPrimary }}>{state.membership.role.replaceAll("_", " ")}{tenant.environment !== "production" ? ` · ${tenant.environment}` : ""}</Text></View>
     </View>
     <View><ScrollView horizontal contentContainerStyle={styles.navigation} showsHorizontalScrollIndicator={false}>
       {navigation.map(item => <Link key={item.id} href={item.path} accessibilityRole="link"
-        accessibilityState={{ selected: pathname === item.path }} style={[styles.link, pathname === item.path ? styles.selected : null]}>{item.label}</Link>)}
+        accessibilityState={{ selected: pathname === item.path }} style={[styles.link, { color: color.foreground }, pathname === item.path ? [styles.selected, { backgroundColor: color.surfaceMuted }] : null]}>{item.label}</Link>)}
     </ScrollView></View>
     <View style={styles.content} key={`${state.userId}:${state.membership.role}`}><Slot /></View>
   </SafeAreaView>;
