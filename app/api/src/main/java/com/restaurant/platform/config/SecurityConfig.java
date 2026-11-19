@@ -154,6 +154,7 @@ public class SecurityConfig {
                         // remain authenticated unless explicitly reviewed and added here.
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/public/restaurants/*/menu",
+                                "/api/v1/public/restaurants/*/branding",
                                 "/api/v1/public/restaurants/*/products/*/modifier-groups").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/public/restaurants/*/qr-context",

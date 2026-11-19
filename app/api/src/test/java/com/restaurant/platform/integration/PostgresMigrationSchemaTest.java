@@ -477,6 +477,16 @@ class PostgresMigrationSchemaTest {
     }
 
     @Test
+    void runtimeBrandingIsValidatedTenantScopedAndUnavailableToDirectClients() {
+        RuntimeBrandingDatabaseChecks.verify(dataSource);
+    }
+
+    @Test
+    void concurrentInitializationAndUpdatesCannotOverwriteNewerRuntimePalettes() throws Exception {
+        RuntimeBrandingDatabaseChecks.verifyConcurrentServiceWrites(dataSource, entityManagerFactoryBean.getObject());
+    }
+
+    @Test
     void migrationDirectoryContainsTimestampOrderedSqlFiles() throws IOException {
         try (Stream<Path> files = Files.list(migrationDirectory)) {
             var names = files.filter(p -> p.getFileName().toString().endsWith(".sql"))

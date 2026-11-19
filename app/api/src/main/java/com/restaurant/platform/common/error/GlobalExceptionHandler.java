@@ -285,7 +285,7 @@ public class GlobalExceptionHandler {
         if (isAccountingRequest(request)) {
             // CSV and receipt downloads still return structured errors on failure.
             response.contentType(MediaType.APPLICATION_JSON).cacheControl(CacheControl.noStore());
-        } else if (isCustomerRequest(request)) {
+        } else if (isCustomerRequest(request) || request.getRequestURI().endsWith("/branding")) {
             response.cacheControl(CacheControl.noStore());
         }
         return response.body(body);

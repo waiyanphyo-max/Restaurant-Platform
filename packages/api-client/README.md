@@ -4,7 +4,7 @@ The factories accept a configured API origin, never an origin entered by an end 
 
 | Factory | Boundary |
 | --- | --- |
-| `createPublicRestaurantApiClient` | Fixed restaurant public menu, modifiers and QR checkout; queue credentials stay in `X-Queue-Token`. It accepts no session provider and never sends a bearer token. |
+| `createPublicRestaurantApiClient` | Fixed restaurant public branding, menu, modifiers and QR checkout; queue credentials stay in `X-Queue-Token`. It accepts no session provider and never sends a bearer token. |
 | `createPlatformAdminApiClient` | Overview, searchable registry, restaurant detail, verified-identity provisioning, active status and branding/deployment metadata. Spring's validated UUID allowlist decides access. |
 | `createRestaurantMemberApiClient` | Fixed restaurant operations. `getConfiguredMembership` returns only that restaurant's active membership. Spring decides every permission. |
 | `createCustomerApiClient` | UUID-owned account profile/addresses and fixed restaurant delivery checkout. |
@@ -20,3 +20,13 @@ Wire DTOs mirror inspected Java records in `packages/shared-types`. They are com
 M4 adds `getRestaurant`, `provisionRestaurant`, `updateRestaurantStatus`, and `updateRestaurantConfiguration`. Provisioning optionally accepts an existing `ownerUserId`; Spring verifies that exact UUID and confirmed email through Supabase Auth Admin. A new invitation binds only the provider-returned UUID. These mutations are never automatically retried. See `docs/m4-acceptance.md` for contracts, retry instructions, migration requirements and verification boundaries. The historical M2 coverage audit is in `docs/api-coverage-gap-report.md`; global customer history remains outside branded clients.
 
 The API-client tests include actual `fetch` against a temporary loopback HTTP fixture server. They verify transport and contracts; Spring authorization is verified separately by backend HTTP tests. No remote provider or database is contacted by the loopback test.
+
+## Runtime branding (UXI-02)
+
+`publicClient.getBranding()` reads `/api/v1/public/restaurants/{fixedRestaurantId}/branding`. It checks the returned restaurant UUID and nonnegative safe-integer palette revision, projects only the public DTO, and discards unsafe logo URLs. A missing or malformed palette becomes `null`; pass that value and the same tenant's embedded palette to UXI-01's `resolveThemeTokens`. This package does not derive semantic colors or change native build identity.
+
+`memberClient.updateBranding({ expectedRevision, palette })` uses `PUT /api/v1/restaurants/{fixedRestaurantId}/branding`. All three six-digit colors are required. Only the revision and palette fields are serialized; actor identity, restaurant UUID, logo URL and deployment metadata are excluded. Spring authorizes Owner/Manager membership. `ApiHttpError` preserves `409 RESTAURANT_BRANDING_STALE`: refetch, review the newer value, then submit its revision explicitly. Saves are never automatically retried.
+
+`adminClient.initializeBranding(restaurantId, { expectedRevision: 0, palette })` uses `POST /api/v1/platform/restaurants/{restaurantId}/branding`. Spring's platform-admin allowlist permits initialization only while no runtime palette exists; it does not create or impersonate a restaurant member.
+
+Every refresh uses `cache: "no-store"`; there is no shared, persistent or module-level brand cache. Future consumers should refresh on entry/foreground, after a successful save, and on explicit retry. Preserve a previously accepted value on offline/failed refresh. Any caller-owned last-safe state must be scoped by both the exact configured API origin (environment) and fixed restaurant UUID, discarded when either changes, and checked again before feeding a `ThemeProvider`. Missing or invalid data uses that scope's reviewed embedded fallback, then the neutral UXI-01 defaults. Palette revision does not version profile/name/logo edits, so consumers must refresh the whole DTO unconditionally and must not use revision as an identity ETag. App-shell fetching, persistent caches and the Operations editor remain later milestones.

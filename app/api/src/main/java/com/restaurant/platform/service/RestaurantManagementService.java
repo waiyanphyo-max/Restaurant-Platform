@@ -27,6 +27,7 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -195,6 +196,14 @@ public class RestaurantManagementService {
         }
         Restaurant restaurant = restaurantRepository.findByIdAndIsActiveTrue(restaurantId)
                 .orElseThrow(this::restaurantNotFound);
+        // Older profile clients resend the stored logo. Accept that assertion (or
+        // omission), but only the Owner-only upload workflow may mutate the logo.
+        // Never assign even an unchanged value: a concurrent upload must survive.
+        if (request.logoUrl() != null
+                && !Objects.equals(clean(request.logoUrl()), restaurant.getLogoUrl())) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "RESTAURANT_LOGO_UPLOAD_REQUIRED", "error.logo.upload-required");
+        }
         restaurant.setName(request.name().trim());
         restaurant.setDescription(clean(request.description()));
         restaurant.setPhone(clean(request.phone()));
@@ -206,7 +215,6 @@ public class RestaurantManagementService {
         restaurant.setCity(request.city().trim());
         restaurant.setLatitude(request.latitude());
         restaurant.setLongitude(request.longitude());
-        restaurant.setLogoUrl(clean(request.logoUrl()));
         return toResponse(restaurantRepository.save(restaurant));
     }
 

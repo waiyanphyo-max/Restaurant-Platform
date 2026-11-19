@@ -6,6 +6,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
+/**
+ * Profile fields only. logoUrl is a compatibility assertion: omit it, send null,
+ * or resend the current URL. Logo changes require the Owner-only upload endpoint.
+ */
 public record UpdateRestaurantRequest(
         @NotBlank @Size(max = 150) String name,
         @Size(max = 4000) String description,
