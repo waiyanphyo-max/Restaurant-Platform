@@ -57,6 +57,11 @@ public class CatalogManagementService {
     public CategoryResponse createCategory(
             UUID restaurantId, UUID userId, CategoryRequest request) {
         requirePermission(restaurantId, userId, RestaurantPermission.MENU_MANAGE);
+        return createCategoryValidated(restaurantId, request);
+    }
+
+    // Package-private: trusted bootstrap must authorize and lock the tenant before calling.
+    CategoryResponse createCategoryValidated(UUID restaurantId, CategoryRequest request) {
         if (request == null || request.name() == null || request.name().isBlank()) {
             throw badRequest("CATEGORY_NAME_REQUIRED", "error.catalog.category-name-required");
         }
@@ -100,6 +105,11 @@ public class CatalogManagementService {
     public ProductManagementResponse createProduct(
             UUID restaurantId, UUID userId, ProductRequest request) {
         requirePermission(restaurantId, userId, RestaurantPermission.MENU_MANAGE);
+        return createProductValidated(restaurantId, request);
+    }
+
+    // Package-private: trusted bootstrap must authorize and lock the tenant before calling.
+    ProductManagementResponse createProductValidated(UUID restaurantId, ProductRequest request) {
         validateProductRequest(request);
         requireActiveCategory(restaurantId, request.categoryId());
         Product product = new Product();
@@ -139,6 +149,11 @@ public class CatalogManagementService {
             UUID restaurantId, UUID userId, UUID productId,
             ProductVariantRequest request) {
         requirePermission(restaurantId, userId, RestaurantPermission.MENU_MANAGE);
+        return createVariantValidated(restaurantId, productId, request);
+    }
+
+    // Package-private: trusted bootstrap must authorize and lock the tenant before calling.
+    ProductVariantResponse createVariantValidated(UUID restaurantId, UUID productId, ProductVariantRequest request) {
         requireProduct(restaurantId, productId);
         validateVariantRequest(request);
         ProductVariant variant = new ProductVariant();
@@ -185,6 +200,11 @@ public class CatalogManagementService {
     public ModifierGroupResponse createModifierGroup(
             UUID restaurantId, UUID userId, ModifierGroupRequest request) {
         requirePermission(restaurantId, userId, RestaurantPermission.MENU_MANAGE);
+        return createModifierGroupValidated(restaurantId, request);
+    }
+
+    // Package-private: trusted bootstrap must authorize and lock the tenant before calling.
+    ModifierGroupResponse createModifierGroupValidated(UUID restaurantId, ModifierGroupRequest request) {
         if (request == null || request.name() == null || request.name().isBlank()) {
             throw badRequest("MODIFIER_GROUP_NAME_REQUIRED",
                     "error.catalog.modifier-group-name-required");
@@ -236,6 +256,11 @@ public class CatalogManagementService {
             UUID restaurantId, UUID userId, UUID groupId,
             ModifierOptionRequest request) {
         requirePermission(restaurantId, userId, RestaurantPermission.MENU_MANAGE);
+        return createModifierOptionValidated(restaurantId, groupId, request);
+    }
+
+    // Package-private: trusted bootstrap must authorize and lock the tenant before calling.
+    ModifierOptionResponse createModifierOptionValidated(UUID restaurantId, UUID groupId, ModifierOptionRequest request) {
         requireModifierGroup(restaurantId, groupId, true);
         validateModifierOptionRequest(request);
         ModifierOption option = new ModifierOption();
@@ -268,6 +293,11 @@ public class CatalogManagementService {
     public void attachModifierGroup(
             UUID restaurantId, UUID userId, UUID productId, UUID groupId) {
         requirePermission(restaurantId, userId, RestaurantPermission.MENU_MANAGE);
+        attachModifierGroupValidated(restaurantId, productId, groupId);
+    }
+
+    // Package-private: trusted bootstrap must authorize and lock the tenant before calling.
+    void attachModifierGroupValidated(UUID restaurantId, UUID productId, UUID groupId) {
         requireProduct(restaurantId, productId);
         requireModifierGroup(restaurantId, groupId, true);
         ProductModifierGroupId id = new ProductModifierGroupId();
@@ -333,6 +363,37 @@ public class CatalogManagementService {
                 .flatMap(java.util.Optional::stream)
                 .map(group -> toModifierGroup(group, false))
                 .toList();
+    }
+
+    List<CategoryResponse> bootstrapCategories(UUID restaurantId) {
+        return categoryRepository.findByRestaurantIdOrderByDisplayOrderAsc(restaurantId)
+                .stream().map(this::toCategory).toList();
+    }
+
+    List<ProductManagementResponse> bootstrapProducts(UUID restaurantId) {
+        return productRepository.findByRestaurantId(restaurantId).stream().map(this::toProduct).toList();
+    }
+
+    List<ProductVariantResponse> bootstrapVariants(UUID restaurantId) {
+        return productRepository.findByRestaurantId(restaurantId).stream()
+                .flatMap(product -> variantRepository.findByProductId(product.getId()).stream())
+                .map(this::toVariant).toList();
+    }
+
+    List<ModifierGroupResponse> bootstrapModifierGroups(UUID restaurantId) {
+        return modifierGroupRepository.findByRestaurantIdOrderByNameAsc(restaurantId).stream()
+                .map(group -> toModifierGroup(group, true)).toList();
+    }
+
+    List<UUID> bootstrapProductModifierGroupIds(UUID restaurantId, UUID productId) {
+        requireProduct(restaurantId, productId);
+        return productModifierGroupRepository.findModifierGroupIdsByProductIdAndRestaurantId(productId, restaurantId);
+    }
+
+    void validateBootstrapMediaReference(UUID restaurantId, UUID productId, UUID variantId) {
+        requireProduct(restaurantId, productId);
+        if (variantId != null) variantRepository.findByIdAndProductId(variantId, productId)
+                .orElseThrow(() -> notFound("PRODUCT_VARIANT_NOT_FOUND", "error.catalog.variant-not-found"));
     }
 
     private ModifierGroupResponse toModifierGroup(ModifierGroup group, boolean manage) {

@@ -36,6 +36,14 @@ public class RestaurantBrandingService {
         return response(restaurant, branding.findById(restaurantId).orElse(null));
     }
 
+    /** Admin setup can report disabled restaurants truthfully without making them public. */
+    @Transactional(readOnly = true)
+    public RestaurantBrandingResponse getPlatformBranding(UUID restaurantId) {
+        platformAuthorization.requirePlatformAdmin();
+        Restaurant restaurant = restaurants.findById(restaurantId).orElseThrow(this::notFound);
+        return response(restaurant, branding.findById(restaurantId).orElse(null));
+    }
+
     @Transactional
     public RestaurantBrandingResponse updatePalette(UUID restaurantId, UpdateRestaurantBrandingRequest request) {
         authorization.requirePermission(restaurantId, RestaurantPermission.SETTINGS_MANAGE);

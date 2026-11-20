@@ -1,7 +1,7 @@
 import { ApiConfigurationError, ApiHttpError, MissingAccessTokenError } from "@restaurant-platform/api-client";
 
 const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-const adminPath = new RegExp(`^/(?:restaurants(?:/${uuid})?|provisioning|restaurant-details|settings)?$`, "i");
+const adminPath = new RegExp(`^/(?:restaurants(?:/${uuid})?|provisioning|restaurant-details|restaurant-setup|settings)?$`, "i");
 
 /** Return targets are restricted to the application's protected routes. */
 export function safeReturnTo(value: string | undefined | null): string {
@@ -11,13 +11,13 @@ export function safeReturnTo(value: string | undefined | null): string {
     if (url.origin !== "https://admin.invalid" || !adminPath.test(url.pathname)) return "/";
     const query = new URLSearchParams();
     // Do not forward arbitrary authentication parameters through sign-in.
-    if (url.pathname === "/restaurants" || url.pathname === "/restaurant-details") {
+    if (url.pathname === "/restaurants" || url.pathname === "/restaurant-details" || url.pathname === "/restaurant-setup") {
       const search = url.searchParams.get("search");
       const page = url.searchParams.get("page");
       const id = url.searchParams.get("id");
       if (search) query.set("search", search.slice(0, 200));
       if (page && /^\d{1,6}$/.test(page)) query.set("page", page);
-      if (url.pathname === "/restaurant-details" && id && new RegExp(`^${uuid}$`, "i").test(id)) query.set("id", id);
+      if ((url.pathname === "/restaurant-details" || url.pathname === "/restaurant-setup") && id && new RegExp(`^${uuid}$`, "i").test(id)) query.set("id", id);
     }
     return `${url.pathname}${query.size ? `?${query}` : ""}`;
   } catch {

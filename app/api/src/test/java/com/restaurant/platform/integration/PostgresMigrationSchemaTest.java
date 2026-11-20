@@ -487,6 +487,26 @@ class PostgresMigrationSchemaTest {
     }
 
     @Test
+    void bootstrapReceiptsCannotBeAccessedDirectlyAndRejectInvalidRows() {
+        PlatformBootstrapDatabaseChecks.verifySchema(dataSource);
+    }
+
+    @Test
+    void platformBootstrapKeepsTwoSyntheticCatalogsBrandsAndOwnersSeparate() {
+        PlatformBootstrapDatabaseChecks.verifyTwoTenantWorkflow(dataSource, entityManagerFactoryBean.getObject());
+    }
+
+    @Test
+    void bootstrapConcurrentRetriesAndTransactionRollbackAreSafe() throws Exception {
+        PlatformBootstrapDatabaseChecks.verifyConcurrentRetryAndRollback(dataSource, entityManagerFactoryBean.getObject());
+    }
+
+    @Test
+    void bootstrapConcurrentManifestReviewAndHistoricalReplayPreserveCurrentTenantMappings() throws Exception {
+        PlatformBootstrapDatabaseChecks.verifyConcurrentManifestReview(dataSource, entityManagerFactoryBean.getObject());
+    }
+
+    @Test
     void migrationDirectoryContainsTimestampOrderedSqlFiles() throws IOException {
         try (Stream<Path> files = Files.list(migrationDirectory)) {
             var names = files.filter(p -> p.getFileName().toString().endsWith(".sql"))

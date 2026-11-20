@@ -47,6 +47,11 @@ public class RestaurantSettingsService {
             UUID restaurantId, UUID userId, RestaurantSettingsRequest request) {
         requireSettingsPermission(restaurantId, userId);
         if (accounting != null) accounting.lock(restaurantId);
+        return updateSettingsValidated(restaurantId, request);
+    }
+
+    // Package-private: bootstrap callers authorize and lock the existing restaurant first.
+    RestaurantSettingsResponse updateSettingsValidated(UUID restaurantId, RestaurantSettingsRequest request) {
         if (request == null || request.currency() == null || request.currency().isBlank()
                 || request.timezone() == null || request.timezone().isBlank()
                 || request.minimumOrder() == null || request.minimumOrder() < 0
@@ -115,5 +120,9 @@ public class RestaurantSettingsService {
                 Boolean.TRUE.equals(settings.getAllowDelivery()),
                 Boolean.TRUE.equals(settings.getAllowTakeaway()),
                 settings.getDefaultDeliveryDriverUserId());
+    }
+
+    RestaurantSettingsResponse bootstrapSettings(UUID restaurantId) {
+        return toResponse(requireSettings(restaurantId));
     }
 }
