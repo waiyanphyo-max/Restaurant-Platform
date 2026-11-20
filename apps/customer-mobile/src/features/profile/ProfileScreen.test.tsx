@@ -28,7 +28,7 @@ vi.mock("react", async importOriginal => ({
 }));
 vi.mock("react-native", () => ({ Text: "Text", View: "View" }));
 vi.mock("expo-router", () => ({ useRouter: () => ({ navigate: harness.navigate }) }));
-vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page", StateView: "StateView" }));
+vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", ConfirmDialog: "ConfirmDialog", FormField: "FormField", Page: "Page", StateView: "StateView" }));
 vi.mock("../../api", () => ({ getCustomerApi: () => ({ updateProfile: harness.updateProfile, setDefaultAddress: harness.setDefault, deleteAddress: harness.deleteAddress }) }));
 vi.mock("../../auth/AuthProvider", () => ({ useCustomerAuth: () => ({ signOut: harness.signOut }) }));
 vi.mock("../../notifications/native", () => ({ enableCustomerNotifications: harness.enableNotifications, retryCustomerDeviceCleanup: harness.cleanup }));
@@ -83,7 +83,10 @@ describe("customer profile and saved-address access", () => {
     (state.props.onRetry as () => void)(); expect(harness.reload).toHaveBeenCalledTimes(1);
     expect(textContent(tree)).not.toContain("Private");
     expect(elements(tree).some(item => item.type === "FormField")).toBe(false);
-    action(tree, "Log out").onPress(); expect(harness.signOut).toHaveBeenCalledTimes(1);
+    action(tree, "Log out").onPress(); expect(harness.signOut).not.toHaveBeenCalled();
+    const review = elements(render()).find(item => item.type === "ConfirmDialog")!;
+    expect(review.props.visible).toBe(true); (review.props.onConfirm as () => void)();
+    expect(harness.signOut).toHaveBeenCalledTimes(1);
   });
 
   it("displays the saved Home Address and opens that owned address for editing", () => {
@@ -176,7 +179,7 @@ describe("customer profile and saved-address access", () => {
   it("localizes profile actions from the persisted Burmese preference", () => {
     harness.account = { status: "ready", data: { profile: { ...profile, preferredLanguage: "my-MM" }, addresses: [home] } };
     const tree = render();
-    expect(tree.props.title).toBe("ပရိုဖိုင်");
+    expect(tree.props.title).toBe("သင့်အကောင့်");
     action(tree, "အသိပေးချက်မှတ်တမ်း ကြည့်ရန်").onPress();
     expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/notifications");
   });
@@ -185,5 +188,35 @@ describe("customer profile and saved-address access", () => {
     harness.notificationsEnabled = true; let tree = render();
     action(tree, "Enable notifications").onPress(); await tick(); tree = render();
     expect(textContent(tree)).toContain("Provider setup is unavailable.");
+  });
+
+  it("reviews sign-out, allows cancellation and only invokes existing cleanup after confirmation", async () => {
+    action(render(), "Log out").onPress();
+    let review = elements(render()).find(item => item.type === "ConfirmDialog")!;
+    expect(review.props.visible).toBe(true);
+    expect(review.props.message).toContain("cart on this device");
+    expect(review.props.message).toContain("not deleted");
+    expect(harness.signOut).not.toHaveBeenCalled();
+    (review.props.onCancel as () => void)();
+    expect(elements(render()).find(item => item.type === "ConfirmDialog")!.props.visible).toBe(false);
+    action(render(), "Log out").onPress(); review = elements(render()).find(item => item.type === "ConfirmDialog")!;
+    (review.props.onConfirm as () => void)(); await tick();
+    expect(harness.signOut).toHaveBeenCalledOnce();
+  });
+
+  it("persists a language selection through the existing profile request and exposes selected state", async () => {
+    action(render(), "Edit account details").onPress();
+    action(render(), "မြန်မာ").onPress();
+    const choice = elements(render()).find(item => item.type === "Action" && item.props.title === "မြန်မာ")!;
+    expect(choice.props.selected).toBe(true);
+    action(render(), "Save account details").onPress(); await tick();
+    expect(harness.updateProfile).toHaveBeenCalledExactlyOnceWith({ fullName: profile.fullName, phone: profile.phone, preferredLanguage: "my-MM" });
+  });
+
+  it("keeps existing orders reachable and presents only truthful device notification controls", () => {
+    const tree = render(); action(tree, "View your orders").onPress();
+    expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/orders");
+    expect(textContent(tree)).toContain("managed by Android");
+    expect(elements(tree).some(item => item.props.title === "Save preferences")).toBe(false);
   });
 });

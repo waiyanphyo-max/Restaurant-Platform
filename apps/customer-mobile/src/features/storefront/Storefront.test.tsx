@@ -7,7 +7,9 @@ const harness = vi.hoisted(() => ({
   language: "en", states: [] as unknown[], stateIndex: 0,
   menu: null as PublicMenuResponse | null, reload: vi.fn(), push: vi.fn(), replace: vi.fn(), navigate: vi.fn(),
   refs: [] as { current: unknown }[], refIndex: 0, params: {} as { productId?: string; lineId?: string },
-  lines: [] as CartLine[], unavailable: [] as string[], saveLine: vi.fn(), remove: vi.fn()
+  lines: [] as CartLine[], unavailable: [] as string[], saveLine: vi.fn(), remove: vi.fn(),
+  checkoutStatus: "idle", getPublicMenu: vi.fn()
+  , addresses: [] as { id: string; label: string; isDefault: boolean; street: string; township: string; city: string }[], editAddress: vi.fn()
 }));
 vi.mock("react", async importOriginal => ({
   ...await importOriginal<typeof import("react")>(),
@@ -17,27 +19,32 @@ vi.mock("react", async importOriginal => ({
     return [harness.states[index], (value: unknown) => { harness.states[index] = typeof value === "function" ? value(harness.states[index]) : value; }];
   },
   useRef(initial: unknown) { const index = harness.refIndex++; return harness.refs[index] ??= { current: initial }; },
-  useCallback<T>(callback: T) { return callback; }
+  useCallback<T>(callback: T) { return callback; }, useEffect: vi.fn()
 }));
 vi.mock("expo-router", () => ({ useRouter: () => ({ push: harness.push, replace: harness.replace, navigate: harness.navigate }),
   useLocalSearchParams: () => harness.params }));
-vi.mock("react-native", () => ({ Image: "Image", ScrollView: "ScrollView", Text: "Text", View: "View", StyleSheet: { create: (value: unknown) => value } }));
-vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page", StateView: "StateView" }));
-vi.mock("../../api", () => ({ getCustomerPublicApi: vi.fn() }));
+vi.mock("react-native", () => ({ Image: "Image", SectionList: "SectionList", ScrollView: "ScrollView", Text: "Text", View: "View", useWindowDimensions: () => ({ fontScale: 1 }), StyleSheet: { create: (value: unknown) => value } }));
+vi.mock("../../components/ui", () => ({ Action: "Action", Badge: "Badge", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page", StateView: "StateView" }));
+vi.mock("../../api", () => ({ getCustomerPublicApi: () => ({ getPublicMenu: harness.getPublicMenu }) }));
+vi.mock("../../components/FoodMedia", () => ({ FoodMedia: "FoodMedia" }));
+vi.mock("./MenuProvider", () => ({ usePublicMenu: () => ({
+  state: harness.menu ? { status: "ready", data: harness.menu } : { status: "offline" }, reload: harness.reload
+}) }));
+vi.mock("../checkout/CheckoutProvider", () => ({ useCustomerCheckout: () => ({ state: { status: harness.checkoutStatus } }) }));
 vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: () => ({
   state: harness.menu ? { status: "ready", data: harness.menu } : { status: "offline" }, reload: harness.reload
 }) }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: vi.fn() }));
 vi.mock("../../branding/RuntimeBrandingProvider", () => ({ useRuntimeBranding: () => ({ displayName: "Current Restaurant", refresh: vi.fn() }) }));
-vi.mock("../profile/AccountProvider", () => ({ homeAddress: vi.fn(), useCustomerAccount: () => ({
-  state: { status: "ready", data: { profile: { preferredLanguage: harness.language } } }
+vi.mock("../profile/AccountProvider", () => ({ homeAddress: (addresses: { label: string }[]) => addresses.find(address => address.label === "Home"), useCustomerAccount: () => ({
+  state: { status: "ready", data: { profile: { preferredLanguage: harness.language }, addresses: harness.addresses } }, editAddress: harness.editAddress
 }) }));
 vi.mock("../cart/CartProvider", () => ({ useCustomerCart: () => ({
   lines: harness.lines, unavailable: harness.unavailable, saveLine: harness.saveLine, remove: harness.remove
 }) }));
 import { CartScreen } from "../cart/CartScreen";
 import { ProductScreen } from "./ProductScreen";
-import { MenuScreen } from "./Storefront";
+import { HomeScreen, MenuScreen } from "./Storefront";
 
 const noodles = {
   id: "noodles", name: "Noodles", description: "Rice noodles", available: true, imageUrl: null, price: 2_000,
@@ -54,7 +61,16 @@ const menu: PublicMenuResponse = {
 function render() { harness.stateIndex = 0; return MenuScreen(); }
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
-  return isValidElement<Record<string, unknown>>(node) ? [node, ...elements(node.props.children as ReactNode)] : [];
+  if (!isValidElement<Record<string, unknown>>(node)) return [];
+  if (typeof node.type === "function" && ["ProductCard", "CartEntry"].includes(node.type.name))
+    return elements((node.type as (props: Record<string, unknown>) => ReactNode)(node.props));
+  if (node.type === "SectionList") {
+    const sections = node.props.sections as { data: MenuProductDto[] }[];
+    return [node, ...elements(node.props.ListHeaderComponent as ReactNode), ...sections.flatMap(section =>
+      section.data.flatMap(item => elements((node.props.renderItem as (value: { item: MenuProductDto }) => ReactNode)({ item })))),
+      ...(sections.length ? [] : elements(node.props.ListEmptyComponent as ReactNode))];
+  }
+  return [node, ...elements(node.props.children as ReactNode)];
 }
 function titles(node: ReactNode) { return elements(node).map(element => element.props.title); }
 function actionProps(node: ReactNode, title: string) {
@@ -95,6 +111,33 @@ describe("customer restaurant menu", () => {
     expect(offline.props.retryLabel).toBe("ထပ်ကြိုးစားပါ");
     (offline.props.onRetry as () => void)();
     expect(harness.reload).toHaveBeenCalledOnce();
+  });
+
+  it("returns to All Categories and offers filter recovery when the selected category disappears", () => {
+    action(render(), "Drinks")();
+    harness.menu = { ...menu, categories: [menu.categories[0]] };
+    expect(titles(render())).toContain("Noodles");
+    const search = elements(render()).find(element => element.type === "FormField")!;
+    (search.props.onChangeText as (value: string) => void)("missing");
+    expect(titles(render())).toContain("No matching items");
+    action(render(), "Clear search and filters")();
+    expect(titles(render())).toContain("Noodles");
+  });
+});
+
+describe("Customer home delivery summary", () => {
+  it("uses runtime identity and edits the actual default address before the Home-labelled fallback", () => {
+    harness.language = "en"; harness.menu = menu; harness.lines = [];
+    harness.addresses = [{ id: "home", label: "Home", isDefault: false, street: "Home street", township: "Township A", city: "City A" },
+      { id: "work", label: "Work", isDefault: true, street: "Work street", township: "Township B", city: "City B" }];
+    harness.editAddress.mockReset(); harness.navigate.mockReset();
+    const tree = HomeScreen();
+    expect(tree.props.subtitle).toBe("Welcome to Current Restaurant");
+    expect(elements(tree).some(element => String(element.props.children).includes("Work street"))).toBe(true);
+    action(tree, "Change address")();
+    expect(harness.editAddress).toHaveBeenCalledExactlyOnceWith(harness.addresses[1]);
+    action(tree, "Explore the menu")();
+    expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/menu");
   });
 });
 
@@ -161,28 +204,86 @@ describe("customer product configuration", () => {
 });
 
 describe("cart checkout entry", () => {
+  function renderCart() { harness.stateIndex = 0; harness.refIndex = 0; return CartScreen(); }
   beforeEach(() => {
+    harness.states = []; harness.refs = []; harness.checkoutStatus = "idle";
     harness.language = "en";
+    harness.menu = menu; harness.getPublicMenu.mockReset().mockResolvedValue(menu);
     harness.lines = [];
     harness.unavailable = [];
     harness.navigate.mockReset(); harness.remove.mockReset();
   });
 
   it("requires cart items before offering checkout", () => {
-    const tree = CartScreen();
+    const tree = renderCart();
     expect(titles(tree)).toContain("Your cart is empty");
     expect(titles(tree)).not.toContain("Continue to checkout");
   });
 
-  it("shows unavailable reorder lines and opens the same checkout route without a previous destination", () => {
+  it("shows unavailable reorder lines and opens the same checkout route without a previous destination", async () => {
     harness.lines = [prepareCartLine("reorder-0", noodles, { productId: noodles.id, quantity: 1 }, menu.currency)!];
     harness.unavailable = ["Old product"];
-    const tree = CartScreen();
+    const tree = renderCart();
     expect(titles(tree)).toContain("Some previous items are unavailable");
     expect(elements(tree).some(element => element.props.children === "Old product")).toBe(true);
     action(tree, "Continue to checkout")();
-    expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/checkout");
+    await vi.waitFor(() => expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/checkout"));
     action(tree, "Remove item")();
     expect(harness.remove).toHaveBeenCalledExactlyOnceWith("reorder-0");
+  });
+
+  it("blocks unavailable fresh choices without removing or replacing cart selections", async () => {
+    harness.lines = [prepareCartLine("cart-1", noodles, { productId: noodles.id, quantity: 1 }, menu.currency)!];
+    harness.getPublicMenu.mockResolvedValue({ ...menu, categories: [] });
+    action(renderCart(), "Continue to checkout")();
+    await vi.waitFor(() => expect(harness.getPublicMenu).toHaveBeenCalledOnce());
+    await Promise.resolve();
+    expect(harness.navigate).not.toHaveBeenCalled();
+    expect(elements(renderCart()).some(element => element.props.accessibilityRole === "alert")).toBe(true);
+    expect(harness.remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps previous checkout recovery available with an empty cart and unavailable menu", () => {
+    harness.checkoutStatus = "uncertain"; harness.menu = null;
+    const tree = renderCart();
+    action(tree, "Review previous checkout")();
+    expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/checkout");
+    expect(harness.getPublicMenu).not.toHaveBeenCalled();
+  });
+
+  it("does not duplicate current-menu checks after repeated clicks", async () => {
+    harness.lines = [prepareCartLine("cart-1", noodles, { productId: noodles.id, quantity: 1 }, menu.currency)!];
+    let resolve!: (value: PublicMenuResponse) => void;
+    harness.getPublicMenu.mockImplementation(() => new Promise<PublicMenuResponse>(done => { resolve = done; }));
+    const tree = renderCart();
+    action(tree, "Continue to checkout")(); action(tree, "Continue to checkout")();
+    expect(harness.getPublicMenu).toHaveBeenCalledOnce();
+    resolve(menu);
+    await vi.waitFor(() => expect(harness.navigate).toHaveBeenCalledOnce());
+  });
+
+  it("invalidates an older checkout menu check when a newer cart refresh starts", async () => {
+    harness.lines = [prepareCartLine("cart-1", noodles, { productId: noodles.id, quantity: 1 }, menu.currency)!];
+    let resolve!: (value: PublicMenuResponse) => void;
+    let signal!: AbortSignal;
+    harness.getPublicMenu.mockImplementation((options: { signal: AbortSignal }) => {
+      signal = options.signal;
+      return new Promise<PublicMenuResponse>(done => { resolve = done; });
+    });
+    const tree = renderCart();
+    action(tree, "Continue to checkout")();
+    expect(signal.aborted).toBe(false);
+    (tree.props.onRefresh as () => void)();
+    expect(signal.aborted).toBe(true);
+    harness.menu = { ...menu, categories: [{ ...menu.categories[0], products: [{ ...noodles, price: 3000 }] }] };
+    renderCart();
+    resolve({ ...menu, categories: [] });
+    await Promise.resolve();
+    await Promise.resolve();
+    const refreshed = renderCart();
+    expect(harness.navigate).not.toHaveBeenCalled();
+    expect(elements(refreshed).some(element => element.props.accessibilityRole === "alert")).toBe(false);
+    expect(actionProps(refreshed, "Continue to checkout")).toMatchObject({ loading: false });
+    expect(elements(refreshed).some(element => element.props.children === "3,000 MMK")).toBe(true);
   });
 });

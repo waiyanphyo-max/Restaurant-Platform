@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
 import type { CustomerProfileRequest } from "@restaurant-platform/shared-types";
 import { useRouter } from "expo-router";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { getCustomerApi } from "../../api";
 import { useCustomerAuth } from "../../auth/AuthProvider";
-import { Action, Body, Card, FormField, Page, StateView } from "../../components/ui";
+import { Action, Body, Card, ConfirmDialog, FormField, Page, StateView } from "../../components/ui";
 import { customerLanguage, queryStateLabel, useCustomerText } from "../../i18n";
 import { accountFailureTitle, apiFailure, apiFailureMessage, logApiFailure } from "../../hooks/apiFailure";
 import { enableCustomerNotifications, retryCustomerDeviceCleanup } from "../../notifications/native";
@@ -22,6 +22,8 @@ export function ProfileScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [reviewSignOut, setReviewSignOut] = useState(false);
+  const signOutTrigger = useRef<ComponentRef<typeof View>>(null);
   const inFlight = useRef(false);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -52,17 +54,30 @@ export function ProfileScreen() {
       if (alive.current) { setForm(null); account.reload(); }
     });
   }
-  const title = t("Profile", "ပရိုဖိုင်");
+  const title = t("Your account", "သင့်အကောင့်");
   const logOut = t("Log out", "အကောင့်မှ ထွက်ရန်");
   const cancel = t("Cancel", "မလုပ်တော့ပါ");
+  const signOutReview = <ConfirmDialog visible={reviewSignOut} title={t("Sign out?", "အကောင့်မှ ထွက်မလား။")}
+    message={t("Signing out clears this session and the cart on this device. Your saved addresses and order history are not deleted.",
+      "အကောင့်ထွက်လျှင် ဤစက်ရှိ အကောင့်ဝင်ထားမှုနှင့် ခြင်းတောင်းကို ရှင်းလင်းပါမည်။ သိမ်းထားသော လိပ်စာများနှင့် အမှာစာမှတ်တမ်းကို မဖျက်ပါ။")}
+    confirmLabel={logOut} cancelLabel={t("Stay signed in", "အကောင့်တွင် ဆက်နေမည်")} busy={busy} danger returnFocusRef={signOutTrigger}
+    onCancel={() => { if (!busy) setReviewSignOut(false); }} onConfirm={() => {
+      if (busy) return;
+      setReviewSignOut(false); void perform(auth.signOut, "logout");
+    }} />;
   if (account.state.status !== "ready") return <Page title={title}>
+    {notice ? <Body accessibilityRole="alert" accessibilityLiveRegion="polite">{notice}</Body> : null}
     <StateView kind={account.state.status} title={account.state.status === "error" ? accountFailureTitle(account.state.failure, t) : queryStateLabel(account.state.status, t)}
       message={account.state.status === "loading" ? undefined : apiFailureMessage(account.state.failure, t)} onRetry={account.reload} retryLabel={t("Try again", "ထပ်ကြိုးစားပါ")} />
-    <Action title={logOut} onPress={() => { void auth.signOut().catch(() => undefined); }} /></Page>;
+    <Action ref={signOutTrigger} title={logOut} disabled={busy} secondary onPress={() => setReviewSignOut(true)} />{signOutReview}</Page>;
   const { profile, addresses } = account.state.data;
   const home = homeAddress(addresses);
-  return <Page title={title} onRefresh={account.reload}>
-    {notice ? <Text accessibilityRole="alert">{notice}</Text> : null}
+  return <Page title={title} subtitle={profile.fullName || t("Manage your restaurant account", "သင့်ဆိုင်အကောင့်ကို စီမံပါ")} onRefresh={account.reload}>
+    {notice ? <Body accessibilityRole="alert" accessibilityLiveRegion="polite">{notice}</Body> : null}
+    <Card title={t("Restaurant account", "ဆိုင်အကောင့်")}>
+      <Body tone="muted">{t("Your addresses and order history stay private to your account.", "သင့်လိပ်စာများနှင့် အမှာစာမှတ်တမ်းကို သင့်အကောင့်အတွက် သီးသန့်ထားပါသည်။")}</Body>
+      <Action title={t("View your orders", "သင့်အမှာစာများ ကြည့်ရန်")} secondary onPress={() => router.navigate("/orders")} />
+    </Card>
     <Card title={t("Account details", "အကောင့် အချက်အလက်")}>
       <Body>{profile.fullName || t("Add your name", "သင့်အမည် ထည့်ရန်")}</Body>
       <Body>{t("Contact phone", "ဆက်သွယ်ရန် ဖုန်းနံပါတ်")} · {profile.phone || t("Not provided", "မထည့်ရသေးပါ")}</Body>
@@ -74,13 +89,18 @@ export function ProfileScreen() {
         <FormField label={t("Contact phone (required)", "ဆက်သွယ်ရန် ဖုန်းနံပါတ် (လိုအပ်သည်)")} value={form.phone} keyboardType="phone-pad" maxLength={30} error={fieldErrors.phone} onChangeText={phone => {
           setForm({ ...form, phone }); setFieldErrors(previous => ({ ...previous, phone: undefined }));
         }} />
-        <View style={{ flexDirection: "row", gap: 8 }}><Action title="English" secondary={form.preferredLanguage !== "en"} onPress={() => setForm({ ...form, preferredLanguage: "en" })} />
-          <Action title="မြန်မာ" secondary={form.preferredLanguage !== "my-MM"} onPress={() => setForm({ ...form, preferredLanguage: "my-MM" })} /></View>
+        <Body>{t("Preferred language", "နှစ်သက်ရာ ဘာသာစကား")}</Body>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}><Action title="English" selected={form.preferredLanguage === "en"} secondary={form.preferredLanguage !== "en"} onPress={() => setForm({ ...form, preferredLanguage: "en" })} />
+          <Action title="မြန်မာ" selected={form.preferredLanguage === "my-MM"} secondary={form.preferredLanguage !== "my-MM"} onPress={() => setForm({ ...form, preferredLanguage: "my-MM" })} /></View>
         <Action title={t("Save account details", "အကောင့် အချက်အလက် သိမ်းရန်")} disabled={busy} onPress={saveProfile} />
         <Action title={cancel} secondary disabled={busy} onPress={() => { setForm(null); setFieldErrors({}); }} />
       </> : <Action title={t("Edit account details", "အကောင့် အချက်အလက် ပြင်ရန်")} secondary onPress={() => {
         setFieldErrors({}); setForm({ fullName: profile.fullName ?? "", phone: profile.phone ?? "", preferredLanguage: customerLanguage(profile.preferredLanguage) });
       }} />}
+    </Card>
+    <Card title={t("Language", "ဘာသာစကား")}>
+      <Body>{customerLanguage(profile.preferredLanguage) === "my-MM" ? "မြန်မာ" : "English"}</Body>
+      <Body tone="muted">{t("Choose English or Burmese when editing your account details.", "အကောင့် အချက်အလက် ပြင်သည့်အခါ အင်္ဂလိပ် သို့မဟုတ် မြန်မာဘာသာ ရွေးနိုင်ပါသည်။")}</Body>
     </Card>
     <Card title={t("Home Address", "အိမ်လိပ်စာ")}>
       {home ? <><Body>{[home.houseNo, home.street, home.ward, home.township, home.city].filter(Boolean).join(", ")}</Body>
@@ -111,6 +131,8 @@ export function ProfileScreen() {
       <Action title={t("View notification history", "အသိပေးချက်မှတ်တမ်း ကြည့်ရန်")} secondary onPress={() => router.navigate("/notifications")} />
       <Body>{tenant.notificationsEnabled ? t("Receive order updates on this device.", "အမှာစာ အခြေအနေပြောင်းလဲမှုများကို ဤစက်တွင် လက်ခံပါ။")
         : t("Order notifications are not configured in this app yet.", "ဤအက်ပ်တွင် အမှာစာအတွက် စက်သို့ အသိပေးချက်ပို့ခြင်းကို မသတ်မှတ်ရသေးပါ။")}</Body>
+      <Body tone="muted">{t("Device permission is managed by Android. Your order history stays available if permission is denied.",
+        "စက်အသိပေးချက် ခွင့်ပြုချက်ကို Android မှ စီမံပါသည်။ ခွင့်မပြုလည်း အမှာစာမှတ်တမ်းကို ကြည့်နိုင်ပါသည်။")}</Body>
       <Action title={t("Enable notifications", "အသိပေးချက်များ ဖွင့်ရန်")} disabled={busy || !tenant.notificationsEnabled} onPress={() => { void perform(async () => {
         const result = await enableCustomerNotifications(t); if (alive.current) setNotice(result);
       }, "notifications"); }} />
@@ -118,6 +140,7 @@ export function ProfileScreen() {
         await retryCustomerDeviceCleanup(); if (alive.current) setNotice(t("Pending device cleanup checked.", "စက်မှတ်ပုံတင် ဖြုတ်ရန် ကျန်ရှိမှုကို စစ်ဆေးပြီးပါပြီ။"));
       }, "notifications"); }} />
     </Card>
-    <Action title={logOut} disabled={busy} onPress={() => { void perform(auth.signOut, "logout"); }} secondary />
+    <Action ref={signOutTrigger} title={logOut} disabled={busy} onPress={() => setReviewSignOut(true)} secondary />
+    {signOutReview}
   </Page>;
 }

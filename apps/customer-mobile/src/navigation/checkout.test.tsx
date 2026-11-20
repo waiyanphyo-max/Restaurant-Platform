@@ -7,6 +7,17 @@ const harness = vi.hoisted(() => ({
   account: { status: "loading" } as QueryState<CustomerAccount>,
   reload: vi.fn(), navigate: vi.fn(), replace: vi.fn()
 }));
+vi.mock("react", async importOriginal => ({ ...await importOriginal<typeof import("react")>(),
+  useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],
+  useRef: (initial: unknown) => ({ current: initial }), useEffect: vi.fn()
+}));
+const menu = { restaurantId: "restaurant-a", restaurantName: "Restaurant A", currency: "MMK", categories: [{ id: "category-a", products: [{
+  id: "product", name: "Lunch", price: 5000, available: true, trackStock: false, variants: [], modifierGroups: []
+}] }] };
+vi.mock("../api", () => ({ getCustomerPublicApi: () => ({ getPublicMenu: async () => menu }) }));
+vi.mock("../features/storefront/MenuProvider", () => ({ usePublicMenu: () => ({ state: { status: "ready", data: menu }, reload: vi.fn() }) }));
+vi.mock("../features/checkout/CheckoutProvider", () => ({ useCustomerCheckout: () => ({ state: { status: "idle" } }) }));
+vi.mock("react-native", () => ({ View: "View", StyleSheet: { create: (value: unknown) => value } }));
 vi.mock("expo-router", () => ({ useRouter: () => ({ navigate: harness.navigate, replace: harness.replace }) }));
 vi.mock("../i18n", () => ({ useCustomerText: () => (english: string) => english, useCustomerLanguage: () => "en",
   queryStateLabel: (state: string) => state }));
@@ -29,10 +40,10 @@ const account = { profile: { id: "owner" }, addresses: [] } as unknown as Custom
 describe("cart to authenticated checkout", () => {
   beforeEach(() => { vi.clearAllMocks(); harness.account = { status: "loading" }; });
 
-  it("navigates from a populated cart to checkout", () => {
+  it("navigates from a populated cart to checkout after checking the current menu", async () => {
     const action = elements(Cart()).find(item => item.type === "Action" && item.props.title === "Continue to checkout")!;
     (action.props.onPress as () => void)();
-    expect(harness.navigate).toHaveBeenCalledWith("/checkout");
+    await vi.waitFor(() => expect(harness.navigate).toHaveBeenCalledWith("/checkout"));
   });
 
   it.each(["loading", "offline", "denied", "error"] as const)("waits for account access while %s and retries before exposing checkout", status => {

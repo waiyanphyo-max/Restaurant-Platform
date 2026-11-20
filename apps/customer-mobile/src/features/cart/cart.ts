@@ -30,10 +30,14 @@ function validPrice(price: number | null | undefined): price is number {
 }
 
 export function productPriceRange(product: MenuProductDto): { min: number; max: number } | null {
-  const prices = (product.variants.length
-    ? product.variants.filter(variant => variant.available).map(variant => variant.price)
-    : [product.price]).filter(validPrice);
-  return prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null;
+  if (!product.variants.length) return validPrice(product.price) ? { min: product.price, max: product.price } : null;
+  let range: { min: number; max: number } | null = null;
+  for (const variant of product.variants) {
+    if (!variant.available || !validPrice(variant.price)) continue;
+    range = range ? { min: Math.min(range.min, variant.price), max: Math.max(range.max, variant.price) }
+      : { min: variant.price, max: variant.price };
+  }
+  return range;
 }
 
 export function productAvailable(product: MenuProductDto): boolean {
@@ -63,9 +67,12 @@ export function prepareCartLine(
   let unitPrice = basePrice;
   for (const selection of modifiers) {
     const option = options.find(option => option.id === selection.modifierOptionId && option.available);
-    if (!option || !Number.isInteger(selection.quantity) || selection.quantity < 1 || selection.quantity > MAX_MODIFIER_QUANTITY) return null;
+    if (!option || !validPrice(option.additionalPrice) || !Number.isInteger(selection.quantity)
+      || selection.quantity < 1 || selection.quantity > MAX_MODIFIER_QUANTITY) return null;
     names.push(selection.quantity > 1 ? `${option.name} × ${selection.quantity}` : option.name);
-    unitPrice += option.additionalPrice * selection.quantity;
+    const additional = option.additionalPrice * selection.quantity;
+    if (!validPrice(additional) || !validPrice(unitPrice + additional)) return null;
+    unitPrice += additional;
   }
   for (const group of product.modifierGroups) {
     const count = group.options.filter(option => ids.has(option.id)).length;
@@ -79,6 +86,29 @@ export function prepareCartLine(
       specialInstruction: item.specialInstruction?.trim() || null,
       modifiers: modifiers.map(({ modifierOptionId, quantity }) => ({ modifierOptionId, quantity })) }
   };
+}
+
+/** A preview cannot safely mix currencies or round an overflowing whole-currency amount. */
+export function cartSubtotal(lines: readonly CartLine[]): number | null {
+  let subtotal = 0;
+  const currency = lines[0]?.currency;
+  for (const line of lines) {
+    const amount = line.unitPrice * line.item.quantity;
+    if (line.currency !== currency || !validPrice(line.unitPrice) || !Number.isInteger(line.item.quantity)
+      || line.item.quantity < 1 || line.item.quantity > MAX_ITEM_QUANTITY
+      || !validPrice(amount) || !validPrice(subtotal + amount)) return null;
+    subtotal += amount;
+  }
+  return subtotal;
+}
+
+/** Recheck original selection IDs; unavailable choices are never replaced automatically. */
+export function reviewCart(menu: PublicMenuResponse, lines: readonly CartLine[]) {
+  const current = lines.map(line => {
+    const product = findMenuProduct(menu, line.item.productId);
+    return product ? prepareCartLine(line.id, product, line.item, menu.currency, lines) : null;
+  });
+  return { lines: current, subtotal: current.every((line): line is CartLine => line !== null) ? cartSubtotal(current) : null };
 }
 
 export function findMenuProduct(menu: PublicMenuResponse, productId: string): MenuProductDto | undefined {

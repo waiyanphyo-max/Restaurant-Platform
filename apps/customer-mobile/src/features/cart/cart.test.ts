@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CreateOrderItemRequest, MenuProductDto, OrderItemDetailDto, PublicMenuResponse } from "@restaurant-platform/shared-types";
-import { prepareCartLine, productAvailable, productPriceRange, rebuildCart } from "./cart";
+import { cartSubtotal, prepareCartLine, productAvailable, productPriceRange, rebuildCart, reviewCart } from "./cart";
 
 const product: MenuProductDto = {
   id: "noodles", name: "Noodles", description: "Rice noodles", available: true, imageUrl: null, price: null,
@@ -77,5 +77,37 @@ describe("customer menu and cart", () => {
     ]);
     expect(result.lines).toHaveLength(1);
     expect(result.unavailable).toEqual(["Old name · Large", "Deleted product", "Old name · Small", "Removed options"]);
+  });
+
+  it("rejects invalid modifier prices, intermediate overflow and overflowing item totals", () => {
+    for (const additionalPrice of [-1, 0.5, Number.NaN, Number.MAX_SAFE_INTEGER]) {
+      const changed = { ...product, modifierGroups: [{ ...product.modifierGroups[0], options: [{
+        ...product.modifierGroups[0].options[0], additionalPrice
+      }] }] };
+      expect(prepareCartLine("cart-1", changed, selection, "MMK")).toBeNull();
+    }
+    const expensive = { ...product, trackStock: false, variants: [], modifierGroups: [], price: Number.MAX_SAFE_INTEGER };
+    expect(prepareCartLine("cart-1", expensive, { productId: expensive.id, quantity: 2 }, "MMK")).toBeNull();
+  });
+
+  it("refuses to display a rounded or mixed-currency subtotal", () => {
+    const line = prepareCartLine("cart-1", product, selection, "MMK")!;
+    expect(cartSubtotal([line])).toBe(9_600);
+    expect(cartSubtotal([line, { ...line, currency: "USD" }])).toBeNull();
+    expect(cartSubtotal([{ ...line, unitPrice: Number.MAX_SAFE_INTEGER }])).toBeNull();
+    expect(cartSubtotal([{ ...line, item: { ...line.item, quantity: 1 }, unitPrice: Number.MAX_SAFE_INTEGER }, line])).toBeNull();
+    expect(cartSubtotal([{ ...line, unitPrice: -1 }])).toBeNull();
+  });
+
+  it("reviews original selection IDs at current prices without silently replacing unavailable choices", () => {
+    const line = prepareCartLine("cart-1", product, selection, "MMK")!;
+    const refreshed = { ...product, variants: [{ ...product.variants[0], price: 5_000 }] };
+    expect(reviewCart({ ...menu, categories: [{ ...menu.categories[0], products: [refreshed] }] }, [line]))
+      .toMatchObject({ lines: [{ unitPrice: 5_800, item: selection }], subtotal: 11_600 });
+    const unavailable = { ...refreshed, variants: [{ ...refreshed.variants[0], available: false }] };
+    expect(reviewCart({ ...menu, categories: [{ ...menu.categories[0], products: [unavailable] }] }, [line]))
+      .toEqual({ lines: [null], subtotal: null });
+    expect(line.unitPrice).toBe(4_800);
+    expect(line.item.variantId).toBe("large");
   });
 });

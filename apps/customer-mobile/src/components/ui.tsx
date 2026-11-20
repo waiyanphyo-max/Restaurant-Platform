@@ -18,13 +18,15 @@ export function useUiTheme(): ThemeTokens {
     [scope?.restaurantId, scope?.branding, tenant.restaurantId, tenant.branding]);
 }
 
-export function Page({ title, subtitle, children, onRefresh, refreshing = false }: PropsWithChildren<{ title: string; subtitle?: string; onRefresh?: () => void; refreshing?: boolean }>) {
+export function Page({ title, subtitle, children, onRefresh, refreshing = false, scroll = true }: PropsWithChildren<{ title: string; subtitle?: string; onRefresh?: () => void; refreshing?: boolean; scroll?: boolean }>) {
   const { color } = useUiTheme();
+  const heading = <><Text allowFontScaling accessibilityRole="header" style={[styles.heading, { color: color.foreground }]}>{title}</Text>
+    {subtitle ? <Text allowFontScaling style={[styles.body, { color: color.foregroundMuted }]}>{subtitle}</Text> : null}</>;
+  if (!scroll) return <View style={[styles.collectionPage, { backgroundColor: color.background }]}>{heading}{children}</View>;
   return <ScrollView style={{ backgroundColor: color.background }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled"
     automaticallyAdjustKeyboardInsets
     refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={color.foreground} colors={[color.foreground]} /> : undefined}>
-    <Text allowFontScaling accessibilityRole="header" style={[styles.heading, { color: color.foreground }]}>{title}</Text>
-    {subtitle ? <Text allowFontScaling style={[styles.body, { color: color.foregroundMuted }]}>{subtitle}</Text> : null}{children}
+    {heading}{children}
   </ScrollView>;
 }
 export function Card({ title, children }: PropsWithChildren<{ title?: string }>) {
@@ -145,6 +147,7 @@ export function StateView({ kind, title, message, onRetry, retryLabel = "Try aga
 }
 
 const styles = StyleSheet.create({
+  collectionPage: { flex: 1, padding: foundationTokens.spacing.md, gap: foundationTokens.spacing.sm, width: "100%", maxWidth: 720, alignSelf: "center" },
   page: { padding: foundationTokens.spacing.md, gap: foundationTokens.spacing.md, paddingBottom: foundationTokens.spacing.xl + foundationTokens.spacing.md,
     width: "100%", maxWidth: 720, alignSelf: "center", flexGrow: 1 },
   heading: { ...foundationTokens.typography.heading, flexShrink: 1 },

@@ -23,7 +23,7 @@ vi.mock("react", async importOriginal => ({
   }
 }));
 vi.mock("react-native", () => ({ ActivityIndicator: "ActivityIndicator", Text: "Text", View: "View", StyleSheet: { create: (value: unknown) => value } }));
-vi.mock("../components/ui", () => ({ Action: "Action", FormField: "FormField" }));
+vi.mock("../components/ui", () => ({ Action: "Action", FormField: "FormField", useUiTheme: () => ({ color: { foreground: "#123456", foregroundMuted: "#345678", surfaceMuted: "#eeeeee" } }) }));
 vi.mock("../i18n", () => ({ localize: (language: string, english: string, burmese: string) => language === "my-MM" ? burmese : english }));
 vi.mock("./AuthProvider", () => ({ useCustomerAuth: () => harness.auth }));
 import { AuthPanel } from "./AuthPanel";
@@ -49,7 +49,7 @@ async function settle() { await Promise.resolve(); await Promise.resolve(); rend
 function signup() { press("Create an email account"); enter("Email address", " Customer@Example.Test "); enter("New password", "Long-password1"); enter("Confirm password", "Long-password1"); }
 describe("customer authentication interface", () => {
   beforeEach(() => {
-    harness.states = []; harness.refs = []; harness.effects = []; harness.auth.state = { status: "signed_out" }; harness.auth.emailRecoveryEnabled = true;
+    harness.states = []; harness.refs = []; harness.effects = []; harness.auth.state = { status: "signed_out" }; harness.auth.emailRecoveryEnabled = true; harness.auth.phoneEnabled = false;
     for (const value of Object.values(harness.auth)) if (typeof value === "function") value.mockReset().mockResolvedValue(undefined);
     harness.auth.signUpWithPassword.mockResolvedValue({ authenticated: false }); vi.useFakeTimers();
   });
@@ -127,5 +127,28 @@ describe("customer authentication interface", () => {
   });
   it("supports Burmese labels without needing a loaded customer profile", () => {
     press("မြန်မာဘာသာ"); expect(find("FormField", "အီးမေးလ်လိပ်စာ")).toBeDefined(); expect(find("Action", "English")).toBeDefined();
+  });
+
+  it("only exposes phone sign-in when the existing verified flow is enabled", async () => {
+    expect(elements(render()).some(item => item.props.title === "Use verified phone sign in")).toBe(false);
+    harness.auth.phoneEnabled = true; press("Use verified phone sign in");
+    enter("International phone number", "+959123456789"); press("Send SMS code"); await settle();
+    expect(harness.auth.requestPhoneOtp).toHaveBeenCalledExactlyOnceWith("+959123456789");
+    enter("SMS verification code", "123456"); press("Verify and sign in"); await settle();
+    expect(harness.auth.verifyPhoneOtp).toHaveBeenCalledExactlyOnceWith("+959123456789", "123456");
+    expect(content(render())).toContain("does not link a phone");
+  });
+
+  it.each(["loading", "unconfigured", "error"])("does not expose sign-in fields while secure session state is %s", status => {
+    harness.auth.state = { status };
+    expect(elements(render()).some(item => item.type === "FormField")).toBe(false);
+  });
+
+  it("localizes a returned email-confirmation notice using the sign-in language", () => {
+    const notice = { english: "Confirmed; sign in manually.", burmese: "အတည်ပြုပြီးပါပြီ။ အကောင့်ဝင်ပါ။" };
+    harness.stateIndex = 0; harness.refIndex = 0; harness.effectIndex = 0;
+    expect(content(AuthPanel({ confirmationNotice: notice }))).toContain(notice.english);
+    press("မြန်မာဘာသာ"); harness.stateIndex = 0; harness.refIndex = 0; harness.effectIndex = 0;
+    expect(content(AuthPanel({ confirmationNotice: notice }))).toContain(notice.burmese);
   });
 });
