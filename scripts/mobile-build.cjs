@@ -3,6 +3,8 @@
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
 const { listMobileBuildConfigs } = require("../configs/restaurants/index.cjs");
+const { execFileSync } = require("node:child_process");
+const { createBuildProposal } = require("../configs/restaurants/scripts/propose-build.cjs");
 const { verifyAndroidArtifact } = require("./verify-android-artifact.cjs");
 
 const apps = {
@@ -12,6 +14,7 @@ const apps = {
 const profiles = ["development", "staging", "production"];
 const usage = [
   "mobile:build -- validate",
+  "mobile:build -- propose <candidate.json> [--identity-history <reviewed-history.json>] (stdout only)",
   "mobile:build -- resolve <restaurant-slug> <operations|customer> <development|staging|production> [--fixture]",
   "mobile:build -- preflight-fcm <restaurant-slug> [--fixture]",
   "mobile:build -- verify <release.json> <artifact.apk|artifact.aab>",
@@ -106,6 +109,13 @@ function assetLinks(release, fingerprints) {
 
 async function main([command, ...args]) {
   if (command === "validate" && args.length === 0) return validateBuilds();
+  if (command === "propose" && (args.length === 1 || (args.length === 3 && args[1] === "--identity-history"))) {
+    const readJson = (file) => JSON.parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+    const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: path.resolve(__dirname, ".."), encoding: "utf8", windowsHide: true
+    }).trim();
+    return createBuildProposal(readJson(args[0]), args.length === 3 ? readJson(args[2]) : undefined, { sourceRevision });
+  }
   if (command === "resolve" && (args.length === 3 || (args.length === 4 && args[3] === "--fixture"))) {
     return resolveBuild(args[0], args[1], args[2], process.env, args.length === 4);
   }

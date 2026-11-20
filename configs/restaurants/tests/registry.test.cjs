@@ -10,7 +10,8 @@ const {
   listRestaurantConfigs,
   resolveRestaurantByHost,
   validateRestaurantConfig,
-  validateRestaurantRegistry
+  validateRestaurantRegistry,
+  validateReleaseEndpoints
 } = require("../index.cjs");
 
 const fixture = JSON.parse(readFileSync(join(__dirname, "..", "fixtures", "starter.json"), "utf8"));
@@ -101,4 +102,56 @@ test("device-test API override permits explicit private-LAN HTTP only in develop
   assert.equal(getMobileBuildConfig("customer", { ...env, MOBILE_ENV: "production" }, { inspectFixtureProfiles: true }).apiBaseUrl,
     "https://api.restaurant-a.test");
   assert.throws(() => getMobileBuildConfig("customer", { ...env, MOBILE_DEVELOPMENT_API_BASE_URL: "http://api.example.test" }), /private-LAN/);
+});
+
+test("staging and production reject HTTP and HTTPS local origins and local guest hosts", () => {
+  const a = listDevelopmentFixtures()[1];
+  for (const environment of ["staging", "production"]) {
+    for (const origin of ["http://api.restaurant-a.test", "https://localhost", "https://127.0.0.1", "https://10.0.2.2",
+      "https://192.168.1.2", "https://[::1]", "https://api.local", "https://api.internal", "https://database",
+      "https://localhost.", "https://api.local.", "https://api.internal.", "https://exa_mple.com"]) {
+      const invalid = structuredClone(a);
+      invalid.mobileProfiles[environment].apiBaseUrl = origin;
+      assert.throws(() => validateRestaurantConfig(invalid, a.slug, { allowFixture: true }), /HTTPS|public DNS/);
+    }
+    for (const host of ["localhost", "restaurant-a.localhost", "api.local", "api.internal", "10.0.2.2"]) {
+      const invalid = structuredClone(a);
+      invalid.guestDomains[environment] = [host];
+      assert.throws(() => validateRestaurantConfig(invalid, a.slug, { allowFixture: true }), /DNS hostnames/);
+    }
+  }
+});
+
+test("release endpoint gate separates offline inspection from approved deployed origins", () => {
+  const a = listDevelopmentFixtures()[1];
+  assert.throws(() => validateReleaseEndpoints(a, "production"), /placeholder, reserved, or temporary/);
+  for (const host of ["example.com", "api.example.invalid", "a.trycloudflare.com", "a.ngrok-free.app", "a.loca.lt"]) {
+    const candidate = structuredClone(a);
+    candidate.mobileProfiles.production.apiBaseUrl = `https://${host}`;
+    assert.throws(() => validateReleaseEndpoints(candidate, "production"), /placeholder, reserved, or temporary/);
+  }
+  const candidate = structuredClone(a);
+  candidate.mobileProfiles.production.apiBaseUrl = "https://api.reviewed-restaurant.com";
+  candidate.guestDomains.production = ["menu.reviewed-restaurant.com"];
+  assert.doesNotThrow(() => validateReleaseEndpoints(candidate, "production"));
+  for (const origin of ["https://example.com.", "https://a.trycloudflare.com.", "https://database"]) {
+    candidate.mobileProfiles.production.apiBaseUrl = origin;
+    assert.throws(() => validateReleaseEndpoints(candidate, "production"), /public DNS/);
+  }
+});
+
+test("registry rejects duplicate slugs, EAS project IDs and shared hosts across environments", () => {
+  const [, a, b] = listDevelopmentFixtures();
+  const duplicate = structuredClone(b);
+  duplicate.slug = a.slug;
+  duplicate.mobileProfiles.development.guestBaseUrl = a.mobileProfiles.development.guestBaseUrl;
+  assert.throws(() => validateRestaurantRegistry([a, duplicate]), /duplicate restaurant slug/);
+  const first = structuredClone(a);
+  const second = structuredClone(b);
+  first.android.operations.eas = { owner: "fixture-owner", projectId: "00000000-0000-4000-8000-000000000900" };
+  second.android.customer.eas = first.android.operations.eas;
+  assert.throws(() => validateRestaurantRegistry([first, second]), /duplicate EAS project ID/);
+  second.android.customer.eas = undefined;
+  second.guestDomains.production = first.guestDomains.staging;
+  assert.throws(() => validateRestaurantRegistry([first, second]), /duplicate guest domain/);
 });

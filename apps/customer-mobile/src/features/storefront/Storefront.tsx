@@ -6,19 +6,20 @@ import { Action, Body, Card, FormField, Page, StateView } from "../../components
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { accountFailureTitle, apiFailureMessage } from "../../hooks/apiFailure";
 import { queryStateLabel, useCustomerLanguage, useCustomerText } from "../../i18n";
-import { readEmbeddedTenant } from "../../tenant";
+import { useRuntimeBranding } from "../../branding/RuntimeBrandingProvider";
 import { productAvailable, productPriceRange } from "../cart/cart";
 import { homeAddress, useCustomerAccount } from "../profile/AccountProvider";
 
 export function HomeScreen() {
-  const tenant = readEmbeddedTenant();
+  const { displayName, refresh } = useRuntimeBranding();
   const router = useRouter();
   const account = useCustomerAccount();
   const t = useCustomerText();
   const menu = useApiQuery(signal => getCustomerPublicApi().getPublicMenu({ signal }), "home-storefront");
   const address = account.state.status === "ready" ? homeAddress(account.state.data.addresses) : undefined;
   const retry = t("Try again", "ထပ်ကြိုးစားပါ");
-  return <Page title={t(`Welcome to ${tenant.branding.displayName}`, `${tenant.branding.displayName} မှ ကြိုဆိုပါတယ်`)}
+  return <Page title={t(`Welcome to ${displayName}`, `${displayName} မှ ကြိုဆိုပါတယ်`)}
+    onRefresh={() => { menu.reload(); void refresh(); }}
     subtitle={t("Order your favorites for home delivery.", "နှစ်သက်ရာ အစားအစာများကို အိမ်အရောက် မှာယူပါ။")}>
     {menu.state.status === "ready" ? <Card title={menu.state.data.restaurantName}>
       {menu.state.data.description ? <Body>{menu.state.data.description}</Body> : null}
@@ -36,6 +37,7 @@ export function HomeScreen() {
 }
 
 export function MenuScreen() {
+  const { refresh } = useRuntimeBranding();
   const router = useRouter();
   const language = useCustomerLanguage();
   const t = useCustomerText();
@@ -55,7 +57,7 @@ export function MenuScreen() {
       [product.name, product.description, category.name].some(text => text?.toLocaleLowerCase(language).includes(term))) }))
     .filter(category => category.products.length > 0);
 
-  return <Page title={title} onRefresh={query.reload}>
+  return <Page title={title} onRefresh={() => { query.reload(); void refresh(); }}>
     <FormField label={t("Search the menu", "မီနူးတွင် ရှာရန်")} placeholder={t("Product or category", "အစားအစာ သို့မဟုတ် အမျိုးအစား")}
       value={search} onChangeText={setSearch} returnKeyType="search" autoCorrect={false} />
     {categories.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>

@@ -1,5 +1,6 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveThemeTokens } from "@restaurant-platform/ui-tokens";
 
 const harness = vi.hoisted(() => ({
   auth: { status: "signed_in", userId: "customer-a" }, pathname: "/home",
@@ -20,7 +21,8 @@ vi.mock("../features/checkout/CheckoutProvider", () => ({ CustomerCheckoutProvid
   useCustomerCheckout: () => ({ state: { status: "idle" } }) }));
 vi.mock("../i18n", () => ({ useCustomerText: () => (english: string) => english, queryStateLabel: (state: string) => state }));
 vi.mock("../features/addresses/AddressScreen", () => ({ AddressScreen: "AddressScreen" }));
-vi.mock("../components/ui", () => ({ Page: "Page", StateView: "StateView" }));
+vi.mock("../components/ui", () => ({ Page: "Page", StateView: "StateView", useUiTheme: () => resolveThemeTokens({ primaryColor: "#2457a7" }) }));
+vi.mock("../branding/RuntimeBrandingProvider", () => ({ useRuntimeBranding: () => ({ displayName: "Current Restaurant", logoUrl: "https://media.example.test/current.png" }) }));
 vi.mock("../tenant", () => ({ readEmbeddedTenant: () => ({ branding: { displayName: "Configured Restaurant", primaryColor: "#2457a7" } }) }));
 
 import Address from "../../app/(store)/address";
@@ -54,7 +56,8 @@ describe("restaurant-locked customer navigation", () => {
     expect(tabs.map(tab => tab.props.accessibilityLabel)).toEqual(["home", "menu", "cart", "orders", "profile"]);
     for (const tab of tabs) (tab.props.onPress as () => void)();
     expect(harness.navigate.mock.calls.map(call => call[0])).toEqual(["/home", "/menu", "/cart", "/orders", "/profile"]);
-    expect(elements(tree).some(item => item.props.children === "Configured Restaurant")).toBe(true);
+    expect(elements(tree).some(item => item.props.children === "Current Restaurant")).toBe(true);
+    expect(elements(tree).find(item => item.type === "Image")?.props.source).toEqual({ uri: "https://media.example.test/current.png" });
   });
 
   it("holds a validated deep-link destination through sign-in and rejects a tampered bridge route", () => {

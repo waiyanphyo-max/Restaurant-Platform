@@ -217,7 +217,7 @@ function validateRestaurantConfig(value, expectedSlug, options = {}) {
   requireOnlyKeys(guestDomains, ["staging", "production"], "restaurant config guestDomains");
   const staging = requireHostList(guestDomains.staging, "restaurant config guestDomains.staging");
   const production = requireHostList(guestDomains.production, "restaurant config guestDomains.production");
-  if (schemaVersion === 2 && [...staging, ...production].some((host) => host === "localhost" || host.endsWith(".localhost") || isIP(host))) {
+  if (schemaVersion === 2 && [...staging, ...production].some((host) => isNonPublicHost(host))) {
     throw new Error("staging and production guest domains must use DNS hostnames for Android App Links");
   }
 
@@ -342,6 +342,29 @@ function isPrivateIPv4(host) {
   return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
 }
 
+function isNonPublicHost(host) {
+  return !host.includes(".") || host.endsWith(".") || Boolean(isIP(host.replace(/^\[|\]$/g, ""))) || host === "localhost" ||
+    [".localhost", ".local", ".internal"].some((suffix) => host.endsWith(suffix));
+}
+
+// Syntax validation remains useful for offline fixture/legacy inspection. Real
+// EAS releases additionally reject known placeholder and temporary endpoints.
+function validateReleaseEndpoints(restaurant, environment) {
+  if (!["staging", "production"].includes(environment)) return;
+  const profile = restaurant.mobileProfiles?.[environment];
+  const origins = [profile?.apiBaseUrl, ...restaurant.guestDomains[environment].map((host) => `https://${host}`)];
+  for (const origin of origins) {
+    if (typeof origin !== "string") throw new Error("release API and guest origins are required");
+    const parsed = new URL(requireOrigin(origin, environment, "release endpoint"));
+    const host = parsed.hostname.toLowerCase();
+    const reserved = ["example.com", "example.net", "example.org", "test", "invalid", "example"];
+    const temporary = ["trycloudflare.com", "ngrok.io", "ngrok-free.app", "ngrok.app", "loca.lt", "localtunnel.me"];
+    if ([...reserved, ...temporary].some((domain) => host === domain || host.endsWith(`.${domain}`))) {
+      throw new Error("release endpoints must not use placeholder, reserved, or temporary tunnel hosts; independently review deployed origins");
+    }
+  }
+}
+
 function requireOrigin(value, environment, label, guestSlug, allowPrivateIp = false) {
   const text = requireText(value, label);
   let parsed;
@@ -352,6 +375,14 @@ function requireOrigin(value, environment, label, guestSlug, allowPrivateIp = fa
   const localHost = ["localhost", "127.0.0.1", "10.0.2.2", "[::1]"].includes(parsed.hostname) ||
     (guestSlug !== undefined && parsed.hostname === `${guestSlug}.localhost`) ||
     (allowPrivateIp && isPrivateIPv4(parsed.hostname));
+  if (environment !== "development" && isNonPublicHost(parsed.hostname)) {
+    throw new Error(`${label} must use a public DNS hostname in staging and production`);
+  }
+  if (environment !== "development") {
+    try { requireHost(parsed.hostname, label); } catch {
+      throw new Error(`${label} must use a public DNS hostname in staging and production`);
+    }
+  }
   if (parsed.protocol !== "https:" && !(environment === "development" && parsed.protocol === "http:" && localHost)) {
     throw new Error(`${label} must use HTTPS or a ${allowPrivateIp ? "loopback or private-LAN" : "loopback"} development origin`);
   }
@@ -419,5 +450,6 @@ module.exports = {
   listMobileBuildConfigs,
   loadRestaurantConfig,
   resolveRestaurantByHost,
-  getMobileBuildConfig
+  getMobileBuildConfig,
+  validateReleaseEndpoints
 };

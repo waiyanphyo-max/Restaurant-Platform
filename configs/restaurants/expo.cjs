@@ -3,7 +3,7 @@
 const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
-const { getMobileBuildConfig } = require("./index.cjs");
+const { getMobileBuildConfig, validateReleaseEndpoints } = require("./index.cjs");
 const { selectFirebaseAndroid } = require("./firebase-android.cjs");
 
 function fromApp(appDirectory, relative) {
@@ -16,6 +16,22 @@ function digest(value) {
 
 function assetDigest(relative) {
   return relative ? digest(fs.readFileSync(path.resolve(__dirname, relative))) : null;
+}
+
+// Normalize text line endings so a reviewed Windows plan matches the EAS checkout.
+// Bind local plugin implementations and the pinned worker/profile configuration,
+// in addition to their options and the source revision already in the plan.
+function configurationDigests(appDirectory) {
+  const files = [
+    "index.cjs", "expo.cjs", "firebase-android.cjs", "mobile-runtime.ts",
+    "with-network-security.cjs", "with-app-label.cjs", "with-build-fingerprint.cjs"
+  ];
+  return {
+    registryTooling: Object.fromEntries(files.map((file) => [file,
+      digest(fs.readFileSync(path.join(__dirname, file), "utf8").replaceAll("\r\n", "\n"))])),
+    appConfig: digest(fs.readFileSync(path.join(appDirectory, "app.config.js"), "utf8").replaceAll("\r\n", "\n")),
+    easProfiles: digest(fs.readFileSync(path.join(appDirectory, "eas.json"), "utf8").replaceAll("\r\n", "\n"))
+  };
 }
 
 function publicAuthInputs(env) {
@@ -38,6 +54,7 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
   function evaluate(config, env, options) {
     const selected = getMobileBuildConfig(kind, env, options);
     const { app, restaurant, routing, release, environment } = selected;
+    if (env.EAS_BUILD === "true" && environment !== "development") validateReleaseEndpoints(restaurant, environment);
     const { logoPath, ...branding } = restaurant.branding;
     if (logoPath) branding.logoDataUri = `data:image/png;base64,${fs.readFileSync(path.resolve(__dirname, logoPath)).toString("base64")}`;
     const icon = app.iconPath ? fromApp(appDirectory, app.iconPath) : undefined;
@@ -99,6 +116,8 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
     };
     const fingerprint = `sha256:${digest(JSON.stringify({
       build,
+      registry: digest(JSON.stringify(restaurant)),
+      configuration: configurationDigests(appDirectory),
       branding,
       icon: assetDigest(app.iconPath),
       splash: { ...splash, image: assetDigest(app.splashPath ?? app.iconPath) },

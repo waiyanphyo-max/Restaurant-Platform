@@ -10,6 +10,7 @@ export function listRestaurantConfigs(): RestaurantConfig[];
 export function listDevelopmentFixtures(): RestaurantConfig[];
 export function loadRestaurantConfig(slug: string): RestaurantConfig;
 export function resolveRestaurantByHost(host: string, environment: RestaurantEnvironment): RestaurantConfig | null;
+export function validateReleaseEndpoints(restaurant: RestaurantConfig, environment: MobileEnvironment): void;
 export function getMobileBuildConfig(kind: MobileAppKind, environmentVariables?: Record<string, string | undefined>, options?: { inspectFixtureProfiles?: boolean }): {
   environment: MobileEnvironment;
   kind: MobileAppKind;

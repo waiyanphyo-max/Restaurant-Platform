@@ -31,10 +31,10 @@ function selectFirebaseAndroid(kind, appDirectory, applicationId, env) {
   const file = env[pathVariable];
   const expectedProject = env.MOBILE_FIREBASE_PROJECT_ID;
   const firebase = file ? readClientConfig(path.resolve(appDirectory, file), applicationId) : null;
-  if (expectedProject && firebase?.projectId !== expectedProject) {
+  if (!expectedProject || !firebase || firebase.projectId !== expectedProject) {
     throw new Error(`${pathVariable} must reference Firebase Android client JSON for ${applicationId} in MOBILE_FIREBASE_PROJECT_ID`);
   }
-  return firebase ? { file, firebase } : null;
+  return { file, firebase };
 }
 
 module.exports = { selectFirebaseAndroid };

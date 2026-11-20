@@ -4,6 +4,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { CustomerAuthProvider, useCustomerAuth } from "../src/auth/AuthProvider";
 import { customerNotifications } from "../src/notifications/native";
 import { useNotificationInbox } from "@restaurant-platform/mobile-notifications/navigation";
+import { RuntimeBrandingProvider } from "../src/branding/RuntimeBrandingProvider";
 
 const openInbox = () => router.navigate("/notifications");
 function Navigation() {
@@ -22,7 +23,7 @@ function Navigation() {
   </Stack>;
 }
 export default function RootLayout() {
-  return <SafeAreaProvider><CustomerAuthProvider><Navigation /></CustomerAuthProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><CustomerAuthProvider><RuntimeBrandingProvider><Navigation /></RuntimeBrandingProvider></CustomerAuthProvider></SafeAreaProvider>;
 }
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}><Text accessibilityRole="header">Customer app could not open</Text>
