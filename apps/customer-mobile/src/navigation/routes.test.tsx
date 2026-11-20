@@ -7,8 +7,9 @@ const harness = vi.hoisted(() => ({
   params: {} as { destination?: string | string[] },
   account: { state: { status: "ready" }, editingAddress: null as null | { id: string }, reload: vi.fn(), dismissOnboarding: vi.fn() },
   replace: vi.fn(), navigate: vi.fn()
+  , checkoutStatus: "idle", fontScale: 1, count: 0
 }));
-vi.mock("react-native", () => ({ Image: "Image", Pressable: "Pressable", Text: "Text", View: "View", StyleSheet: { create: (value: unknown) => value } }));
+vi.mock("react-native", () => ({ Image: "Image", KeyboardAvoidingView: "KeyboardAvoidingView", ScrollView: "ScrollView", Pressable: "Pressable", Text: "Text", View: "View", useWindowDimensions: () => ({ fontScale: harness.fontScale }), StyleSheet: { create: (value: unknown) => value } }));
 vi.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView" }));
 vi.mock("expo-router", () => ({ Redirect: "Redirect", Slot: "Slot", usePathname: () => harness.pathname,
   useLocalSearchParams: () => harness.params,
@@ -16,9 +17,11 @@ vi.mock("expo-router", () => ({ Redirect: "Redirect", Slot: "Slot", usePathname:
 vi.mock("../auth/AuthProvider", () => ({ useCustomerAuth: () => ({ state: harness.auth }) }));
 vi.mock("../auth/AuthPanel", () => ({ AuthPanel: "AuthPanel" }));
 vi.mock("../features/profile/AccountProvider", () => ({ CustomerAccountProvider: "CustomerAccountProvider", useCustomerAccount: () => harness.account }));
-vi.mock("../features/cart/CartProvider", () => ({ CustomerCartProvider: "CustomerCartProvider" }));
+vi.mock("../features/cart/CartProvider", () => ({ CustomerCartProvider: "CustomerCartProvider", useCustomerCart: () => ({ lines: harness.count ? [{ item: { quantity: harness.count } }] : [] }) }));
+vi.mock("../features/storefront/MenuProvider", () => ({ CustomerMenuProvider: "CustomerMenuProvider" }));
+vi.mock("../components/FoodMedia", () => ({ BrandLogo: "BrandLogo" }));
 vi.mock("../features/checkout/CheckoutProvider", () => ({ CustomerCheckoutProvider: "CustomerCheckoutProvider",
-  useCustomerCheckout: () => ({ state: { status: "idle" } }) }));
+  useCustomerCheckout: () => ({ state: { status: harness.checkoutStatus } }) }));
 vi.mock("../i18n", () => ({ useCustomerText: () => (english: string) => english, queryStateLabel: (state: string) => state }));
 vi.mock("../features/addresses/AddressScreen", () => ({ AddressScreen: "AddressScreen" }));
 vi.mock("../components/ui", () => ({ Page: "Page", StateView: "StateView", useUiTheme: () => resolveThemeTokens({ primaryColor: "#2457a7" }) }));
@@ -39,6 +42,7 @@ describe("restaurant-locked customer navigation", () => {
   beforeEach(() => {
     harness.auth = { status: "signed_in", userId: "customer-a" }; harness.pathname = "/home";
     harness.params = {};
+    harness.checkoutStatus = "idle"; harness.fontScale = 1; harness.count = 0;
     harness.account.state = { status: "ready" }; harness.account.editingAddress = null;
     harness.account.reload.mockReset(); harness.account.dismissOnboarding.mockReset(); harness.replace.mockReset(); harness.navigate.mockReset();
   });
@@ -49,15 +53,41 @@ describe("restaurant-locked customer navigation", () => {
     expect(elements(tree).some(item => item.type === "Slot")).toBe(false);
   });
 
-  it("offers Home, Menu, Cart, Orders, Profile within the configured restaurant", () => {
+  it("offers localized Home, Menu, Cart, Orders, Account within the configured restaurant routes", () => {
     const navigation = elements(StoreLayout()).find(item => typeof item.type === "function")!;
     const tree = (navigation.type as () => ReactNode)();
     const tabs = elements(tree).filter(item => item.type === "Pressable");
-    expect(tabs.map(tab => tab.props.accessibilityLabel)).toEqual(["home", "menu", "cart", "orders", "profile"]);
+    expect(tabs.map(tab => tab.props.accessibilityLabel)).toEqual(["Home", "Menu", "Cart", "Orders", "Account"]);
     for (const tab of tabs) (tab.props.onPress as () => void)();
     expect(harness.navigate.mock.calls.map(call => call[0])).toEqual(["/home", "/menu", "/cart", "/orders", "/profile"]);
     expect(elements(tree).some(item => item.props.children === "Current Restaurant")).toBe(true);
-    expect(elements(tree).find(item => item.type === "Image")?.props.source).toEqual({ uri: "https://media.example.test/current.png" });
+    expect(elements(tree).find(item => item.type === "BrandLogo")?.props.uri).toBe("https://media.example.test/current.png");
+  });
+
+  it("keeps product navigation in Menu and exposes the current cart quantity with larger-text targets", () => {
+    harness.pathname = "/product/11111111-1111-4111-8111-111111111111"; harness.count = 7; harness.fontScale = 2;
+    const navigation = elements(StoreLayout()).find(item => typeof item.type === "function")!;
+    const tabs = elements((navigation.type as () => ReactNode)()).filter(item => item.props.accessibilityRole === "tab");
+    expect(tabs.find(tab => tab.props.accessibilityLabel === "Menu")?.props.accessibilityState).toEqual({ selected: true });
+    expect(tabs.some(tab => tab.props.accessibilityLabel === "Cart · 7")).toBe(true);
+    expect(tabs.every(tab => (tab.props.style as Record<string, unknown>[]).some(style => style.minWidth === 128))).toBe(true);
+  });
+
+  it.each(["uncertain", "created", "recovery_pending", "unrecorded"])("keeps checkout recovery visible for %s regardless of cart count", status => {
+    harness.checkoutStatus = status; harness.count = 0;
+    const navigation = elements(StoreLayout()).find(item => typeof item.type === "function")!;
+    const tree = (navigation.type as () => ReactNode)();
+    const recovery = elements(tree).find(item => item.props.accessibilityRole === "button")!;
+    expect(recovery.props.accessibilityLabel).toBe("Review your recent checkout");
+    (recovery.props.onPress as () => void)();
+    expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/checkout");
+  });
+
+  it("keeps the existing order-detail route associated with Orders", () => {
+    harness.pathname = "/order/11111111-1111-4111-8111-111111111111";
+    const navigation = elements(StoreLayout()).find(item => typeof item.type === "function")!;
+    const tree = (navigation.type as () => ReactNode)();
+    expect(elements(tree).find(item => item.props.accessibilityLabel === "Orders")?.props.accessibilityState).toEqual({ selected: true });
   });
 
   it("holds a validated deep-link destination through sign-in and rejects a tampered bridge route", () => {

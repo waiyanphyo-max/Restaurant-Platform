@@ -19,7 +19,7 @@ vi.mock("react", async original => ({
 vi.mock("expo-router", () => ({ router: { replace: h.replace }, useLocalSearchParams: () => ({ attempt: h.attempt }) }));
 vi.mock("react-native", () => ({ Text: "Text" }));
 vi.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView" }));
-vi.mock("../components/ui", () => ({ Action: "Action", Page: "Page" }));
+vi.mock("../components/ui", () => ({ Action: "Action", Page: "Page", StateView: "StateView" }));
 vi.mock("./native", () => ({ confirmCustomerEmail: h.confirm }));
 vi.mock("./confirmation-link", () => ({ takeCustomerConfirmationInput: h.take }));
 vi.mock("../../app/index", () => ({ default: "SignIn" }));
@@ -54,5 +54,15 @@ describe("customer confirmation sign-in screen", () => {
     render(); await settle(); previous("invalid"); await settle();
     expect(render().type).toBe("SignIn"); expect(render().props.confirmationMessage).toContain("Your email is confirmed");
     expect(h.confirm).toHaveBeenCalledTimes(2); expect(h.take).toHaveBeenCalledTimes(2);
+  });
+  it("localizes confirmation checking and expired-link recovery without submitting a second attempt", async () => {
+    h.confirm.mockResolvedValue("invalid"); render(); await settle();
+    const language = items(render()).find(item => item.props.title === "မြန်မာဘာသာ")!;
+    (language.props.onPress as () => void)();
+    const tree = render();
+    expect(items(tree).find(item => item.type === "Page")!.props.title).toBe("အီးမေးလ် အတည်ပြုခြင်း");
+    expect(items(tree).find(item => item.type === "StateView")!.props.kind).toBe("error");
+    expect(items(tree).some(item => item.props.title === "အကောင့်ဝင်ရန် ပြန်သွားပါ")).toBe(true);
+    expect(h.confirm).toHaveBeenCalledOnce();
   });
 });

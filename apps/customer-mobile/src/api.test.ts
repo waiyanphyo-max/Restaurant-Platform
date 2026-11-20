@@ -81,6 +81,27 @@ describe("Customer public runtime branding adapter", () => {
     await expect(getCustomerPublicApi().getBranding()).resolves.toMatchObject({ palette: null, logoUrl: null });
   });
 
+  it("keeps two public catalogs bound to their embedded UUID and origin and rejects a foreign menu", async () => {
+    const publicMenu = (restaurantId: string, name: string, productId: string) => ({ restaurantId, restaurantName: name,
+      slug: null, description: null, phone: null, address: null, logoUrl: null, currency: "MMK",
+      categories: [{ id: productId, name: `${name} meals`, displayOrder: 0, products: [{ id: productId, name: `${name} dish`,
+        description: null, price: restaurantId === a ? 1750 : 4200, imageUrl: null, available: true, trackStock: false,
+        stockQuantity: null, variants: [], modifierGroups: [] }] }] });
+    const catalogA = publicMenu(a, "Restaurant A", "33333333-3333-4333-8333-333333333333");
+    const catalogB = publicMenu(b, "Restaurant B", "44444444-4444-4444-8444-444444444444");
+    mocks.fetch.mockImplementation(async target => json(String(target).startsWith("https://api-a.example.test/") ? catalogA : catalogB));
+    const first = getCustomerPublicApi();
+    mocks.tenant = { restaurantId: b, apiBaseUrl: "https://api-b.example.test" };
+    const second = getCustomerPublicApi();
+    expect((await first.getPublicMenu()).categories[0].products[0].name).toBe("Restaurant A dish");
+    expect((await second.getPublicMenu()).categories[0].products[0].name).toBe("Restaurant B dish");
+    expect(String(mocks.fetch.mock.calls[0][0])).toBe(`https://api-a.example.test/api/v1/public/restaurants/${a}/menu`);
+    expect(String(mocks.fetch.mock.calls[1][0])).toBe(`https://api-b.example.test/api/v1/public/restaurants/${b}/menu`);
+    mocks.fetch.mockResolvedValue(json(catalogB));
+    await expect(first.getPublicMenu()).rejects.toBeInstanceOf(ApiProtocolError);
+    expect(mocks.token).not.toHaveBeenCalled();
+  });
+
   it.each(["foreign-origin", "redirect"])("rejects a %s response rather than accepting branding from another API environment", async reason => {
     const response = json(brand());
     if (reason === "foreign-origin") Object.defineProperty(response, "url", { value: "https://other-api.example.test/api/v1/public/branding" });
