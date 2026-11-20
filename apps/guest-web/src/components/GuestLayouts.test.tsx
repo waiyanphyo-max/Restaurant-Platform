@@ -13,11 +13,12 @@ import { GuestSession } from "./GuestSession";
 import { TenantFrame } from "./TenantFrame";
 
 const mocks = vi.hoisted(() => ({
-  tenant: vi.fn(), locale: vi.fn(),
+  tenant: vi.fn(), locale: vi.fn(), branding: vi.fn(),
   notFound: vi.fn(() => { throw new Error("NEXT_NOT_FOUND"); }),
 }));
 vi.mock("@/lib/tenant-server", () => ({ resolveGuestTenantContext: mocks.tenant }));
 vi.mock("@/lib/locale-server", () => ({ getGuestLocale: mocks.locale }));
+vi.mock("@/lib/branding-server", () => ({ loadGuestBranding: mocks.branding }));
 vi.mock("@/app/actions", () => ({ setGuestLanguage: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
@@ -39,6 +40,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.locale.mockResolvedValue("en");
   mocks.tenant.mockResolvedValue({ restaurant: garden, basePath: "" });
+  mocks.branding.mockImplementation(async (config: RestaurantConfig) => ({ restaurantId: config.restaurantId, branding: config.branding, revision: null, source: "fallback" }));
 });
 
 describe("restaurant layout boundaries", () => {
@@ -57,12 +59,27 @@ describe("restaurant layout boundaries", () => {
     await expect(RestaurantLayout({ children: <p>Must stay hidden</p> })).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mocks.notFound).toHaveBeenCalledOnce();
     expect(mocks.locale).not.toHaveBeenCalled();
+    expect(mocks.branding).not.toHaveBeenCalled();
   });
 
   it("rejects local route context inside the host-only route group", async () => {
     mocks.tenant.mockResolvedValue({ restaurant: garden, basePath: "/r/garden" });
     await expect(RestaurantLayout({ children: <p>Wrong route group</p> })).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mocks.locale).not.toHaveBeenCalled();
+  });
+
+  it("uses validated current server identity and palette without changing the QR session tenant", async () => {
+    mocks.branding.mockResolvedValue({ restaurantId: garden.restaurantId, branding: { displayName: "Current kitchen name", primaryColor: "#A51D22" }, revision: 2, source: "runtime" });
+    const layout = await RestaurantLayout({ children: <p>Menu</p> });
+    expect(mocks.branding).toHaveBeenCalledExactlyOnceWith(garden);
+    const html = renderToStaticMarkup(layout);
+    expect(html).toContain("Current kitchen name");
+    expect(html).toContain("--brand-primary:#A51D22");
+    expect(html).not.toContain("garden kitchen");
+    const frame = TenantFrame(layout.props);
+    expect(frame.key).toBe(garden.restaurantId);
+    expect(frame.props.restaurantId).toBe(garden.restaurantId);
+    expect((await generateMetadata()).title).toBe("Current kitchen name · Menu");
   });
 
   it("renders each local slug with its own shell, locale and navigation base", async () => {

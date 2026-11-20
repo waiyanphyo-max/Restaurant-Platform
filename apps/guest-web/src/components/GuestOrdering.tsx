@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
+import type { MenuProductDto } from "@restaurant-platform/shared-types";
 import { formatMenuPrice } from "@/lib/menu";
 import { orderStatusLabel, orderingMessages } from "@/lib/ordering-i18n";
+import { selectionEstimate, sumEstimates } from "@/lib/guest-pricing";
+import { validateCartSelection } from "@/lib/guest-order";
 import { useGuestSession } from "./GuestSession";
 
 /** The order number carries Spring's restaurant-local business date. */
@@ -13,11 +17,24 @@ export function receiptOrderDate(orderNumber: string): string | null {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day ? day : null;
 }
 
-export function GuestOrdering({ currency }: { currency: string }) {
+export function GuestOrdering({ currency, products = [] }: { currency: string; products?: MenuProductDto[] }) {
   const { locale, state, actions } = useGuestSession();
+  const [reviewed, setReviewed] = useState<string | null>(null);
   const text = orderingMessages[locale];
   const { phase, context, receipt, tracking } = state;
   const locked = phase !== "ready";
+  const lineEstimates = state.cart.map(line => {
+    const product = products.find(item => item.id === line.productId);
+    return product ? selectionEstimate(product, line) : null;
+  });
+  const estimate = sumEstimates(lineEstimates);
+  const cartValid = estimate !== null && state.cart.every(line => {
+    const product = products.find(item => item.id === line.productId);
+    return !!product && validateCartSelection(product, line, state.cart.filter(other => other.id !== line.id));
+  });
+  // Review is invalidated by any cart or current-menu amount change. No capability enters this key.
+  const reviewKey = JSON.stringify({ cart: state.cart, lineEstimates, currency });
+  const isReviewed = phase === "ready" && cartValid && reviewed === reviewKey;
   const errorText = state.error ? {
     "invalid-qr": text.invalid, unavailable: text.orderingUnavailable, selection: text.selection,
     conflict: text.conflict, retry: text.retryError, configuration: text.configuration, expired: text.expired,
@@ -60,13 +77,14 @@ export function GuestOrdering({ currency }: { currency: string }) {
         {receipt.discountAmount > 0 && <div><dt>{text.discount}</dt><dd>−{formatMenuPrice(receipt.discountAmount, receipt.currency, locale)}</dd></div>}
         <div className="order-total"><dt>{text.total}</dt><dd>{formatMenuPrice(receipt.totalAmount, receipt.currency, locale)}</dd></div>
       </dl>
+      <div className="counter-payment"><strong>{text.payment}</strong><p>{text.paymentNote}</p></div>
       <p className="muted">{text.keepOpen}</p>
     </section>;
   }
 
   const banner = phase === "browse" ? text.scan : phase === "validating" ? text.validating : phase === "invalid" ? text.invalid
     : phase === "error" ? text.error : phase === "submitting" ? text.submitting : phase === "uncertain" ? (state.error === "expired" ? text.expired : text.uncertain) : text.ready;
-  return <section className="order-panel" id="guest-order" aria-labelledby="guest-order-title">
+  return <><section className="order-panel" id="guest-order" aria-labelledby="guest-order-title">
     <div className="ordering-context">
       <h2 id="guest-order-title">{text.cart}</h2>
       {state.kind && <span className="choice-label">{state.kind === "TABLE_QR" ? text.dineIn : text.takeaway}</span>}
@@ -76,11 +94,12 @@ export function GuestOrdering({ currency }: { currency: string }) {
     {phase === "error" && <button type="button" className="order-secondary-button" disabled={!actions} onClick={() => void actions?.retryValidation()}>{text.retry}</button>}
     {errorText && phase !== "invalid" && errorText !== banner && <p className="ordering-error" role="alert">{errorText}</p>}
     {state.cart.length > 0 ? <ul className="order-cart-lines">
-      {state.cart.map(line => <li key={line.id}>
+      {state.cart.map((line, index) => <li key={line.id}>
         <div className="order-line-copy"><strong>{line.name}</strong>{line.variantName && <span>{line.variantName}</span>}
           {line.modifierNames.length > 0 && <span>{line.modifierNames.map((name, index) => `${name} × ${line.modifiers[index]?.quantity ?? 1}`).join(", ")}</span>}
           {line.specialInstruction && <p>{line.specialInstruction}</p>}
         </div>
+        <span className="order-line-price">{lineEstimates[index] === null ? text.estimateUnavailable : formatMenuPrice(lineEstimates[index], currency, locale)}</span>
         <label className="order-line-quantity"><span>{text.quantity}</span>
           <input type="number" inputMode="numeric" min={1} max={999} step={1} value={line.quantity}
             aria-label={`${text.quantity}: ${line.name}`} disabled={locked || !actions}
@@ -89,10 +108,21 @@ export function GuestOrdering({ currency }: { currency: string }) {
         <button type="button" className="order-remove" disabled={locked || !actions} aria-label={`${text.remove}: ${line.name}`} onClick={() => actions?.remove(line.id)}>{text.remove}</button>
       </li>)}
     </ul> : <p className="muted">{text.emptyCart}</p>}
+    {state.cart.length > 0 && <dl className="order-totals"><div className="order-total"><dt>{text.cartEstimate}</dt><dd>{estimate === null ? text.estimateUnavailable : formatMenuPrice(estimate, currency, locale)}</dd></div></dl>}
     <p className="muted">{text.finalPrices}</p>
-    <button type="button" className="button" disabled={!actions || state.error === "expired" || state.cart.length === 0 || (phase !== "ready" && phase !== "uncertain")}
-      onClick={() => void actions?.checkout()}>{phase === "submitting" ? text.submitting : phase === "uncertain" ? text.safeRetry : text.submit}</button>
+    {phase === "ready" && state.cart.length > 0 && !cartValid && <p className="ordering-error" role="alert">{text.selection}</p>}
+    {isReviewed && <div className="checkout-review" role="status"><h3>{text.reviewTitle}</h3><strong>{text.payment}</strong><p>{text.paymentNote}</p>
+      <button type="button" className="order-secondary-button" onClick={() => setReviewed(null)}>{text.edit}</button></div>}
+    <button type="button" className="button" disabled={!actions || state.error === "expired" || state.cart.length === 0 || (phase === "ready" && !cartValid) || (phase !== "ready" && phase !== "uncertain")}
+      onClick={() => {
+        if (phase === "uncertain") { void actions?.checkout(); return; }
+        if (phase !== "ready" || !state.cart.length || !cartValid) return;
+        if (reviewed !== reviewKey) { setReviewed(reviewKey); return; }
+        void actions?.checkout();
+      }}>{phase === "submitting" ? text.submitting : phase === "uncertain" ? text.safeRetry : state.cart.length > 0 && !isReviewed ? text.review : text.submit}</button>
     {state.cart.length > 0 && <p className="muted order-session-note">{text.keepOpen}</p>}
     <span className="visually-hidden">{currency}</span>
-  </section>;
+  </section>
+    {state.cart.length > 0 && <a className="sticky-cart" href="#guest-order"><span>{text.viewOrder} · {state.cart.reduce((count, line) => count + line.quantity, 0)}</span>{estimate !== null && <strong>{formatMenuPrice(estimate, currency, locale)}</strong>}</a>}
+  </>;
 }

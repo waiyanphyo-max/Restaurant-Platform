@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { getGuestLocale } from "@/lib/locale-server";
 import { resolveGuestTenantContext } from "@/lib/tenant-server";
+import { loadGuestBranding } from "@/lib/branding-server";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +10,9 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export async function generateMetadata(): Promise<Metadata> {
   const context = await resolveGuestTenantContext();
+  const presentation = context ? await loadGuestBranding(context.restaurant) : null;
   return {
-    title: context ? `${context.restaurant.branding.displayName} · Menu` : "Restaurant site unavailable",
+    title: presentation ? `${presentation.branding.displayName} · Menu` : "Restaurant site unavailable",
     description: "Explore the restaurant menu, available dishes and contact information.",
     robots: { index: false, follow: false }, referrer: "no-referrer",
   };

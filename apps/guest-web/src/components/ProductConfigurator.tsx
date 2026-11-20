@@ -5,7 +5,10 @@ import type { MenuProductDto } from "@restaurant-platform/shared-types";
 import { validateCartSelection } from "@/lib/guest-order";
 import { formatMenuPrice, isProductAvailable } from "@/lib/menu";
 import { orderingMessages } from "@/lib/ordering-i18n";
+import { messages } from "@/lib/i18n";
+import { selectionEstimate } from "@/lib/guest-pricing";
 import { useGuestSession } from "./GuestSession";
+import { ProductMedia } from "./ProductMedia";
 
 export function ProductConfigurator({ product, currency }: { product: MenuProductDto; currency: string }) {
   const { locale, state, actions } = useGuestSession();
@@ -19,14 +22,16 @@ export function ProductConfigurator({ product, currency }: { product: MenuProduc
   const available = isProductAvailable(product);
   const selectedVariant = product.variants.find(variant => variant.id === variantId);
   const canAdd = state.phase === "ready" && !!actions && available;
+  const selection = {
+    variantId: variantId || null, quantity, specialInstruction: notes,
+    modifiers: Object.entries(options).filter(([, count]) => count > 0)
+      .map(([modifierOptionId, count]) => ({ modifierOptionId, quantity: count })),
+  };
+  const valid = validateCartSelection(product, selection, state.cart);
+  const estimate = selectionEstimate(product, selection);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const selection = {
-      variantId: variantId || null, quantity, specialInstruction: notes,
-      modifiers: Object.entries(options).filter(([, count]) => count > 0)
-        .map(([modifierOptionId, count]) => ({ modifierOptionId, quantity: count })),
-    };
     if (!canAdd || !validateCartSelection(product, selection, state.cart) || !actions?.add(product, selection)) {
       setFeedback("invalid");
       return;
@@ -50,10 +55,12 @@ export function ProductConfigurator({ product, currency }: { product: MenuProduc
             </option>)}
           </select>
           {selectedVariant?.description && <span id={`${formId}-variant-description`} className="variant-description">{selectedVariant.description}</span>}
+          {selectedVariant && <span className="selected-variant-media"><ProductMedia src={selectedVariant.imageUrl} alt={selectedVariant.name}
+            fallbackLabel={`${selectedVariant.name} · ${messages[locale].photoUnavailable}`} width={96} height={96} className="variant-image" /></span>}
         </label>}
-        {product.modifierGroups.map(group => <fieldset key={group.id} className="order-modifier-group">
+        {product.modifierGroups.map(group => <fieldset key={group.id} className="order-modifier-group" aria-describedby={`${formId}-${group.id}-rules`}>
           <legend>{group.name} <span className="choice-label">{group.required ? text.required : text.optional}</span></legend>
-          <p className="muted">{text.selections}: {group.minSelections}–{group.maxSelections}</p>
+          <p id={`${formId}-${group.id}-rules`} className="muted">{text.selections}: {group.minSelections}–{group.maxSelections}</p>
           {group.options.map(option => <div className="order-option" key={option.id}>
             <label htmlFor={`${formId}-${option.id}`}>
               <span>{option.name}</span>
@@ -62,6 +69,7 @@ export function ProductConfigurator({ product, currency }: { product: MenuProduc
             <input id={`${formId}-${option.id}`} type="number" inputMode="numeric" min={0} max={10} step={1}
               value={options[option.id] ?? 0} disabled={!option.available}
               aria-label={`${text.modifierQuantity}: ${option.name}`}
+              aria-describedby={`${formId}-${group.id}-rules`}
               onChange={event => setOptions(previous => ({ ...previous, [option.id]: Number(event.target.value) }))} />
           </div>)}
         </fieldset>)}
@@ -76,7 +84,11 @@ export function ProductConfigurator({ product, currency }: { product: MenuProduc
             aria-describedby={`${formId}-notes-hint`} onChange={event => setNotes(event.target.value)} />
           <small id={`${formId}-notes-hint`} className="muted">{text.notesHint}</small>
         </label>
-        <button className="button" type="submit">{text.add}</button>
+        <div className="configurator-summary">
+          <p className="selection-total" aria-live="polite"><span>{text.itemEstimate}</span><strong>{estimate === null ? text.chooseRequired : formatMenuPrice(estimate, currency, locale)}</strong></p>
+          <p id={`${formId}-selection-hint`} className="muted" role="status" aria-live="polite" aria-atomic="true">{!valid ? text.invalidSelection : text.finalPrices}</p>
+          <button className="button" type="submit" disabled={!valid} aria-describedby={`${formId}-selection-hint`}>{text.add}</button>
+        </div>
       </fieldset>
       {feedback && <p role={feedback === "invalid" ? "alert" : "status"} className={feedback === "invalid" ? "ordering-error" : "ordering-success"}>
         {feedback === "invalid" ? text.invalidSelection : <>{text.added} <a href="#guest-order">{text.cart}</a></>}

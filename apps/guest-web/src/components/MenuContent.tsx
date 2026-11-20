@@ -1,9 +1,14 @@
-/* eslint-disable @next/next/no-img-element -- Public tenant media loads lazily in the browser without a server proxy allowlist. */
+"use client";
+
+import { useRef, useState } from "react";
 import Link from "next/link";
 import type { MenuProductDto, PublicMenuResponse } from "@restaurant-platform/shared-types";
 import { messages, type GuestLocale } from "@/lib/i18n";
-import { formatMenuPrice, isProductAvailable, productPriceRange, safeImageUrl } from "@/lib/menu";
+import { formatMenuPrice, isProductAvailable, productPriceRange } from "@/lib/menu";
+import { filterMenuCategories, visibleFeaturedProduct } from "@/lib/menu-presentation";
+import { formatGuestNumber } from "@/lib/guest-format";
 import { GuestState } from "./GuestState";
+import { ProductMedia } from "./ProductMedia";
 
 export function ProductPrice({ product, currency, locale }: { product: MenuProductDto; currency: string; locale: GuestLocale }) {
   const range = productPriceRange(product);
@@ -19,22 +24,42 @@ export function ProductAvailability({ product, locale }: { product: MenuProductD
 
 export function MenuContent({ menu, locale, basePath = "" }: { menu: PublicMenuResponse; locale: GuestLocale; basePath?: string }) {
   const text = messages[locale];
+  const [query, setQuery] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
   const categories = [...menu.categories].sort((a, b) => a.displayOrder - b.displayOrder);
+  const visible = filterMenuCategories(menu, query, categoryId);
+  const featured = visibleFeaturedProduct(menu, visible);
+  const count = visible.reduce((sum, category) => sum + category.products.length, 0);
+  const reset = () => { setQuery(""); setCategoryId(""); searchInput.current?.focus(); };
   if (!categories.some(category => category.products.length)) return <GuestState kind="empty" locale={locale} basePath={basePath} />;
   return <>
+    <form className="menu-search ui-field" role="search" onSubmit={event => event.preventDefault()}>
+      <label htmlFor="menu-search">{text.search}</label>
+      <div className="search-controls"><input ref={searchInput} id="menu-search" type="search" value={query}
+        placeholder={text.searchPlaceholder} onChange={event => setQuery(event.target.value)} aria-controls="menu-dishes" />
+        {query && <button className="button button-secondary" type="button" onClick={() => { setQuery(""); searchInput.current?.focus(); }}>{text.clearSearch}</button>}
+      </div>
+    </form>
     <nav className="category-nav" aria-label={text.categories}>
-      <a href="#menu-dishes">{text.allItems}</a>
-      {categories.map(category => <a href={`#category-${category.id}`} key={category.id}>{category.name}</a>)}
+      <button type="button" aria-pressed={!categoryId} aria-controls="menu-dishes" onClick={() => setCategoryId("")}>{text.allItems}</button>
+      {categories.filter(category => category.products.length).map(category => <button type="button" aria-pressed={category.id === categoryId}
+        aria-controls="menu-dishes" onClick={() => setCategoryId(category.id)} key={category.id}>{category.name}</button>)}
     </nav>
+    <p className="search-feedback" role="status" aria-live="polite" aria-atomic="true">{formatGuestNumber(count, locale)} {text.results}</p>
     <div id="menu-dishes" className="menu-sections">
-      {categories.map((category, index) => <section key={category.id} id={`category-${category.id}`} className="menu-category" aria-labelledby={`heading-${category.id}`}>
-        <div className="section-heading"><div><span className="eyebrow">{String(index + 1).padStart(2, "0")}</span><h2 id={`heading-${category.id}`}>{category.name}</h2></div><span className="muted">{category.products.length} {text.count}</span></div>
+      {!count && <section className="search-empty ui-card" aria-labelledby="no-results-title"><h2 id="no-results-title">{text.noResults}</h2><p>{text.noResultsNote}</p><button type="button" className="button" onClick={reset}>{text.allItems}</button></section>}
+      {visible.map(category => <section key={category.id} id={`category-${category.id}`} className="menu-category" aria-labelledby={`heading-${category.id}`}>
+        <div className="section-heading"><h2 id={`heading-${category.id}`}>{category.name}</h2><span className="muted">{formatGuestNumber(category.products.length, locale)} {text.count}</span></div>
         {category.products.length ? <div className="menu-grid">{category.products.map(product => {
-          const image = safeImageUrl(product.imageUrl);
-          return <article key={product.id} className="product-card">
+          return <article key={product.id} className={`product-card${featured?.id === product.id ? " is-featured" : ""}`}>
             <Link className="product-link" href={`${basePath}/menu/${product.id}`} prefetch={false}>
-              {image && <img className="product-thumbnail" src={image} alt="" width={160} height={160} loading="lazy" decoding="async" referrerPolicy="no-referrer" />}
-              <div className="product-summary"><ProductAvailability product={product} locale={locale} /><h3>{product.name}</h3>{product.description && <p>{product.description}</p>}<div className="product-bottom"><ProductPrice product={product} currency={menu.currency} locale={locale} /><span className="detail-arrow" aria-label={text.details}>↗</span></div></div>
+              <ProductMedia src={product.imageUrl} alt="" fallbackLabel={text.photoUnavailable} className="product-thumbnail" />
+              <div className="product-summary">{featured?.id === product.id && <span className="featured-label">{text.featured}</span>}<h3>{product.name}</h3>{product.description && <p>{product.description}</p>}
+                {product.variants.length > 0 && <span className="variant-price-note">{text.variantPrice}</span>}
+                <ProductPrice product={product} currency={menu.currency} locale={locale} /><ProductAvailability product={product} locale={locale} />
+                <span className="product-action">{text.details}</span>
+              </div>
             </Link>
           </article>;
         })}</div> : <p className="muted">{text.noItems}</p>}
