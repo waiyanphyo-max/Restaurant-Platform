@@ -7,6 +7,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class RestaurantRoleTest {
 
     @Test
+    void onlyOwnerCuratesFeaturedWhileManagerKeepsCatalogPermission() {
+        assertTrue(RestaurantRole.OWNER.allows(RestaurantPermission.FEATURED_MANAGE));
+        for (RestaurantRole role : new RestaurantRole[]{RestaurantRole.MANAGER, RestaurantRole.STAFF, RestaurantRole.DELIVERY_DRIVER}) {
+            assertFalse(role.allows(RestaurantPermission.FEATURED_MANAGE));
+        }
+        assertTrue(RestaurantRole.MANAGER.allows(RestaurantPermission.MENU_MANAGE));
+    }
+
+    @Test
     void ownerRetainsMembershipAndAccountingGrants() {
         assertTrue(RestaurantRole.OWNER.allows(RestaurantPermission.MEMBERS_MANAGE));
         assertTrue(RestaurantRole.OWNER.allows(RestaurantPermission.FINANCE_READ));

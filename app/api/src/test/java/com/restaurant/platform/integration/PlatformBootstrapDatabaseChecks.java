@@ -372,7 +372,8 @@ final class PlatformBootstrapDatabaseChecks {
                     repositories.getRepository(RestaurantBootstrapStepRepository.class), catalog, lifecycle, branding,
                     VALIDATORS.getValidator(), ordering,
                     repositories.getRepository(OrderRepository.class));
-            publicMenu = new PublicMenuService(restaurants, settings, categories, products, variants, links, groups, options);
+            publicMenu = new PublicMenuService(restaurants, settings, categories, products, variants, links, groups, options,
+                    repositories.getRepository(RestaurantFeaturedProductRepository.class));
         }
     }
 

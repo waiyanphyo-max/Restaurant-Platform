@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 
 import java.util.UUID;
 
@@ -23,9 +25,9 @@ public class PublicMenuController {
     }
 
     @GetMapping("/restaurants/{restaurantId}/menu")
-    public PublicMenuResponse getMenu(
+    public ResponseEntity<PublicMenuResponse> getMenu(
             @PathVariable UUID restaurantId
     ) {
-        return publicMenuService.getMenu(restaurantId);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(publicMenuService.getMenu(restaurantId));
     }
 }

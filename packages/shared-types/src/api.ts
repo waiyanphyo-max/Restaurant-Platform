@@ -68,6 +68,8 @@ export interface PublicMenuResponse {
   logoUrl: string | null;
   currency: string;
   categories: MenuCategoryDto[];
+  /** Optional for compatibility with older servers and menu fixtures. */
+  featuredProduct?: import("./featured-api.js").FeaturedProductDto;
 }
 
 export interface ModifierSelectionRequest {

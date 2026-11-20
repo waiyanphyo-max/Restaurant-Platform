@@ -5,7 +5,7 @@ const picker = vi.hoisted(() => ({ launch: vi.fn() }));
 vi.mock("expo-image-picker", () => ({ launchImageLibraryAsync: picker.launch }));
 vi.mock("expo-file-system", () => ({ File: class File { constructor(readonly uri: string) {} } }));
 
-import { pickAndUploadImage, validatePickedImage } from "./imageUpload";
+import { pickAndUploadImage, pickImage, validatePickedImage } from "./imageUpload";
 import { File } from "expo-file-system";
 
 class NativeFormData {
@@ -70,8 +70,7 @@ describe("native image upload", () => {
     const verification = vi.fn(() => new Promise<void>(resolve => { allow = resolve; }));
     const upload = vi.fn(async () => undefined);
     const result = pickAndUploadImage(upload, verification);
-    await Promise.resolve();
-    expect(verification).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(verification).toHaveBeenCalledOnce());
     expect(upload).not.toHaveBeenCalled();
     allow();
     await expect(result).resolves.toBe(true);
@@ -83,6 +82,21 @@ describe("native image upload", () => {
     const failure = new Error("Access changed");
     await expect(pickAndUploadImage(upload, async () => { throw failure; })).rejects.toBe(failure);
     expect(upload).not.toHaveBeenCalled();
+  });
+  it("selects a local preview without uploading and later revalidates that exact asset", async () => {
+    picker.launch.mockResolvedValue({ canceled: false, assets: [asset] });
+    const selected = await pickImage();
+    expect(selected).toEqual(asset);
+    const verification = vi.fn().mockResolvedValue(undefined);
+    const upload = vi.fn().mockResolvedValue({ imageUrl: "https://images.example.test/confirmed.png" });
+    await expect(pickAndUploadImage(upload, verification, selected!)).resolves.toBe(true);
+    expect(picker.launch).toHaveBeenCalledOnce(); expect(verification).toHaveBeenCalledOnce(); expect(upload).toHaveBeenCalledOnce();
+    expect((upload.mock.calls[0][0] as NativeFormData).parts[0].value).toMatchObject({ uri: asset.uri });
+  });
+  it("rejects an invalid preselected preview before access verification or upload", async () => {
+    const upload = vi.fn(); const verification = vi.fn();
+    await expect(pickAndUploadImage(upload, verification, { ...asset, mimeType: "image/svg+xml", width: 100, height: 100 })).rejects.toThrow("PNG, JPEG or WebP");
+    expect(picker.launch).not.toHaveBeenCalled(); expect(verification).not.toHaveBeenCalled(); expect(upload).not.toHaveBeenCalled();
   });
   it.each([ ["image/png", "png"], ["image/jpeg", "jpg"], ["image/webp", "webp"] ])("uploads %s through native FormData", async (mimeType, extension) => {
     picker.launch.mockResolvedValue({ canceled: false, assets: [{ ...asset, mimeType }] });

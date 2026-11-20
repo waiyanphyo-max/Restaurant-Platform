@@ -44,6 +44,16 @@ describe("reviewed bootstrap drafts", () => {
     expect(request.mediaManifest).toHaveLength(1);
     expect(request.mediaManifest?.[0]).toMatchObject({ productId, reviewStatus: "APPROVED", uploadStatus: "PENDING" });
   });
+  it("requires an observed SHA-256 before approving a known product mapping", () => {
+    const draft = { operationKey: "media-review", originalFilename: "dish.jpg", productId, reviewStatus: "APPROVED" };
+    expect(() => buildBootstrapStep("MEDIA_MANIFEST", values(draft), setupFixture())).toThrow("SHA-256");
+    expect(() => buildBootstrapStep("MEDIA_MANIFEST", values({ ...draft, originalContentHash: "invalid" }), setupFixture())).toThrow("64-character");
+    expect(buildBootstrapStep("MEDIA_MANIFEST", values({ ...draft, reviewStatus: "PENDING" }), setupFixture()).mediaManifest?.[0])
+      .toMatchObject({ productId, reviewStatus: "PENDING", originalContentHash: null, uploadStatus: "PENDING" });
+  });
+  it.each([".", "..", "dish.jpg.", "dish?.jpg", "dish|.jpg"])("rejects unsafe original filename %s", originalFilename => {
+    expect(() => buildBootstrapStep("MEDIA_MANIFEST", values({ operationKey: "media", originalFilename }), setupFixture())).toThrow("filename");
+  });
   it("retains the reviewed latest media receipt when another operator changes the manifest", () => {
     const snapshot = setupFixture();
     const receipt = (operationKey: string, kind: "MEDIA_MANIFEST" | "CATEGORY") => ({ operationKey, kind, resourceId: null, result: {}, actorId: restaurantId, completedAt: "2026-11-20T00:00:00Z" });

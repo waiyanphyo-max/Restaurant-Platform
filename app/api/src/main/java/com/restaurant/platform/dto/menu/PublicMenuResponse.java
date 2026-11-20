@@ -12,6 +12,13 @@ public record PublicMenuResponse(
         String address,
         String logoUrl,
         String currency,
-        List<MenuCategoryDto> categories
+        List<MenuCategoryDto> categories,
+        FeaturedProductDto featuredProduct
 ) {
+    /** Existing Java fixtures and consumers may omit additive editorial metadata. */
+    public PublicMenuResponse(UUID restaurantId, String restaurantName, String slug, String description,
+            String phone, String address, String logoUrl, String currency, List<MenuCategoryDto> categories) {
+        this(restaurantId, restaurantName, slug, description, phone, address, logoUrl, currency, categories,
+                FeaturedProductDto.none());
+    }
 }

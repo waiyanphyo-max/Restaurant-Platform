@@ -498,6 +498,42 @@ All authenticated management routes are scoped to `restaurantId`. Reads require 
 
 Product management requests use the database UUIDs returned by the API. Product category, price, stock state, variants, group selection rules, and same-restaurant relationships are validated server-side. Soft deactivation/availability flags are used where the schema preserves catalogue history; products cannot be ordered from an inactive category and unavailable variants/options cannot be selected. The public modifier endpoint only returns active groups attached to an available product and available options.
 
+### Owner-curated Featured product (UXI-05)
+
+`GET /api/v1/restaurants/{restaurantId}/featured-product` requires `MENU_READ`.
+`PUT /api/v1/restaurants/{restaurantId}/featured-product` requires Owner-only `FEATURED_MANAGE`.
+Both use the existing verified JWT/membership infrastructure and return `Cache-Control: no-store`.
+Manager retains ordinary catalog and image permissions; Platform Admin setup authority grants no editorial write.
+
+PUT accepts only `{ "productId": "<actual product UUID>", "expectedRevision": 0 }`, or an explicit
+`"productId": null` to clear. The product must belong to this restaurant and be currently orderable.
+The management response is `{restaurantId, productId, status, revision}`. Every successful PUT increments
+the editorial revision, including a repeated selection or clear. Stale revisions return 409 and require
+a fresh read and explicit review; saves must not be automatically retried after uncertain responses.
+
+The existing public menu adds `featuredProduct: {productId, status}` with no management revision or private fields:
+`NONE` has a null product UUID; `AVAILABLE` identifies the selected currently displayable product;
+`UNAVAILABLE` retains its selected UUID when its category/product/variants/stock/modifiers prevent ordering.
+No replacement is chosen automatically. Optional metadata can be absent in older fixtures and clients;
+prices, variants, modifiers, stock and order snapshots retain their current contracts. This editorial pick
+never depends on sales, names, category order or successful image publication.
+
+The source migration adds a server-only tenant-keyed selection with a composite product/restaurant FK.
+No selection is backfilled. Existing soft unavailability preserves it; hard deletion/reparenting of a selected
+product is restricted until the Owner clears/replaces the selection. See [UXI-05 report](uxi-05-featured-media.md).
+
+Existing product/variant image POST routes remain separate `MENU_MANAGE` actions mediated by Spring:
+`/api/v1/restaurants/{restaurantId}/products/{productId}/image` and
+`/api/v1/restaurants/{restaurantId}/products/{productId}/variants/{variantId}/image`.
+They accept multipart `file`, enforce tenant/parent UUIDs, signature/type and 5 MiB limits before Storage,
+write a tenant-scoped unique key and update only the image URL after upload success. A failed upload retains
+the previous published image. A local preview or approved bootstrap manifest is never a publication receipt.
+
+New UXI-04 media review proposals additionally require an observed 64-hex SHA-256 for `APPROVED` entries
+and safe original basenames. Unverified mappings remain `PENDING`; `uploadStatus` is always `PENDING` in
+the manifest. Exact recorded receipt replay and stale-head checks remain unchanged. A declared hash does
+not establish ownership or verify uploaded bytes; actual originals, UUID mapping and publication need review.
+
 ## Counter payment collection
 
 QR orders create a `PENDING` `CASH_AT_COUNTER` payment record for the order total. The following routes require `PAYMENT_READ` or `PAYMENT_COLLECT` respectively; OWNER, MANAGER, and STAFF have these permissions.

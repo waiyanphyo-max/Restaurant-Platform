@@ -15,6 +15,7 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 | `MEMBERS_MANAGE` | ✓ | — | — | — | Member list/invite/add/change/remove, ownership transfer |
 | `MENU_READ` | ✓ | ✓ | ✓ | — | Private catalog reads |
 | `MENU_MANAGE` | ✓ | ✓ | — | — | Catalog writes and image uploads |
+| `FEATURED_MANAGE` | ✓ | — | — | — | Set, replace or clear the single editorial Featured product |
 | `ORDER_READ` | ✓ | ✓ | ✓ | — | Restaurant order list/detail |
 | `ORDER_CREATE` | ✓ | ✓ | ✓ | — | Staff-entered orders and their active table and order-type options |
 | `ORDER_STATUS_UPDATE` | ✓ | ✓ | ✓ | — | Order status transitions |
@@ -45,6 +46,7 @@ Spring validates a Supabase JWT signature, issuer, audience, expiry, and UUID su
 - `POST /api/v1/restaurants/{restaurantId}/logo` requires the actual OWNER member role, even though both Owner and Manager have `SETTINGS_MANAGE`.
 - Runtime palette PUT uses `SETTINGS_MANAGE` and accepts only three colors and an expected revision. The public branding GET exposes only name, approved logo, palette and UUID/revision. Platform-admin POST can initialize the same palette once through its UUID allowlist, without restaurant membership. Profile PUT accepts only unchanged logo resends; changed URLs require the Owner upload workflow.
 - UXI-04 `/platform/restaurants/{restaurantId}/bootstrap` reads and keyed `/bootstrap/steps` writes require that same Platform Admin allowlist and server-derived actor. Initial catalog/settings setup reuses validated domain operations without assigning restaurant membership. Handoff closes new bootstrap mutations. Media manifest review grants no Storage access, Owner logo permission or editorial Featured permission; Staff/Driver and Owner/Manager cannot use this platform path unless independently allowlisted.
+- UXI-05 `GET /restaurants/{restaurantId}/featured-product` uses `MENU_READ`; its PUT uses Owner-only `FEATURED_MANAGE` and an expected revision. Ordinary catalog/product/image requests cannot change Featured. An allowlisted Platform Admin without actual Owner membership cannot use this editorial write.
 - Ownership transfer requires the current OWNER and an existing member as target. Adding/updating a member cannot assign `OWNER`; transfer uses its dedicated route.
 - Order status writes require `ORDER_STATUS_UPDATE`. Cancellation also requires `ORDER_CANCEL`, delivery transitions require `DELIVERY_STATUS_UPDATE`, and queue-changing transitions require `QUEUE_MANAGE`.
 - `GET /api/v1/restaurants/{restaurantId}/settings` requires `SETTINGS_MANAGE`, so Staff and Driver cannot read this management response. Public menu/branding must come from public endpoints and approved tenant config instead.

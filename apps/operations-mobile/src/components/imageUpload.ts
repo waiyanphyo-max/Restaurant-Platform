@@ -3,6 +3,8 @@ import { File } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { FormValidationError } from "../hooks/mutation";
 
+export type PickedImage = ImagePicker.ImagePickerAsset;
+
 export function validatePickedImage(asset: {
   uri: string;
   mimeType?: string | null;
@@ -43,10 +45,7 @@ export function validatePickedImage(asset: {
  * and uploads it through the authenticated backend API.
  * Storage credentials are never exposed to the mobile app.
  */
-export async function pickAndUploadImage(
-  upload: (form: FormData) => Promise<unknown>,
-  beforeUpload?: () => Promise<void>
-): Promise<boolean> {
+export async function pickImage(): Promise<PickedImage | null> {
   let result: ImagePicker.ImagePickerResult;
 
   try {
@@ -62,7 +61,7 @@ export async function pickAndUploadImage(
     );
   }
 
-  if (result.canceled) return false;
+  if (result.canceled) return null;
 
   if (!Array.isArray(result.assets) || !result.assets.length) {
     throw new FormValidationError(
@@ -73,6 +72,17 @@ export async function pickAndUploadImage(
   const asset = result.assets[0];
 
   // Validate the selected image once.
+  validatePickedImage(asset);
+  return asset;
+}
+
+export async function pickAndUploadImage(
+  upload: (form: FormData) => Promise<unknown>,
+  beforeUpload?: () => Promise<void>,
+  selected?: PickedImage
+): Promise<boolean> {
+  const asset = selected ?? await pickImage();
+  if (!asset) return false;
   validatePickedImage(asset);
 
   // Reverify restaurant access before uploading.

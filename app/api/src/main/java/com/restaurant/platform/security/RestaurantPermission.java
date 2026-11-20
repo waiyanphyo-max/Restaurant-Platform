@@ -7,6 +7,7 @@ public enum RestaurantPermission {
 
     MENU_READ,
     MENU_MANAGE,
+    FEATURED_MANAGE,
 
     ORDER_READ,
     ORDER_CREATE,

@@ -45,6 +45,35 @@ function responseFetch(body: unknown, status = 200) {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("restaurant-scoped public menu loading", () => {
+  it("preserves optional UUID-backed editorial metadata without private management fields", async () => {
+    for (const featuredProduct of [{ productId: null, status: "NONE" }, { productId, status: "AVAILABLE" },
+      { productId: variantId, status: "UNAVAILABLE" }]) {
+      const result = await loadGuestMenu({ restaurantId: restaurantA }, { baseUrl: "https://api.example.test",
+        fetchImpl: responseFetch({ ...menu(), featuredProduct: { ...featuredProduct, ownerUserId: "private", revision: 5 } }) });
+      expect(result.kind === "ready" && result.menu.featuredProduct).toEqual(featuredProduct);
+      expect(JSON.stringify(result)).not.toContain("private");
+      expect(JSON.stringify(result)).not.toContain("revision");
+    }
+  });
+
+  it("keeps legacy menus working and discards invalid or unavailable Featured advertising", async () => {
+    for (const featuredProduct of [undefined, null, { productId: "Tea", status: "AVAILABLE" },
+      { productId: variantId, status: "AVAILABLE" }, { productId, status: "BEST_SELLER" }]) {
+      const result = await loadGuestMenu({ restaurantId: restaurantA }, { baseUrl: "https://api.example.test",
+        fetchImpl: responseFetch({ ...menu(), featuredProduct }) });
+      expect(result.kind).toBe("ready");
+      if (result.kind !== "ready") throw new Error("Legacy menu must load");
+      expect(result.menu.featuredProduct).toBeUndefined();
+      expect(result.menu.categories[0].products[0].price).toBe(2000);
+      expect(result.menu.categories[0].products[0].imageUrl).toBe("https://media.example.test/tea.webp");
+    }
+    const data = menu();
+    data.categories[0].products[0].available = false;
+    const result = await loadGuestMenu({ restaurantId: restaurantA }, { baseUrl: "https://api.example.test",
+      fetchImpl: responseFetch({ ...data, featuredProduct: { productId, status: "AVAILABLE" } }) });
+    expect(result.kind === "ready" && result.menu.featuredProduct).toBeUndefined();
+  });
+
   it("loads the real Spring public path without sessions, referrers, caches or redirects", async () => {
     const fetchImpl = responseFetch(menu());
     const result = await loadGuestMenu({ restaurantId: restaurantA }, { baseUrl: "http://localhost:8080", fetchImpl });

@@ -104,6 +104,8 @@ export function checkedBootstrapStep(body: PlatformBootstrapStepRequest, restaur
         throw new ApiConfigurationError("Use the last reviewed media manifest operation key");
       }
       result.expectedMediaOperationKey = body.expectedMediaOperationKey ?? null;
+      // Preserve exact legacy receipt replay, including mappings recorded before stricter filename/hash review.
+      // Spring checks for an existing receipt before enforcing those requirements on a new approval.
       result.mediaManifest = body.mediaManifest.map(entry => manifestEntry(entry, restaurantId)); break;
   }
   return result;

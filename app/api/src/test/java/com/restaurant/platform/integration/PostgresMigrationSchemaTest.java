@@ -48,6 +48,16 @@ import static org.junit.jupiter.api.Assertions.*;
 @Testcontainers(disabledWithoutDocker = true)
 class PostgresMigrationSchemaTest {
 
+    @Test
+    void featuredSelectionConstraintsAndDirectPrivilegesHold() {
+        FeaturedProductDatabaseChecks.verify(dataSource);
+    }
+
+    @Test
+    void featuredConcurrentSelectionsAndRollbackUseActualDatabase() throws Exception {
+        FeaturedProductDatabaseChecks.verifyServiceConcurrency(dataSource, entityManagerFactoryBean.getObject());
+    }
+
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:17-alpine")
