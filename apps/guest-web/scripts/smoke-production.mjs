@@ -2,14 +2,15 @@
  * Production-bundle HTTP smoke test. Run after `npm run build -w
  * @restaurant-platform/guest-web` with no other guest server using this checkout.
  *
- * A loopback HTTP server implements the Spring menu, QR context, checkout and
- * queue wire contracts with synthetic data in the staging registry environment.
+ * A loopback HTTP server implements the Spring branding/menu, QR context,
+ * checkout and queue wire contracts with synthetic data in the staging registry environment.
  * Production registry startup must reject the loopback HTTP origin.
  * Two unique, temporary registry records exercise the real external registry in
  * `next start`; they are not shipped fixtures or application fallback data.
  * Existing configs, assets, environment files and build output are never edited.
  */
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { access, mkdir, rmdir, unlink, writeFile } from "node:fs/promises";
@@ -24,6 +25,7 @@ const configDirectory = path.join(repository, "configs/restaurants");
 const assetsDirectory = path.join(configDirectory, "assets");
 const nextBinary = path.join(repository, "node_modules/next/dist/bin/next");
 const suffix = randomBytes(6).toString("hex");
+const previewMode = process.env.GUEST_SMOKE_PREVIEW === "true";
 const createdFiles = [];
 let createdAssetsDirectory = false;
 let nextProcess;
@@ -41,16 +43,23 @@ const queueTickets = new Map();
 const placedOrders = [];
 let unavailableProduct = false;
 let loseCheckoutResponse = false;
+let brandingMode = "ready";
+let featuredMode = "available";
+let imageMode = "ready";
 
 function tenant(label, color) {
   const slug = `qa-m5-${suffix}-${label.toLowerCase()}`;
   return {
-    slug, host: `${slug}.guest.test`, restaurantId: randomUUID(),
+    slug, host: `${slug}.guest.test`, previewHost: `${slug}-preview.localhost`, restaurantId: randomUUID(),
     name: `M5 Smoke ${label} ${suffix}`, productName: `Smoke ${label} tea ${suffix}`,
     description: `Synthetic restaurant ${label} description ${suffix}`,
     phone: label === "A" ? "+959111111111" : "+959222222222",
     address: `Synthetic ${label} address ${suffix}`, color,
     logo: `https://media.example.test/${slug}/logo.png`,
+    runtimeName: `${label === "A" ? "San Thaw Tar" : "Blue Kitchen"} synthetic ${suffix}`,
+    runtimeColor: label === "A" ? "#A51D22" : "#245887",
+    runtimeLogo: `https://media.example.test/${slug}/runtime-logo.png`,
+    brandingRevision: 1,
     productId: randomUUID(), categoryId: randomUUID(), variantId: randomUUID(),
     groupId: randomUUID(), optionId: randomUUID(),
     tableId: randomUUID(), tableNumber: `T-${label}`,
@@ -59,7 +68,7 @@ function tenant(label, color) {
   };
 }
 
-const a = tenant("A", "#A12345");
+const a = tenant("A", "#234D3C");
 const b = tenant("B", "#126B89");
 const secretTokens = new Set([a.commonQrToken, a.tableQrToken, b.commonQrToken, b.tableQrToken]);
 
@@ -78,6 +87,19 @@ function sendJson(response, value, status = 200) {
 
 async function guestContractFixture(req, res) {
   upstreamRequests.push({ path: req.url, headers: { ...req.headers, "x-queue-token": req.headers["x-queue-token"] ? "[redacted]" : undefined } });
+  const branded = [a, b].find(item => req.url === `/api/v1/public/restaurants/${item.restaurantId}/branding`);
+  if (branded) {
+    if (brandingMode === "unavailable") return sendJson(res, { code: "BRANDING_UNAVAILABLE" }, 503);
+    const actual = brandingMode === "foreign" ? (branded === a ? b : a) : branded;
+    return sendJson(res, {
+      restaurantId: actual.restaurantId, displayName: actual.runtimeName,
+      logoUrl: actual.runtimeLogo, revision: brandingMode === "uninitialized" ? 0 : actual.brandingRevision,
+      palette: brandingMode === "uninitialized" ? null : brandingMode === "invalid" ? { primaryColor: "red;unsafe-css" } : {
+        primaryColor: actual.runtimeColor, secondaryColor: actual === a ? "#FCEAE7" : "#E7F0FA", backgroundColor: actual === a ? "#FFF8F0" : "#FFFFFF",
+      },
+      internalNotes: "private-branding-field-must-be-discarded",
+    });
+  }
   const selected = [a, b].find(item => req.url === `/api/v1/public/restaurants/${item.restaurantId}/menu`);
   if (selected) return sendJson(res, upstreamStatus === 200 ? menu(mismatch ? b : selected) : { code: "RESTAURANT_NOT_FOUND" }, upstreamStatus);
   const qrRoute = /^\/api\/v1\/public\/restaurants\/([\da-f-]+)\/(qr-context|orders\/(common-qr|table-qr))$/.exec(req.url ?? "");
@@ -154,7 +176,7 @@ function configuration(item, iconPath) {
   return {
     schemaVersion: 1, slug: item.slug, restaurantId: item.restaurantId,
     branding: { displayName: item.name, primaryColor: item.color, logoUrl: item.logo },
-    guestDomains: { staging: [item.host], production: [`production.${item.host}`] },
+    guestDomains: { staging: [item.host, ...(previewMode ? [item.previewHost] : [])], production: [`production.${item.host}`] },
     android: { operations: androidApp("operations"), customer: androidApp("customer") },
   };
 }
@@ -164,11 +186,15 @@ function menu(item) {
     restaurantId: item.restaurantId, restaurantName: item.name, slug: item.slug,
     description: item.description, phone: item.phone, address: item.address,
     logoUrl: item.logo, currency: "MMK",
+    ...(featuredMode === "legacy" ? {} : { featuredProduct: item === b ? { productId: null, status: "NONE" } :
+      featuredMode === "none" ? { productId: null, status: "NONE" } :
+        { productId: featuredMode === "foreign" ? b.productId : item.productId,
+          status: featuredMode === "unavailable" ? "UNAVAILABLE" : "AVAILABLE" } }),
     categories: emptyMenu ? [] : [{
       id: item.categoryId, name: `Smoke ${item === a ? "A" : "B"} drinks`, displayOrder: 0,
       products: [{
         id: item.productId, name: item.productName, description: `Tea description ${suffix}`,
-        price: 2000, imageUrl: `https://media.example.test/${item.slug}/tea.webp`,
+        price: 2000, imageUrl: imageMode === "missing" ? null : imageMode === "invalid" ? "javascript:invalid-image" : `https://media.example.test/${item.slug}/tea.webp`,
         available: true, trackStock: true, stockQuantity: 5,
         variants: [{ id: item.variantId, name: `Large ${suffix}`, price: 3000, imageUrl: null, available: true }],
         modifierGroups: [{
@@ -246,17 +272,25 @@ function guestPost(port, restaurant, body, extraHeaders = {}, pathname = "/api/g
   });
 }
 
-function assertBrand(response, expected, other, status = 200) {
+function assertBrand(response, expected, other, status = 200, source = "runtime") {
   assert.equal(response.status, status);
-  assert.ok(response.body.includes(expected.name), "Expected restaurant branding is absent");
-  assert.ok(response.body.includes(expected.color), "Expected tenant color is absent");
-  assert.ok(response.body.includes(expected.logo), "Expected tenant logo is absent");
+  assert.ok(response.body.includes(source === "registry" ? expected.name : expected.runtimeName), "Expected restaurant branding is absent");
+  assert.ok(response.body.includes(source === "runtime" ? expected.runtimeColor : expected.color), "Expected tenant color is absent");
+  assert.ok(response.body.includes(source === "registry" ? expected.logo : expected.runtimeLogo), "Expected tenant logo is absent");
   assert.ok(!response.body.includes(other.name), "Another restaurant's branding was exposed");
+  assert.ok(!response.body.includes(other.runtimeName), "Another restaurant's runtime branding was exposed");
+  assert.ok(!response.body.includes(other.runtimeLogo), "Another restaurant's runtime logo was exposed");
   assert.ok(!response.body.includes(other.productName), "Another restaurant's products were exposed");
   assert.ok(!response.body.includes(other.address), "Another restaurant's contact details were exposed");
   assert.match(response.headers["cache-control"] ?? "", /no-store/);
   assert.equal(response.headers["referrer-policy"], "no-referrer");
+  assert.ok(!response.body.includes("private-branding-field-must-be-discarded"));
   checks++;
+}
+
+function assertOnlyResolvedBranding(requests, restaurant) {
+  for (const entry of requests) assert.equal(entry.path, `/api/v1/public/restaurants/${restaurant.restaurantId}/branding`,
+    "A denied page requested catalog/QR data or another tenant's branding");
 }
 
 function flightText(html) {
@@ -295,8 +329,13 @@ async function assertDenied(port, host, pathname, extraHeaders) {
   assert.ok(!response.body.includes(b.productName));
   assert.match(response.headers["cache-control"] ?? "", /no-store/);
   assert.equal(response.headers["referrer-policy"], "no-referrer");
-  // Unknown products require reading the current scoped menu; other denied routes do not.
-  if (!pathname.startsWith("/menu/")) assert.equal(upstreamRequests.length, before);
+  // A trusted layout may read its own branding before a page-level denial. Unknown
+  // hosts and slug/host mismatches must fail before any upstream request.
+  if (!pathname.startsWith("/menu/")) {
+    const restaurant = [a, b].find(item => item.host === host);
+    if (restaurant && !pathname.startsWith("/r/")) assertOnlyResolvedBranding(upstreamRequests.slice(before), restaurant);
+    else assert.equal(upstreamRequests.length, before);
+  }
   checks++;
   return response;
 }
@@ -309,6 +348,32 @@ async function stopNext() {
     nextProcess.kill("SIGKILL");
     await nextExit;
   }
+}
+
+async function holdPreview() {
+  await new Promise((resolve, reject) => {
+    let input = "";
+    const cleanup = () => {
+      process.stdin.removeListener("data", onData);
+      process.stdin.removeListener("end", finish);
+      process.stdin.removeListener("error", fail);
+      process.removeListener("SIGINT", finish);
+      process.removeListener("SIGTERM", finish);
+      nextProcess.removeListener("exit", onNextExit);
+      process.stdin.pause();
+    };
+    const finish = () => { cleanup(); resolve(); };
+    const fail = error => { cleanup(); reject(error); };
+    const onData = chunk => { input += chunk.toString(); if (input.includes("\n")) finish(); };
+    const onNextExit = () => fail(new Error("Next preview server exited unexpectedly"));
+    process.stdin.on("data", onData);
+    process.stdin.once("end", finish);
+    process.stdin.once("error", fail);
+    process.once("SIGINT", finish);
+    process.once("SIGTERM", finish);
+    nextProcess.once("exit", onNextExit);
+    process.stdin.resume();
+  });
 }
 
 try {
@@ -379,14 +444,21 @@ try {
   assert.ok(ready, `Next production server did not become ready: ${lastReadiness}`);
 
   for (const [expected, other] of [[a, b], [b, a]]) {
+    const beforeHome = upstreamRequests.length;
     const home = await request(guestPort, expected.host, "/");
     assertBrand(home, expected, other);
+    const homeBrandingReads = upstreamRequests.slice(beforeHome).filter(entry => entry.path.endsWith("/branding"));
+    assert.equal(homeBrandingReads.length, 1, "A rendered page must deduplicate its tenant branding request");
+    assertOnlyResolvedBranding(homeBrandingReads, expected);
     assert.ok(home.body.includes(expected.productName));
     assert.ok(home.body.includes(expected.address));
     assert.ok(home.body.includes(`tel:${expected.phone}`));
     const listing = await request(guestPort, expected.host, "/menu");
     assertBrand(listing, expected, other);
     assert.ok(listing.body.includes(`/menu/${expected.productId}`));
+    assert.match(listing.body, /<input[^>]+type="search"[^>]*id="menu-search"|<input[^>]+id="menu-search"[^>]*type="search"/);
+    assert.equal(/class="[^"]*featured-label[^"]*"/.test(listing.body), expected === a,
+      "Featured must follow the backend UUID selection rather than catalog position");
     const detail = await request(guestPort, expected.host, `/menu/${expected.productId}`);
     assertBrand(detail, expected, other);
     for (const name of [`Large ${suffix}`, `Milk choice ${suffix}`, `Oat milk ${suffix}`]) assert.ok(detail.body.includes(name));
@@ -405,13 +477,14 @@ try {
     const owner = await request(guestPort, expected.host, `/workspace?restaurantId=${expected.restaurantId}`);
     assertBrand(owner, expected, other);
     assert.ok(owner.body.includes("Restaurant owner link"));
-    assert.equal(upstreamRequests.length, beforeOwner);
+    assertOnlyResolvedBranding(upstreamRequests.slice(beforeOwner), expected);
     await assertDenied(guestPort, expected.host, `/?restaurantId=${other.restaurantId}`);
     await assertDenied(guestPort, expected.host, `/?view=customer-pickup&restaurantId=${other.restaurantId}`);
     await assertDenied(guestPort, expected.host, `/workspace?view=table-order&restaurantId=${other.restaurantId}`);
     await assertDenied(guestPort, expected.host, `/menu?restaurantId=${other.restaurantId}`);
     const wrongProduct = await assertDenied(guestPort, expected.host, `/menu/${other.productId}`);
     assert.ok(!wrongProduct.body.includes(other.name));
+    assert.ok(!wrongProduct.body.includes(other.runtimeName));
     await assertDenied(guestPort, expected.host, `/r/${other.slug}/menu`);
   }
   await assertDenied(guestPort, "unknown.guest.test", "/", { "x-forwarded-host": a.host });
@@ -440,6 +513,50 @@ try {
     "x-forwarded-host": b.host, "x-guest-route-slug": b.slug,
   });
   assertBrand(spoofedContext, a, b);
+
+  const originalRuntime = { name: a.runtimeName, color: a.runtimeColor, logo: a.runtimeLogo, revision: a.brandingRevision };
+  a.runtimeName = `Refreshed restaurant A ${suffix}`;
+  a.runtimeColor = "#713486";
+  a.runtimeLogo = `https://media.example.test/${a.slug}/refreshed-logo.png`;
+  a.brandingRevision++;
+  const refreshed = await request(guestPort, a.host, "/menu");
+  assertBrand(refreshed, a, b);
+  assert.ok(!refreshed.body.includes(originalRuntime.name), "Refresh retained stale runtime identity");
+  assertBrand(await request(guestPort, b.host, "/menu"), b, a);
+  Object.assign(a, { runtimeName: originalRuntime.name, runtimeColor: originalRuntime.color,
+    runtimeLogo: originalRuntime.logo, brandingRevision: originalRuntime.revision });
+  assertBrand(await request(guestPort, a.host, "/menu"), a, b);
+
+  brandingMode = "uninitialized";
+  assertBrand(await request(guestPort, a.host, "/menu"), a, b, 200, "uninitialized");
+  for (const mode of ["unavailable", "foreign", "invalid"]) {
+    brandingMode = mode;
+    const fallback = await request(guestPort, a.host, "/menu");
+    assertBrand(fallback, a, b, 200, "registry");
+    assert.ok(fallback.body.includes(a.productName), "Brand failure must not substitute another tenant's catalog");
+    assert.ok(!fallback.body.includes("red;unsafe-css"));
+  }
+  brandingMode = "ready";
+  assertBrand(await request(guestPort, a.host, "/menu"), a, b);
+
+  for (const mode of ["none", "unavailable", "foreign", "legacy"]) {
+    featuredMode = mode;
+    const listing = await request(guestPort, a.host, "/menu");
+    assertBrand(listing, a, b);
+    assert.ok(!/class="[^"]*featured-label[^"]*"/.test(listing.body),
+      `${mode} editorial metadata must not advertise an available Featured product`);
+    assert.ok(listing.body.includes(a.productName), "Editorial metadata must not break legacy catalog rendering");
+  }
+  featuredMode = "available";
+  for (const mode of ["missing", "invalid"]) {
+    imageMode = mode;
+    const listing = await request(guestPort, a.host, "/menu");
+    assertBrand(listing, a, b);
+    assert.match(listing.body, /class="[^"]*product-media-fallback[^"]*"/);
+    assert.ok(listing.body.includes(a.productName));
+    assert.ok(!listing.body.includes("javascript:invalid-image"));
+  }
+  imageMode = "ready";
 
   const burmese = await request(guestPort, a.host, "/menu", { Cookie: "guest-language=my" });
   assert.equal(burmese.status, 200);
@@ -598,7 +715,7 @@ try {
   assert.ok(upstreamRequests.length > 0);
   for (const { path: requestedPath, headers } of upstreamRequests) {
     assert.ok(!requestedPath.includes("?") && !requestedPath.includes("#"), "Public upstream requests must not carry query or fragment credentials");
-    assert.ok(/^\/api\/v1\/public\/(restaurants\/[\da-f-]+\/(menu|qr-context|orders\/(table-qr|common-qr))|queue-tickets\/[\da-f-]+\/(status|notifications)(\/[\da-f-]+\/read)?)$/.test(requestedPath));
+    assert.ok(/^\/api\/v1\/public\/(restaurants\/[\da-f-]+\/(branding|menu|qr-context|orders\/(table-qr|common-qr))|queue-tickets\/[\da-f-]+\/(status|notifications)(\/[\da-f-]+\/read)?)$/.test(requestedPath));
     assert.equal(headers.authorization, undefined);
     assert.equal(headers.cookie, undefined);
     assert.equal(headers.referer, undefined);
@@ -608,8 +725,23 @@ try {
     } else assert.equal(headers["x-restaurant-id"], undefined);
   }
   checks++;
-  console.log(`Production HTTP smoke passed: ${checks} checks against the built Next app and synthetic Spring menu/QR/checkout/queue contracts (${placedOrders.length} orders, ${streamedNotFoundResponses} correctly denied streamed not-found responses).`);
+  console.log(`Production HTTP smoke passed: ${checks} checks against the built Next app and synthetic Spring branding/menu/QR/checkout/queue contracts (${placedOrders.length} synthetic orders, ${streamedNotFoundResponses} correctly denied streamed not-found responses).`);
   console.log(`Unknown-host initial response: ${lastReadiness}`);
+  if (previewMode) {
+    brandingMode = "ready"; featuredMode = "available"; imageMode = "ready";
+    upstreamStatus = 200; mismatch = false; emptyMenu = false;
+    unavailableProduct = false; loseCheckoutResponse = false;
+    receipts.clear(); queueTickets.clear(); placedOrders.length = 0;
+    for (const restaurant of [a, b]) {
+      restaurant.stock = 5; restaurant.dailyQueueNumber = 0;
+      const origin = `http://${restaurant.previewHost}:${guestPort}`;
+      console.log(`Preview ${restaurant === a ? "A" : "B"}: ${origin}/`);
+      console.log(`Preview ${restaurant === a ? "A" : "B"} menu: ${origin}/menu`);
+      console.log(`Preview ${restaurant === a ? "A" : "B"} product: ${origin}/menu/${restaurant.productId}`);
+    }
+    console.log("Synthetic browse preview is ready. Send a newline to stop and clean up.");
+    await holdPreview();
+  }
 } catch (error) {
   console.error(redact(error.stack ?? error));
   if (nextOutput) console.error(`Next production output (synthetic test traffic only):\n${redact(nextOutput)}`);

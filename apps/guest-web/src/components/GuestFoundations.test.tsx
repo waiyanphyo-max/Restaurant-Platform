@@ -64,6 +64,19 @@ describe("Guest semantic foundations", () => {
     }
   });
 
+  it("rejects foreign runtime presentation and preserves a validated current logo cachebuster", () => {
+    const foreign = { restaurantId: blue.restaurantId, branding: blue.branding, revision: 1, source: "runtime" as const };
+    const rejected = renderToStaticMarkup(<GuestShell restaurant={red} presentation={foreign} locale="en"><p>Menu</p></GuestShell>);
+    expect(rejected).toContain(red.branding.displayName);
+    expect(rejected).not.toContain(blue.branding.displayName);
+    const logoUrl = "https://media.example.test/logo.webp?v=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const current = { restaurantId: red.restaurantId, branding: { ...red.branding, displayName: "Current server name", logoUrl }, revision: 2, source: "runtime" as const };
+    const accepted = renderToStaticMarkup(<GuestShell restaurant={red} presentation={current} locale="en"><p>Menu</p></GuestShell>);
+    expect(accepted).toContain(logoUrl);
+    expect(accepted).toContain("Current server name");
+    expect(accepted).not.toContain(red.branding.displayName);
+  });
+
   it.each(["en", "my"] as const)("announces loading, empty, error, offline and forbidden in %s without inventing permission recovery", locale => {
     const render = (kind: "loading" | "empty" | "error" | "offline" | "forbidden") =>
       renderToStaticMarkup(<GuestState kind={kind} locale={locale} basePath="/r/blue" />);

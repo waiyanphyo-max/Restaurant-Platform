@@ -14,6 +14,7 @@ import type {
   PublicMenuResponse,
   RestaurantConfig,
 } from "@restaurant-platform/shared-types";
+import { formatGuestNumber } from "./guest-format";
 
 export type GuestMenuResult =
   | { kind: "ready"; menu: PublicMenuResponse }
@@ -222,8 +223,7 @@ export function productPriceRange(product: MenuProductDto): { min: number; max: 
 }
 
 export function formatMenuPrice(value: number, currency: string, locale: "en" | "my" = "en"): string {
-  const options: Intl.NumberFormatOptions = /^[A-Z]{3}$/.test(currency)
-    ? { style: "currency", currency, maximumFractionDigits: 0 }
-    : { maximumFractionDigits: 0 };
-  return new Intl.NumberFormat(locale === "my" ? "my-MM" : "en", options).format(value);
+  const amount = formatGuestNumber(value, locale);
+  // An explicit ISO code avoids both ambiguous symbols and SSR/client ICU differences.
+  return /^[A-Z]{3}$/.test(currency) ? `${currency}\u00a0${amount}` : amount;
 }
