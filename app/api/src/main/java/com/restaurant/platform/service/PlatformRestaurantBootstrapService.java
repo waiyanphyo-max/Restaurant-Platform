@@ -239,9 +239,15 @@ public class PlatformRestaurantBootstrapService {
         Set<String> targets = new HashSet<>();
         for (var entry : entries) {
             if (!id.equals(entry.restaurantId()) || entry.originalFilename().isBlank()
+                    || !entry.originalFilename().equals(entry.originalFilename().trim())
+                    || entry.originalFilename().equals(".") || entry.originalFilename().equals("..")
+                    || entry.originalFilename().endsWith(".")
                     || entry.originalFilename().contains("/") || entry.originalFilename().contains("\\")
                     || entry.originalFilename().contains(":" ) || entry.originalFilename().chars().anyMatch(c -> c < 32)
+                    || entry.originalFilename().chars().anyMatch(c -> "<>\"|?*".indexOf(c) >= 0)
                     || !filenames.add(entry.originalFilename().trim().toLowerCase(Locale.ROOT))) throw invalid();
+            // A reviewed mapping identifies observed source bytes, but still cannot certify a Storage upload.
+            if (entry.reviewStatus() == ReviewStatus.APPROVED && entry.originalContentHash() == null) throw invalid();
             if (entry.productId() == null) {
                 if (entry.reviewStatus() != ReviewStatus.PENDING || entry.variantId() != null) throw invalid();
             } else {

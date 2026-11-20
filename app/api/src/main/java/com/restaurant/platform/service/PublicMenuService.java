@@ -6,6 +6,7 @@ import com.restaurant.platform.dto.menu.MenuModifierOptionDto;
 import com.restaurant.platform.dto.menu.MenuProductDto;
 import com.restaurant.platform.dto.menu.MenuVariantDto;
 import com.restaurant.platform.dto.menu.PublicMenuResponse;
+import com.restaurant.platform.dto.menu.FeaturedProductDto;
 
 import com.restaurant.platform.entity.Category;
 import com.restaurant.platform.entity.ModifierGroup;
@@ -24,6 +25,7 @@ import com.restaurant.platform.repository.ProductRepository;
 import com.restaurant.platform.repository.ProductVariantRepository;
 import com.restaurant.platform.repository.RestaurantRepository;
 import com.restaurant.platform.repository.RestaurantSettingsRepository;
+import com.restaurant.platform.repository.RestaurantFeaturedProductRepository;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -51,6 +53,7 @@ public class PublicMenuService {
     private final ProductModifierGroupRepository productModifierGroupRepository;
     private final ModifierGroupRepository modifierGroupRepository;
     private final ModifierOptionRepository modifierOptionRepository;
+    private final RestaurantFeaturedProductRepository featuredRepository;
 
     public PublicMenuService(
             RestaurantRepository restaurantRepository,
@@ -60,7 +63,8 @@ public class PublicMenuService {
             ProductVariantRepository variantRepository,
             ProductModifierGroupRepository productModifierGroupRepository,
             ModifierGroupRepository modifierGroupRepository,
-            ModifierOptionRepository modifierOptionRepository
+            ModifierOptionRepository modifierOptionRepository,
+            RestaurantFeaturedProductRepository featuredRepository
     ) {
         this.restaurantRepository = restaurantRepository;
         this.settingsRepository = settingsRepository;
@@ -70,6 +74,7 @@ public class PublicMenuService {
         this.productModifierGroupRepository = productModifierGroupRepository;
         this.modifierGroupRepository = modifierGroupRepository;
         this.modifierOptionRepository = modifierOptionRepository;
+        this.featuredRepository = featuredRepository;
     }
 
     @Transactional(readOnly = true)
@@ -107,7 +112,8 @@ public class PublicMenuService {
                     restaurant.getAddress(),
                     restaurant.getLogoUrl(),
                     currency,
-                    List.of()
+                    List.of(),
+                    featuredProduct(restaurantId, List.of())
             );
         }
 
@@ -248,8 +254,20 @@ public class PublicMenuService {
                 restaurant.getAddress(),
                 restaurant.getLogoUrl(),
                 currency,
-                categoryDtos
+                categoryDtos,
+                featuredProduct(restaurantId, categoryDtos)
         );
+    }
+
+    private FeaturedProductDto featuredProduct(UUID restaurantId, List<MenuCategoryDto> categories) {
+        UUID selected = featuredRepository.findById(restaurantId)
+                .map(com.restaurant.platform.entity.RestaurantFeaturedProduct::getProductId).orElse(null);
+        if (selected == null) return FeaturedProductDto.none();
+        // Reuse the final orderability projection, including category, variant, stock and modifiers.
+        boolean displayable = categories.stream().flatMap(category -> category.products().stream())
+                .anyMatch(product -> selected.equals(product.id()) && FeaturedProductDto.isEligible(product));
+        return new FeaturedProductDto(selected, displayable
+                ? FeaturedProductDto.Status.AVAILABLE : FeaturedProductDto.Status.UNAVAILABLE);
     }
 
     private MenuProductDto toProductDto(

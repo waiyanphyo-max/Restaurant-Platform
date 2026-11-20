@@ -43,4 +43,23 @@ class ImageUploadValidatorTest {
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, error.getStatus());
         assertEquals("IMAGE_FILE_TOO_LARGE", error.getCode());
     }
+
+    @Test
+    void acceptsJpegAndWebpOnlyWithTheirMatchingDeclaredType() {
+        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+        byte[] webp = {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'};
+        assertEquals("jpg", validator.validate(new MockMultipartFile("file", "source.jpg", "image/jpeg", jpeg), 1024).extension());
+        assertEquals("webp", validator.validate(new MockMultipartFile("file", "source.webp", "image/webp", webp), 1024).extension());
+        assertEquals("IMAGE_CONTENT_MISMATCH", assertThrows(ApiException.class,
+                () -> validator.validate(new MockMultipartFile("file", "source.webp", "image/webp", jpeg), 1024)).getCode());
+    }
+
+    @Test
+    void rejectsMissingEmptyAndUnsupportedFiles() {
+        assertEquals("INVALID_IMAGE_FILE", assertThrows(ApiException.class, () -> validator.validate(null, 1024)).getCode());
+        assertEquals("INVALID_IMAGE_FILE", assertThrows(ApiException.class,
+                () -> validator.validate(new MockMultipartFile("file", new byte[0]), 1024)).getCode());
+        assertEquals("UNSUPPORTED_IMAGE_TYPE", assertThrows(ApiException.class,
+                () -> validator.validate(new MockMultipartFile("file", "image.svg", "image/svg+xml", new byte[] {1}), 1024)).getCode());
+    }
 }

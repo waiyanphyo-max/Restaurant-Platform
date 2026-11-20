@@ -10,6 +10,7 @@ import type {
   MenuModifierOptionDto,
   MenuProductDto,
   MenuVariantDto,
+  FeaturedProductDto,
   PublicMenuResponse,
   RestaurantConfig,
 } from "@restaurant-platform/shared-types";
@@ -115,6 +116,19 @@ function category(value: unknown): MenuCategoryDto {
   };
 }
 
+/** Optional metadata must never infer a pick or make a legacy catalog fail to load. */
+function featured(value: unknown, categories: MenuCategoryDto[]): FeaturedProductDto | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const item = value as Record<string, unknown>;
+  if (item.status === "NONE" && item.productId === null) return { productId: null, status: "NONE" };
+  if ((item.status !== "AVAILABLE" && item.status !== "UNAVAILABLE") || typeof item.productId !== "string" ||
+      !uuidPattern.test(item.productId)) return undefined;
+  const productId = item.productId.toLowerCase();
+  if (item.status === "AVAILABLE" && !categories.some(category => category.products.some(product =>
+    product.id === productId && isProductAvailable(product)))) return undefined;
+  return { productId, status: item.status };
+}
+
 /** Validate the tenant identity before reading or exposing any public profile data. */
 function parseMenu(value: unknown, restaurantId: string): PublicMenuResponse {
   const menu = record(value);
@@ -129,11 +143,13 @@ function parseMenu(value: unknown, restaurantId: string): PublicMenuResponse {
   // The Spring DTO allows a missing currency when settings do not exist. Never invent one.
   const currency = menu.currency === null ? "" : text(menu.currency);
   if (currency !== "" && !/^[A-Z]{3}$/.test(currency)) throw new ApiProtocolError();
+  const featuredProduct = featured(menu.featuredProduct, categories);
   return {
     restaurantId: actualId, restaurantName: text(menu.restaurantName),
     slug: nullableText(menu.slug), description: nullableText(menu.description),
     phone: nullableText(menu.phone), address: nullableText(menu.address),
     logoUrl: safeImageUrl(nullableText(menu.logoUrl)) ?? null, currency, categories,
+    ...(featuredProduct ? { featuredProduct } : {}),
   };
 }
 

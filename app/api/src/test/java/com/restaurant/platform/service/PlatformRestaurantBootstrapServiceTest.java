@@ -229,8 +229,63 @@ class PlatformRestaurantBootstrapServiceTest {
     @Test void foreignMediaReferenceUsesDomainOwnershipValidation() {
         doThrow(new ApiException(HttpStatus.NOT_FOUND,"PRODUCT_NOT_FOUND","missing"))
                 .when(catalog).validateBootstrapMediaReference(restaurantId,categoryId,null);
-        rejected(() -> service.execute(restaurantId,parse("foreign-media",media(restaurantId,"\""+categoryId+"\"","null","PRODUCT_IMAGE","APPROVED","photo.jpg"))), "PRODUCT_NOT_FOUND");
+        rejected(() -> service.execute(restaurantId,parse("foreign-media",withHash(media(restaurantId,"\""+categoryId+"\"","null","PRODUCT_IMAGE","APPROVED","photo.jpg"), "a".repeat(64)))), "PRODUCT_NOT_FOUND");
         verify(receipts,never()).saveAndFlush(any());
+    }
+
+    private String withHash(String fields, String hash) {
+        return fields.replace("\"uploadStatus\":", "\"originalContentHash\":\"" + hash + "\",\"uploadStatus\":");
+    }
+
+    @Test void approvalRequiresAnObservedWellFormedHashAndSafeOriginalFilename() {
+        var approved = media(restaurantId, "\"" + categoryId + "\"", "null", "PRODUCT_IMAGE", "APPROVED", "source.jpg");
+        rejected(() -> service.execute(restaurantId, parse("missing-hash", approved)), "INVALID_BOOTSTRAP_STEP");
+        for (String hash : List.of("", "not-sha256", "g".repeat(64), "a".repeat(63))) {
+            rejected(() -> service.execute(restaurantId, parse("invalid-hash", withHash(approved, hash))), "INVALID_BOOTSTRAP_STEP");
+        }
+        for (String filename : List.of(".", "..", "source.jpg.", " source.jpg", "source.jpg ", "source?.jpg", "source|.jpg")) {
+            var fields = withHash(media(restaurantId, "\"" + categoryId + "\"", "null", "PRODUCT_IMAGE", "APPROVED", filename), "a".repeat(64));
+            rejected(() -> service.execute(restaurantId, parse("unsafe-name", fields)), "INVALID_BOOTSTRAP_STEP");
+        }
+        verify(receipts, never()).saveAndFlush(any());
+    }
+
+    @Test void reviewedProductAndVariantMappingsRemainPendingPublicationAndUseActualUuidValidation() {
+        UUID variant = UUID.randomUUID();
+        var fields = withHash(media(restaurantId, "\"" + categoryId + "\"", "\"" + variant + "\"", "VARIANT_IMAGE", "APPROVED", "variant.webp"), "b".repeat(64));
+        var result = service.execute(restaurantId, parse("reviewed-variant", fields));
+        assertEquals("PENDING", result.result().get("uploadStatus"));
+        assertNull(result.resourceId());
+        verify(catalog).validateBootstrapMediaReference(restaurantId, categoryId, variant);
+        verify(catalog, never()).createProductValidated(any(), any());
+        verify(catalog, never()).createVariantValidated(any(), any(), any());
+    }
+
+    @Test void unknownProductCannotBecomeAnApprovedMappingOrProduceASuccessReceipt() {
+        UUID unknown = UUID.randomUUID();
+        doThrow(new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "missing"))
+                .when(catalog).validateBootstrapMediaReference(restaurantId, unknown, null);
+        var fields = withHash(media(restaurantId, "\"" + unknown + "\"", "null", "PRODUCT_IMAGE", "APPROVED", "unknown.jpg"), "c".repeat(64));
+        rejected(() -> service.execute(restaurantId, parse("unknown-product", fields)), "PRODUCT_NOT_FOUND");
+        verify(receipts, never()).saveAndFlush(any());
+    }
+
+    @Test void legacyApprovedManifestReceiptStillReplaysBeforeNewHashRequirement() {
+        var request = parse("legacy.approved", media(restaurantId, "\"" + categoryId + "\"", "null", "PRODUCT_IMAGE", "APPROVED", "original.jpg"));
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        try {
+            String hash = HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(mapper.writeValueAsBytes(request)));
+            var prior = new RestaurantBootstrapStep();
+            prior.setOperationKey(request.operationKey()); prior.setKind(Kind.MEDIA_MANIFEST);
+            prior.setRequestHash(hash); prior.setActorId(actor); prior.setResult(Map.of("uploadStatus", "PENDING"));
+            when(receipts.findByRestaurantIdAndOperationKey(restaurantId, request.operationKey())).thenReturn(Optional.of(prior));
+            assertEquals("PENDING", service.execute(restaurantId, request).result().get("uploadStatus"));
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new AssertionError(exception);
+        }
+        verifyNoInteractions(catalog, settings, ordering, orders);
+        verify(receipts, never()).saveAndFlush(any());
     }
 
     @Test void uploadVerificationCannotBeClaimedInManifest() {

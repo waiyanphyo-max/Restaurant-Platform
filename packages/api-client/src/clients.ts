@@ -28,6 +28,8 @@ import { ApiConfigurationError, ApiProtocolError, TenantAccessError } from "./er
 import { requireHeaderValue, requireUuid } from "./tenant.js";
 import { createTransport, createAuthenticatedTransport } from "./transport.js";
 import { checkedBrandingResponse, checkedBrandingUpdate } from "./branding.js";
+import { checkedFeaturedResponse, checkedFeaturedUpdate } from "./featured.js";
+import type { FeaturedProductResponse, UpdateFeaturedProductRequest } from "@restaurant-platform/shared-types";
 import { checkedBootstrapSnapshot, checkedBootstrapStep, checkedBootstrapStepResponse } from "./bootstrap.js";
 import type { PlatformBootstrapStepRequest } from "@restaurant-platform/shared-types";
 import type { ApiRequestOptions, ApiTransportOptions, AuthenticatedApiTransportOptions, ApiTransport } from "./transport.js";
@@ -213,6 +215,15 @@ export function createRestaurantMemberApiClient(options: RestaurantMemberApiClie
     getDailyReport: async (date?: string, o?: ApiRequestOptions) => checkedRestaurantResponse(
       await read<DailyOperationsReportResponse>(transport, `${prefix}/reports/daily`, o, reportDateQuery(date)), restaurantId, "restaurantId"),
     listProducts: (o?: ApiRequestOptions) => read<ProductManagementResponse[]>(transport, `${prefix}/products`, o),
+    getFeaturedProduct: async (o?: ApiRequestOptions): Promise<FeaturedProductResponse> => checkedFeaturedResponse(
+      await read<unknown>(transport, `${prefix}/featured-product`, o), restaurantId),
+    async updateFeaturedProduct(body: UpdateFeaturedProductRequest, o?: ApiRequestOptions): Promise<FeaturedProductResponse> {
+      const request = checkedFeaturedUpdate(body);
+      // Writes are never retried automatically. An uncertain result requires a fresh read and review.
+      const saved = checkedFeaturedResponse(await write<unknown>("PUT", `${prefix}/featured-product`, request, o), restaurantId);
+      if (saved.productId !== request.productId || saved.revision <= request.expectedRevision) throw new ApiProtocolError();
+      return saved;
+    },
     listCategories: (o?: ApiRequestOptions) => read<CategoryResponse[]>(transport, `${prefix}/categories`, o),
     async listMembers(o?: ApiRequestOptions): Promise<RestaurantMemberResponse[]> {
       const members = await read<RestaurantMemberResponse[]>(transport, `${prefix}/members`, o);

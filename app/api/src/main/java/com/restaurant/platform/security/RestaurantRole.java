@@ -11,6 +11,7 @@ public enum RestaurantRole {
             RestaurantPermission.MEMBERS_MANAGE,
             RestaurantPermission.MENU_READ,
             RestaurantPermission.MENU_MANAGE,
+            RestaurantPermission.FEATURED_MANAGE,
             RestaurantPermission.ORDER_READ,
             RestaurantPermission.ORDER_CREATE,
             RestaurantPermission.ORDER_STATUS_UPDATE,

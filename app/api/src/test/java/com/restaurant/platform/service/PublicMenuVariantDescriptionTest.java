@@ -23,7 +23,8 @@ class PublicMenuVariantDescriptionTest {
         var variants = mock(ProductVariantRepository.class);
         var links = mock(ProductModifierGroupRepository.class);
         var service = new PublicMenuService(restaurants, mock(RestaurantSettingsRepository.class), categories,
-                products, variants, links, mock(ModifierGroupRepository.class), mock(ModifierOptionRepository.class));
+                products, variants, links, mock(ModifierGroupRepository.class), mock(ModifierOptionRepository.class),
+                mock(RestaurantFeaturedProductRepository.class));
         UUID restaurantId = UUID.randomUUID(), categoryId = UUID.randomUUID(), productId = UUID.randomUUID();
         Restaurant restaurant = new Restaurant();
         restaurant.setId(restaurantId);

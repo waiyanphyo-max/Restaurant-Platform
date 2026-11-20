@@ -72,7 +72,7 @@ export function buildBootstrapStep(kind: BootstrapKind, form: FormData, snapshot
   } };
   if (kind === "MEDIA_MANIFEST") {
     const originalFilename = required(form, "originalFilename", 255);
-    if (/[\\/:]/.test(originalFilename) || [...originalFilename].some(char => char.charCodeAt(0) < 32)) throw new BootstrapDraftError("originalFilename", "Use the original filename without a directory path.");
+    if (originalFilename.endsWith(".") || /[\\/:<>"|?*]/.test(originalFilename) || [...originalFilename].some(char => char.charCodeAt(0) < 32)) throw new BootstrapDraftError("originalFilename", "Use the original filename without a directory path or unsafe characters.");
     const intendedAssociation = text(form, "intendedAssociation") === "VARIANT_IMAGE" ? "VARIANT_IMAGE" : "PRODUCT_IMAGE";
     const reviewStatus = text(form, "reviewStatus") === "APPROVED" ? "APPROVED" : "PENDING";
     const productId = text(form, "productId") ? reference(form, "productId", snapshot.products.map(item => item.id)) : null;
@@ -81,6 +81,7 @@ export function buildBootstrapStep(kind: BootstrapKind, form: FormData, snapshot
     if (reviewStatus === "APPROVED" && (!productId || (intendedAssociation === "VARIANT_IMAGE" && !variantId))) throw new BootstrapDraftError("productId", "Approved mappings need actual product and, for a variant image, matching variant UUIDs.");
     const originalContentHash = text(form, "originalContentHash") || null;
     if (originalContentHash && !/^[0-9a-f]{64}$/i.test(originalContentHash)) throw new BootstrapDraftError("originalContentHash", "Use the original file’s 64-character SHA-256 hash, or leave pending.");
+    if (reviewStatus === "APPROVED" && !originalContentHash) throw new BootstrapDraftError("originalContentHash", "Approved mappings require the observed original file’s SHA-256 hash. Keep unverified originals pending.");
     const entry: PlatformMediaManifestEntry = { originalFilename, restaurantId: snapshot.restaurantId, productId, variantId, intendedAssociation, reviewStatus, originalContentHash, uploadStatus: "PENDING" };
     const existing = snapshot.mediaManifest.findIndex(item => item.originalFilename.toLowerCase() === originalFilename.toLowerCase());
     const mediaManifest = [...snapshot.mediaManifest];

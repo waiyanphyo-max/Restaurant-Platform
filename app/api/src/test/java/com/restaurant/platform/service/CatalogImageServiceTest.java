@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -163,6 +164,10 @@ class CatalogImageServiceTest {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void providerFailureDoesNotWriteAnImageUrlOrReportUploadSuccess(boolean variantUpload) {
+        var previousProduct = product("https://media.example.test/a/original-product.png", 10);
+        var previousVariant = variant("https://media.example.test/a/original-variant.png", 1000L);
+        when(products.findByIdAndRestaurantId(productId, restaurantId)).thenReturn(Optional.of(previousProduct));
+        when(variants.findByIdAndProductId(variantId, productId)).thenReturn(Optional.of(previousVariant));
         var failure = new ApiException(HttpStatus.BAD_GATEWAY, "MEDIA_STORAGE_OPERATION_FAILED",
                 "error.media.storage-operation-failed");
         when(storage.uploadMenuImage(anyString(), anyString(), any(byte[].class))).thenThrow(failure);
@@ -173,6 +178,8 @@ class CatalogImageServiceTest {
         });
 
         assertSame(failure, result);
+        assertEquals("https://media.example.test/a/original-product.png", previousProduct.getImageUrl());
+        assertEquals("https://media.example.test/a/original-variant.png", previousVariant.getImageUrl());
         verify(products, never()).updateProductImage(any(), any(), any());
         verify(variants, never()).updateVariantImage(any(), any(), any());
         verify(products, never()).save(any());
@@ -188,6 +195,74 @@ class CatalogImageServiceTest {
 
         verifyNoInteractions(storage);
         verify(products, never()).updateProductImage(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = RestaurantRole.class, names = {"STAFF", "DELIVERY_DRIVER"})
+    void operationalRolesCannotUploadImages(RestaurantRole role) {
+        var member = new RestaurantMember();
+        member.setRestaurantId(restaurantId); member.setUserId(ownerId); member.setRole(role);
+        when(members.findByRestaurantIdAndUserId(restaurantId, ownerId)).thenReturn(Optional.of(member));
+
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ApiException.class,
+                () -> service.uploadProductImage(restaurantId, productId, file())).getStatus());
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ApiException.class,
+                () -> service.uploadVariantImage(restaurantId, productId, variantId, file())).getStatus());
+        verifyNoInteractions(products, variants, storage);
+    }
+
+    @Test
+    void managerRetainsScopedMediaUploadPermissionWithoutEditorialAuthority() {
+        var manager = new RestaurantMember();
+        manager.setRestaurantId(restaurantId); manager.setUserId(ownerId); manager.setRole(RestaurantRole.MANAGER);
+        when(members.findByRestaurantIdAndUserId(restaurantId, ownerId)).thenReturn(Optional.of(manager));
+        String url = "https://media.example.test/a/manager-upload.png";
+        when(storage.uploadMenuImage(anyString(), eq("image/png"), any(byte[].class))).thenReturn(url);
+        when(products.updateProductImage(productId, restaurantId, url)).thenReturn(1);
+        when(products.findByIdAndRestaurantId(productId, restaurantId))
+                .thenReturn(Optional.of(product(null, 10)), Optional.of(product(url, 10)));
+
+        assertEquals(url, service.uploadProductImage(restaurantId, productId, file()).imageUrl());
+        verify(products).updateProductImage(productId, restaurantId, url);
+        verify(products, never()).save(any());
+    }
+
+    @Test
+    void tenantAImageCannotReplaceTenantBProductOrAnUnrelatedVariant() {
+        UUID restaurantB = UUID.randomUUID(), productB = UUID.randomUUID(), variantB = UUID.randomUUID();
+        var existingB = product("https://media.example.test/b/original.png", 7);
+        existingB.setId(productB); existingB.setRestaurantId(restaurantB);
+        // Even a caller authorized for both restaurants cannot assign B's UUID through A's route.
+        var memberB = new RestaurantMember();
+        memberB.setRestaurantId(restaurantB); memberB.setUserId(ownerId); memberB.setRole(RestaurantRole.OWNER);
+        when(members.findByRestaurantIdAndUserId(restaurantB, ownerId)).thenReturn(Optional.of(memberB));
+        when(products.findByIdAndRestaurantId(productB, restaurantB)).thenReturn(Optional.of(existingB));
+
+        assertEquals("PRODUCT_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service.uploadProductImage(restaurantId, productB, file())).getCode());
+        assertEquals("PRODUCT_VARIANT_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service.uploadVariantImage(restaurantId, productId, variantB, file())).getCode());
+        assertEquals("https://media.example.test/b/original.png", existingB.getImageUrl());
+        verifyNoInteractions(storage);
+        verify(products, never()).updateProductImage(any(), any(), any());
+        verify(variants, never()).updateVariantImage(any(), any(), any());
+    }
+
+    @Test
+    void sizeAndTypeFailuresCannotReachStorageOrReplaceThePublishedImage() {
+        var existing = product("https://media.example.test/a/original.png", 10);
+        when(products.findByIdAndRestaurantId(productId, restaurantId)).thenReturn(Optional.of(existing));
+        var tooLarge = new MockMultipartFile("file", "large.png", "image/png", new byte[(int) CatalogImageService.MAX_IMAGE_BYTES + 1]);
+        var unsupported = new MockMultipartFile("file", "menu.svg", "image/svg+xml", "<svg/>".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        assertEquals("IMAGE_FILE_TOO_LARGE", assertThrows(ApiException.class,
+                () -> service.uploadProductImage(restaurantId, productId, tooLarge)).getCode());
+        assertEquals("UNSUPPORTED_IMAGE_TYPE", assertThrows(ApiException.class,
+                () -> service.uploadVariantImage(restaurantId, productId, variantId, unsupported)).getCode());
+        assertEquals("https://media.example.test/a/original.png", existing.getImageUrl());
+        verifyNoInteractions(storage);
+        verify(products, never()).updateProductImage(any(), any(), any());
+        verify(variants, never()).updateVariantImage(any(), any(), any());
     }
 
     private MockMultipartFile file() {

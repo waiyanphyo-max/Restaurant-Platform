@@ -170,6 +170,26 @@ describe("private initial restaurant bootstrap", () => {
       expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+  it("reads historical reviewed mappings and permits exact legacy receipt replay without adding a hash", async () => {
+    const oldEntry = { ...entry, originalContentHash: null };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(json({ ...snapshot, mediaManifest: [oldEntry] }))
+      .mockResolvedValueOnce(json({ ...response, operationKey: "legacy-review", kind: "MEDIA_MANIFEST", resourceId: null, result: { uploadStatus: "PENDING" } }));
+    const api = client(fetchImpl);
+    expect((await api.getBootstrap(a)).mediaManifest[0]).toEqual(oldEntry);
+    const priorRequest: PlatformBootstrapStepRequest = { operationKey: "legacy-review", kind: "MEDIA_MANIFEST", mediaManifest: [oldEntry], expectedMediaOperationKey: null };
+    expect(await api.bootstrapStep(a, priorRequest)).toMatchObject({ operationKey: "legacy-review", result: { uploadStatus: "PENDING" } });
+    expect(JSON.parse(fetchImpl.mock.calls[1][1]?.body as string)).toEqual(priorRequest);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("surfaces server rejection of a new unverified approval without retrying or claiming publication", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(json({ code: "INVALID_BOOTSTRAP_STEP" }, 400));
+    const unverified = { ...entry, originalContentHash: null };
+    await expect(client(fetchImpl).bootstrapStep(a, { operationKey: "new-unverified-review", kind: "MEDIA_MANIFEST", mediaManifest: [unverified] }))
+      .rejects.toMatchObject({ status: 400, code: "INVALID_BOOTSTRAP_STEP" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps A/B recovery snapshots independent", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async url => json(String(url).includes(b) ?
       { ...snapshot, restaurantId: b, settings: { ...snapshot.settings, restaurantId: b }, steps: [], categories: [], products: [],

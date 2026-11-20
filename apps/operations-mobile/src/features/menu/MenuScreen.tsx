@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { Image, Switch, Text, View } from "react-native";
+import { Switch, Text, View } from "react-native";
 import type { CategoryResponse, ModifierGroupResponse, ModifierOptionResponse, ProductManagementResponse, ProductVariantResponse } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
 import { QueryResult } from "../../components/QueryResult";
-import { useImageUpload } from "../../components/useImageUpload";
 import { Action, Body, Card, ConfirmDialog, FormField, Page } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { operationalAmount } from "../operations/format";
 import { categoryRequest, draftForProduct, modifierGroupRequest, modifierOptionRequest, productPage, productRequest, variantRequest } from "./model";
+import { FeaturedProductPanel } from "./FeaturedProductPanel";
+import { CatalogImageControl, CatalogPicture } from "./CatalogImageControl";
 
 type Mutation = ReturnType<typeof useApiMutation>;
 type ViewName = "products" | "categories" | "modifiers";
@@ -35,12 +36,6 @@ function SaveAction({ title, mutation, onSave, confirmMessage }: { title: string
   </>;
 }
 
-function Picture({ url, name }: { url: string | null; name: string }) {
-  const [failed, setFailed] = useState(false);
-  return url && !failed ? <Image accessibilityLabel={`${name} image`} source={{ uri: url }} onError={() => setFailed(true)}
-    style={{ width: "100%", height: 140, borderRadius: 8 }} resizeMode="contain" /> : <Body>Image unavailable</Body>;
-}
-
 export function MenuScreen() {
   const { state } = useOperationsAuth();
   const canManage = state.status === "ready" && ["OWNER", "MANAGER"].includes(state.membership.role);
@@ -58,7 +53,8 @@ export function MenuScreen() {
     {!canManage ? <Body>Your restaurant role can browse the menu. Menu changes require Owner or Manager access.</Body> : null}
     <QueryResult {...query}>{data => <>
       <Body>{data.currency ? `Currency: ${data.currency}` : "Currency settings require management access"} · Prices use the existing whole currency amounts.</Body>
-      {view === "products" ? <Products products={data.products} categories={data.categories} groups={data.groups} canManage={canManage} refresh={query.reload} />
+      {view === "products" ? <><FeaturedProductPanel products={data.products} categories={data.categories} />
+        <Products products={data.products} categories={data.categories} groups={data.groups} canManage={canManage} refresh={query.reload} /></>
         : view === "categories" ? <Categories categories={data.categories} canManage={canManage} refresh={query.reload} />
           : <ModifierGroups groups={data.groups} canManage={canManage} refresh={query.reload} />}
       <Action title="Refresh menu" secondary onPress={query.reload} />
@@ -185,40 +181,23 @@ function ProductDetail({ product, categories, groups, canManage, edit, refresh }
   const [variantEditor, setVariantEditor] = useState<ProductVariantResponse | "new" | null>(null);
   const [unlinking, setUnlinking] = useState<ModifierGroupResponse | null>(null);
   const mutation = useApiMutation();
-  const uploadImage = useImageUpload();
   const query = useApiQuery(async signal => {
     const api = getOperationsApi();
     const [variants, linked] = await Promise.all([api.listVariants(product.id, { signal }), api.getProductModifierGroups(product.id, { signal })]);
     return { variants, linked };
   }, `menu-product:${product.id}`, { keepPreviousData: true });
+  const refreshDetails = () => { query.reload(); refresh(); };
   return <>
-    <Card title={product.name}><Picture key={product.imageUrl} url={product.imageUrl} name={product.name} />
+    <Card title={product.name}>
+      {!canManage ? <CatalogPicture key={product.imageUrl} url={product.imageUrl} name={product.name} /> : null}
       <Body>{product.description || "No description"}</Body>
       <Body>{categories.find(category => category.id === product.categoryId)?.name ?? "Category unavailable"} · {operationalAmount(product.price)}</Body>
       <Body>{product.available ? "Available" : "Unavailable"} · {product.trackStock ? `Stock: ${product.stockQuantity ?? "Unavailable"}` : "Stock tracking off"}</Body>
       <Feedback mutation={mutation} />
       {canManage ? <><Action title="Edit product and stock" onPress={edit} disabled={mutation.busy} />
-        <Action title={mutation.busy ? "Uploading…" : "Upload product image"} secondary disabled={mutation.busy} onPress={() => void mutation.run(
-          () => uploadImage(async (api, form) => {
-            console.log("[IMAGE UPLOAD] Backend request START");
-
-            try {
-              const result = await api.uploadProductImage(
-                product.id,
-                form,
-                { timeoutMs: 60_000 }
-              );
-
-              console.log("[IMAGE UPLOAD] Backend request SUCCESS");
-              return result;
-
-            } catch (error) {
-              console.log("[IMAGE UPLOAD] Backend request FAILED", error);
-              throw error;
-            }
-          }),
-          uploaded => { if (uploaded) refresh(); else mutation.reset(); }
-        )} /></> : null}
+        <CatalogImageControl id={product.id} name={product.name} publishedUrl={product.imageUrl}
+          upload={(api, form) => api.uploadProductImage(product.id, form, { timeoutMs: 60_000 })}
+          check={async api => (await api.listProducts()).find(item => item.id === product.id) ?? null} onSaved={refresh} /></> : null}
     </Card>
     <QueryResult {...query}>{({ variants, linked }) => <>
       <Card title="Variants">
@@ -226,17 +205,16 @@ function ProductDetail({ product, categories, groups, canManage, edit, refresh }
         {variants.map(variant => <View key={variant.id} style={{ gap: 10, borderTopWidth: 1, borderTopColor: "#e2e8f0", paddingTop: 12 }}>
           <Body>{variant.name} · {operationalAmount(variant.price)} · {variant.available ? "Available" : "Unavailable"}</Body>
           {variant.description ? <Body>{variant.description}</Body> : null}
-          {variant.imageUrl ? <Picture key={variant.imageUrl} url={variant.imageUrl} name={variant.name} /> : null}
+          {!canManage ? <CatalogPicture key={variant.imageUrl} url={variant.imageUrl} name={variant.name} /> : null}
           {canManage ? <><Action title={`Edit variant ${variant.name}`} secondary disabled={mutation.busy} onPress={() => setVariantEditor(variant)} />
-            <Action title={`Upload ${variant.name} image`} secondary disabled={mutation.busy} onPress={() => void mutation.run(
-              () => uploadImage((api, form) => api.uploadVariantImage(product.id, variant.id, form)),
-              uploaded => { if (uploaded) query.reload(); else mutation.reset(); }
-            )} /></> : null}
+            <CatalogImageControl id={variant.id} name={variant.name} publishedUrl={variant.imageUrl}
+              upload={(api, form) => api.uploadVariantImage(product.id, variant.id, form, { timeoutMs: 60_000 })}
+              check={async api => (await api.listVariants(product.id)).find(item => item.id === variant.id) ?? null} onSaved={refreshDetails} /></> : null}
         </View>)}
         {canManage ? <Action title="Add variant" disabled={mutation.busy} onPress={() => setVariantEditor("new")} /> : null}
       </Card>
       {variantEditor ? <VariantForm key={variantEditor === "new" ? "new" : variantEditor.id} productId={product.id} variant={variantEditor === "new" ? undefined : variantEditor}
-        done={() => { setVariantEditor(null); query.reload(); }} cancel={() => setVariantEditor(null)} /> : null}
+        done={() => { setVariantEditor(null); refreshDetails(); }} cancel={() => setVariantEditor(null)} /> : null}
       <Card title="Linked modifier groups">
         {!linked.length ? <Body>No modifier groups linked.</Body> : null}
         {linked.map(group => <View key={group.id} style={{ gap: 8 }}><Body>{group.name} · {group.active ? "Active" : "Inactive"} · Choose {group.minSelections}–{group.maxSelections}</Body>
@@ -244,14 +222,14 @@ function ProductDetail({ product, categories, groups, canManage, edit, refresh }
           {canManage ? <Action title={`Detach ${group.name}`} secondary disabled={mutation.busy} onPress={() => setUnlinking(group)} /> : null}
         </View>)}
         {canManage ? groups.filter(group => group.active && !linked.some(item => item.id === group.id)).map(group => <Action key={group.id} title={`Attach ${group.name}`} secondary disabled={mutation.busy}
-          onPress={() => void mutation.run(() => getOperationsApi().linkProductModifierGroup(product.id, group.id), query.reload)} />) : null}
+          onPress={() => void mutation.run(() => getOperationsApi().linkProductModifierGroup(product.id, group.id), refreshDetails)} />) : null}
       </Card>
     </>}</QueryResult>
-    <Action title="Refresh variants and extras" secondary onPress={query.reload} />
+    <Action title="Refresh variants and extras" secondary onPress={refreshDetails} />
     <ConfirmDialog visible={unlinking !== null} title="Detach modifier group?" message="This group will no longer be offered for new orders of this product. Historical order modifiers remain unchanged."
       confirmLabel="Detach group" onCancel={() => setUnlinking(null)} onConfirm={() => {
         const group = unlinking; setUnlinking(null);
-        if (group) void mutation.run(() => getOperationsApi().unlinkProductModifierGroup(product.id, group.id), query.reload);
+        if (group) void mutation.run(() => getOperationsApi().unlinkProductModifierGroup(product.id, group.id), refreshDetails);
       }} />
   </>;
 }

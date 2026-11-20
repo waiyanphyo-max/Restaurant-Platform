@@ -10,3 +10,4 @@ export type * from "./accounting-report.js";
 export type * from "./accounting-sales.js";
 export type * from "./branding-api.js";
 export type * from "./bootstrap-api.js";
+export type * from "./featured-api.js";
