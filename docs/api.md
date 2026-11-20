@@ -803,6 +803,30 @@ Public menu images are stored in `menu-images` and may be viewed by anyone who h
 
 Configure these buckets and exact names in Supabase Dashboard > Storage: `restaurant-logos` (public, 5 MB), `menu-images` (public, 5 MB), and `customer-avatars` (private, 2 MB). Restrict allowed MIME types to `image/png`, `image/jpeg`, and `image/webp`. Upload write permission is enforced by Spring Boot; do not create client upload policies that expose privileged writes.
 
+## Initial operator bootstrap (UXI-04)
+
+`GET /api/v1/platform/restaurants/{restaurantId}/bootstrap` returns a private setup snapshot, including existing catalog records and their actual UUIDs, ordering settings, the canonical public branding DTO, existing Owner invitation/onboarding states, durable step receipts, the latest reviewed media manifest and Operations handoff blockers. `photosStatus` and `nativeBuildStatus` remain `PENDING`; mapping approval does not prove an upload or app publication.
+
+`POST /api/v1/platform/restaurants/{restaurantId}/bootstrap/steps` executes one reviewed operation. Both endpoints require the existing server-only Platform Admin UUID allowlist; no restaurant membership is created for the operator. The server derives the actor from the verified JWT. Owner/Manager continue using their existing scoped APIs and media permissions.
+
+```json
+{
+  "operationKey": "approved-category-1",
+  "kind": "CATEGORY",
+  "category": { "name": "Owner-approved dishes", "displayOrder": 0, "active": true }
+}
+```
+
+Kinds: `CATEGORY`, `PRODUCT`, `VARIANT`, `MODIFIER_GROUP`, `MODIFIER_OPTION`, `ATTACH_MODIFIER_GROUP`, `ORDERING_SETTINGS`, `MEDIA_MANIFEST`, `COMPLETE_CATALOG`, `HANDOFF`. Only the selected kind's fields are accepted. Catalog payloads reuse existing request records; products/variants/options require the restaurant's exact `currency`. Monetary values must be nonnegative exact whole JSON integers in the JavaScript safe range; fractions and scalar coercion are rejected. Category/product/group/variant references are revalidated against the path restaurant. Catalog image URLs are rejected; this API has no multipart or Storage action. Ordering settings reuse supported flags/minimum/fee validation and cannot change the provisioned currency/timezone, QR secret or default driver.
+
+Each receipt contains `operationKey`, `kind`, nullable `resourceId`, `result`, server-derived `actorId` and `completedAt`. The existing restaurant row lock serializes bootstrap mutations. A unique `(restaurant_id, operation_key)` receipt and request hash commit in the same database transaction as the domain change. An exact retry returns the original receipt; changed payload with the same key returns `409 BOOTSTRAP_KEY_REUSED`. Duplicate named catalog records under another key are rejected. Reconcile the GET snapshot after a lost response before explicitly replaying the exact key and payload. Clients never automatically retry these writes or restaurant provisioning.
+
+Media entries contain `originalFilename`, `restaurantId`, nullable `productId`/`variantId`, `intendedAssociation` (`PRODUCT_IMAGE`/`VARIANT_IMAGE`), `reviewStatus` (`PENDING`/`APPROVED`), optional SHA-256 `originalContentHash` and `uploadStatus: PENDING`. At most 500 entries are accepted. Pending originals/UUIDs may stay unresolved. Approved mappings require exact tenant-owned product/variant IDs; filenames and product names never select records. The manifest stores review information only, preserving all existing upload safeguards.
+
+`MEDIA_MANIFEST` replaces the reviewed manifest and includes `expectedMediaOperationKey`: the last `MEDIA_MANIFEST` receipt key from the ordered snapshot, or `null` before its first save. The tenant lock makes the comparison and replacement atomic. A stale base returns `409 BOOTSTRAP_MEDIA_MANIFEST_STALE`; refresh, cancel the stale review and build/review a new proposal against the current manifest. Never automatically rebase a previously reviewed payload. Exact operation-key replay still returns its original receipt before checking the current head, so an old successful request cannot revert a later manifest. The nullable field is excluded from canonical hashing when null, preserving existing receipt hashes.
+
+`COMPLETE_CATALOG` records an explicit operator review after checking catalog and modifier completeness. Subsequent catalog additions invalidate that checkpoint. `HANDOFF` requires the server's current Owner account setup confirmation, initialized canonical palette and reviewed catalog/settings; it permanently closes new bootstrap mutations. This is Operations management handoff, with photos/native publication still pending. The append-only receipt table is introduced by forward-only source migration `20261119100000_add_restaurant_bootstrap_steps.sql`; review/apply it separately before deploying this API. No hosted migration or external provider write is part of these bootstrap steps. See [operator runbook and verification](uxi-04-operator-bootstrap.md).
+
 ## Platform administrator dashboard
 
 All routes in this section require a validated Supabase Auth bearer token whose `sub` UUID is present in the API server's `PLATFORM_ADMIN_USER_IDS`. `PlatformAdminAuthorization` checks the allowlist for each request. Restaurant membership roles do not grant platform access; an empty or invalid allowlist fails closed. The dashboard obtains its bearer token from the M1 Supabase session helper and never accepts a pasted token.

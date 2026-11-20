@@ -28,6 +28,8 @@ import { ApiConfigurationError, ApiProtocolError, TenantAccessError } from "./er
 import { requireHeaderValue, requireUuid } from "./tenant.js";
 import { createTransport, createAuthenticatedTransport } from "./transport.js";
 import { checkedBrandingResponse, checkedBrandingUpdate } from "./branding.js";
+import { checkedBootstrapSnapshot, checkedBootstrapStep, checkedBootstrapStepResponse } from "./bootstrap.js";
+import type { PlatformBootstrapStepRequest } from "@restaurant-platform/shared-types";
 import type { ApiRequestOptions, ApiTransportOptions, AuthenticatedApiTransportOptions, ApiTransport } from "./transport.js";
 
 export interface PublicRestaurantApiClientOptions extends ApiTransportOptions { restaurantId: string; }
@@ -108,6 +110,17 @@ export function createPlatformAdminApiClient(options: AuthenticatedApiTransportO
   }
   return {
     getOverview: (o?: ApiRequestOptions) => read<PlatformOverviewResponse>(transport, "/api/v1/platform/overview", o),
+    async getBootstrap(id: string, o?: ApiRequestOptions) {
+      const restaurantId = requireUuid(id, "restaurantId");
+      return checkedBootstrapSnapshot(await read<unknown>(transport, `${restaurantPath(restaurantId)}/bootstrap`, o), restaurantId);
+    },
+    async bootstrapStep(id: string, body: PlatformBootstrapStepRequest, o?: ApiRequestOptions) {
+      const restaurantId = requireUuid(id, "restaurantId");
+      const request = checkedBootstrapStep(body, restaurantId);
+      // No automatic writes: operators reconcile GET before an explicit exact-key replay.
+      return checkedBootstrapStepResponse(await transport.request({ method: "POST",
+        path: `${restaurantPath(restaurantId)}/bootstrap/steps`, body: request, options: o }), request);
+    },
     async initializeBranding(id: string, body: UpdateRestaurantBrandingRequest, o?: ApiRequestOptions): Promise<RestaurantBrandingResponse> {
       const restaurantId = requireUuid(id, "restaurantId");
       const request = checkedBrandingUpdate(body);

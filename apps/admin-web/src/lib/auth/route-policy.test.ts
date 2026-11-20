@@ -15,6 +15,7 @@ describe("admin route policy", () => {
     expect(safeReturnTo("/restaurant-details?id=00000000-0000-4000-8000-000000000001&page=3"))
       .toBe("/restaurant-details?page=3&id=00000000-0000-4000-8000-000000000001");
     expect(safeReturnTo("/restaurant-details?id=invalid&page=-1")).toBe("/restaurant-details");
+    expect(safeReturnTo("/restaurant-setup?id=00000000-0000-4000-8000-000000000001&access_token=secret")).toBe("/restaurant-setup?id=00000000-0000-4000-8000-000000000001");
     expect(loginPath("/settings", "expired")).toBe("/login?returnTo=%2Fsettings&reason=expired");
     expect(loginPath("/")).toBe("/login");
   });

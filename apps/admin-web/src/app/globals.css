@@ -291,4 +291,17 @@ input:disabled { background: #f0f3f1; }
 .provision-aside > .muted { font-size: 11px; line-height: 1.8; }
 .form-actions > p { font-size: 11px; margin: 0 auto 0 0; }
 .panel-heading .connection-status { margin: 0; font-size: 11px; }
+.bootstrap-workflow .setup-actions a { min-height: 44px; display: inline-flex; align-items: center; font-size: 12px; }
+.bootstrap-workflow .detail-list dt { overflow-wrap: anywhere; }
+.bootstrap-workflow .detail-list > div { grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr); }
+.bootstrap-workflow section[id] { scroll-margin-top: 20px; }
+.bootstrap-check { display: flex; gap: 10px; align-items: center; font-size: 13px; min-height: 44px; }
+.bootstrap-check input { width: 18px; height: 18px; }
+.bootstrap-workflow select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 7px; padding: 10px; font: inherit; background: white; }
+.bootstrap-workflow select:focus { outline: 2px solid var(--green); outline-offset: 2px; }
+.bootstrap-table { overflow-x: auto; }
+.bootstrap-table table { border-collapse: collapse; min-width: 650px; width: 100%; font-size: 12px; }
+.bootstrap-table th, .bootstrap-table td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; overflow-wrap: anywhere; max-width: 240px; }
+.bootstrap-records { margin: 24px 0; }
+.palette-swatch { display: inline-block; width: 24px; height: 24px; border: 1px solid var(--line); vertical-align: middle; margin-right: 10px; border-radius: 4px; }
 @media (max-width: 600px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }

@@ -6,6 +6,7 @@ The factories accept a configured API origin, never an origin entered by an end 
 | --- | --- |
 | `createPublicRestaurantApiClient` | Fixed restaurant public branding, menu, modifiers and QR checkout; queue credentials stay in `X-Queue-Token`. It accepts no session provider and never sends a bearer token. |
 | `createPlatformAdminApiClient` | Overview, searchable registry, restaurant detail, verified-identity provisioning, active status and branding/deployment metadata. Spring's validated UUID allowlist decides access. |
+| Platform client's `getBootstrap` / `bootstrapStep` | Private initial catalog/settings/media-review snapshots and keyed reviewed steps. No Owner impersonation, media upload or native publication. |
 | `createRestaurantMemberApiClient` | Fixed restaurant operations. `getConfiguredMembership` returns only that restaurant's active membership. Spring decides every permission. |
 | `createCustomerApiClient` | UUID-owned account profile/addresses and fixed restaurant delivery checkout. |
 
@@ -20,6 +21,14 @@ Wire DTOs mirror inspected Java records in `packages/shared-types`. They are com
 M4 adds `getRestaurant`, `provisionRestaurant`, `updateRestaurantStatus`, and `updateRestaurantConfiguration`. Provisioning optionally accepts an existing `ownerUserId`; Spring verifies that exact UUID and confirmed email through Supabase Auth Admin. A new invitation binds only the provider-returned UUID. These mutations are never automatically retried. See `docs/m4-acceptance.md` for contracts, retry instructions, migration requirements and verification boundaries. The historical M2 coverage audit is in `docs/api-coverage-gap-report.md`; global customer history remains outside branded clients.
 
 The API-client tests include actual `fetch` against a temporary loopback HTTP fixture server. They verify transport and contracts; Spring authorization is verified separately by backend HTTP tests. No remote provider or database is contacted by the loopback test.
+
+## Initial operator bootstrap (UXI-04)
+
+`adminClient.getBootstrap(restaurantId)` reads the current private setup and validates its restaurant, canonical branding and catalog references. `bootstrapStep(restaurantId, request)` projects only the selected operation, excluding actor claims, image URLs and QR/default-driver secrets. Prices must be exact nonnegative safe whole numbers with the restaurant currency. Media mapping review always has `uploadStatus: "PENDING"`.
+
+Keep the same operation key and reviewed payload after an uncertain response. Read the snapshot and its receipts before explicitly replaying that exact step. There is no automatic write retry or global setup cache. The backend atomically persists domain records and receipts, rejects changed intent under a reused key, and closes new setup writes after Operations handoff. Photos and native release remain pending. See [operator runbook](../../docs/uxi-04-operator-bootstrap.md).
+
+For `MEDIA_MANIFEST`, send `expectedMediaOperationKey` from the last manifest receipt in the ordered snapshot, or `null` initially. A stale manifest returns `409 BOOTSTRAP_MEDIA_MANIFEST_STALE`; refresh and explicitly rebuild/review the proposal. The client preserves this checkpoint and never retries or rebases it automatically. Replaying an already recorded exact request only retrieves its receipt, preserving later manifest updates.
 
 ## Runtime branding (UXI-02)
 

@@ -204,7 +204,7 @@ describe("actual protected admin routes", () => {
   it("renders guarded email provisioning with initial branding and verified identity input", async () => {
     const html = renderToStaticMarkup(await ProvisioningPage());
     expect(mocks.requireAdmin).toHaveBeenCalledWith("/provisioning");
-    for (const text of ["Email onboarding", "Initial branding", "Existing Owner Auth user ID", "Timezone", "Currency"]) expect(html).toContain(text);
+    for (const text of ["Email onboarding", "Approved logo reference", "Runtime colors are initialized separately", "Existing Owner Auth user ID", "Timezone", "Currency"]) expect(html).toContain(text);
     expect(mocks.listRestaurants).not.toHaveBeenCalled();
   });
 

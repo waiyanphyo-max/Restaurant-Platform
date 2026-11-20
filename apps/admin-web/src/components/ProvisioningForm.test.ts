@@ -24,8 +24,8 @@ describe("restaurant provisioning validation", () => {
     expect(errors).toHaveProperty("ownerEmail");
   });
 
-  it("checks timezone, currency, Auth UUID and initial branding", () => {
-    expect(validateProvisioningDraft({ ...valid, timezone: "Mars/City", currency: "MMKK", ownerUserId: "owner@example.test", primaryColor: "red", logoUrl: "javascript:alert(1)" })).toMatchObject({ timezone: expect.any(String), currency: expect.any(String), ownerUserId: expect.any(String), primaryColor: expect.any(String), logoUrl: expect.any(String) });
-    expect(validateProvisioningDraft({ ...valid, timezone: "Asia/Yangon", currency: "MMK", primaryColor: "#234D3C", ownerUserId: "00000000-0000-4000-8000-000000000001" })).toEqual({});
+  it("checks timezone, currency, Auth UUID and approved logo reference", () => {
+    expect(validateProvisioningDraft({ ...valid, timezone: "Mars/City", currency: "MMKK", ownerUserId: "owner@example.test", logoUrl: "javascript:alert(1)" })).toMatchObject({ timezone: expect.any(String), currency: expect.any(String), ownerUserId: expect.any(String), logoUrl: expect.any(String) });
+    expect(validateProvisioningDraft({ ...valid, timezone: "Asia/Yangon", currency: "MMK", ownerUserId: "00000000-0000-4000-8000-000000000001" })).toEqual({});
   });
 });
