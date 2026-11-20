@@ -78,6 +78,9 @@ test("map region requires a finite complete coordinate pair and accepts zero", (
 });
 test("phone and push require explicit configuration and cannot inherit arbitrary runtime state", () => {
   withEnvironment({ ...development, CUSTOMER_PHONE_OTP_ENABLED: "true", CUSTOMER_NOTIFICATIONS_ENABLED: "true", CUSTOMER_GOOGLE_SERVICES_FILE: "missing-google-services.json" }, () => {
+    assert.throws(() => configure({ config: {} }), /CUSTOMER_GOOGLE_SERVICES_FILE.*MOBILE_FIREBASE_PROJECT_ID/);
+  });
+  withEnvironment({ ...development, CUSTOMER_PHONE_OTP_ENABLED: "true" }, () => {
     const result = configure({ config: { extra: { features: { notificationsEnabled: true }, tenant: { restaurantId: "other" } } } });
     assert.equal(result.extra.features.phoneOtpRequested, true);
     assert.equal(result.extra.features.notificationsEnabled, false);
@@ -101,13 +104,20 @@ test("notification native configuration requires matching Android client JSON an
   try {
     for (const [value, expected] of [[client, true], [{ ...client, type: "service_account", private_key: "synthetic-noncredential" }, false], [{ ...client, client: [{ client_info: { android_client_info: { package_name: "another.package" } } }] }, false]]) {
       fs.writeFileSync(file, JSON.stringify(value));
-      withEnvironment({ ...development, CUSTOMER_NOTIFICATIONS_ENABLED: "true", CUSTOMER_GOOGLE_SERVICES_FILE: file }, () => {
+      withEnvironment({ ...development, CUSTOMER_NOTIFICATIONS_ENABLED: "true", CUSTOMER_GOOGLE_SERVICES_FILE: file, MOBILE_FIREBASE_PROJECT_ID: "test-project" }, () => {
+        if (!expected) {
+          assert.throws(() => configure({ config: {} }), /CUSTOMER_GOOGLE_SERVICES_FILE.*MOBILE_FIREBASE_PROJECT_ID/);
+          return;
+        }
         const result = configure({ config: {} });
-        assert.equal(result.extra.features.notificationsEnabled, expected);
-        assert.equal(result.android.googleServicesFile, expected ? file : undefined);
+        assert.equal(result.extra.features.notificationsEnabled, true);
+        assert.equal(result.android.googleServicesFile, file);
       });
     }
     fs.writeFileSync(file, JSON.stringify(client));
+    assert.throws(() => configure.inspect({
+      ...development, CUSTOMER_NOTIFICATIONS_ENABLED: "true", CUSTOMER_GOOGLE_SERVICES_FILE: file
+    }), /CUSTOMER_GOOGLE_SERVICES_FILE.*MOBILE_FIREBASE_PROJECT_ID/);
     assert.throws(() => configure.inspect({
       ...development, CUSTOMER_NOTIFICATIONS_ENABLED: "true", CUSTOMER_GOOGLE_SERVICES_FILE: file,
       MOBILE_FIREBASE_PROJECT_ID: "another-project"

@@ -7,7 +7,7 @@ import { readEmbeddedTenant } from "../tenant";
 type ThemeScope = { restaurantId: string; branding?: Partial<RestaurantBranding> | null };
 const ThemeContext = createContext<ThemeScope | null>(null);
 
-/** A presentation seam for a future runtime read; never selects a tenant or persists a palette. */
+/** Presentation only; the runtime provider supplies validated same-tenant branding. */
 export function ThemeProvider({ restaurantId, branding, children }: PropsWithChildren<ThemeScope>) {
   return <ThemeContext.Provider value={{ restaurantId, branding }}>{children}</ThemeContext.Provider>;
 }

@@ -1,13 +1,13 @@
 import { Redirect, Slot, usePathname, useRouter } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { resolveBrandTokens } from "@restaurant-platform/ui-tokens";
 import { useCustomerAuth } from "../../src/auth/AuthProvider";
 import { CustomerCartProvider } from "../../src/features/cart/CartProvider";
 import { CustomerCheckoutProvider, useCustomerCheckout } from "../../src/features/checkout/CheckoutProvider";
 import { CustomerAccountProvider } from "../../src/features/profile/AccountProvider";
 import { useCustomerText } from "../../src/i18n";
-import { readEmbeddedTenant } from "../../src/tenant";
+import { useRuntimeBranding } from "../../src/branding/RuntimeBrandingProvider";
+import { useUiTheme } from "../../src/components/ui";
 
 const destinations = ["home", "menu", "cart", "orders", "profile"] as const;
 export default function StoreLayout() {
@@ -29,23 +29,22 @@ function StoreNavigation() {
     checkout.status === "recovery_pending" || checkout.status === "unrecorded";
   const labels = { home: t("Home", "ပင်မ"), menu: t("Menu", "မီနူး"), cart: t("Cart", "ခြင်းတောင်း"),
     orders: t("Orders", "မှာယူမှုများ"), profile: t("Profile", "ပရိုဖိုင်") };
-  const tenant = readEmbeddedTenant();
-  const brand = resolveBrandTokens(tenant.branding);
-  const logo = tenant.branding.logoDataUri ?? tenant.branding.logoUrl;
-  return <SafeAreaView style={[styles.screen, { backgroundColor: tenant.branding.backgroundColor ?? "#f6f8fa" }]}>
-    <View style={[styles.header, { backgroundColor: brand.primaryColor }]}>
-      {logo ? <Image source={{ uri: logo }} accessibilityLabel={`${tenant.branding.displayName} logo`} style={styles.logo} /> : null}
-      <Text style={[styles.name, { color: brand.onPrimaryColor }]}>{tenant.branding.displayName}</Text>
+  const { displayName, logoUrl: logo } = useRuntimeBranding();
+  const { color } = useUiTheme();
+  return <SafeAreaView style={[styles.screen, { backgroundColor: color.background }]}>
+    <View style={[styles.header, { backgroundColor: color.primary }]}>
+      {logo ? <Image source={{ uri: logo }} accessibilityLabel={`${displayName} logo`} style={styles.logo} /> : null}
+      <Text style={[styles.name, { color: color.onPrimary }]}>{displayName}</Text>
     </View>
     {hasReceipt && pathname !== "/checkout" ? <Pressable accessibilityRole="button" style={styles.receipt}
       onPress={() => router.navigate("/checkout")}>
       <Text style={styles.label}>{t("Review your recent checkout", "မကြာသေးမီက ငွေရှင်းမှုကို စစ်ဆေးရန်")}</Text>
     </Pressable> : null}
     <View style={styles.content}><Slot /></View>
-    <View style={styles.tabs}>{destinations.map(destination => <Pressable key={destination} accessibilityRole="tab" accessibilityLabel={destination}
+    <View style={[styles.tabs, { backgroundColor: color.surface, borderColor: color.border }]}>{destinations.map(destination => <Pressable key={destination} accessibilityRole="tab" accessibilityLabel={destination}
       accessibilityState={{ selected: pathname === `/${destination}` }} onPress={() => router.navigate(`/${destination}`)}
-      style={[styles.tab, pathname === `/${destination}` ? { borderTopColor: brand.primaryColor } : null]}>
-      <Text style={[styles.label, { color: pathname === `/${destination}` ? brand.primaryColor : "#526174" }]}>{labels[destination]}</Text>
+      style={[styles.tab, pathname === `/${destination}` ? { borderTopColor: color.focus } : null]}>
+      <Text style={[styles.label, { color: pathname === `/${destination}` ? color.foreground : color.foregroundMuted }]}>{labels[destination]}</Text>
     </Pressable>)}</View>
   </SafeAreaView>;
 }

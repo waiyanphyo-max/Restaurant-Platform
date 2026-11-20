@@ -37,11 +37,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function origin(value: unknown, environment: MobileEnvironment, guestSlug?: string, allowPrivateLanHttp = false): string {
   if (typeof value !== "string") throw new Error("Missing mobile origin");
   const url = new URL(value);
+  const hostname = url.hostname.replace(/\.$/, "");
+  const privateReleaseHost = url.hostname.endsWith(".") || !hostname.includes(".") || hostname.startsWith("[") ||
+    /^\d+(?:\.\d+){3}$/.test(hostname) ||
+    /(?:^|\.)(?:localhost|local|internal)$/.test(hostname);
   const localHost = ["localhost", "127.0.0.1", "10.0.2.2", "[::1]"].includes(url.hostname) ||
     (guestSlug !== undefined && url.hostname === `${guestSlug}.localhost`) ||
     (allowPrivateLanHttp && /^(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)(?:\.\d{1,3}){2}$/.test(url.hostname));
   const local = environment === "development" && url.protocol === "http:" && localHost;
-  if ((url.protocol !== "https:" && !local) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+  if ((environment !== "development" && privateReleaseHost) ||
+      (url.protocol !== "https:" && !local) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
     throw new Error("Unsafe mobile origin");
   }
   return url.origin;
@@ -101,6 +106,16 @@ export function assertInstalledMobileApplication(extra: unknown, installedApplic
   if (!installedApplicationId || !isRecord(extra) || !isRecord(extra.release) ||
       extra.release.applicationId !== installedApplicationId) {
     throw new Error("Mobile manifest does not match the installed Android application");
+  }
+  const release = extra.release;
+  if (extra.appKind !== "operations" && extra.appKind !== "customer") throw new Error("Invalid installed app kind");
+  const tenant = parseEmbeddedMobileTenant(extra, extra.appKind);
+  if (release.restaurantId !== tenant.restaurantId || release.restaurantSlug !== tenant.slug ||
+      release.appKind !== extra.appKind || release.environment !== tenant.environment ||
+      release.apiBaseUrl !== tenant.apiBaseUrl || release.guestBaseUrl !== tenant.guestBaseUrl ||
+      release.scheme !== tenant.routing.scheme ||
+      typeof release.fingerprint !== "string" || !/^sha256:[a-f0-9]{64}$/.test(release.fingerprint)) {
+    throw new Error("Mobile tenant configuration does not match its embedded release binding");
   }
 }
 

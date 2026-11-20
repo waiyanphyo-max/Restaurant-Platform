@@ -28,6 +28,7 @@ vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: () => ({
   state: harness.menu ? { status: "ready", data: harness.menu } : { status: "offline" }, reload: harness.reload
 }) }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: vi.fn() }));
+vi.mock("../../branding/RuntimeBrandingProvider", () => ({ useRuntimeBranding: () => ({ displayName: "Current Restaurant", refresh: vi.fn() }) }));
 vi.mock("../profile/AccountProvider", () => ({ homeAddress: vi.fn(), useCustomerAccount: () => ({
   state: { status: "ready", data: { profile: { preferredLanguage: harness.language } } }
 }) }));
