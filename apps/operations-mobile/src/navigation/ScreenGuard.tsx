@@ -4,6 +4,7 @@ import { useOperationsAuth } from "../auth/AuthProvider";
 import { Page, StateView } from "../components/ui";
 import { readEmbeddedTenant } from "../tenant";
 import { canAccessScreen } from "./policy";
+import { DraftRouteBoundary } from "./DraftNavigationProvider";
 
 export function ScreenGuard({ screenId, children }: PropsWithChildren<{ screenId: string }>) {
   const { state } = useOperationsAuth();
@@ -11,5 +12,5 @@ export function ScreenGuard({ screenId, children }: PropsWithChildren<{ screenId
   if (!canAccessScreen(screenId, state.membership, readEmbeddedTenant().restaurantId)) {
     return <Page title="Screen unavailable"><StateView kind="denied" message="This screen is unavailable for your restaurant access." /></Page>;
   }
-  return children;
+  return <DraftRouteBoundary>{children}</DraftRouteBoundary>;
 }

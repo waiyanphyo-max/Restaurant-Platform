@@ -8,6 +8,7 @@ import { QueryResult } from "../../components/QueryResult";
 import { Action, Body, Card, ConfirmDialog, StateView, Status } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 
 type Catalog = { products: ProductManagementResponse[]; categories: CategoryResponse[] };
 function eligible(product: ProductManagementResponse, categories: CategoryResponse[]) {
@@ -58,6 +59,7 @@ function FeaturedForm({ products, categories, saved }: Catalog & { saved: Featur
   const choices = products.filter(product => eligible(product, categories));
   const changed = !!draft && draft.expectedRevision !== current.revision;
   const busy = mutation.busy || checking;
+  useUnsavedChanges(draft !== null || busy);
   const api = () => {
     if (state.status !== "ready") throw new Error("Workspace access is unavailable");
     const { userId, membership: { role } } = state;

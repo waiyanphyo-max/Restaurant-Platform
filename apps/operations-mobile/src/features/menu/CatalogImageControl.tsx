@@ -9,11 +9,30 @@ import { useImageUpload } from "../../components/useImageUpload";
 import { Action, Body, Status } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { mutationError } from "../../hooks/mutation";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 
-export function CatalogPicture({ url, name }: { url: string | null; name: string }) {
+export function catalogImageUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password && !url.hash ? url.href : null;
+  } catch { return null; }
+}
+
+export function CatalogPicture({ url, name, compact = false }: { url: string | null; name: string; compact?: boolean }) {
   const [failed, setFailed] = useState(false);
-  return url && !failed ? <Image accessibilityLabel={`${name} image`} source={{ uri: url }} onError={() => setFailed(true)}
-    style={{ width: "100%", height: 140, borderRadius: 8 }} resizeMode="contain" /> : <Body>Image unavailable</Body>;
+  const safeUrl = catalogImageUrl(url);
+  return safeUrl && !failed ? <Image accessibilityLabel={`${name} image`} source={{ uri: safeUrl }} onError={() => setFailed(true)}
+    style={{ width: compact ? 72 : "100%", height: compact ? 72 : 140, borderRadius: 12 }} resizeMode={compact ? "cover" : "contain"} />
+    : <Body style={compact ? { width: 72, minHeight: 72 } : undefined} tone="muted">Image unavailable</Body>;
+}
+
+/** Device URIs come only from the validated native picker, never a published URL. */
+function LocalImagePreview({ uri, name }: { uri: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  return failed ? <Body>Local preview could not be displayed. Choose another image before uploading.</Body>
+    : <Image accessibilityLabel={`${name} local preview`} source={{ uri }} onError={() => setFailed(true)}
+      style={{ width: "100%", height: 140, borderRadius: 12 }} resizeMode="contain" />;
 }
 
 type ImageRecord = ProductManagementResponse | ProductVariantResponse;
@@ -49,6 +68,7 @@ function ImageEditor({ id, name, publishedUrl, upload, check, onSaved }: Props) 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const currentUrl = confirmed && publishedUrl === confirmed.previous ? confirmed.url : publishedUrl;
   const busy = mutation.busy || choosing || checking;
+  useUnsavedChanges(picked !== null || busy);
   async function choose() {
     if (pickerGate.current || mutation.busy || uncertain || forbidden) return;
     const started = scope;
@@ -66,7 +86,7 @@ function ImageEditor({ id, name, publishedUrl, upload, check, onSaved }: Props) 
       let saved: ImageRecord | null = null;
       await uploadImage(async (api, form) => {
         const result = await upload(api, form);
-        if (result.id !== id || typeof result.imageUrl !== "string" || !/^https:\/\//.test(result.imageUrl)) throw new Error("Unconfirmed image response");
+        if (result.id !== id || !catalogImageUrl(result.imageUrl)) throw new Error("Unconfirmed image response");
         saved = result;
       }, asset);
       if (!saved) throw new Error("Unconfirmed image response");
@@ -85,7 +105,7 @@ function ImageEditor({ id, name, publishedUrl, upload, check, onSaved }: Props) 
     pickerGate.current = true; setChecking(true); setPickError(null);
     try {
       const result = await check(getOperationsApi({ userId, assertCurrentAccess: () => assertWorkspaceAccess(userId, role) }));
-      if (!result || result.id !== id) throw new Error("Image record is unavailable");
+      if (!result || result.id !== id || result.imageUrl !== null && !catalogImageUrl(result.imageUrl)) throw new Error("Image record is unavailable");
       if (mounted.current && activeScope.current === started) {
         setConfirmed({ url: result.imageUrl, previous: publishedUrl, uploaded: false }); setPicked(null); setUncertain(false); mutation.reset(); onSaved();
       }
@@ -100,7 +120,7 @@ function ImageEditor({ id, name, publishedUrl, upload, check, onSaved }: Props) 
     {confirmed && !confirmed.uploaded ? <Body>Latest server image loaded. Choose and review a new preview before uploading again.</Body> : null}
     {picked ? <>
       <Status tone="warning">Local preview — not published</Status>
-      <CatalogPicture key={picked.uri} url={picked.uri} name={`${name} local preview`} />
+      <LocalImagePreview key={picked.uri} uri={picked.uri} name={name} />
       <Body>This preview does not approve a media mapping or change Featured selection.</Body>
     </> : null}
     {mutation.busy ? <Body accessibilityLiveRegion="polite">Upload pending. Waiting for server confirmation…</Body> : null}

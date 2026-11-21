@@ -138,3 +138,60 @@ describe("Operations branding API integration", () => {
     expect(fixture.getAccessToken).not.toHaveBeenCalled();
   });
 });
+
+describe("UXI-11 installed-tenant management requests", () => {
+  it.each([
+    [a, "owner-a"], [a, "manager-a"], [b, "owner-b"], [b, "manager-b"]
+  ])("keeps catalog, settings, zones and tables bound to %s for %s", async (restaurantId, userId) => {
+    fixture.tenant = { ...fixture.tenant, restaurantId };
+    fixture.userId = userId;
+    fixture.getAccessToken.mockResolvedValue(`synthetic-${userId}`);
+    const assertCurrentAccess = vi.fn();
+    const api = getOperationsApi({ userId, assertCurrentAccess });
+    const recordId = restaurantId === a ? "33333333-3333-4333-8333-333333333333" : "44444444-4444-4444-8444-444444444444";
+    const settings = { currency: "MMK", timezone: "Asia/Yangon", minimumOrder: 1000, defaultDeliveryFee: 500,
+      acceptsOrders: true, allowQrOrder: false, allowDelivery: true, allowTakeaway: true };
+    fetchMock.mockImplementation(async () => json({ id: recordId, restaurantId }));
+    // Changing a fixture's build after client creation cannot redirect that client.
+    fixture.tenant = { ...fixture.tenant, restaurantId: restaurantId === a ? b : a };
+    await api.updateProduct(recordId, { categoryId: recordId, name: `Meal ${userId}`, price: 2500, available: false, trackStock: true, stockQuantity: 0 });
+    await api.updateSettings(settings);
+    await api.updateDeliveryZone(recordId, { name: `Zone ${userId}`, deliveryFee: 500, minimumOrder: 1000, active: false });
+    await api.updateTable(recordId, { tableNumber: `Table ${userId}`, active: false });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    for (const [url, options] of fetchMock.mock.calls) {
+      expect(new URL(String(url)).pathname.startsWith(`/api/v1/restaurants/${restaurantId}/`)).toBe(true);
+      expect((options?.headers as Headers).get("authorization")).toBe(`Bearer synthetic-${userId}`);
+      expect(options?.method).toBe("PUT");
+    }
+    expect(assertCurrentAccess).toHaveBeenCalledTimes(8);
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual(settings);
+  });
+
+  it.each([a, b])("rejects foreign settings, membership, zone and QR responses for %s", async restaurantId => {
+    fixture.tenant = { ...fixture.tenant, restaurantId };
+    const foreign = restaurantId === a ? b : a;
+    const api = getOperationsApi();
+    fetchMock.mockResolvedValue(json({ restaurantId: foreign, commonQrToken: "synthetic-credential-never-rendered" }));
+    await expect(api.getSettings()).rejects.toBeInstanceOf(ApiProtocolError);
+    await expect(api.rotateCommonQrToken()).rejects.toBeInstanceOf(ApiProtocolError);
+    fetchMock.mockResolvedValue(json([{ restaurantId: foreign }]));
+    await expect(api.listMembers()).rejects.toBeInstanceOf(ApiProtocolError);
+    await expect(api.listDeliveryZones()).rejects.toBeInstanceOf(ApiProtocolError);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("prevents a configuration write after membership changes during token acquisition", async () => {
+    let tokenReady!: (token: string) => void;
+    let allowed = true;
+    fixture.getAccessToken.mockImplementation(() => new Promise(resolve => { tokenReady = resolve; }));
+    const api = getOperationsApi({ userId: "owner-a", assertCurrentAccess: () => {
+      if (!allowed) throw new TenantAccessError();
+    } });
+    const write = api.updateTable("33333333-3333-4333-8333-333333333333", { tableNumber: "T1", active: false });
+    const rejected = expect(write).rejects.toBeInstanceOf(TenantAccessError);
+    allowed = false; tokenReady("late-token");
+    await rejected;
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

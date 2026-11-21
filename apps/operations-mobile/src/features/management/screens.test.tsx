@@ -20,10 +20,12 @@ vi.mock("../../components/ui", () => ({
   Page: ({ title, children }: { title: string; children: React.ReactNode }) => <main><h1>{title}</h1>{children}</main>,
   Card: ({ title, children }: { title?: string; children: React.ReactNode }) => <article><h2>{title}</h2>{children}</article>,
   Body: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  Status: ({ children }: { children: React.ReactNode }) => <aside>{children}</aside>,
+  useUiTheme: () => ({ color: { primary: "#123456" } }),
   Action: ({ title, disabled }: { title: string; disabled?: boolean }) => <button disabled={disabled}>{title}</button>,
   FormField: ({ label }: { label: string }) => <label>{label}<input /></label>,
   ConfirmDialog: ({ visible, message }: { visible: boolean; message: string }) => visible ? <aside>{message}</aside> : null,
-  StateView: ({ kind, onRetry }: { kind: string; onRetry?: () => void }) => <aside>{kind}{onRetry ? <button>Try again</button> : null}</aside>
+  StateView: ({ kind, message, onRetry }: { kind: string; message?: string; onRetry?: () => void }) => <aside>{kind}{message}{onRetry ? <button>Try again</button> : null}</aside>
 }));
 
 import { TeamScreen } from "./TeamScreen";
