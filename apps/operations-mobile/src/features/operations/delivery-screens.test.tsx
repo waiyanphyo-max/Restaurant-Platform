@@ -10,7 +10,7 @@ const scenario = vi.hoisted(() => ({
 }));
 
 vi.mock("react-native", () => ({ Linking: { openURL: vi.fn() } }));
-vi.mock("expo-router", () => ({ Link: ({ children }: React.PropsWithChildren) => <a>{children}</a> }));
+vi.mock("expo-router", () => ({ useRouter: () => ({ navigate: vi.fn() }), Link: ({ children }: React.PropsWithChildren) => <a>{children}</a> }));
 vi.mock("../../api", () => ({ getOperationsApi: vi.fn() }));
 vi.mock("../../auth/AuthProvider", () => ({ useOperationsAuth: () => ({ state: {
   status: "ready", userId: "current-user", membership: { role: scenario.role }

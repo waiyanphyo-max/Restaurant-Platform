@@ -1,6 +1,17 @@
 import type { DeliveryTaskDto, ManagerOrderDetailDto, OrderSummaryDto, OrderAction } from "@restaurant-platform/shared-types";
 export const ORDER_STATUSES = ["PENDING", "ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "COMPLETED", "CANCELLED"] as const;
 export const DELIVERY_STATUSES = ["WAITING_ASSIGNMENT", "ASSIGNED", "PICKED_UP", "DELIVERED", "FAILED", "CANCELLED"] as const;
+export const ORDER_GROUPS = {
+  NEW: ["PENDING"], ACTIVE: ["ACCEPTED", "PREPARING", "READY", "OUT_FOR_DELIVERY"], HISTORY: ["COMPLETED", "CANCELLED"], ALL: [...ORDER_STATUSES]
+} as const;
+export type OrderGroup = keyof typeof ORDER_GROUPS;
+export function cancellationReasonError(reason: string): string | undefined {
+  const value = reason.trim();
+  if (value.length < 10) return "Explain the reason in at least 10 characters. အကြောင်းပြချက် အနည်းဆုံး ၁၀ လုံး ရေးပါ။";
+  if (value.length > 500) return "Use no more than 500 characters. စာလုံး ၅၀၀ ထက် မပိုရပါ။";
+  if (!/[\p{L}\p{N}]/u.test(value)) return "Enter a meaningful reason. အကြောင်းပြချက်ကို ရှင်းလင်းစွာ ရေးပါ။";
+  return undefined;
+}
 /** Mirrors ManagerOrderService. Delivery progress uses its own API for COD confirmation. */
 export function orderActions(order: Pick<ManagerOrderDetailDto, "status" | "orderType"> & { queueTicketId?: string | null; availableActions?: OrderAction[] }, role: string): OrderAction[] {
   if (!["OWNER", "MANAGER", "STAFF"].includes(role)) return [];

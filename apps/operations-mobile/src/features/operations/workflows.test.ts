@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DeliveryTaskDto, OrderSummaryDto } from "@restaurant-platform/shared-types";
-import { canAssignDelivery, canCollectPayment, deliveryActions, orderActions, searchOrders } from "./workflows";
+import { cancellationReasonError, canAssignDelivery, canCollectPayment, deliveryActions, orderActions, searchOrders } from "./workflows";
 
 const delivery: DeliveryTaskDto = {
   id: "delivery", orderId: "order", orderNumber: "R-012", orderStatus: "READY", status: "ASSIGNED", driverUserId: "driver-a",
@@ -10,6 +10,10 @@ const delivery: DeliveryTaskDto = {
 };
 
 describe("Owner order actions against ManagerOrderService transitions", () => {
+  it("validates trimmed meaningful cancellation reasons at both server length boundaries", () => {
+    for (const reason of ["", "   ", "a".repeat(9), "a".repeat(501), "!".repeat(20)]) expect(cancellationReasonError(reason)).toBeTruthy();
+    for (const reason of ["a".repeat(10), "a".repeat(500), "  Customer changed their mind  ", "ဖောက်သည်မှ ပယ်ဖျက်လိုပါသည်"]) expect(cancellationReasonError(reason)).toBeUndefined();
+  });
   it.each([
     ["PENDING", "DINE_IN", ["ACCEPT", "CANCEL"]],
     ["ACCEPTED", "TAKEAWAY", ["COMPLETE", "CANCEL"]],

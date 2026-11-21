@@ -109,7 +109,7 @@ describe("expense and cash views", () => {
       renderToStaticMarkup(<DailyCashClosingScreen requestKeys={keyStore()} />),
       renderToStaticMarkup(<AccountingAuditScreen />)]) {
       expect(html).toContain(status);
-      if (status !== "loading") expect(html).toContain("Try again");
+      expect(html.includes("Try again")).toBe(status === "offline" || status === "error");
     }
   });
 

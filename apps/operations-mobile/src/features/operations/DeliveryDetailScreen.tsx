@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Linking } from "react-native";
-import { Link } from "expo-router";
-import { ApiHttpError, ApiNetworkError, ApiTimeoutError } from "@restaurant-platform/api-client";
+import { ApiHttpError, ApiNetworkError, ApiProtocolError, ApiTimeoutError } from "@restaurant-platform/api-client";
 import type { AssignedDeliveryDetailDto, DeliveryCoordinatesDto } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
@@ -16,15 +15,17 @@ import { assignedDeliveryUpdate, DELIVERY_ASSIGNMENT_UNAVAILABLE, DeliveryAssign
 import { openDeliveryMap, TRAVEL_MODES, validDeliveryCoordinates, type MapAction, type TravelMode } from "./delivery-maps";
 import { exactTimestamp, operationalAmount } from "./format";
 import { deliveryActions } from "./workflows";
+import { RouteAction } from "../../navigation/RouteAction";
 
 export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
   const { state } = useOperationsAuth();
   if (state.status !== "ready") return null;
-  return <ActiveDelivery key={deliveryId} deliveryId={deliveryId} role={state.membership.role} userId={state.userId} />;
+  return <ActiveDelivery key={`${state.membership.restaurantId}:${state.userId}:${state.membership.role}:${deliveryId}`} deliveryId={deliveryId} role={state.membership.role} userId={state.userId} />;
 }
 
 function ActiveDelivery({ deliveryId, role, userId }: { deliveryId: string; role: string; userId: string }) {
   const [mode, setMode] = useState<TravelMode>("Driving");
+  const [reviewGeneration, setReviewGeneration] = useState(0);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
     const active = new AbortController();
@@ -41,12 +42,17 @@ function ActiveDelivery({ deliveryId, role, userId }: { deliveryId: string; role
   useEffect(() => {
     if (!displayed || mutation.busy) return;
     const check = new AbortController();
+    let checking = false;
     const timer = setInterval(async () => {
+      if (checking || check.signal.aborted) return;
+      checking = true;
       try {
         await recheckAssignedDelivery(getOperationsApi().getMyDelivery, displayed, userId, check.signal);
       } catch {
         // Drop the displayed private details if the assignment could not be reverified.
         if (!check.signal.aborted) reload();
+      } finally {
+        checking = false;
       }
     }, 30_000);
     return () => { clearInterval(timer); check.abort(); };
@@ -54,7 +60,8 @@ function ActiveDelivery({ deliveryId, role, userId }: { deliveryId: string; role
 
   function refreshAfterFailure(error: unknown) {
     if (error instanceof DeliveryAssignmentUnavailable || error instanceof DeliveryChanged || error instanceof ApiNetworkError
-      || error instanceof ApiTimeoutError || error instanceof ApiHttpError && [403, 404, 409].includes(error.status)) {
+      || error instanceof ApiTimeoutError || error instanceof ApiProtocolError
+      || error instanceof ApiHttpError && ([403, 404, 408, 409].includes(error.status) || error.status >= 500)) {
       query.reload();
     }
   }
@@ -83,15 +90,23 @@ function ActiveDelivery({ deliveryId, role, userId }: { deliveryId: string; role
       const fresh = await recheckAssignedDelivery(api.getMyDelivery, detail, userId, signal);
       const body = assignedDeliveryUpdate(fresh, role, userId, input);
       return api.updateDeliveryStatus(deliveryId, body, { signal });
-    }, query.reload, refreshAfterFailure);
+    }, query.reload, () => {
+      // A failed write is never replayed. Drop private data while the authorized
+      // read reconciles, and clear cash confirmation even when the revision is unchanged.
+      setReviewGeneration(value => value + 1);
+      query.reload();
+    });
   }
 
   return <Page title="Assigned delivery" onRefresh={mutation.busy ? undefined : query.reload} refreshing={query.state.status === "loading"}>
-    <Link href="/deliveries">Back to deliveries</Link>
+    <Body>တာဝန်ပေးထားသော ပို့ဆောင်မှု · Verify pickup, delivery and cash separately</Body>
+    <RouteAction href="/deliveries" title="Back to deliveries" secondary />
     {mutation.busy ? <Body>Checking the current assignment…</Body> : null}
     <MutationFeedback {...mutation} busy={false} />
     <QueryResult {...query}>{detail => {
-      if (!detail) return <StateView kind="denied" title="Delivery unavailable" message={DELIVERY_ASSIGNMENT_UNAVAILABLE} onRetry={query.reload} />;
+      if (!detail || detail.task.id.toLowerCase() !== deliveryId.toLowerCase() || detail.task.driverUserId !== userId) {
+        return <StateView kind="denied" title="Delivery unavailable" message={DELIVERY_ASSIGNMENT_UNAVAILABLE} />;
+      }
       const { task, pickup, destination } = detail;
       const navigate = canNavigate(detail);
       return <>
@@ -101,6 +116,7 @@ function ActiveDelivery({ deliveryId, role, userId }: { deliveryId: string; role
           {task.pickedUpAt ? <Body>Picked up {exactTimestamp(task.pickedUpAt)}</Body> : null}
           {task.deliveredAt ? <Body>Delivered {exactTimestamp(task.deliveredAt)}</Body> : null}
           {task.failureReason ? <Body>Failure reason: {task.failureReason}</Body> : null}
+          <Body>Kitchen ready ≠ picked up ≠ delivered ≠ cash received.</Body>
         </Card>
         {navigate && (validDeliveryCoordinates(pickup) || validDeliveryCoordinates(destination)) ? <Card title="Travel mode">
           {(Object.keys(TRAVEL_MODES) as TravelMode[]).map(option => <Action key={option} title={option}
@@ -126,9 +142,9 @@ function ActiveDelivery({ deliveryId, role, userId }: { deliveryId: string; role
             {item.quantity} × {item.productName}{item.variantName ? ` · ${item.variantName}` : ""}{item.specialInstruction ? ` · ${item.specialInstruction}` : ""}
           </Body>) : <Body>No items available.</Body>}
           {["OWNER", "MANAGER", "STAFF"].includes(role)
-            ? <Link href={{ pathname: "/order/[orderId]", params: { orderId: task.orderId } }}>Open restaurant order</Link> : null}
+            ? <RouteAction href={{ pathname: "/order/[orderId]", params: { orderId: task.orderId } }} title="Open restaurant order" secondary /> : null}
         </Card>
-        <DeliveryWorkPanel key={task.updatedAt} detail={detail} role={role} userId={userId} busy={mutation.busy}
+        <DeliveryWorkPanel key={`${task.updatedAt}:${reviewGeneration}`} detail={detail} role={role} userId={userId} busy={mutation.busy}
           onUpdate={input => updateStatus(detail, input)} />
         <Action title="Refresh task" secondary disabled={mutation.busy} onPress={query.reload} />
       </>;
@@ -171,8 +187,10 @@ function DeliveryWorkPanel({ detail, role, userId, busy, onUpdate }: {
       onChangeText={setFailureReason} multiline maxLength={1000} editable={!busy} /> : null}
     {collecting ? <>
       <Body>Pending cash on delivery · Order total {operationalAmount(detail.task.totalAmount)}</Body>
+      <Body>Confirm actual cash · ငွေအမှန်တကယ် လက်ခံမှုကို အတည်ပြုပါ။ Kitchen completion never confirms cash collection.</Body>
       <FormToggle label="I collected the cash due for this delivery" value={cashCollected} onChange={setCashCollected} disabled={busy} />
     </> : null}
+    {actions.includes("PICKED_UP") ? <Body>Confirm only after physically receiving the prepared order. ပြင်ဆင်ပြီးအော်ဒါကို အမှန်တကယ်ယူပြီးမှ အတည်ပြုပါ။</Body> : null}
     {actions.map(action => <Action key={action} title={`Mark ${action.toLowerCase().replaceAll("_", " ")}`}
       disabled={busy || action === "FAILED" && !failureReason.trim() || action === "DELIVERED" && collecting && !cashCollected}
       onPress={() => setStatus(action)} />)}

@@ -32,7 +32,8 @@ describe("query refresh feedback", () => {
 
   it("renders no cached private product when access is denied", () => {
     const children = vi.fn(() => <p>private product</p>);
-    renderToStaticMarkup(<QueryResult state={{ status: "denied" }} reload={vi.fn()}>{children}</QueryResult>);
+    const html = renderToStaticMarkup(<QueryResult state={{ status: "denied" }} reload={vi.fn()}>{children}</QueryResult>);
     expect(children).not.toHaveBeenCalled();
+    expect(html).not.toContain("Try again");
   });
 });

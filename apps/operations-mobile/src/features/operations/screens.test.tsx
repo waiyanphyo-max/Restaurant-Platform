@@ -10,17 +10,19 @@ const scenario = vi.hoisted(() => ({
   daily: { reportDate: "2026-11-03", timezone: "Asia/Bangkok", totalOrders: 2, completedOrders: 1, cancelledOrders: 0, orderAmountExcludingCancelled: 2500, paidAmount: 1000 } as object | null
 }));
 vi.mock("react-native", () => ({ Image: "img", Text: "span", View: "div", StyleSheet: { create: (styles: unknown) => styles } }));
-vi.mock("expo-router", () => ({ Link: ({ children, href }: React.PropsWithChildren<{ href: string | { params: { orderId: string } } }>) =>
+vi.mock("expo-router", () => ({ useRouter: () => ({ navigate: vi.fn() }), Link: ({ children, href }: React.PropsWithChildren<{ href: string | { params: { orderId: string } } }>) =>
   <a href={typeof href === "string" ? href : `/order/${href.params.orderId}`}>{children}</a> }));
 vi.mock("../../api", () => ({ getOperationsApi: vi.fn() }));
 vi.mock("../../auth/AuthProvider", () => ({ useOperationsAuth: () => ({ state: {
   status: "ready", membership: { role: scenario.role, active: true, restaurantId: scenario.restaurantId, name: "Test restaurant" }
 } }) }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => ({ restaurantId: scenario.restaurantId }) }));
+vi.mock("../../branding/RuntimeBrandingProvider", () => ({ useRuntimeBranding: () => ({ displayName: "Runtime restaurant" }) }));
 vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: (_load: unknown, key: string) => {
   let data: unknown = { content: [], number: 0, totalPages: 0, totalElements: 0, first: true, last: true };
   if (key.startsWith("dashboard:")) {
-    data = { restaurant: null, orders: null, queue: [], deliveries: { totalElements: 0, content: [] }, notifications: [], daily: scenario.daily };
+    data = { orders: null, queue: { status: "ready", data: [] }, deliveries: { status: "ready", data: { totalElements: 0, content: [] } },
+      assignment: null, notifications: { status: "ready", data: [] }, daily: scenario.daily ? { status: "ready", data: scenario.daily } : { status: "error" } };
   } else if (key.startsWith("orders:") && scenario.orderCards) {
     data = { content: [{ id: "order-17", orderNumber: "Delivery-17", orderType: "DELIVERY", orderChannel: "CUSTOMER_APP", status: "PENDING",
       createdAt: "2026-11-03T09:00:00Z", subtotal: 2500, deliveryFee: 500, totalAmount: 3000, availableActions: ["ACCEPT", "CANCEL"],
@@ -58,6 +60,9 @@ vi.mock("../../components/ui", () => ({
   Page: ({ title, children }: React.PropsWithChildren<{ title: string }>) => <main><h1>{title}</h1>{children}</main>,
   Card: ({ title, children }: React.PropsWithChildren<{ title?: string }>) => <section><h2>{title}</h2>{children}</section>,
   Body: ({ children }: React.PropsWithChildren) => <p>{children}</p>,
+  Badge: ({ children }: React.PropsWithChildren) => <span>{children}</span>,
+  Status: ({ children }: React.PropsWithChildren) => <aside>{children}</aside>,
+  useUiTheme: () => ({ color: { primary: "#234D3C", surfaceMuted: "#eee", secondary: "#eee", onSecondary: "#000" } }),
   Action: ({ title, disabled }: { title: string; disabled?: boolean }) => <button disabled={disabled}>{title}</button>,
   DataTable: () => null,
   ConfirmDialog: () => null,
@@ -90,7 +95,7 @@ describe("Staff order and pickup workflow", () => {
   it("shows preparation instructions, the permitted next step and counter cash collection", () => {
     const html = renderToStaticMarkup(<OrderDetailScreen orderId="order-17" />);
     expect(html).toContain("No peanuts");
-    expect(html).toContain(">Complete<");
+    expect(html).toContain(">Complete ·");
     expect(html).toContain("View pickup queue");
     expect(html).toContain("Confirm cash collected");
     expect(html).not.toContain("Cancel order");
@@ -103,7 +108,7 @@ describe("Staff order and pickup workflow", () => {
     const html = renderToStaticMarkup(<OrderDetailScreen orderId="order-17" />);
     expect(html).toContain("Open your assigned deliveries");
     expect(html).toContain("Private address");
-    expect(html).not.toContain(">Complete<");
+    expect(html).not.toContain(">Complete ·");
     expect(html).not.toContain("Confirm cash collected");
   });
 
@@ -111,8 +116,8 @@ describe("Staff order and pickup workflow", () => {
     scenario.busy = true;
     const html = renderToStaticMarkup(<QueueScreen />);
     expect(html).toContain('<a href="/order/order-17">Open order for ticket 017</a>');
-    expect(html).toContain('<button disabled="">Call for pickup</button>');
-    expect(html.match(/>Call for pickup</g)).toHaveLength(1);
+    expect(html).toContain('<button disabled="">Call for pickup ·');
+    expect(html.match(/>Call for pickup ·/g)).toHaveLength(1);
     expect(html).not.toContain("Open order for ticket 018");
   });
 
@@ -130,11 +135,12 @@ describe("Manager operational screens", () => {
     scenario.orderCards = true;
     const html = renderToStaticMarkup(<OrdersScreen />);
     for (const text of ["Chicken Fried Rice × 2", "Large", "Extra egg", "No peanuts", "Yangon Region", "East Yangon", "Tamwe",
-      "Ward 3", "Main Road", "No 12", "Recipient", "Contact phone", "Use side entrance", "Delivery fee: 500", ">Accept<", ">Cancel<"]) {
+      "Ward 3", "Main Road", "No 12", "Recipient", "Contact phone", "Use side entrance", "Delivery fee: 500", ">Accept ·", ">Cancel order ·"]) {
       expect(html).toContain(text);
     }
     expect(html).toContain("Township coverage is preliminary");
-    expect(html).toContain("Cancellation reason (required to cancel");
+    expect(html).toContain("New · အသစ်");
+    expect(html).toContain("Search applies to this page only");
     expect(html).not.toContain("Start preparation");
     expect(html).not.toContain("Mark ready");
   });
@@ -153,7 +159,7 @@ describe("Manager operational screens", () => {
     const html = renderToStaticMarkup(<DashboardScreen />);
     expect(html).toContain("2026-11-03 · Asia/Bangkok");
     expect(html).toContain("Value of orders created today, excluding cancellations: 2,500");
-    expect(html).toContain("Payments marked paid today: 1,000");
+    expect(html).not.toContain("Payments marked paid today:");
     expect(html).toContain("Open shared financial reports");
     expect(html).not.toContain("Open team");
   });
@@ -185,6 +191,7 @@ describe("Manager operational screens", () => {
     scenario.status = status;
     const html = renderToStaticMarkup(<OrdersScreen />);
     expect(html).toContain(`<aside>${status}`);
-    if (status !== "loading") expect(html).toContain("Try again");
+    if (!["loading", "denied"].includes(status)) expect(html).toContain("Try again");
+    if (status === "denied") expect(html).not.toContain("Try again");
   });
 });

@@ -98,8 +98,9 @@ export function Status({ children, tone = "neutral" }: PropsWithChildren<{ tone?
   </View>;
 }
 
-export function ConfirmDialog({ visible, title, message, confirmLabel, onConfirm, onCancel, cancelLabel = "Cancel", confirmDisabled = false, busy = false, danger = false, returnFocusRef }: {
+export function ConfirmDialog({ visible, title, message, children, confirmLabel, onConfirm, onCancel, cancelLabel = "Cancel", confirmDisabled = false, busy = false, danger = false, returnFocusRef }: {
   visible: boolean; title: string; message: string; confirmLabel: string; onConfirm(): void; onCancel(): void;
+  children?: ReactNode;
   cancelLabel?: string; confirmDisabled?: boolean; busy?: boolean; danger?: boolean; returnFocusRef?: RefObject<ComponentRef<typeof View> | null>;
 }) {
   const { color } = useUiTheme();
@@ -122,6 +123,7 @@ export function ConfirmDialog({ visible, title, message, confirmLabel, onConfirm
         <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={styles.dialogContent}>
           <Text ref={heading} allowFontScaling accessibilityRole="header" style={[styles.title, { color: color.foreground }]}>{title}</Text>
           <Body>{message}</Body>
+          {children}
           <Action title={cancelLabel} secondary onPress={onCancel} />
           <Action title={confirmLabel} disabled={confirmDisabled} loading={busy} danger={danger} onPress={onConfirm} />
         </ScrollView>
