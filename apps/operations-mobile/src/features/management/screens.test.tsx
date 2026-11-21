@@ -51,7 +51,7 @@ describe("owner team and table states", () => {
     scenario.status = status;
     const html = renderToStaticMarkup(<TablesScreen />);
     expect(html).toContain(status);
-    if (status !== "loading") expect(html).toContain("Try again");
+    expect(html.includes("Try again")).toBe(status === "offline" || status === "error");
   });
   it("disables one-time QR creation when no reviewed guest origin exists", () => {
     scenario.guestBaseUrl = null;

@@ -38,7 +38,7 @@ describe("procurement screens", () => {
     response.status = status;
     const html = renderToStaticMarkup(<Payables />);
     expect(html).toContain(status);
-    expect(html.includes("Try again")).toBe(status !== "loading");
+    expect(html.includes("Try again")).toBe(status === "offline" || status === "error");
     expect(html).not.toContain("Outstanding 0");
   });
 

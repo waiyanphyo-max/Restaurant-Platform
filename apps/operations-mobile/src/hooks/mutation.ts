@@ -18,6 +18,10 @@ export function mutationError(error: unknown): string {
     if (error.code === "MEMBER_EMAIL_ALREADY_REGISTERED") return "This email already has an Auth account. Use the verified account onboarding process.";
     if (["MEMBER_INVITATION_PROVIDER_ERROR", "MEMBER_INVITATION_INVALID_PROVIDER_RESPONSE", "MEMBER_INVITATION_PROFILE_MISSING"].includes(error.code)) return "The invitation provider or account synchronization failed. Refresh the team before retrying.";
     if (error.status === 403) return "Your account does not have permission for this action.";
+    if (error.status === 409 && error.code === "REFUND_REQUIRED") return "Collected or settled payments block kitchen cancellation. Review the existing payment and order history. Cancellation does not refund money. ငွေလက်ခံပြီး အော်ဒါကို မီးဖိုချောင်မှ ပယ်ဖျက်၍ မရပါ။";
+    if (error.status === 409 && error.code === "ORDER_ACTION_STALE") return "This order has changed. Reload its latest status and history, then review a new action. The previous action will not be replayed. အော်ဒါအခြေအနေ ပြောင်းသွားပါသည်။ ပြန်လည်စစ်ဆေးပါ။";
+    if (error.status === 409 && error.code === "STALE_DELIVERY") return "This delivery has changed. Reload the current assignment and status before reviewing another update. ပို့ဆောင်မှု အခြေအနေကို ပြန်လည်စစ်ဆေးပါ။";
+    if (error.status === 409 && error.code === "CASH_COLLECTION_REQUIRED") return "Delivery was not confirmed. Reload the payment and delivery state, then explicitly confirm physical cash received before marking delivered. ငွေလက်ခံရရှိကြောင်း အတည်ပြုရန် လိုအပ်ပါသည်။";
     if (error.status === 404) return "This record is no longer available. Refresh and try again.";
     if (error.status === 409) return "The record changed or this action is not valid in its current state. Refresh before retrying.";
     if (error.status === 503) return "This service is not configured or is temporarily unavailable. Contact your administrator.";

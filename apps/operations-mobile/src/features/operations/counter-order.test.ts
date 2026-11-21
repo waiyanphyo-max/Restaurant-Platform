@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { ApiProtocolError } from "@restaurant-platform/api-client";
 import type { MenuProductDto, StaffOrderOptions } from "@restaurant-platform/shared-types";
-import { counterOrderLine, counterOrderRequest } from "./counter-order";
+import { counterOrderEstimate, counterOrderLine, counterOrderReceipt, counterOrderRequest } from "./counter-order";
 
 const product: MenuProductDto = {
   id: "rice", name: "Rice", description: null, price: 2000, imageUrl: null, available: true, trackStock: true, stockQuantity: 5,
@@ -46,5 +47,47 @@ describe("counter order form request", () => {
     expect(() => counterOrderRequest(options, [product], "TAKEAWAY", "", [validLine, validLine, validLine], "")).toThrow("exceeds available stock");
     const updatedProduct = { ...product, modifierGroups: [] };
     expect(() => counterOrderRequest(options, [updatedProduct], "TAKEAWAY", "", [validLine], "")).toThrow("modifier for Rice is no longer available");
+  });
+
+  it("estimates from actual variant and option quantities without putting prices in the request", () => {
+    expect(counterOrderEstimate([product], [validLine])).toBe(10000);
+    expect(counterOrderEstimate([{ ...product, variants: [{ ...product.variants[0], price: null }] }], [validLine])).toBeNull();
+    expect(counterOrderEstimate([{ ...product, variants: [{ ...product.variants[0], price: Number.MAX_SAFE_INTEGER }] }], [validLine])).toBeNull();
+    expect(counterOrderEstimate([], [validLine])).toBeNull();
+  });
+
+  it("rejects obsolete optional choices and enforces instruction limits even outside the input control", () => {
+    const optional = { ...product, modifierGroups: [{ ...product.modifierGroups[0], required: false, minSelections: 0 }] };
+    expect(() => counterOrderLine(optional, "large", "1", { unavailable: "1" }, "")).toThrow("selected modifier is unavailable");
+    expect(() => counterOrderLine(product, "large", "1", { egg: "1" }, "x".repeat(501))).toThrow("500 characters");
+    expect(() => counterOrderRequest(options, [product], "TAKEAWAY", "", [validLine], "x".repeat(501))).toThrow("500 characters");
+  });
+});
+
+const receipt = { orderId: "00000000-0000-4000-8000-000000000201", orderNumber: "SERVER-0042", orderType: "TAKEAWAY", orderChannel: "STAFF",
+  status: "PENDING", currency: "MMK", subtotal: 8200, totalAmount: 8200,
+  queueTicketId: "00000000-0000-4000-8000-000000000202", queueNumber: 42, queueDisplayCode: "A042", paymentStatus: "PENDING" };
+
+describe("staff receipt confirmation", () => {
+  it("accepts a complete pending receipt with actual queue data or an explicit absent queue", () => {
+    expect(counterOrderReceipt(receipt, "TAKEAWAY")).toEqual(receipt);
+    const dineIn = { ...receipt, orderType: "DINE_IN", queueTicketId: null, queueNumber: null, queueDisplayCode: null };
+    expect(counterOrderReceipt(dineIn, "DINE_IN")).toEqual(dineIn);
+    expect(counterOrderReceipt({ ...dineIn, orderType: "TAKEAWAY", subtotal: 0, totalAmount: 0 }, "TAKEAWAY").totalAmount).toBe(0);
+  });
+  it.each([
+    null, {}, [], { ...receipt, orderId: "../other-order" }, { ...receipt, orderNumber: "" }, { ...receipt, orderNumber: "order\nprivate" },
+    { ...receipt, orderType: "DINE_IN" }, { ...receipt, orderChannel: "CUSTOMER_APP" }, { ...receipt, status: "ACCEPTED" },
+    { ...receipt, paymentStatus: "PAID" }, { ...receipt, currency: "" }, { ...receipt, currency: "mmk" },
+    { ...receipt, subtotal: -1 }, { ...receipt, totalAmount: 8200.5 }, { ...receipt, totalAmount: Number.NaN },
+    { ...receipt, subtotal: Number.MAX_SAFE_INTEGER + 1, totalAmount: Number.MAX_SAFE_INTEGER + 1 },
+    { ...receipt, totalAmount: 8300 }, { ...receipt, queueTicketId: null }, { ...receipt, queueTicketId: "not-a-ticket" },
+    { ...receipt, queueNumber: 0 }, { ...receipt, queueDisplayCode: " " }
+  ])("rejects malformed or contradictory JSON %j as an uncertain creation", value => {
+    expect(() => counterOrderReceipt(value, "TAKEAWAY")).toThrow(ApiProtocolError);
+  });
+  it("rejects queue fields on a dine-in receipt and missing nullable fields", () => {
+    expect(() => counterOrderReceipt({ ...receipt, orderType: "DINE_IN" }, "DINE_IN")).toThrow(ApiProtocolError);
+    expect(() => counterOrderReceipt({ ...receipt, queueTicketId: undefined, queueNumber: undefined, queueDisplayCode: undefined }, "TAKEAWAY")).toThrow(ApiProtocolError);
   });
 });

@@ -1,0 +1,254 @@
+"use strict";
+
+/**
+ * Read-only presentation fixture for UXI-10. Runs the real Operations TSX through
+ * React DOM SSR and a deliberately small React Native adapter. This is a DOM
+ * approximation, not evidence of Android, font, keyboard or TalkBack acceptance.
+ * No live auth, API, native configuration or persisted user data is loaded.
+ * Run: node scripts/operations-preview.cjs [--serve]
+ */
+const fs = require("node:fs");
+const path = require("node:path");
+const Module = require("node:module");
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
+const { resolveThemeTokens } = require("@restaurant-platform/ui-tokens");
+const appRoot = path.resolve(__dirname, "../apps/operations-mobile");
+const root = path.resolve(__dirname, "..");
+const output = path.join(root, "target/uxi-10-preview");
+const ts = Module.createRequire(path.join(appRoot, "package.json"))("typescript");
+const h = React.createElement;
+const noop = () => {};
+let fixture;
+let route = "/home";
+let fontScale = 1;
+let previewWidth = 360;
+let Screen;
+
+function flatten(value) {
+  if (typeof value === "function") return flatten(value({ pressed: false }));
+  return Array.isArray(value) ? Object.assign({}, ...value.map(flatten)) : value || {};
+}
+function style(value, text = false) {
+  const source = flatten(value);
+  const result = text ? { minWidth: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }
+    : { display: "flex", flexDirection: "column", position: "relative", minWidth: 0, minHeight: 0, flexShrink: 0 };
+  for (const [key, raw] of Object.entries(source)) {
+    if (key === "paddingHorizontal" || key === "marginHorizontal") {
+      const prefix = key.startsWith("padding") ? "padding" : "margin";
+      result[`${prefix}Left`] = raw; result[`${prefix}Right`] = raw;
+    } else if (key === "paddingVertical" || key === "marginVertical") {
+      const prefix = key.startsWith("padding") ? "padding" : "margin";
+      result[`${prefix}Top`] = raw; result[`${prefix}Bottom`] = raw;
+    } else if (key === "transform") {
+      result.transform = raw.map(item => Object.entries(item).map(([name, amount]) => `${name}(${amount}px)`).join(" ")).join(" ");
+    } else if (key === "lineHeight") {
+      // Native line height is an absolute pixel value; CSS numeric line height
+      // is a font-size multiplier and would create enormous blank text rows.
+      result[key] = `${raw * fontScale}px`;
+    } else if (key === "fontSize") {
+      result[key] = raw * fontScale;
+    } else if (!["tintColor", "elevation", "shadowOffset", "shadowOpacity", "shadowRadius", "shadowColor"].includes(key)) {
+      result[key] = raw;
+    }
+  }
+  if (source.borderWidth || source.borderTopWidth) result.borderStyle = "solid";
+  if (typeof source.flex === "number" && source.flex > 0) {
+    result.flexGrow = source.flex; result.flexShrink = 1; result.flexBasis = 0;
+    delete result.flex;
+  }
+  return result;
+}
+function attributes(props) {
+  const state = props.accessibilityState || {};
+  return {
+    id: props.nativeID,
+    role: props.accessibilityRole === "header" ? "heading" : props.accessibilityRole === "text" ? undefined : props.accessibilityRole,
+    "aria-label": props.accessibilityLabel,
+    "aria-selected": state.selected,
+    "aria-checked": state.checked,
+    "aria-disabled": state.disabled,
+    "aria-busy": state.busy,
+    "aria-live": props.accessibilityLiveRegion,
+  };
+}
+function View(props) { return h("div", { ...attributes(props), style: style(props.style) }, props.children); }
+function Text(props) { return h("div", { ...attributes(props), style: style(props.style, true) }, props.children); }
+function Pressable(props) {
+  return h("button", { ...attributes(props), type: "button", disabled: props.disabled,
+    style: { fontFamily: "inherit", cursor: "default", ...style(props.style) } }, props.children);
+}
+function ScrollView(props) {
+  const outer = { ...style(props.style), overflow: "auto" };
+  // React Native's ScrollView base style grows and shrinks inside its parent.
+  outer.flexGrow = flatten(props.style).flexGrow ?? 1;
+  outer.flexShrink = flatten(props.style).flexShrink ?? 1;
+  const inner = { ...style(props.contentContainerStyle), ...(props.horizontal ? { flexDirection: "row", width: "max-content", minWidth: "100%" } : {}) };
+  return h("div", { style: outer }, h("div", { style: inner }, props.children));
+}
+function TextInput(props) {
+  return h(props.multiline ? "textarea" : "input", { ...attributes(props), value: props.value ?? "", readOnly: true,
+    placeholder: props.placeholder, type: props.secureTextEntry ? "password" : "text",
+    style: { fontFamily: "inherit", width: "100%", ...style(props.style, true) } });
+}
+function Image(props) {
+  const uri = typeof props.source === "string" ? props.source : props.source?.uri;
+  return h("img", { ...attributes(props), alt: props.accessible === false ? "" : props.accessibilityLabel || "",
+    src: uri,
+    style: { ...style(props.style), display: "block", objectFit: props.resizeMode === "cover" ? "cover" : "contain" } });
+}
+function SectionList(props) {
+  return h("div", { style: { ...style(props.style), overflow: "auto", flexShrink: 1 } },
+    h("div", { style: style(props.contentContainerStyle) }, props.ListHeaderComponent,
+      props.sections.some(section => section.data.length) ? props.sections.flatMap(section => [
+        h(React.Fragment, { key: `${section.id}-title` }, props.renderSectionHeader?.({ section })),
+        ...section.data.map((item, index) => h(React.Fragment, { key: props.keyExtractor(item) }, props.renderItem({ item, index, section }))),
+      ]) : props.ListEmptyComponent, props.ListFooterComponent));
+}
+const native = {
+  View, Text, Pressable, ScrollView, TextInput, Image, SectionList,
+  Switch: props => h("input", { ...attributes(props), type: "checkbox", checked: props.value, readOnly: true }),
+  AppState: { currentState: "active", addEventListener: () => ({ remove: noop }) },
+  SafeAreaView: View, KeyboardAvoidingView: View,
+  StyleSheet: { create: value => value, flatten, hairlineWidth: 1 },
+  Modal: props => props.visible ? h(View, props) : null,
+  RefreshControl: () => null,
+  ActivityIndicator: props => h("span", { ...attributes(props), style: { ...style(props.style), color: props.color } }, "◌"),
+  AccessibilityInfo: { announceForAccessibility: noop, setAccessibilityFocus: noop },
+  findNodeHandle: () => null, Platform: { OS: "android", select: value => value.android ?? value.default },
+  useWindowDimensions: () => ({ width: previewWidth, height: 900, fontScale, scale: 1 }),
+};
+
+// These ports never call real auth, APIs, storage, notification providers or maps.
+const noopAsync = async () => undefined;
+const mocks = {
+  "tenant.ts": { readEmbeddedTenant: () => fixture.tenant },
+  "auth/AuthProvider.tsx": { useOperationsAuth: () => ({ state: fixture.access, workspace: fixture.access,
+    signOut: noopAsync, retryMembership: noopAsync, verifyWorkspaceAccess: noopAsync, assertWorkspaceAccess: noop }),
+    OperationsWorkspaceContext: props => props.children },
+  "auth/WorkspaceBoundary.tsx": { WorkspaceBoundary: props => props.children },
+  "branding/RuntimeBrandingProvider.tsx": { RuntimeBrandingProvider: props => props.children,
+    useRuntimeBranding: () => ({ displayName: fixture.tenant.branding.displayName, logoUrl: null, refresh: noopAsync }) },
+  "hooks/useApiMutation.ts": { useApiMutation: () => ({ busy: false, error: null, message: null, reset: noop, run: noopAsync }) },
+  "hooks/useApiQuery.ts": { useApiQuery: (_query, key) => ({ state: { status: "ready", data: queryData(key) }, reload: noop }) },
+  "api.ts": { getOperationsApi: () => { throw new Error("Preview blocks all API access"); } },
+};
+function page(content) { return { content, number: 0, totalPages: content.length ? 1 : 0, totalElements: content.length, first: true, last: true }; }
+function queryData(key) {
+  if (key.startsWith("order-payments:")) return fixture.payments;
+  if (key.startsWith("order:")) return fixture.order;
+  if (key.startsWith("orders:")) return page([fixture.order]);
+  if (key.startsWith("queue:")) return fixture.queue;
+  if (key.startsWith("assigned-delivery:")) return fixture.detail;
+  if (key.startsWith("deliveries:")) return { kind: fixture.management ? "management" : "assigned", page: page([fixture.detail.task]) };
+  if (key.startsWith("dashboard:")) return fixture.dashboard;
+  if (key.startsWith("counter-order:")) return null;
+  if (key.startsWith("notifications:")) return [];
+  return [];
+}
+const originalLoad = Module._load;
+const oldTs = require.extensions[".ts"];
+const oldTsx = require.extensions[".tsx"];
+const oldPng = require.extensions[".png"];
+Module._load = function(request, parent, isMain) {
+  if (request === "react-native") return { ...native, Linking: { openURL: noopAsync } };
+  if (request === "react-native-safe-area-context") return { SafeAreaView: View, SafeAreaProvider: View };
+  if (request === "expo-router") return { Slot: () => h(Screen), Redirect: () => null,
+    Link: props => props.asChild ? props.children : h("a", { href: typeof props.href === "string" ? props.href : "#", style: style(props.style), ...attributes(props) }, props.children),
+    usePathname: () => route, useLocalSearchParams: () => ({}), useFocusEffect: noop,
+    useRouter: () => ({ navigate: noop, push: noop, replace: noop }) };
+  if (request.startsWith(".")) {
+    const resolved = Module._resolveFilename(request, parent);
+    for (const [suffix, mock] of Object.entries(mocks)) if (resolved === path.join(appRoot, "src", suffix)) return mock;
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
+const compile = (module, filename) => {
+  if (!filename.startsWith(appRoot + path.sep)) throw new Error(`Preview cannot transpile non-Operations source: ${filename}`);
+  module._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), { fileName: filename, compilerOptions: {
+    jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true,
+  } }).outputText, filename);
+};
+require.extensions[".ts"] = compile;
+require.extensions[".tsx"] = compile;
+require.extensions[".png"] = (module, filename) => { module.exports = `data:image/png;base64,${fs.readFileSync(filename).toString("base64")}`; };
+
+function makeFixture(letter, role) {
+  const red = letter === "a";
+  const prefix = red ? "00000000-0000-4000-8000-00000000" : "10000000-0000-4000-8000-00000000";
+  const uuid = number => prefix + String(number).padStart(4, "0");
+  const branding = { displayName: red ? "Restaurant A · A longer restaurant name" : "Restaurant B · မြန်မာအစားအစာဆိုင်",
+    primaryColor: red ? "#A51D22" : "#086B64", secondaryColor: red ? "#FCEAE7" : "#D9F1EC", backgroundColor: red ? "#FFF8F0" : "#F4FAF9" };
+  const management = ["OWNER", "MANAGER"].includes(role);
+  const item = { id: uuid(11), productName: red ? "Vegetable rice with seasonal greens" : "ဟင်းသီးဟင်းရွက်အစုံနှင့် ထမင်းပန်းကန်",
+    variantName: red ? "Regular" : "ပုံမှန်", quantity: 2, unitPrice: 6500, subtotal: 13000,
+    specialInstruction: red ? "No peanuts.\nPlease pack the sauce separately." : "မြေပဲမထည့်ပါနှင့်။\nအချဉ်ရည်ကို သီးခြားထုပ်ပိုးပါ။", modifiers: [] };
+  const order = { id: uuid(10), orderNumber: `SYNTHETIC-${letter.toUpperCase()}`, orderType: "TAKEAWAY", orderChannel: "STAFF",
+    status: "PENDING", createdAt: "2026-11-21T10:00:00+06:30", subtotal: 13000, totalAmount: 13000, discountAmount: 0,
+    deliveryFee: 0, queueTicketId: uuid(20), tableLabel: null, availableActions: ["ACCEPT", "CANCEL"], items: [item],
+    statusHistory: [{ id: uuid(12), status: "PENDING", createdAt: "2026-11-21T10:00:00+06:30", changedByUserId: uuid(2), note: "Synthetic fixture" }] };
+  const queue = [{ ticketId: uuid(20), orderId: order.id, displayCode: "SYN-017", status: "READY", createdAt: order.createdAt },
+    { ticketId: uuid(21), orderId: uuid(22), displayCode: "SYN-018", status: "CALLED", createdAt: order.createdAt }];
+  const task = { id: uuid(30), orderId: uuid(31), orderNumber: `SYNTHETIC-DELIVERY-${letter.toUpperCase()}`,
+    driverUserId: uuid(2), driverName: "Synthetic assignee", status: "PICKED_UP", orderStatus: "OUT_FOR_DELIVERY", totalAmount: 14500,
+    customerName: "Synthetic recipient", customerPhone: "Fixture contact", deliveryAddress: red ? "12 Fixture Street, Synthetic Township" : "စမ်းသပ်လမ်း၊ စမ်းသပ်မြို့နယ်",
+    deliveryCity: "Fixture City", deliveryTownship: "Fixture Township", deliveryNote: "Call on arrival", assignedAt: order.createdAt,
+    updatedAt: order.createdAt, pickedUpAt: order.createdAt, cashCollectionRequired: true, statusHistory: [] };
+  const detail = { task, cashCollectionRequired: true, items: [item], pickup: { name: branding.displayName, address: "Synthetic pickup address", latitude: null, longitude: null },
+    destination: { name: task.customerName, address: task.deliveryAddress, latitude: null, longitude: null } };
+  const ready = data => ({ status: "ready", data });
+  const counts = [1, 2, 1, 3, 1].map(ready);
+  return { management, order, queue, detail, payments: [{ id: uuid(40), method: "CASH_AT_COUNTER", status: "PENDING", amount: 13000, paidAt: null }],
+    tenant: { restaurantId: uuid(1), apiBaseUrl: `https://api-${letter}.example.test`, environment: "development", branding, notificationsEnabled: false },
+    access: { status: "ready", userId: uuid(2), membership: { restaurantId: uuid(1), active: true, role, name: branding.displayName } },
+    dashboard: { orders: role === "DELIVERY_DRIVER" ? null : counts, queue: role === "DELIVERY_DRIVER" ? null : ready(queue),
+      deliveries: ready(page([task])), assignment: management ? ready(1) : null, notifications: ready([]),
+      daily: management ? ready({ reportDate: "2026-11-21", timezone: "Asia/Yangon", totalOrders: 9, completedOrders: 2, cancelledOrders: 1, orderAmountExcludingCancelled: 13000 }) : null },
+  };
+}
+
+try {
+  const screens = {
+    dashboard: require(path.join(appRoot, "src/features/operations/DashboardScreen.tsx")).DashboardScreen,
+    orders: require(path.join(appRoot, "src/features/operations/OrdersScreen.tsx")).OrdersScreen,
+    queue: require(path.join(appRoot, "src/features/operations/QueueScreen.tsx")).QueueScreen,
+    deliveries: require(path.join(appRoot, "src/features/operations/DeliveriesScreen.tsx")).DeliveriesScreen,
+    order: () => h(require(path.join(appRoot, "src/features/operations/OrderDetailScreen.tsx")).OrderDetailScreen, { orderId: fixture.order.id }),
+    delivery: () => h(require(path.join(appRoot, "src/features/operations/DeliveryDetailScreen.tsx")).DeliveryDetailScreen, { deliveryId: fixture.detail.task.id }),
+  };
+  const Layout = require(path.join(appRoot, "app/(workspace)/_layout.tsx")).default;
+  const { ThemeProvider } = require(path.join(appRoot, "src/components/ui.tsx"));
+  fs.mkdirSync(output, { recursive: true });
+  const links = [];
+  for (const tenant of ["a", "b"]) for (const role of ["OWNER", "MANAGER", "STAFF", "DELIVERY_DRIVER"]) for (const width of [320, 720]) for (const scale of [1, 2]) {
+    for (const [name, component] of Object.entries(screens)) {
+      if (role === "DELIVERY_DRIVER" && ["orders", "queue", "order"].includes(name)) continue;
+      fixture = makeFixture(tenant, role); Screen = component; previewWidth = width; fontScale = scale;
+      route = name === "order" ? `/order/${fixture.order.id}` : name === "delivery" ? `/delivery/${fixture.detail.task.id}` : `/${name}`;
+      const markup = renderToStaticMarkup(h(ThemeProvider, { restaurantId: fixture.tenant.restaurantId, branding: fixture.tenant.branding }, h(Layout)));
+      const filename = `${tenant}-${role.toLowerCase()}-${name}-${width}-${scale * 100}.html`;
+      const title = `Restaurant ${tenant.toUpperCase()} · ${role} · ${name} · ${width}px · ${scale * 100}% text`;
+      const theme = resolveThemeTokens(fixture.tenant.branding);
+      fs.writeFileSync(path.join(output, filename), `<!doctype html><html lang="${tenant === "a" ? "en" : "my"}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;background:#dce1e7;font-family:Arial,'Myanmar Text',sans-serif}button{margin:0;text-align:left;border:0;background:none;padding:0}img{max-width:100%}.preview-note{flex-shrink:0;padding:8px;font-size:12px;background:#17212e;color:white}.device{width:${width}px;max-width:100vw;flex:1;min-height:0;margin:0 auto;background:${theme.color.background};display:flex;flex-direction:column}.device>div{min-height:0;flex:1;overflow:hidden}a{color:inherit}</style><div class="preview-note"><a href="index.html">All previews</a> · ${title}<br>Actual Operations TSX · synthetic data · static DOM approximation · no Android acceptance</div><main class="device">${markup}</main></html>`);
+      links.push(`<li><a href="${filename}">${title}</a></li>`);
+    }
+  }
+  fs.writeFileSync(path.join(output, "index.html"), `<!doctype html><html><meta charset="utf-8"><title>UXI-10 Operations DOM previews</title><h1>Operations DOM approximations</h1><p>${links.length} actual-TSX static previews, synthetic restaurants A/B, red/teal, four roles, 320/720px, 100/200% text. No live API, device, keyboard, TalkBack or Figma acceptance claim. Dialog and counter interaction states are covered by component tests, not this SSR.</p><ul>${links.join("")}</ul></html>`);
+  console.log(`Generated ${links.length} Operations DOM approximation previews in ${output}`);
+} finally {
+  Module._load = originalLoad;
+  if (oldTs) require.extensions[".ts"] = oldTs; else delete require.extensions[".ts"];
+  if (oldTsx) require.extensions[".tsx"] = oldTsx; else delete require.extensions[".tsx"];
+  if (oldPng) require.extensions[".png"] = oldPng; else delete require.extensions[".png"];
+}
+
+if (process.argv.includes("--serve")) {
+  require("node:http").createServer((request, response) => {
+    const basename = path.basename(new URL(request.url, "http://127.0.0.1").pathname) || "index.html";
+    if (!/^(?:index|[ab]-(?:owner|manager|staff|delivery_driver)-(?:dashboard|orders|queue|deliveries|order|delivery)-(?:320|720)-(?:100|200))\.html$/.test(basename)) {
+      response.writeHead(404); response.end("Not found"); return;
+    }
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    fs.createReadStream(path.join(output, basename)).pipe(response);
+  }).listen(4179, "127.0.0.1", () => console.log("Operations DOM preview: http://127.0.0.1:4179/index.html"));
+}

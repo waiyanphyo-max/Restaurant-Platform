@@ -77,7 +77,7 @@ describe("shared sales dashboard", () => {
     scenario.state = status;
     const html = renderToStaticMarkup(<SalesDashboardPanel />);
     expect(html).toContain(status);
-    expect(html.includes("Try again")).toBe(status !== "loading");
+    expect(html.includes("Try again")).toBe(status === "offline" || status === "error");
     expect(scenario.chart).not.toHaveBeenCalled();
     expect(scenario.captureExport).not.toHaveBeenCalled();
   });

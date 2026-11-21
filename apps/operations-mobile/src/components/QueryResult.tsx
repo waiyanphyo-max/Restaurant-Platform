@@ -13,5 +13,5 @@ export function QueryResult<T>({ state, reload, children, refreshing = false, re
   const message = state.status === "offline" ? "Reconnect to load current restaurant data."
     : state.status === "denied" ? "Your account cannot access these records. Contact your restaurant owner if you need access."
     : state.status === "error" ? "These records could not be loaded. Try again." : undefined;
-  return <StateView kind={state.status} message={message} onRetry={state.status === "loading" ? undefined : reload} />;
+  return <StateView kind={state.status} message={message} onRetry={state.status === "loading" || state.status === "denied" ? undefined : reload} />;
 }

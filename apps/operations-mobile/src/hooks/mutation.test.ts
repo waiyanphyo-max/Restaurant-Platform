@@ -32,6 +32,17 @@ describe("duplicate mutation gate", () => {
 });
 
 describe("safe operational mutation feedback", () => {
+  it.each([
+    ["REFUND_REQUIRED", "Cancellation does not refund money"],
+    ["ORDER_ACTION_STALE", "previous action will not be replayed"],
+    ["STALE_DELIVERY", "current assignment"],
+    ["CASH_COLLECTION_REQUIRED", "physical cash received"],
+  ])("explains the existing %s safeguard without exposing server payloads", (code, guidance) => {
+    const message = mutationError(new ApiHttpError(409, code, [], "private-recipient private-provider-response"));
+    expect(message).toContain(guidance);
+    expect(message).not.toContain("private-recipient");
+    expect(mutationError(new ApiHttpError(403, code))).toContain("does not have permission");
+  });
   it("distinguishes image storage failures from invalid files without exposing provider details", () => {
     const privateDetails = "Bearer private-token provider-response";
     expect(mutationError(new ApiHttpError(503, "MEDIA_STORAGE_NOT_CONFIGURED", [], privateDetails))).toContain("Image storage is not configured");
