@@ -99,6 +99,25 @@ export function quoteRequest(destination: Destination, details: DestinationDetai
 
 type Text = (en: string, my: string) => string;
 
+type DeliveryField = "recipientName" | "recipientPhone" | "deliveryNote" | "street" | "ward" | "houseNo";
+export type CheckoutFieldErrors = Partial<Record<DeliveryField, string>>;
+
+/** Associate only recognized field names; never display untrusted server validation text. */
+export function checkoutFieldErrors(error: unknown, t: Text): CheckoutFieldErrors {
+  if (!(error instanceof ApiHttpError)) return {};
+  const fields = new Set(error.fieldErrors.map(violation => violation.field));
+  if (error.code === "INVALID_DELIVERY_PHONE") fields.add("recipientPhone");
+  if (error.code === "DELIVERY_CONTACT_REQUIRED") { fields.add("recipientName"); fields.add("recipientPhone"); }
+  const result: CheckoutFieldErrors = {};
+  if (fields.has("recipientName")) result.recipientName = t("Check the recipient name (up to 150 characters).", "လက်ခံသူအမည်ကို စစ်ဆေးပါ (စာလုံး ၁၅၀ အထိ)။");
+  if (fields.has("recipientPhone")) result.recipientPhone = invalidRecipientPhoneMessage(t);
+  if (fields.has("deliveryNote")) result.deliveryNote = t("Shorten delivery instructions to 2,000 characters.", "ပို့ဆောင်မှု မှာကြားချက်ကို စာလုံး ၂၀၀၀ အတွင်း ဖြည့်ပါ။");
+  for (const field of ["street", "ward", "houseNo"] as const) {
+    if (fields.has(`temporaryDestination.${field}`)) result[field] = t("Check this address field and its supported length.", "ဤလိပ်စာအချက်အလက်နှင့် ခွင့်ပြုသည့် အရှည်ကို စစ်ဆေးပါ။");
+  }
+  return result;
+}
+
 export function invalidRecipientPhoneMessage(t: Text): string {
   return t("Enter a Myanmar phone number starting with 0 or an international number with its country code.",
     "၀ ဖြင့် စသော မြန်မာဖုန်းနံပါတ် သို့မဟုတ် နိုင်ငံကုဒ်ပါသော နိုင်ငံတကာဖုန်းနံပါတ်ကို ဖြည့်ပါ။");
@@ -124,6 +143,8 @@ export function checkoutError(error: unknown, t: Text): string {
       case "INVALID_MODIFIER_OPTION":
       case "MODIFIER_NOT_ALLOWED_FOR_PRODUCT":
       case "MODIFIER_GROUP_INACTIVE":
+      case "DUPLICATE_MODIFIER_OPTION":
+      case "INVALID_MODIFIER_SELECTION_COUNT":
         return t("One or more items are unavailable. Review your cart.", "ပစ္စည်းအချို့ မရနိုင်ပါ။ ခြင်းတောင်းကို ပြန်စစ်ပါ။");
       case "INVALID_CUSTOMER_ADDRESS":
       case "DELIVERY_COORDINATES_REQUIRED":
@@ -136,6 +157,9 @@ export function checkoutError(error: unknown, t: Text): string {
       case "CANONICAL_LOCATION_REQUIRED":
         return t("Complete your address details and select Region / State, District and Township. Review incomplete saved addresses in Profile.",
           "လမ်း သို့မဟုတ် တိုက်လိပ်စာ၊ မြို့နှင့် မြို့နယ်ကို ဖြည့်ပါ။ မပြည့်စုံသော သိမ်းထားသည့်လိပ်စာကို ပရိုဖိုင်တွင် ပြင်ပါ။");
+      case "INVALID_DELIVERY_COORDINATES":
+        return t("The selected map location is invalid. Choose and confirm a new pin, or use a text address.",
+          "ရွေးထားသော မြေပုံနေရာ မမှန်ပါ။ နေရာအသစ်ကို ရွေးအတည်ပြုပါ သို့မဟုတ် စာသားလိပ်စာကို သုံးပါ။");
       case "DELIVERY_CONTACT_REQUIRED":
         return t("Check the recipient name and contact phone.", "လက်ခံသူအမည်နှင့် ဆက်သွယ်ရန် ဖုန်းနံပါတ်ကို စစ်ဆေးပါ။");
       case "INVALID_DELIVERY_PHONE":

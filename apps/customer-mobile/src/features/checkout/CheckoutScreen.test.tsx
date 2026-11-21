@@ -11,6 +11,8 @@ const harness = vi.hoisted(() => ({
   quote: vi.fn(), submit: vi.fn(), abandon: vi.fn(), reset: vi.fn(), locate: vi.fn(), reloadZones: vi.fn(), map: true, language: "en",
   zoneState: { status: "loading" } as QueryState<unknown[]>,
   addresses: null as CustomerAddressResponse[] | null,
+  items: [{ productId: "product", quantity: 1 }],
+  displayName: "Current Restaurant A",
   checkoutState: { status: "idle" } as { status: "idle" } | { status: "uncertain"; attempt: CheckoutAttempt }
 }));
 vi.mock("react", async load => ({
@@ -30,8 +32,11 @@ vi.mock("react", async load => ({
 }));
 vi.mock("react-native", () => ({ Text: "Text" }));
 vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page", StateView: "StateView" }));
-vi.mock("../../i18n", () => ({ useCustomerLanguage: () => harness.language, useCustomerText: () => (en: string, my: string) => harness.language === "en" ? en : my }));
+vi.mock("../../i18n", () => ({ useCustomerLanguage: () => harness.language,
+  localize: (language: string, en: string, my: string) => language === "en" ? en : my,
+  useCustomerText: () => (en: string, my: string) => harness.language === "en" ? en : my }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => ({ mapsConfigured: harness.map, branding: { displayName: "Restaurant" } }) }));
+vi.mock("../../branding/RuntimeBrandingProvider", () => ({ useRuntimeBranding: () => ({ displayName: harness.displayName }) }));
 vi.mock("../../api", () => ({ getCustomerApi: () => ({ quoteDelivery: harness.quote }) }));
 vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: () => ({ state: harness.zoneState, reload: harness.reloadZones }) }));
 vi.mock("../../components/LocationSelector", () => ({ LocationSelector: "LocationSelector" }));
@@ -39,8 +44,7 @@ vi.mock("../addresses/AddressMap", () => ({ AddressMap: "AddressMap" }));
 vi.mock("../addresses/DestinationPin", () => ({ DestinationPin: "DestinationPin" }));
 vi.mock("../addresses/native-location", () => ({ suggestCurrentLocation: harness.locate }));
 vi.mock("../cart/CartProvider", () => {
-  const items = [{ productId: "product", quantity: 1 }];
-  return { useCustomerCart: () => ({ items }) };
+  return { useCustomerCart: () => ({ items: harness.items }) };
 });
 vi.mock("./CheckoutProvider", () => ({ useCustomerCheckout: () => ({ state: harness.checkoutState, submit: harness.submit,
   abandonPrevious: harness.abandon, reset: harness.reset }) }));
@@ -81,13 +85,14 @@ function field(label: string, value: string) {
 
 function map() {
   return elements(render()).find(el => el.type === "AddressMap")!.props as {
-    onSelect(point: Coordinates): void; onConfirm(): void; selection: PinSelection; notice: string | null;
+    onSelect(point: Coordinates): void; onConfirm(): void; onCancel(): void; selection: PinSelection; notice: string | null;
   };
 }
 
 function chooseLocation(township = "Tamwe") {
   const selector = elements(render()).find(item => item.type === "LocationSelector")!;
   (selector.props.onChange as (value: unknown) => void)({ regionId: "region", districtId: "district", townshipId: "township", regionName: "Yangon", districtName: "East Yangon", township });
+  (selector.props.onValidityChange as (value: string) => void)("valid");
 }
 function fillAddress() {
   field("Street", "5 Friend Street");
@@ -100,6 +105,8 @@ describe("customer checkout destination selection", () => {
     harness.states = []; harness.refs = []; harness.map = true; harness.language = "en";
     harness.zoneState = { status: "loading" };
     harness.addresses = null;
+    harness.items = [{ productId: "product", quantity: 1 }];
+    harness.displayName = "Current Restaurant A";
     harness.checkoutState = { status: "idle" };
     vi.resetAllMocks();
     harness.quote.mockImplementation(async (request: DeliveryQuoteRequest) => ({
@@ -120,13 +127,13 @@ describe("customer checkout destination selection", () => {
     expect(harness.reloadZones).toHaveBeenCalledOnce();
     expect(harness.quote).not.toHaveBeenCalled();
     harness.zoneState = { status: "ready", data: [] };
-    press("Check delivery and review total"); await tick();
+    press("Review destination"); press("Check delivery and review total"); await tick();
     expect(harness.quote).toHaveBeenCalledOnce();
     expect(harness.submit).not.toHaveBeenCalled();
   });
 
   it("selects the default saved address and requires a final action after quote", async () => {
-    press("Check delivery and review total");
+    press("Review destination"); press("Check delivery and review total");
     await tick();
     expect(harness.quote.mock.calls[0][0]).toMatchObject({ addressId: "home", recipientName: "Customer",
       recipientPhone: "+959123456789", deliveryNote: "Home gate" });
@@ -138,15 +145,94 @@ describe("customer checkout destination selection", () => {
     }));
   });
 
+  it("reviews the destination before requesting a quote and never treats that review as an order", async () => {
+    const initial = elements(render());
+    expect(initial.find(element => element.props.subtitle === "Current Restaurant A")).toBeDefined();
+    expect(initial.some(element => element.props.children === "12, Main Rd, Ward 1, Tamwe, East Yangon, Yangon")).toBe(true);
+    press("Review destination");
+    expect(harness.quote).not.toHaveBeenCalled();
+    expect(harness.submit).not.toHaveBeenCalled();
+    expect(elements(render()).find(element => element.props.title === "Review your destination")).toBeDefined();
+    expect(elements(render()).some(element => String(element.props.children).includes("A quote is not an order"))).toBe(true);
+    press("Check delivery and review total"); await tick();
+    expect(harness.quote).toHaveBeenCalledOnce();
+    expect(harness.submit).not.toHaveBeenCalled();
+  });
+
+  it("discards a late quote after the cart changes and requires destination review again", async () => {
+    let resolve!: (quote: unknown) => void;
+    harness.quote.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    press("Review destination"); press("Check delivery and review total");
+    harness.items = [{ productId: "different-product", quantity: 2 }];
+    render();
+    resolve({ totalAmount: 8500, confirmationToken: "obsolete", idempotencyKey: "old-key" }); await tick();
+    expect(elements(render()).some(element => element.props.quote)).toBe(false);
+    expect(elements(render()).find(element => element.props.title === "Review destination")).toBeDefined();
+    expect(harness.submit).not.toHaveBeenCalled();
+  });
+
+  it("invalidates reviewed quote data after the owned saved address is refreshed", async () => {
+    press("Review destination"); press("Check delivery and review total"); await tick();
+    const obsolete = elements(render()).find(element => element.props.quote)!;
+    harness.addresses = [work, { ...home, street: "Updated street", townshipId: "different-township" }];
+    expect(elements(render()).some(element => element.props.quote)).toBe(false);
+    (obsolete.props.onSubmit as () => void)();
+    expect(harness.submit).not.toHaveBeenCalled();
+    expect(elements(render()).find(element => element.props.title === "Review destination")).toBeDefined();
+  });
+
+  it("retains the authoritative quote during a same-tenant runtime brand refresh", async () => {
+    press("Review destination"); press("Check delivery and review total"); await tick();
+    const quote = elements(render()).find(element => element.props.quote)!.props.quote;
+    harness.displayName = "Restaurant A refreshed";
+    expect(elements(render()).find(element => element.props.quote)?.props.quote).toBe(quote);
+    expect(harness.quote).toHaveBeenCalledOnce();
+  });
+
+  it("retries a failed quote without submitting an order and preserves temporary contact and instructions", async () => {
+    harness.quote.mockRejectedValueOnce(new ApiHttpError(400, "MINIMUM_ORDER_NOT_MET"));
+    press("Enter a text delivery address"); fillAddress();
+    field("Recipient name", "Temporary recipient");
+    field("Contact phone", "0942111222");
+    press("Review destination"); press("Check delivery and review total"); await tick();
+    expect(elements(render()).some(element => String(element.props.children).includes("No order has been confirmed"))).toBe(true);
+    expect(harness.submit).not.toHaveBeenCalled();
+    press("Retry quote"); await tick();
+    expect(harness.quote).toHaveBeenCalledTimes(2);
+    expect(harness.quote.mock.calls[1][0]).toEqual(harness.quote.mock.calls[0][0]);
+    expect(harness.quote.mock.calls[1][0]).toMatchObject({ recipientName: "Temporary recipient", recipientPhone: "+95942111222", deliveryNote: "Blue door" });
+    expect(home.recipientName).toBe("Customer");
+  });
+
+  it("requires active canonical selector validation even when IDs have been supplied", () => {
+    press("Enter a text delivery address"); fillAddress();
+    const selector = elements(render()).find(element => element.type === "LocationSelector")!;
+    (selector.props.onValidityChange as (value: string) => void)("unavailable");
+    expect(elements(render()).find(element => element.props.title === "Review destination")?.props.disabled).toBe(true);
+    expect(harness.quote).not.toHaveBeenCalled();
+  });
+
+  it("associates recognized server validation with the contact field when editing the destination", async () => {
+    harness.quote.mockRejectedValueOnce(new ApiHttpError(400, "VALIDATION_FAILED", [
+      { field: "recipientPhone", message: "untrusted validation content" }
+    ]));
+    press("Review destination"); press("Check delivery and review total"); await tick();
+    press("Edit destination");
+    const input = elements(render()).find(element => element.props.label === "Contact phone")!;
+    expect(input.props.error).toContain("Enter a Myanmar phone number");
+    expect(input.props.error).not.toContain("untrusted");
+    expect(harness.submit).not.toHaveBeenCalled();
+  });
+
   it("allows another saved address", async () => {
     press("Use saved address · Work");
-    press("Check delivery and review total");
+    press("Review destination"); press("Check delivery and review total");
     await tick();
     expect(harness.quote.mock.calls[0][0]).toMatchObject({ addressId: "work", deliveryNote: "Office" });
   });
 
   it("offers server settlement when an in-memory checkout result is uncertain", async () => {
-    press("Check delivery and review total");
+    press("Review destination"); press("Check delivery and review total");
     await tick();
     const review = elements(render()).find(element => element.props.quote)!;
     (review.props.onSubmit as () => void)();
@@ -161,7 +247,7 @@ describe("customer checkout destination selection", () => {
 
   it("explains an invalid recipient phone before requesting a quote", () => {
     field("Contact phone", "call-me");
-    expect(elements(render()).find(element => element.props.title === "Check delivery and review total")?.props.disabled).toBe(true);
+    expect(elements(render()).find(element => element.props.title === "Review destination")?.props.disabled).toBe(true);
     expect(harness.quote).not.toHaveBeenCalled();
     expect(elements(render()).find(element => element.props.accessibilityRole === "alert")?.props.children)
       .toContain("Enter a Myanmar phone number");
@@ -169,7 +255,7 @@ describe("customer checkout destination selection", () => {
 
   it("prevents confirmation if the server total cannot be represented accurately", async () => {
     harness.quote.mockResolvedValueOnce({ totalAmount: Number.MAX_SAFE_INTEGER + 1 });
-    press("Check delivery and review total");
+    press("Review destination"); press("Check delivery and review total");
     await tick();
     expect(elements(render()).find(element => element.props.accessibilityRole === "alert")?.props.children)
       .toBe("The quoted total cannot be displayed accurately. Review the cart and try again.");
@@ -184,7 +270,7 @@ describe("customer checkout destination selection", () => {
     expect(harness.quote).not.toHaveBeenCalled();
     map().onConfirm();
     fillAddress();
-    press("Check delivery and review total");
+    press("Review destination"); press("Check delivery and review total");
     await tick();
     const request = harness.quote.mock.calls[0][0];
     expect(request.addressId).toBeUndefined();
@@ -203,7 +289,7 @@ describe("customer checkout destination selection", () => {
     map().onConfirm();
     expect(harness.submit).not.toHaveBeenCalled();
     fillAddress();
-    press("Check delivery and review total");
+    press("Review destination"); press("Check delivery and review total");
     expect(harness.quote.mock.calls[0][0].temporaryDestination).toMatchObject({ ...adjusted, source: "GPS_CONFIRMED" });
   });
 
@@ -215,8 +301,23 @@ describe("customer checkout destination selection", () => {
     map().onSelect(point);
     map().onConfirm();
     fillAddress();
-    press("Check delivery and review total");
+    press("Review destination"); press("Check delivery and review total");
     expect(harness.quote.mock.calls[0][0].temporaryDestination.source).toBe("MANUAL_MAP");
+  });
+
+  it("rejects invalid native map coordinates and retains the manual text destination path", async () => {
+    press("Choose another location on map");
+    map().onSelect(point);
+    expect(() => map().onSelect({ latitude: Number.NaN, longitude: 181 })).not.toThrow();
+    expect(map().selection.coordinates).toBeNull();
+    expect(map().notice).toContain("invalid");
+    map().onConfirm();
+    expect(elements(render()).some(element => element.type === "AddressMap")).toBe(true);
+    map().onCancel();
+    press("Enter a text delivery address"); fillAddress();
+    press("Review destination"); press("Check delivery and review total"); await tick();
+    expect(harness.quote.mock.calls[0][0].temporaryDestination.source).toBe("MANUAL_TEXT");
+    expect(harness.submit).not.toHaveBeenCalled();
   });
 
   it("hides map actions when Maps is unavailable and keeps saved address checkout in Burmese", async () => {
@@ -225,7 +326,7 @@ describe("customer checkout destination selection", () => {
     const tree = elements(render());
     expect(tree.find(el => el.props.title === "မြေပုံပေါ်တွင် နေရာအသစ်ရွေးရန်")).toBeUndefined();
     expect(tree.find(el => el.props.title === "လက်ရှိတည်နေရာ သုံးရန်")).toBeUndefined();
-    press("ပို့ဆောင်နိုင်မှုနှင့် စုစုပေါင်းငွေ စစ်ရန်");
+    press("ပို့ဆောင်မည့်နေရာ ပြန်စစ်ရန်"); press("ပို့ဆောင်နိုင်မှုနှင့် စုစုပေါင်းငွေ စစ်ရန်");
     await tick();
     expect(harness.quote.mock.calls[0][0]).toMatchObject({ addressId: "home" });
   });
@@ -233,7 +334,7 @@ describe("customer checkout destination selection", () => {
   it("quotes a saved text address with Maps disabled without requesting GPS", async () => {
     harness.map = false;
     harness.addresses = [{ ...home, latitude: null, longitude: null }];
-    press("Check delivery and review total"); await tick();
+    press("Review destination"); press("Check delivery and review total"); await tick();
     expect(harness.quote).toHaveBeenCalledWith(expect.objectContaining({ addressId: "home" }), expect.anything());
     expect(harness.locate).not.toHaveBeenCalled();
     expect(elements(render()).some(element => element.type === "AddressMap")).toBe(false);
@@ -246,7 +347,7 @@ describe("customer checkout destination selection", () => {
       { coverageCity: "Yangon", coverageTownship: "Tamwe" },
       { coverageCity: null, coverageTownship: null }, { coverageCity: "Yangon", coverageTownship: null }
     ] };
-    expect(elements(render()).find(element => element.props.title === "Check delivery and review total")?.props.disabled).toBe(true);
+    expect(elements(render()).find(element => element.props.title === "Review destination")?.props.disabled).toBe(true);
     field("Street", "5 Friend Street");
     field("Ward / Neighborhood", "Ward 2");
     field("House / Building / Floor / Room", "Room 4");
@@ -254,7 +355,7 @@ describe("customer checkout destination selection", () => {
     field("Landmark or delivery instructions", "Blue door");
     expect(elements(render()).some(element => element.props.label === "City")).toBe(false);
     expect(elements(render()).find(element => element.type === "LocationSelector")?.props.value).toMatchObject({ townshipId: "township" });
-    press("Check delivery and review total"); await tick();
+    press("Review destination"); press("Check delivery and review total"); await tick();
     const request = harness.quote.mock.calls[0][0];
     expect(request.temporaryDestination).toEqual({ source: "MANUAL_TEXT", address: "Room 4, 5 Friend Street, Ward 2", city: "Yangon", township: "Tamwe", regionId: "region", districtId: "district", townshipId: "township", ward: "Ward 2", street: "5 Friend Street", houseNo: "Room 4" });
     expect(request.addressId).toBeUndefined();
@@ -272,7 +373,7 @@ describe("customer checkout destination selection", () => {
   it("offers text entry even when Maps is configured", async () => {
     press("Enter a text delivery address");
     fillAddress();
-    press("Check delivery and review total"); await tick();
+    press("Review destination"); press("Check delivery and review total"); await tick();
     expect(harness.quote.mock.calls[0][0].temporaryDestination.source).toBe("MANUAL_TEXT");
     expect(harness.locate).not.toHaveBeenCalled();
   });
@@ -280,7 +381,7 @@ describe("customer checkout destination selection", () => {
   it("shows the authoritative rejection for an unsupported text City and Township", async () => {
     harness.quote.mockRejectedValue(new ApiHttpError(400, "DELIVERY_ADDRESS_OUTSIDE_ZONE"));
     press("Enter a text delivery address"); fillAddress(); chooseLocation("Unsupported");
-    press("Check delivery and review total"); await tick();
+    press("Review destination"); press("Check delivery and review total"); await tick();
     expect(elements(render()).find(element => element.props.accessibilityRole === "alert")?.props.children).toContain("Delivery is unavailable");
     expect(harness.submit).not.toHaveBeenCalled();
   });

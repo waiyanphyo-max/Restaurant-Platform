@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { ApiHttpError } from "@restaurant-platform/api-client";
 import type { CustomerAddressResponse } from "@restaurant-platform/shared-types";
 import { confirmPin, selectPin } from "../addresses/location";
-import { destinationProblem, quoteRequest, type DestinationDetails } from "./destination";
+import { checkoutError, checkoutFieldErrors, destinationProblem, quoteRequest, type DestinationDetails } from "./destination";
 
 const saved: CustomerAddressResponse = {
   id: "home", regionId: "region", districtId: "district", townshipId: "township", regionName: "Yangon", districtName: "East Yangon", label: "Home", recipientName: "Customer", houseNo: "12", street: "Main Road", ward: "Ward 1",
@@ -13,6 +14,22 @@ const items = [{ productId: "product", quantity: 1 }];
 const t = (english: string) => english;
 
 describe("delivery destination contract", () => {
+  it.each(["INVALID_MODIFIER_SELECTION_COUNT", "DUPLICATE_MODIFIER_OPTION"])("directs invalid current selections %s to cart repair", code => {
+    expect(checkoutError(new ApiHttpError(400, code), t)).toContain("Review your cart");
+  });
+  it("offers a text destination after invalid coordinates without weakening the coordinate contract", () => {
+    expect(checkoutError(new ApiHttpError(400, "INVALID_DELIVERY_COORDINATES"), t)).toContain("confirm a new pin, or use a text address");
+  });
+  it("maps only recognized server fields with localized safe messages", () => {
+    const errors = checkoutFieldErrors(new ApiHttpError(400, "VALIDATION_FAILED", [
+      { field: "recipientPhone", message: "private server detail" },
+      { field: "temporaryDestination.street", message: "private server detail" },
+      { field: "unknown", message: "private server detail" }
+    ]), t);
+    expect(Object.keys(errors)).toEqual(["recipientPhone", "street"]);
+    expect(errors.recipientPhone).toContain("Myanmar phone number");
+    expect(JSON.stringify(errors)).not.toContain("private server detail");
+  });
   it("accepts complete saved text addresses without inventing coordinates or replacing their address fields", () => {
     expect(quoteRequest({ saved }, details, items)).toEqual({ addressId: "home", recipientName: "Customer",
       recipientPhone: "+959942123456", deliveryNote: "Blue door", items });

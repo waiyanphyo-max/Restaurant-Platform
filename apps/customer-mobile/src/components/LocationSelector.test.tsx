@@ -18,10 +18,11 @@ vi.mock("react", async original => ({ ...await original<typeof import("react")>(
     }
   }
 }));
-vi.mock("react-native", () => ({ Text: "Text", View: "View" }));
-vi.mock("./ui", () => ({ Action: "Action", Body: "Body", FormField: "FormField" }));
+vi.mock("react-native", () => ({ Pressable: "Pressable", Text: "Text", View: "View" }));
+vi.mock("./ui", () => ({ Action: "Action", Body: "Body", FormField: "FormField", StateView: "StateView", Status: "Status", useUiTheme: () => ({ color: {} }) }));
+vi.mock("../i18n", () => ({ useCustomerText: () => (en: string) => en }));
 vi.mock("../tenant", () => ({ readEmbeddedTenant: () => ({ apiBaseUrl: "https://api.example.test" }) }));
-vi.mock("@restaurant-platform/api-client", () => ({ createLocationApiClient: () => ({ getRegions: harness.regions, getDistricts: harness.districts, getTownships: harness.townships }) }));
+vi.mock("@restaurant-platform/api-client", async original => ({ ...await original<typeof import("@restaurant-platform/api-client")>(), createLocationApiClient: () => ({ getRegions: harness.regions, getDistricts: harness.districts, getTownships: harness.townships }) }));
 import { LocationSelector } from "./LocationSelector";
 
 const region = { id: "r", nameEn: "Region", code: "R", nameMy: null };
@@ -45,8 +46,8 @@ function setup(start = initial) {
 beforeEach(() => {
   harness.effects.forEach(effect => effect.cleanup?.());
   harness.states = []; harness.effects = []; harness.state = 0; harness.effect = 0;
-  harness.regions.mockReset().mockResolvedValue([region]);
-  harness.districts.mockReset().mockResolvedValue([district]);
+  harness.regions.mockReset().mockResolvedValue([region, { ...region, id: "r2" }]);
+  harness.districts.mockReset().mockResolvedValue([district, { ...district, id: "d2" }]);
   harness.townships.mockReset().mockResolvedValue([township]);
 });
 describe("canonical dependent location selection", () => {
@@ -55,7 +56,7 @@ describe("canonical dependent location selection", () => {
     expect(view.choice("District").enabled).toBe(false);
     expect(view.choice("Township").enabled).toBe(false);
     expect(harness.districts).not.toHaveBeenCalled();
-    view.choice("Region / State").onChoose(region); await tick();
+    await tick(); view.choice("Region / State").onChoose(region); await tick();
     view.choice("District"); await tick();
     expect(harness.districts).toHaveBeenCalledWith("r", expect.objectContaining({ signal: expect.any(AbortSignal) }));
     view.choice("District").onChoose(district);
@@ -71,7 +72,7 @@ describe("canonical dependent location selection", () => {
     let finish!: (value: GeoLocationDto[]) => void;
     harness.districts.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
     const view = setup({ ...initial, regionId: "r" });
-    view.choice("District");
+    view.choice("District"); await tick(); view.choice("District");
     const oldSignal = harness.districts.mock.calls[0][1].signal as AbortSignal;
     view.choice("Region / State").onChoose({ ...region, id: "r2" });
     view.choice("District"); await tick();
@@ -100,13 +101,25 @@ describe("canonical dependent location selection", () => {
       return (choice.type as (props: Record<string, unknown>) => ReactNode)(choice.props);
     }
     let tree = elements(renderChoice());
-    (tree.find(item => item.type === "Action")!.props.onPress as () => void)();
+    (tree.find(item => item.type === "Pressable")!.props.onPress as () => void)();
     tree = elements(renderChoice());
     (tree.find(item => item.type === "FormField")!.props.onChangeText as (text: string) => void)("Other");
     tree = elements(renderChoice());
-    expect(tree.filter(item => item.type === "Action").map(item => item.props.title)).toEqual(["Region / State: Select", "Other Region"]);
+    expect(tree.filter(item => item.type === "Action").map(item => item.props.title)).toEqual(["Other Region"]);
     expect(onChange).not.toHaveBeenCalled();
     (tree.find(item => item.props.title === "Other Region")!.props.onPress as () => void)();
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ regionId: "r2", districtId: "", townshipId: "" }));
+  });
+
+  it("rejects inactive IDs and child records returned for another parent", async () => {
+    harness.districts.mockResolvedValue([{ ...district, regionId: "foreign-region" }]);
+    const view = setup({ ...initial, regionId: "r", districtId: "d", townshipId: "t" });
+    view.choice("District"); await tick(); view.choice("District"); await tick();
+    expect(view.choice("District").list.data).toEqual([]);
+    expect(view.choice("Township").enabled).toBe(false);
+    view.choice("District").onChoose({ ...district, regionId: "foreign-region" });
+    expect(view.onChange).not.toHaveBeenCalled();
+    view.choice("Region / State").onChoose({ ...region, id: "inactive" });
+    expect(view.onChange).not.toHaveBeenCalled();
   });
 });

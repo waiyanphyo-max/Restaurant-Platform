@@ -73,13 +73,16 @@ describe("restaurant-locked customer navigation", () => {
     expect(tabs.every(tab => (tab.props.style as Record<string, unknown>[]).some(style => style.minWidth === 128))).toBe(true);
   });
 
-  it.each(["uncertain", "created", "recovery_pending", "unrecorded"])("keeps checkout recovery visible for %s regardless of cart count", status => {
-    harness.checkoutStatus = status; harness.count = 0;
+  it.each(["uncertain", "created", "recovery_pending", "unrecorded"].flatMap(status =>
+    ["/home", "/address", "/cart", "/orders", "/checkout"].map(pathname => ({ status, pathname }))))(
+    "retains $status recovery while navigating to $pathname with an empty cart", ({ status, pathname }) => {
+    harness.checkoutStatus = status; harness.pathname = pathname; harness.count = 0;
     const navigation = elements(StoreLayout()).find(item => typeof item.type === "function")!;
     const tree = (navigation.type as () => ReactNode)();
-    const recovery = elements(tree).find(item => item.props.accessibilityRole === "button")!;
-    expect(recovery.props.accessibilityLabel).toBe("Review your recent checkout");
-    (recovery.props.onPress as () => void)();
+    const recovery = elements(tree).find(item => item.props.accessibilityLabel === "Review your recent checkout");
+    if (pathname === "/checkout") { expect(recovery).toBeUndefined(); return; }
+    expect(recovery).toBeDefined();
+    (recovery!.props.onPress as () => void)();
     expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/checkout");
   });
 
