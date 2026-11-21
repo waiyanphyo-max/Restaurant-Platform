@@ -62,6 +62,7 @@ vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: (_load: unknown, key: s
 } }));
 vi.mock("../../components/QueryResult", () => ({ QueryResult: "QueryResult" }));
 vi.mock("../../components/useImageUpload", () => ({ useImageUpload: () => scenario.upload }));
+vi.mock("../../hooks/useUnsavedChanges", () => ({ useUnsavedChanges: vi.fn() }));
 vi.mock("./controls", () => ({ FormStatus: "FormStatus", Toggle: "Toggle" }));
 
 import { RuntimePaletteEditor } from "./RuntimePaletteEditor";
@@ -261,7 +262,9 @@ describe("profile, ordering and Owner-only logo compatibility", () => {
     expect(text(page)).toContain("separately reviewed release");
     expect(elements(page).find(element => element.type === "Image")?.props.source).toEqual({ uri: "https://images.example.test/safe-logo.png" });
     expect(text(page)).not.toContain("javascript:");
-    press(page, "Save profile"); await settle();
+    press(page, "Save profile");
+    expect(scenario.profileSave).not.toHaveBeenCalled();
+    (find(settings(), "ConfirmDialog", "Save restaurant profile?").props.onConfirm as () => void)(); await settle();
     expect(scenario.profileSave).toHaveBeenCalledOnce(); expect(scenario.profileSave.mock.calls[0][0]).not.toHaveProperty("logoUrl");
     expect(scenario.refresh).toHaveBeenCalledOnce(); expect(scenario.reload).toHaveBeenCalledOnce();
     if (role === "MANAGER") {

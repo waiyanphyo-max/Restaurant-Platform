@@ -1,8 +1,9 @@
-import { StyleSheet, Switch, Text, View } from "react-native";
-import { Action, Body } from "../../components/ui";
+import { StyleSheet, Switch, View } from "react-native";
+import { Action, Body, Status, useUiTheme } from "../../components/ui";
 
 export function Toggle({ label, value, onChange, disabled = false }: { label: string; value: boolean; onChange(value: boolean): void; disabled?: boolean }) {
-  return <View style={styles.toggle}><Text style={styles.label}>{label}</Text><Switch accessibilityLabel={label} value={value} onValueChange={onChange} disabled={disabled} /></View>;
+  const { color } = useUiTheme();
+  return <View style={styles.toggle}><Body style={styles.label}>{label}</Body><Switch accessibilityLabel={label} value={value} onValueChange={onChange} disabled={disabled} trackColor={{ true: color.primary }} /></View>;
 }
 
 export function Choices<T extends string>({ label, value, values, labels, onChange, disabled = false }: {
@@ -18,12 +19,11 @@ export function Choices<T extends string>({ label, value, values, labels, onChan
 }
 
 export function FormStatus({ error, message }: { error?: string | null; message?: string | null }) {
-  return <>{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{message ? <Text accessibilityRole="alert" style={styles.success}>{message}</Text> : null}</>;
+  return <>{error ? <Status tone="danger">{error}</Status> : null}{message ? <Status tone="success">{message}</Status> : null}</>;
 }
 
 const styles = StyleSheet.create({
-  toggle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16 },
-  label: { flex: 1, fontSize: 15, color: "#334155" },
+  toggle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, minHeight: 48 },
+  label: { flex: 1 },
   choices: { gap: 8 }, row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  error: { color: "#b91c1c", fontSize: 15, lineHeight: 23 }, success: { color: "#166534", fontSize: 15, lineHeight: 23 }
 });

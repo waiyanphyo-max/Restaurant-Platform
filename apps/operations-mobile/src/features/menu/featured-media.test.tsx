@@ -36,9 +36,10 @@ vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: (_load: unknown, key: s
 } }));
 vi.mock("../../components/imageUpload", () => ({ pickImage: scenario.choose }));
 vi.mock("../../components/useImageUpload", () => ({ useImageUpload: () => scenario.upload }));
+vi.mock("../../hooks/useUnsavedChanges", () => ({ useUnsavedChanges: vi.fn() }));
 
 import { FeaturedProductPanel } from "./FeaturedProductPanel";
-import { CatalogImageControl, CatalogPicture } from "./CatalogImageControl";
+import { CatalogImageControl, CatalogPicture, catalogImageUrl } from "./CatalogImageControl";
 type Element = ReactElement<Record<string, unknown>>;
 type Component = (props: Record<string, unknown>) => ReactNode;
 function render(component: Component, props: Record<string, unknown> = {}, key = component.name): ReactNode {
@@ -169,8 +170,14 @@ describe("Owner-curated Featured", () => {
 });
 
 describe("Catalog image publication states", () => {
+  it.each(["http://media.example.test/meal.png", "file:///private/meal.png", "javascript:alert(1)", "https://user:password@media.example.test/meal.png", "https://media.example.test/meal.png#qrToken=private", "invalid"])("withholds unsafe published image URL %s", url => {
+    expect(catalogImageUrl(url)).toBeNull();
+    const picture = expand(render(CatalogPicture as Component, { url, name: "Rice bowl" }, `picture:${url}`));
+    expect(text(picture)).toContain("Image unavailable"); expect(elements(picture).some(value => value.type === "Image")).toBe(false);
+  });
   it("keeps local preview separate, allows discard and uploads once after explicit action", async () => {
     press(image(), "Choose Rice bowl image"); await settle(); expect(text(image())).toContain("Local preview — not published");
+    expect(find(image(), "Image", "Rice bowl local preview").props.source).toEqual({ uri: "file:///device/preview.png" });
     expect(scenario.imageSave).not.toHaveBeenCalled(); expect(text(image())).not.toContain("Image update confirmed");
     press(image(), "Discard Rice bowl preview"); expect(text(image())).not.toContain("Local preview");
     press(image(), "Choose Rice bowl image"); await settle();

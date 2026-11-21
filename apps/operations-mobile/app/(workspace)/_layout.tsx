@@ -12,6 +12,9 @@ import { useUiTheme } from "../../src/components/ui";
 import { OperationsLanguageProvider, useOperationsLanguage, useOperationsText } from "../../src/navigation/OperationsLanguage";
 import { primarySelected, workspaceNavigation, type PrimaryDestination } from "../../src/navigation/presentation";
 import { WorkspaceTools } from "../../src/navigation/WorkspaceTools";
+import { DraftNavigationProvider } from "../../src/navigation/DraftNavigationProvider";
+import { useDraftNavigation } from "../../src/hooks/useUnsavedChanges";
+import { InvitationRecoveryProvider } from "../../src/features/management/InvitationRecoveryProvider";
 import homeIcon from "../../assets/uxi/home.png";
 import ordersIcon from "../../assets/uxi/orders.png";
 import deliveryIcon from "../../assets/uxi/delivery.png";
@@ -22,13 +25,14 @@ const icons = { dashboard: homeIcon, orders: ordersIcon, deliveries: deliveryIco
   notifications: ordersIcon, profile: accountIcon };
 
 export default function WorkspaceLayout() {
-  return <RuntimeBrandingProvider><WorkspaceBoundary><OperationsLanguageProvider><WorkspaceContent /></OperationsLanguageProvider></WorkspaceBoundary></RuntimeBrandingProvider>;
+  return <RuntimeBrandingProvider><InvitationRecoveryProvider><OperationsLanguageProvider><DraftNavigationProvider><WorkspaceBoundary><WorkspaceContent /></WorkspaceBoundary></DraftNavigationProvider></OperationsLanguageProvider></InvitationRecoveryProvider></RuntimeBrandingProvider>;
 }
 
 function WorkspaceContent() {
   const { state } = useOperationsAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const { requestNavigation } = useDraftNavigation();
   const { fontScale } = useWindowDimensions();
   const { color } = useUiTheme();
   const { displayName, logoUrl } = useRuntimeBranding();
@@ -50,7 +54,10 @@ function WorkspaceContent() {
     deliveries: role === "DELIVERY_DRIVER" ? t("Tasks", "တာဝန်များ") : t("Delivery", "ပို့ဆောင်ရေး"),
     notifications: t("Updates", "အသိပေးချက်"), profile: t("Account", "အကောင့်"), more: t("More", "အခြား"),
   };
-  const navigate = (path: NavigationItem["path"]) => { setMoreOpen(false); router.navigate(path); };
+  const navigate = (path: NavigationItem["path"]) => {
+    if (path === pathname) { setMoreOpen(false); return; }
+    requestNavigation(() => { setMoreOpen(false); router.navigate(path); });
+  };
   return <SafeAreaView style={[styles.screen, { backgroundColor: color.background }]}>
     <KeyboardAvoidingView style={styles.content} behavior="height">
     <View style={[styles.header, { backgroundColor: color.background }]}>

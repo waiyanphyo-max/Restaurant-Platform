@@ -7,6 +7,7 @@ import { useOperationsAuth } from "../../auth/AuthProvider";
 import { useRuntimeBranding } from "../../branding/RuntimeBrandingProvider";
 import { Action, Body, Card, ConfirmDialog, FormField, StateView, Status, ThemeProvider, useUiTheme } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 import { readEmbeddedTenant } from "../../tenant";
 
 const fields = [
@@ -38,6 +39,7 @@ function PaletteForm() {
   const [forbidden, setForbidden] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  useUnsavedChanges(draft !== null);
   const refreshGate = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);

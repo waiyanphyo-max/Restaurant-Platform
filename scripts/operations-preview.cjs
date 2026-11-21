@@ -1,11 +1,11 @@
 "use strict";
 
 /**
- * Read-only presentation fixture for UXI-10. Runs the real Operations TSX through
+ * Read-only presentation fixture for UXI-10/11. Runs the real Operations TSX through
  * React DOM SSR and a deliberately small React Native adapter. This is a DOM
  * approximation, not evidence of Android, font, keyboard or TalkBack acceptance.
  * No live auth, API, native configuration or persisted user data is loaded.
- * Run: node scripts/operations-preview.cjs [--serve]
+ * Run: node scripts/operations-preview.cjs [--catalog] [--serve]
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -15,7 +15,8 @@ const { renderToStaticMarkup } = require("react-dom/server");
 const { resolveThemeTokens } = require("@restaurant-platform/ui-tokens");
 const appRoot = path.resolve(__dirname, "../apps/operations-mobile");
 const root = path.resolve(__dirname, "..");
-const output = path.join(root, "target/uxi-10-preview");
+const catalogMode = process.argv.includes("--catalog");
+const output = path.join(root, catalogMode ? "target/uxi-11-preview" : "target/uxi-10-preview");
 const ts = Module.createRequire(path.join(appRoot, "package.json"))("typescript");
 const h = React.createElement;
 const noop = () => {};
@@ -128,13 +129,26 @@ const mocks = {
     OperationsWorkspaceContext: props => props.children },
   "auth/WorkspaceBoundary.tsx": { WorkspaceBoundary: props => props.children },
   "branding/RuntimeBrandingProvider.tsx": { RuntimeBrandingProvider: props => props.children,
-    useRuntimeBranding: () => ({ displayName: fixture.tenant.branding.displayName, logoUrl: null, refresh: noopAsync }) },
+    useRuntimeBranding: () => ({ displayName: fixture.tenant.branding.displayName, logoUrl: null, refresh: noopAsync,
+      scopeKey: fixture.tenant.restaurantId, branding: { restaurantId: fixture.tenant.restaurantId, displayName: fixture.tenant.branding.displayName,
+        logoUrl: null, revision: 3, palette: fixture.palette }, loading: false, refreshing: false, error: null }) },
   "hooks/useApiMutation.ts": { useApiMutation: () => ({ busy: false, error: null, message: null, reset: noop, run: noopAsync }) },
   "hooks/useApiQuery.ts": { useApiQuery: (_query, key) => ({ state: { status: "ready", data: queryData(key) }, reload: noop }) },
   "api.ts": { getOperationsApi: () => { throw new Error("Preview blocks all API access"); } },
+  "components/useImageUpload.ts": { useImageUpload: () => noopAsync },
+  "components/imageUpload.ts": { pickImage: noopAsync },
 };
 function page(content) { return { content, number: 0, totalPages: content.length ? 1 : 0, totalElements: content.length, first: true, last: true }; }
 function queryData(key) {
+  if (key.startsWith("delivery-config:")) return key.endsWith(":true")
+    ? { zones: fixture.zones, drivers: fixture.members.filter(member => member.role === "DELIVERY_DRIVER"), defaultDriver: { restaurantId: fixture.tenant.restaurantId, defaultDriverUserId: fixture.members[2].userId } }
+    : null;
+  if (key.startsWith("owner-menu:")) return { products: fixture.products, categories: fixture.categories, groups: fixture.groups, currency: "MMK" };
+  if (key === "menu-featured-product") return { restaurantId: fixture.tenant.restaurantId, productId: fixture.products[0].id, status: "AVAILABLE", revision: 2 };
+  if (key === "managed-profile") return fixture.restaurant;
+  if (key === "managed-settings") return fixture.settings;
+  if (key === "managed-team") return fixture.members;
+  if (key === "managed-tables") return fixture.tables;
   if (key.startsWith("order-payments:")) return fixture.payments;
   if (key.startsWith("order:")) return fixture.order;
   if (key.startsWith("orders:")) return page([fixture.order]);
@@ -153,10 +167,12 @@ const oldPng = require.extensions[".png"];
 Module._load = function(request, parent, isMain) {
   if (request === "react-native") return { ...native, Linking: { openURL: noopAsync } };
   if (request === "react-native-safe-area-context") return { SafeAreaView: View, SafeAreaProvider: View };
-  if (request === "expo-router") return { Slot: () => h(Screen), Redirect: () => null,
+  if (request === "expo-router") return { Slot: () => h(Screen), Redirect: () => null, usePreventRemove: () => noop,
     Link: props => props.asChild ? props.children : h("a", { href: typeof props.href === "string" ? props.href : "#", style: style(props.style), ...attributes(props) }, props.children),
     usePathname: () => route, useLocalSearchParams: () => ({}), useFocusEffect: noop,
     useRouter: () => ({ navigate: noop, push: noop, replace: noop }) };
+  if (["expo-file-system/legacy", "expo-sharing"].includes(request)) return {};
+  if (request === "react-native-qrcode-svg") return () => h("div", null, "Synthetic preview: no QR credential");
   if (request.startsWith(".")) {
     const resolved = Module._resolveFilename(request, parent);
     for (const [suffix, mock] of Object.entries(mocks)) if (resolved === path.join(appRoot, "src", suffix)) return mock;
@@ -198,7 +214,29 @@ function makeFixture(letter, role) {
     destination: { name: task.customerName, address: task.deliveryAddress, latitude: null, longitude: null } };
   const ready = data => ({ status: "ready", data });
   const counts = [1, 2, 1, 3, 1].map(ready);
-  return { management, order, queue, detail, payments: [{ id: uuid(40), method: "CASH_AT_COUNTER", status: "PENDING", amount: 13000, paidAt: null }],
+  const settings = { acceptsOrders: true, allowQrOrder: true, allowDelivery: true, allowTakeaway: true,
+    minimumOrder: 1500, defaultDeliveryFee: 500, currency: "MMK", timezone: "Asia/Yangon" };
+  const categories = [{ id: uuid(50), name: red ? "Meals and seasonal specials" : "ထမင်းနှင့် ရာသီအလိုက်ဟင်းလျာများ", displayOrder: 0, active: true }];
+  const products = [{ id: uuid(51), categoryId: categories[0].id,
+    name: item.productName + " · " + item.productName, description: item.specialInstruction, price: 6500, imageUrl: null,
+    available: true, trackStock: true, stockQuantity: 14, createdAt: order.createdAt, updatedAt: order.createdAt },
+    { id: uuid(52), categoryId: categories[0].id, name: red ? "Soup · unavailable today" : "ဟင်းချို", description: null,
+      price: 9007199254740991, imageUrl: "https://unsafe.example.test/photo.png#qrToken=blocked", available: false,
+      trackStock: true, stockQuantity: 0, createdAt: order.createdAt, updatedAt: order.createdAt }];
+  const groups = [{ id: uuid(55), name: red ? "Required selection\nChoose spice level" : "လိုအပ်သော ရွေးချယ်မှု\nအရသာရွေးချယ်ပါ", required: true, minSelections: 1, maxSelections: 1, active: true }];
+  const members = [{ id: uuid(60), userId: uuid(2), fullName: "Synthetic Owner", email: "owner@example.test", role: "OWNER", createdAt: order.createdAt },
+    { id: uuid(61), userId: uuid(3), fullName: "Synthetic current Manager", email: "manager@example.test", role: "MANAGER", createdAt: order.createdAt },
+    { id: uuid(62), userId: uuid(4), fullName: "Synthetic Delivery Driver", email: "driver@example.test", role: "DELIVERY_DRIVER", createdAt: order.createdAt }];
+  return { management, order, queue, detail, settings, categories, products, groups, members,
+    palette: { primaryColor: branding.primaryColor, secondaryColor: branding.secondaryColor, backgroundColor: branding.backgroundColor },
+    restaurant: { id: uuid(1), name: branding.displayName, slug: `synthetic-${letter}`, description: "Synthetic restaurant fixture", address: "Fixture address", phone: null,
+      township: "Synthetic Township", city: "Synthetic City", active: true, logoUrl: null },
+    tables: [{ id: uuid(70), tableNumber: "Synthetic table with a longer label", active: true }, { id: uuid(71), tableNumber: "Inactive table", active: false }],
+    zones: [{ id: uuid(80), restaurantId: uuid(1), name: "Canonical synthetic zone", deliveryFee: 500, minimumOrder: 1000, active: true,
+      coverageCity: "Synthetic Region", coverageTownship: "Synthetic Township", regionId: uuid(81), districtId: uuid(82), townshipId: uuid(83), regionName: "Synthetic Region", districtName: "Synthetic District" },
+    { id: uuid(84), restaurantId: uuid(1), name: "Legacy label · original preserved", deliveryFee: 9007199254740991, minimumOrder: 0, active: false,
+      coverageCity: "Original legacy city", coverageTownship: "မူရင်းမြို့နယ် · Ambiguous township", regionId: null, districtId: null, townshipId: null }],
+    payments: [{ id: uuid(40), method: "CASH_AT_COUNTER", status: "PENDING", amount: 13000, paidAt: null }],
     tenant: { restaurantId: uuid(1), apiBaseUrl: `https://api-${letter}.example.test`, environment: "development", branding, notificationsEnabled: false },
     access: { status: "ready", userId: uuid(2), membership: { restaurantId: uuid(1), active: true, role, name: branding.displayName } },
     dashboard: { orders: role === "DELIVERY_DRIVER" ? null : counts, queue: role === "DELIVERY_DRIVER" ? null : ready(queue),
@@ -208,7 +246,19 @@ function makeFixture(letter, role) {
 }
 
 try {
-  const screens = {
+  const screens = catalogMode ? {
+    menu: require(path.join(appRoot, "src/features/menu/MenuScreen.tsx")).MenuScreen,
+    settings: require(path.join(appRoot, "src/features/management/SettingsScreen.tsx")).SettingsScreen,
+    team: require(path.join(appRoot, "src/features/management/TeamScreen.tsx")).TeamScreen,
+    tables: require(path.join(appRoot, "src/features/management/TablesScreen.tsx")).TablesScreen,
+    zones: () => {
+      const { Page, StateView } = require(path.join(appRoot, "src/components/ui.tsx"));
+      const { DeliveryConfiguration, ZoneEditor } = require(path.join(appRoot, "src/features/operations/DeliveryConfiguration.tsx"));
+      return h(Page, { title: "Delivery zones" }, fixture.management
+        ? [h(DeliveryConfiguration, { key: "configuration" }), ...fixture.zones.map(zone => h(ZoneEditor, { key: zone.id, zone, restaurantId: fixture.tenant.restaurantId, reload: noop }))]
+        : h(StateView, { kind: "forbidden", message: "Only the restaurant Owner or Manager can configure coverage." }));
+    },
+  } : {
     dashboard: require(path.join(appRoot, "src/features/operations/DashboardScreen.tsx")).DashboardScreen,
     orders: require(path.join(appRoot, "src/features/operations/OrdersScreen.tsx")).OrdersScreen,
     queue: require(path.join(appRoot, "src/features/operations/QueueScreen.tsx")).QueueScreen,
@@ -233,7 +283,7 @@ try {
       links.push(`<li><a href="${filename}">${title}</a></li>`);
     }
   }
-  fs.writeFileSync(path.join(output, "index.html"), `<!doctype html><html><meta charset="utf-8"><title>UXI-10 Operations DOM previews</title><h1>Operations DOM approximations</h1><p>${links.length} actual-TSX static previews, synthetic restaurants A/B, red/teal, four roles, 320/720px, 100/200% text. No live API, device, keyboard, TalkBack or Figma acceptance claim. Dialog and counter interaction states are covered by component tests, not this SSR.</p><ul>${links.join("")}</ul></html>`);
+  fs.writeFileSync(path.join(output, "index.html"), `<!doctype html><html><meta charset="utf-8"><title>UXI-${catalogMode ? "11" : "10"} Operations DOM previews</title><h1>Operations DOM approximations</h1><p>${links.length} actual-TSX static previews, synthetic restaurants A/B, red/teal, four roles, 320/720px, 100/200% text. No live API, device, keyboard, TalkBack or Figma acceptance claim. Dialog and editor interaction states are covered by component tests, not this SSR.</p><ul>${links.join("")}</ul></html>`);
   console.log(`Generated ${links.length} Operations DOM approximation previews in ${output}`);
 } finally {
   Module._load = originalLoad;
@@ -243,12 +293,17 @@ try {
 }
 
 if (process.argv.includes("--serve")) {
+  const port = catalogMode ? 4181 : 4179;
   require("node:http").createServer((request, response) => {
     const basename = path.basename(new URL(request.url, "http://127.0.0.1").pathname) || "index.html";
-    if (!/^(?:index|[ab]-(?:owner|manager|staff|delivery_driver)-(?:dashboard|orders|queue|deliveries|order|delivery)-(?:320|720)-(?:100|200))\.html$/.test(basename)) {
+    if (!/^(?:index|[ab]-(?:owner|manager|staff|delivery_driver)-(?:dashboard|orders|queue|deliveries|order|delivery|menu|settings|team|tables|zones)-(?:320|720)-(?:100|200))\.html$/.test(basename)) {
       response.writeHead(404); response.end("Not found"); return;
     }
-    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-    fs.createReadStream(path.join(output, basename)).pipe(response);
-  }).listen(4179, "127.0.0.1", () => console.log("Operations DOM preview: http://127.0.0.1:4179/index.html"));
+    const stream = fs.createReadStream(path.join(output, basename));
+    stream.on("error", () => { if (!response.headersSent) response.writeHead(404); response.end("Not found"); });
+    stream.on("open", () => {
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      stream.pipe(response);
+    });
+  }).listen(port, "127.0.0.1", () => console.log(`Operations DOM preview: http://127.0.0.1:${port}/index.html`));
 }

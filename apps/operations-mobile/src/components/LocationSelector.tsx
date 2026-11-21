@@ -39,6 +39,7 @@ function Choice({ label, id, name, list, enabled, disabled, onChoose }: {
     {enabled && list.error ? <><Text accessibilityRole="alert">Could not load {label.toLowerCase()}.</Text>
       <Action title={`Retry ${label.toLowerCase()}`} secondary onPress={list.retry} disabled={disabled} /></> : null}
     {enabled && !list.loading && !list.error && !list.data.length ? <Body>No active {label.toLowerCase()} available.</Body> : null}
+    {enabled && !!id && !list.loading && !list.error && !selected ? <Body accessibilityRole="alert" tone="warning">The selected {label.toLowerCase()} is no longer active. Select a current location before applying new coverage.</Body> : null}
     {open && enabled && !list.loading && !list.error ? <>
       <FormField label={`Search ${label.toLowerCase()}`} value={search} onChangeText={setSearch} editable={!disabled} />
       {!rows.length && list.data.length ? <Body>No matching locations.</Body> : null}
@@ -49,12 +50,17 @@ function Choice({ label, id, name, list, enabled, disabled, onChoose }: {
 }
 
 /** Changing a parent clears descendants in the same state update. A map is optional. */
-export function LocationSelector({ value, onChange, disabled = false }: {
-  value: LocationSelection; onChange(value: LocationSelection): void; disabled?: boolean;
+export function LocationSelector({ value, onChange, disabled = false, onValidityChange }: {
+  value: LocationSelection; onChange(value: LocationSelection): void; disabled?: boolean; onValidityChange?(valid: boolean): void;
 }) {
   const regions = useLocations("regions", "");
   const districts = useLocations("districts", value.regionId);
   const townships = useLocations("townships", value.districtId);
+  const valid = !regions.loading && !districts.loading && !townships.loading && !regions.error && !districts.error && !townships.error
+    && regions.data.some(item => item.id === value.regionId)
+    && districts.data.some(item => item.id === value.districtId && item.regionId === value.regionId)
+    && townships.data.some(item => item.id === value.townshipId && item.districtId === value.districtId && item.regionId === value.regionId);
+  useEffect(() => { onValidityChange?.(valid); }, [valid, onValidityChange]);
   return <View style={{ gap: 12 }}>
     <Choice label="Region / State" id={value.regionId} name={value.regionName} list={regions} enabled disabled={disabled}
       onChoose={item => onChange({ regionId: item.id, regionName: item.nameEn, districtId: "", districtName: "", townshipId: "", township: "" })} />

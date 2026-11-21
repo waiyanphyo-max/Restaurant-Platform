@@ -26,17 +26,17 @@ import { LocationSelector } from "./LocationSelector";
 
 const region = { id: "r", nameEn: "Region", code: "R", nameMy: null };
 const district = { id: "d", nameEn: "District", code: "D", nameMy: null, regionId: "r" };
-const township = { id: "t", nameEn: "Township", code: "T", nameMy: null, districtId: "d" };
+const township = { id: "t", nameEn: "Township", code: "T", nameMy: null, regionId: "r", districtId: "d" };
 const initial: LocationSelection = { regionId: "", districtId: "", townshipId: "", regionName: "", districtName: "", township: "" };
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
   return isValidElement<Record<string, unknown>>(node) ? [node, ...elements(node.props.children as ReactNode)] : [];
 }
-function setup(start = initial) {
+function setup(start = initial, onValidityChange?: (valid: boolean) => void) {
   let value = start;
   const onChange = vi.fn((next: LocationSelection) => { value = next; });
-  const render = () => { harness.state = 0; harness.effect = 0; return LocationSelector({ value, onChange }); };
+  const render = () => { harness.state = 0; harness.effect = 0; return LocationSelector({ value, onChange, onValidityChange }); };
   const choice = (label: string) => elements(render()).find(item => item.props.label === label)!.props as {
     enabled: boolean; list: { loading: boolean; error: boolean; data: GeoLocationDto[]; retry(): void }; onChoose(item: GeoLocationDto): void;
   };
@@ -50,6 +50,25 @@ beforeEach(() => {
   harness.townships.mockReset().mockResolvedValue([township]);
 });
 describe("canonical dependent location selection", () => {
+  it("reports validity only for currently active records in the same loaded hierarchy", async () => {
+    const valid = vi.fn();
+    const view = setup({ ...initial, regionId: "r", districtId: "d", townshipId: "t" }, valid);
+    view.choice("Township"); expect(valid).toHaveBeenLastCalledWith(false); await tick();
+    view.choice("Township"); expect(valid).toHaveBeenLastCalledWith(true);
+    view.choice("Region / State").onChoose({ ...region, id: "inactive" });
+    view.choice("Township"); await tick(); view.choice("Township");
+    expect(valid).toHaveBeenLastCalledWith(false);
+  });
+  it("does not authorize a stale township or a mismatched parent even if labels still match", async () => {
+    harness.townships.mockResolvedValue([{ ...township, regionId: "other-region" }]);
+    const valid = vi.fn();
+    const view = setup({ ...initial, regionId: "r", districtId: "d", townshipId: "t" }, valid);
+    view.choice("Township"); await tick(); view.choice("Township");
+    expect(valid).toHaveBeenLastCalledWith(false);
+    harness.townships.mockResolvedValue([]);
+    view.choice("Township").list.retry(); view.choice("Township"); await tick(); view.choice("Township");
+    expect(valid).toHaveBeenLastCalledWith(false);
+  });
   it("loads only eligible levels and clears descendants atomically when parents change", async () => {
     const view = setup();
     expect(view.choice("District").enabled).toBe(false);

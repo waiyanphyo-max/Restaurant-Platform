@@ -49,6 +49,7 @@ vi.mock("../../components/forms", () => ({ FormToggle: "FormToggle", MutationFee
 vi.mock("../management/controls", () => ({ Choices: "Choices" }));
 vi.mock("../../components/QueryResult", () => ({ QueryResult: "QueryResult" }));
 vi.mock("../../components/LocationSelector", () => ({ LocationSelector: "LocationSelector" }));
+vi.mock("../../hooks/useUnsavedChanges", () => ({ useUnsavedChanges: () => undefined, useDraftNavigation: () => ({ requestNavigation: (action: () => void) => action() }) }));
 vi.mock("./CounterProductMedia", () => ({ CounterProductMedia: "CounterProductMedia" }));
 
 import { CounterOrderPanel } from "./CounterOrderPanel";

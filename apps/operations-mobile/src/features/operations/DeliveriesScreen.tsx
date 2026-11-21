@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
-import type { DeliveryTaskDto, DeliveryZoneResponse } from "@restaurant-platform/shared-types";
-import type { LocationSelection } from "@restaurant-platform/shared-types";
-import { LocationSelector } from "../../components/LocationSelector";
+import type { DeliveryTaskDto } from "@restaurant-platform/shared-types";
+import { DeliveryConfiguration } from "./DeliveryConfiguration";
 import { getOperationsApi } from "../../api";
 import { useOperationsAuth } from "../../auth/AuthProvider";
 import { QueryResult } from "../../components/QueryResult";
@@ -155,68 +154,6 @@ function ManagementDeliveryCard({ delivery, reload }: { delivery: DeliveryTaskDt
     <ConfirmDialog visible={pending !== null} title="Confirm delivery action" message={pending === "DELIVERED" ? `Complete delivery? Cash collection: ${cash ? "confirmed" : "not confirmed"}. Confirm you received any cash due before completing delivery.` : pending === "ASSIGN" ? "Assign this delivery to the selected restaurant member?" : pending === "CANCELLED" ? "Cancel this delivery task? The order and its payment stay unchanged. Review the order separately." : `Change delivery status to ${pending ?? ""}?`} confirmLabel="Confirm" onCancel={() => setPending(null)} onConfirm={() => {
       const action = pending; setPending(null); if (!action) return;
       void mutation.run(() => applyDeliveryAction(action), reload, () => { blocked.current = true; setNeedsReview(true); reload(); });
-    }} />
-  </Card>;
-}
-
-function DeliveryConfiguration() {
-  const [open, setOpen] = useState(false);
-  const query = useApiQuery(async signal => {
-    if (!open) return null;
-    const api = getOperationsApi();
-    const [zones, members, defaultDriver] = await Promise.all([api.listDeliveryZones({ signal }), api.listDeliveryAssignmentOptions({ signal }), api.getDefaultDriver({ signal })]);
-    return { zones, drivers: members.filter(member => member.role === "DELIVERY_DRIVER"), defaultDriver };
-  }, `delivery-config:${open}`);
-  const mutation = useApiMutation();
-  const [pendingDriver, setPendingDriver] = useState<string | null>(null);
-  return <Card title="Delivery configuration"><Action title={open ? "Close configuration" : "Manage coverage, fees and default driver"} secondary onPress={() => setOpen(value => !value)} />
-    {open ? <QueryResult {...query}>{data => data ? <>
-      <MutationFeedback {...mutation} /><Body>Default driver: {data.drivers.find(driver => driver.userId === data.defaultDriver.defaultDriverUserId)?.fullName ?? data.defaultDriver.defaultDriverUserId ?? "Not configured"}</Body>
-      {data.drivers.map(driver => <Action key={driver.userId} title={`Set default: ${driver.fullName ?? driver.email ?? driver.userId}`} secondary disabled={mutation.busy || driver.userId === data.defaultDriver.defaultDriverUserId} onPress={() => setPendingDriver(driver.userId)} />)}
-      {!data.drivers.length ? <Body>No eligible Delivery Driver members.</Body> : null}
-      {data.zones.map(zone => <ZoneEditor key={`${zone.id}:${zone.name}:${zone.deliveryFee}:${zone.minimumOrder}:${zone.active}:${zone.coverageCity}:${zone.coverageTownship}`} zone={zone} reload={query.reload} />)}
-      <ZoneEditor reload={query.reload} />
-    </> : null}</QueryResult> : null}
-    <ConfirmDialog visible={pendingDriver !== null} title="Change default driver" message="Use this driver for future automatic delivery assignments? Existing assignments will remain." confirmLabel="Set default" onCancel={() => setPendingDriver(null)} onConfirm={() => {
-      const id = pendingDriver; setPendingDriver(null); if (id) void mutation.run(() => getOperationsApi().setDefaultDriver({ driverUserId: id }), query.reload);
-    }} />
-  </Card>;
-}
-
-function wholeAmount(value: string): number {
-  if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) throw new FormValidationError("Enter a non-negative whole monetary amount within the supported range.");
-  return Number(value);
-}
-function ZoneEditor({ zone, reload }: { zone?: DeliveryZoneResponse; reload(): void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState(zone?.name ?? "");
-  const [fee, setFee] = useState(String(zone?.deliveryFee ?? 0));
-  const [minimum, setMinimum] = useState(String(zone?.minimumOrder ?? 0));
-  const emptyLocation: LocationSelection = { regionId: "", districtId: "", townshipId: "", regionName: "", districtName: "", township: "" };
-  const [location, setLocation] = useState<LocationSelection>({ regionId: zone?.regionId ?? "", districtId: zone?.districtId ?? "", townshipId: zone?.townshipId ?? "",
-    regionName: zone?.regionName ?? "", districtName: zone?.districtName ?? "", township: zone?.coverageTownship ?? "" });
-  const [active, setActive] = useState(zone?.active ?? true);
-  const [confirm, setConfirm] = useState(false);
-  const mutation = useApiMutation();
-  return <Card title={zone ? `${zone.name}${zone.active ? "" : " · inactive"}` : "New delivery zone"}>
-    <Action title={open ? "Close zone form" : zone ? "Edit zone and coverage" : "Create delivery zone"} secondary onPress={() => setOpen(value => !value)} />
-    {open ? <><FormField label="Zone name" value={name} onChangeText={setName} maxLength={100} />
-      <FormField label="Delivery fee (whole amount)" value={fee} onChangeText={setFee} keyboardType="number-pad" />
-      <FormField label="Minimum order (whole amount)" value={minimum} onChangeText={setMinimum} keyboardType="number-pad" />
-      {zone && !zone.townshipId ? <Body>Review this legacy coverage before saving: {zone.coverageTownship}, {zone.coverageCity}</Body> : null}
-      <LocationSelector value={location} onChange={setLocation} disabled={mutation.busy} />
-      <FormToggle label="Active zone" value={active} onChange={setActive} />
-      <MutationFeedback {...mutation} /><Action title="Save delivery zone" disabled={mutation.busy} onPress={() => setConfirm(true)} />
-    </> : <Body>Fee {operationalAmount(zone?.deliveryFee ?? 0)} · Minimum {operationalAmount(zone?.minimumOrder ?? 0)}</Body>}
-    <ConfirmDialog visible={confirm} title="Save zone" message="Update delivery coverage and fees? Checkout uses the current zone configuration." confirmLabel="Save" onCancel={() => setConfirm(false)} onConfirm={() => {
-      setConfirm(false); void mutation.run(async () => {
-        if (!name.trim()) throw new FormValidationError("Enter a zone name.");
-        if (!location.regionId || !location.districtId || !location.townshipId) throw new FormValidationError("Select Region / State, District and Township.");
-        const body = { name: name.trim(), deliveryFee: wholeAmount(fee), minimumOrder: wholeAmount(minimum), active,
-          regionId: location.regionId, districtId: location.districtId, townshipId: location.townshipId,
-          coverageCity: location.regionName, coverageTownship: location.township };
-        return zone ? getOperationsApi().updateDeliveryZone(zone.id, body) : getOperationsApi().createDeliveryZone(body);
-      }, () => { if (!zone) { setName(""); setLocation(emptyLocation); setOpen(false); } reload(); });
     }} />
   </Card>;
 }
