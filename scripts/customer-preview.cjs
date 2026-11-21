@@ -5,7 +5,7 @@
  * React DOM SSR and a deliberately small React Native adapter. This is a DOM
  * approximation, not evidence of Android, font, keyboard or TalkBack acceptance.
  * No live auth, API, native configuration or persisted user data is loaded.
- * Run: node scripts/customer-preview.cjs [--serve]
+ * Run: node scripts/customer-preview.cjs [--lifecycle] [--serve]
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -15,7 +15,9 @@ const { renderToStaticMarkup } = require("react-dom/server");
 const { resolveThemeTokens } = require("@restaurant-platform/ui-tokens");
 const appRoot = path.resolve(__dirname, "../apps/customer-mobile");
 const root = path.resolve(__dirname, "..");
-const output = path.join(root, "target/uxi-08-preview");
+const lifecycle = process.argv.includes("--lifecycle");
+const milestone = lifecycle ? "UXI-09" : "UXI-08";
+const output = path.join(root, lifecycle ? "target/uxi-09-preview" : "target/uxi-08-preview");
 const ts = Module.createRequire(path.join(appRoot, "package.json"))("typescript");
 const h = React.createElement;
 const noop = () => {};
@@ -24,6 +26,7 @@ let route = "/home";
 let fontScale = 1;
 let previewWidth = 360;
 let Screen;
+let scenario;
 
 function flatten(value) {
   if (typeof value === "function") return flatten(value({ pressed: false }));
@@ -66,6 +69,7 @@ function attributes(props) {
     role: props.accessibilityRole === "header" ? "heading" : props.accessibilityRole === "text" ? undefined : props.accessibilityRole,
     "aria-label": props.accessibilityLabel,
     "aria-selected": state.selected,
+    "aria-checked": state.checked,
     "aria-disabled": state.disabled,
     "aria-busy": state.busy,
     "aria-live": props.accessibilityLiveRegion,
@@ -106,6 +110,8 @@ function SectionList(props) {
 }
 const native = {
   View, Text, Pressable, ScrollView, TextInput, Image, SectionList,
+  Switch: props => h("input", { ...attributes(props), type: "checkbox", checked: props.value, readOnly: true }),
+  AppState: { currentState: "active", addEventListener: () => ({ remove: noop }) },
   SafeAreaView: View, KeyboardAvoidingView: View,
   StyleSheet: { create: value => value, flatten, hairlineWidth: 1 },
   Modal: props => props.visible ? h(View, props) : null,
@@ -117,7 +123,7 @@ const native = {
 };
 const content = () => h(Screen);
 const accountPort = () => ({ state: { status: "ready", data: fixture.account }, reload: noop,
-  editAddress: noop, dismissOnboarding: noop, editingAddress: null });
+  editAddress: noop, dismissOnboarding: noop, editingAddress: scenario === "legacy" ? fixture.legacyAddress : null });
 const cartPort = () => ({ lines: fixture.lines, unavailable: [], items: fixture.lines.map(line => line.item),
   saveLine: () => false, remove: noop, clear: noop, replace: noop });
 const mocks = {
@@ -129,8 +135,14 @@ const mocks = {
   "features/profile/AccountProvider.tsx": { useCustomerAccount: accountPort, CustomerAccountProvider: props => props.children,
     homeAddress: addresses => addresses.find(address => address.label.toLowerCase() === "home") },
   "features/cart/CartProvider.tsx": { useCustomerCart: cartPort, CustomerCartProvider: props => props.children },
-  "features/checkout/CheckoutProvider.tsx": { useCustomerCheckout: () => ({ state: { status: "uncertain" } }),
+  "features/checkout/CheckoutProvider.tsx": { useCustomerCheckout: () => ({ state: !lifecycle ? { status: "uncertain" }
+    : scenario === "uncertain" ? { status: "uncertain", attempt: fixture.attempt }
+      : scenario === "receipt" ? { status: "created", order: fixture.receipt } : { status: "idle" },
+    reset: noop, submit: noop, recover: noop, abandonPrevious: noop }),
     CustomerCheckoutProvider: props => props.children },
+  "hooks/useApiQuery.ts": { useApiQuery: (_query, key) => ({ state: { status: "ready",
+    data: key.startsWith("orders:") ? { content: [fixture.order], last: true, number: 0, totalPages: 1 }
+      : key.startsWith("order:") ? fixture.order : [] }, reload: noop }) },
   "features/storefront/MenuProvider.tsx": { usePublicMenu: () => ({ state: { status: "ready", data: fixture.menu }, reload: noop }),
     CustomerMenuProvider: props => props.children },
   "api.ts": { getCustomerApi: () => { throw new Error("Preview blocks all private API access"); },
@@ -145,8 +157,10 @@ Module._load = function(request, parent, isMain) {
   if (request === "react-native") return native;
   if (request === "react-native-safe-area-context") return { SafeAreaView: View, SafeAreaProvider: View };
   if (request === "expo-router") return { Slot: content, Redirect: () => null,
-    usePathname: () => route, useLocalSearchParams: () => ({ productId: fixture.product.id }),
+    usePathname: () => route, useLocalSearchParams: () => ({ productId: fixture.product.id, orderId: fixture.order?.id }), useFocusEffect: noop,
     useRouter: () => ({ navigate: noop, push: noop, replace: noop }) };
+  if (request === "react-native-maps") return { __esModule: true, default: View, Marker: View, PROVIDER_GOOGLE: "preview" };
+  if (request === "expo-location") return {};
   if (request.startsWith(".")) {
     const resolved = Module._resolveFilename(request, parent);
     for (const [suffix, mock] of Object.entries(mocks)) {
@@ -198,7 +212,32 @@ function makeFixture(letter) {
   const lines = [{ id: "fixture-line-1", name: product.name, variantName: product.variants[0].name, modifierNames: [product.modifierGroups[0].options[0].name],
     unitPrice: 6500, currency: "MMK", item: { productId: product.id, variantId: uuid(11), quantity: 2,
       modifiers: [{ modifierOptionId: uuid(14), quantity: 1 }], specialInstruction: red ? "Please pack carefully" : "သေချာထုပ်ပိုးပေးပါ" } }];
-  return { menu, product, lines, account,
+  const saved = account.addresses[0];
+  saved.recipientPhone = account.profile.phone;
+  Object.assign(saved, { regionId: uuid(70), districtId: uuid(71), townshipId: uuid(72), regionName: "Fixture Region", districtName: "Fixture District" });
+  const legacyAddress = { ...saved, regionId: null, districtId: null, townshipId: null };
+  const order = { id: uuid(80), orderNumber: `SYNTHETIC-${letter.toUpperCase()}`, createdAt: "2026-11-21T03:00:00Z",
+    status: "COMPLETED", orderType: "DELIVERY", currency: "MMK", subtotal: 13000, deliveryFee: 1500,
+    discountAmount: 0, totalAmount: 14500, canCancel: false, deliveryAddress: [saved.houseNo, saved.street, saved.ward, saved.township].join(", "),
+    deliveryName: saved.recipientName, deliveryPhone: saved.recipientPhone, deliveryNote: saved.deliveryNote,
+    deliveryLatitude: null, deliveryLongitude: null, deliveryLocationSource: "SAVED_ADDRESS",
+    items: [{ id: uuid(81), productId: product.id, productName: product.name, variantId: uuid(11), variantName: product.variants[0].name,
+      quantity: 2, unitPrice: 6500, subtotal: 13000, specialInstruction: lines[0].item.specialInstruction,
+      modifiers: [{ id: uuid(83), modifierOptionId: uuid(14), name: product.modifierGroups[0].options[0].name, quantity: 1, additionalPrice: 0 }] }],
+    payments: [{ id: uuid(82), method: "CASH_ON_DELIVERY", status: red ? "PENDING" : "PAID", amount: 14500 }],
+    statusHistory: [{ status: "PENDING", changedAt: "2026-11-21T03:00:00Z" }, { status: "COMPLETED", changedAt: "2026-11-21T03:25:00Z" }],
+    delivery: { status: "DELIVERED", statusHistory: [{ status: "DELIVERED", changedAt: "2026-11-21T03:40:00Z" }] } };
+  const receipt = { orderId: order.id, orderNumber: order.orderNumber, totalAmount: order.totalAmount, currency: order.currency,
+    createdAt: order.createdAt, status: "PENDING" };
+  const attempt = { body: { items: lines.map(line => line.item), addressId: saved.id, recipientName: saved.recipientName,
+    recipientPhone: saved.recipientPhone, confirmationToken: "synthetic-confirmation" },
+    quote: { destination: { address: order.deliveryAddress }, idempotencyKey: "synthetic-original-key" } };
+  const quote = { restaurantName: branding.displayName, currency: "MMK", subtotal: order.subtotal, deliveryFee: order.deliveryFee,
+    discountAmount: order.discountAmount, totalAmount: order.totalAmount, lines: order.items,
+    destination: { address: order.deliveryAddress, recipientName: saved.recipientName, recipientPhone: saved.recipientPhone,
+      township: saved.township, city: saved.city, regionName: saved.regionName, districtName: saved.districtName,
+      deliveryNote: saved.deliveryNote, latitude: null, longitude: null }, confirmationToken: "synthetic-confirmation", idempotencyKey: "synthetic-original-key" };
+  return { menu, product, lines, account, legacyAddress, order, receipt, attempt, quote,
     tenant: { restaurantId: uuid(1), apiBaseUrl: `https://api-${letter}.example.test`, environment: "development", branding, notificationsEnabled: false } };
 }
 
@@ -210,20 +249,34 @@ try {
   const StoreLayout = require(path.join(appRoot, "app/(store)/_layout.tsx")).default;
   const { ThemeProvider } = require(path.join(appRoot, "src/components/ui.tsx"));
   const screens = { home: HomeScreen, menu: MenuScreen, product: ProductScreen, cart: CartScreen, account: ProfileScreen };
+  if (lifecycle) {
+    for (const name of Object.keys(screens)) delete screens[name];
+    const Address = require(path.join(appRoot, "app/(store)/address.tsx")).default;
+    const Checkout = require(path.join(appRoot, "app/(store)/checkout.tsx")).default;
+    const { QuoteReview } = require(path.join(appRoot, "src/features/checkout/CheckoutScreen.tsx"));
+    const { Page } = require(path.join(appRoot, "src/components/ui.tsx"));
+    Object.assign(screens, { address: Address, legacy: Address, checkout: Checkout, uncertain: Checkout, receipt: Checkout,
+      quote: () => h(Page, { title: fixture.account.profile.preferredLanguage === "en" ? "Review & confirm" : "စစ်ဆေးပြီး အတည်ပြုရန်" },
+        h(QuoteReview, { quote: fixture.quote, locationLabel: "Home", onSubmit: noop, onChange: noop })),
+      orders: require(path.join(appRoot, "app/(store)/orders.tsx")).default,
+      order: require(path.join(appRoot, "app/(store)/order/[orderId].tsx")).default });
+  }
   fs.mkdirSync(output, { recursive: true });
   const links = [];
   for (const tenant of ["a", "b"]) for (const width of [360, 720]) for (const scale of [1, 2]) for (const [name, component] of Object.entries(screens)) {
-    fixture = makeFixture(tenant); Screen = component; fontScale = scale; previewWidth = width;
-    route = name === "account" ? "/profile" : name === "product" ? `/product/${fixture.product.id}` : `/${name}`;
+    fixture = makeFixture(tenant); Screen = component; scenario = name; fontScale = scale; previewWidth = width;
+    route = name === "account" ? "/profile" : name === "product" ? `/product/${fixture.product.id}`
+      : name === "order" ? `/order/${fixture.order.id}` : name === "legacy" ? "/address"
+        : ["uncertain", "receipt", "quote"].includes(name) ? "/checkout" : `/${name}`;
     const markup = renderToStaticMarkup(h(ThemeProvider, { restaurantId: fixture.tenant.restaurantId, branding: fixture.tenant.branding }, h(StoreLayout)));
     const filename = `${tenant}-${name}-${width}-${scale * 100}.html`;
     const title = `Restaurant ${tenant.toUpperCase()} · ${name} · ${width}px · ${scale * 100}% text`;
     const theme = resolveThemeTokens(fixture.tenant.branding);
-    const html = `<!doctype html><html lang="${tenant === "a" ? "en" : "my"}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;background:#dce1e7;font-family:Arial,'Myanmar Text',sans-serif}button{margin:0;text-align:left}img{max-width:100%}.preview-note{padding:12px;font-size:14px;background:#17212e;color:white;line-height:1.5}.device{width:${width}px;max-width:100vw;height:100vh;height:calc(100vh - 66px);margin:0 auto;background:${theme.color.background};display:flex;flex-direction:column}.device>div{min-height:0;flex:1;overflow:hidden}a{color:inherit}</style><div class="preview-note"><a href="index.html">All previews</a> · ${title}<br>Actual Customer TSX, synthetic fixtures, DOM approximation. Static controls and no-image fixtures. No Android/device acceptance.</div><main class="device">${markup}</main></html>`;
+    const html = `<!doctype html><html lang="${tenant === "a" ? "en" : "my"}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{box-sizing:border-box}body{margin:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;background:#dce1e7;font-family:Arial,'Myanmar Text',sans-serif}button{margin:0;text-align:left;border:0;background:none;padding:0}img{max-width:100%}.preview-note{flex-shrink:0;padding:12px;font-size:14px;background:#17212e;color:white;line-height:1.5}.device{width:${width}px;max-width:100vw;flex:1;min-height:0;margin:0 auto;background:${theme.color.background};display:flex;flex-direction:column}.device>div{min-height:0;flex:1;overflow:hidden}a{color:inherit}</style><div class="preview-note"><a href="index.html">All previews</a> · ${title}<br>Actual Customer TSX, synthetic fixtures, DOM approximation. Static controls and no-image fixtures. No Android/device acceptance.</div><main class="device">${markup}</main></html>`;
     fs.writeFileSync(path.join(output, filename), html);
     links.push(`<li><a href="${filename}">${title}</a></li>`);
   }
-  fs.writeFileSync(path.join(output, "index.html"), `<!doctype html><html><meta charset="utf-8"><title>UXI-08 Customer DOM previews</title><style>body{font:16px/1.6 Arial,sans-serif;max-width:1000px;margin:32px auto;padding:0 24px}</style><h1>UXI-08 Customer DOM previews</h1><p>These 40 previews render actual screen and shared-shell TSX with synthetic, isolated two-tenant providers. The adapter approximates native flexbox and font scaling. Controls are static. These fixtures exercise the actual no-image fallback; image load and failure transitions require separate component or native checks. This does not establish Android typography, keyboard, device, TalkBack or final Figma acceptance.</p><p>Restaurant A uses a red palette and English. Restaurant B uses teal and Burmese. Each screen has 360/720px and 100/200% text cases. Checkout recovery is intentionally visible.</p><ul>${links.join("")}</ul></html>`);
+  fs.writeFileSync(path.join(output, "index.html"), `<!doctype html><html><meta charset="utf-8"><title>${milestone} Customer DOM previews</title><style>body{font:16px/1.6 Arial,sans-serif;max-width:1000px;margin:32px auto;padding:0 24px}</style><h1>${milestone} Customer DOM previews</h1><p>These ${links.length} previews render actual screen and shared-shell TSX with synthetic, isolated two-tenant providers. The adapter approximates native flexbox and font scaling. Controls are static. These fixtures exercise the actual no-image fallback; image load and failure transitions require separate component or native checks. This does not establish Android typography, keyboard, device, TalkBack or final Figma acceptance.</p><p>Restaurant A uses a red palette and English. Restaurant B uses teal and Burmese. Each screen has 360/720px and 100/200% text cases. ${lifecycle ? "Historical delivered A remains COD pending; B records a paid COD response. Address geography is loading in this static renderer. Maps and live APIs are disabled." : "Checkout recovery is intentionally visible."}</p><ul>${links.join("")}</ul></html>`);
   console.log(`Generated ${links.length} actual-TSX DOM approximation previews in ${output}`);
 } finally {
   Module._load = originalLoad;
@@ -236,7 +289,7 @@ if (process.argv.includes("--serve")) {
   const http = require("node:http");
   http.createServer((request, response) => {
     const basename = path.basename(new URL(request.url, "http://127.0.0.1").pathname) || "index.html";
-    if (!/^(?:index|[ab]-(?:home|menu|product|cart|account)-(?:360|720)-(?:100|200))\.html$/.test(basename)) {
+    if (!/^(?:index|[ab]-(?:home|menu|product|cart|account|address|legacy|checkout|uncertain|receipt|quote|orders|order)-(?:360|720)-(?:100|200))\.html$/.test(basename)) {
       response.writeHead(404); response.end("Not found"); return;
     }
     const file = path.join(output, basename);

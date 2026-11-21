@@ -22,9 +22,10 @@ vi.mock("react", async importOriginal => ({
     if (!(index in harness.cleanups)) harness.cleanups[index] = effect() ?? (() => {});
   }
 }));
-vi.mock("react-native", () => ({ ActivityIndicator: "ActivityIndicator", Modal: "Modal", Text: "Text", View: "View", StyleSheet: { create: (value: unknown) => value, absoluteFillObject: {} } }));
+vi.mock("react-native", () => ({ ActivityIndicator: "ActivityIndicator", Modal: "Modal", ScrollView: "ScrollView", Text: "Text", View: "View", StyleSheet: { create: (value: unknown) => value, absoluteFillObject: {} } }));
+vi.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView" }));
 vi.mock("react-native-maps", () => ({ default: "MapView", Marker: "Marker", PROVIDER_GOOGLE: "google" }));
-vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body" }));
+vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", useUiTheme: () => ({ color: { background: "#fff", foreground: "#111", foregroundMuted: "#333", warningForeground: "#742" } }) }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => harness.tenant }));
 vi.mock("../../i18n", () => ({ localize: (language: string, english: string, my: string) => language === "my-MM" ? my : english }));
 

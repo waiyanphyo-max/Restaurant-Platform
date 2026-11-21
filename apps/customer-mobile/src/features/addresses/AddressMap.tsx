@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Modal, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker, PROVIDER_GOOGLE, type Region } from "react-native-maps";
-import { Action, Body } from "../../components/ui";
+import { Action, Body, useUiTheme } from "../../components/ui";
 import { localize, type CustomerLanguage } from "../../i18n";
 import { readEmbeddedTenant } from "../../tenant";
-import type { Coordinates, PinSelection } from "./location";
+import { validCoordinates, type Coordinates, type PinSelection } from "./location";
 
 const approximateYangonRegion: Region = { latitude: 16.8409, longitude: 96.1735, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 
@@ -19,6 +20,7 @@ export function AddressMap({ selection, locating, notice, language = "en", onSel
   onLocate(): void;
 }) {
   const tenant = readEmbeddedTenant();
+  const { color } = useUiTheme();
   const t = (en: string, my: string) => localize(language, en, my);
   const map = useRef<MapView | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -39,8 +41,9 @@ export function AddressMap({ selection, locating, notice, language = "en", onSel
   }, [selection]);
 
   return <Modal visible animationType="slide" onRequestClose={onCancel}>
-    <View style={styles.screen}>
-      <Text accessibilityRole="header" style={styles.title}>{t("Choose your delivery entrance", "ပို့ဆောင်မည့် ဝင်ပေါက်ကို ရွေးပါ")}</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: color.background }}>
+    <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
+      <Text allowFontScaling accessibilityRole="header" style={[styles.title, { color: color.foreground }]}>{t("Choose your delivery entrance", "ပို့ဆောင်မည့် ဝင်ပေါက်ကို ရွေးပါ")}</Text>
       <Body>{t("Move the map, tap to place a pin, or drag the marker. Location permission is optional.",
         "မြေပုံရွှေ့ပါ၊ နေရာကို နှိပ်ရွေးပါ သို့မဟုတ် အမှတ်ကို ဆွဲရွှေ့ပါ။ တည်နေရာအသုံးပြုခွင့် ပေးရန် မလိုအပ်ပါ။")}</Body>
       {!selection.coordinates && !tenant.initialMapRegion ? <Body>{t("The initial view is an approximate Yangon region. Move to your area.",
@@ -54,29 +57,30 @@ export function AddressMap({ selection, locating, notice, language = "en", onSel
             title={t("Your selected delivery location", "ရွေးထားသော ပို့ဆောင်မည့်နေရာ")} onDragEnd={event => onSelect(event.nativeEvent.coordinate)} /> : null}
         </MapView>
       </View>
-      {!loaded && !slow ? <ActivityIndicator accessibilityLabel={t("Loading Google Maps", "Google Maps ဖွင့်နေပါသည်")} /> : null}
-      {slow && !loaded ? <Text accessibilityRole="alert" style={styles.notice}>{t("Google Maps has not loaded. Check your connection or return to manual address entry.",
+      {!loaded && !slow ? <ActivityIndicator color={color.foreground} accessibilityLabel={t("Loading Google Maps", "Google Maps ဖွင့်နေပါသည်")} /> : null}
+      {slow && !loaded ? <Text allowFontScaling accessibilityRole="alert" style={[styles.notice, { color: color.warningForeground }]}>{t("Google Maps has not loaded. Check your connection or return to manual address entry.",
         "Google Maps မဖွင့်နိုင်သေးပါ။ အင်တာနက် စစ်ဆေးပါ သို့မဟုတ် လိပ်စာဖြည့်ရန် ပြန်သွားပါ။")}</Text> : null}
-      <Text style={styles.hint}>{t("If the map is blank, return to manual entry. Maps access requires a valid key and network connection.",
+      <Text allowFontScaling style={[styles.hint, { color: color.foregroundMuted }]}>{t("If the map is blank, return to manual entry. Maps access requires a valid key and network connection.",
         "မြေပုံ မပေါ်ပါက လိပ်စာဖြည့်ရန် ပြန်သွားပါ။ Google Maps အသုံးပြုရန် အင်တာနက် လိုအပ်ပါသည်။")}</Text>
-      {selection.coordinates ? <Text selectable style={styles.coordinates}>
+      {selection.coordinates ? <Text allowFontScaling selectable style={[styles.coordinates, { color: color.foreground }]}>
         {t("Latitude", "လတ္တီတွဒ်")} {selection.coordinates.latitude.toFixed(7)} · {t("Longitude", "လောင်ဂျီတွဒ်")} {selection.coordinates.longitude.toFixed(7)}
       </Text> : <Body>{t("No location selected. Tap the map to choose.", "နေရာ မရွေးရသေးပါ။ မြေပုံပေါ်တွင် နှိပ်ရွေးပါ။")}</Body>}
-      {notice ? <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text> : null}
+      {notice ? <Text allowFontScaling accessibilityLiveRegion="polite" style={[styles.notice, { color: color.warningForeground }]}>{notice}</Text> : null}
       <Action title={locating ? t("Finding your current location…", "လက်ရှိတည်နေရာ ရှာနေပါသည်…")
         : t("Use My Current Location", "လက်ရှိတည်နေရာ သုံးရန်")} onPress={onLocate} disabled={locating} secondary />
-      <Action title={t("Confirm This Location", "ဤနေရာကို အတည်ပြုရန်")} onPress={onConfirm} disabled={!selection.coordinates || locating || !loaded} />
+      <Action title={t("Confirm This Location", "ဤနေရာကို အတည်ပြုရန်")} onPress={onConfirm} disabled={!selection.coordinates || !validCoordinates(selection.coordinates) || locating || !loaded} />
       <Action title={t("Return to Address Details", "လိပ်စာအချက်အလက်သို့ ပြန်သွားရန်")} onPress={onCancel} secondary />
-    </View>
+    </ScrollView>
+    </SafeAreaView>
   </Modal>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: 16, gap: 10, paddingTop: 28, backgroundColor: "#f6f8fa" },
-  title: { fontSize: 22, fontWeight: "700", color: "#18222e" },
-  mapContainer: { flex: 1, minHeight: 160, borderRadius: 12, overflow: "hidden" },
+  screen: { flexGrow: 1, padding: 16, gap: 12 },
+  title: { fontSize: 28, lineHeight: 36, fontWeight: "600" },
+  mapContainer: { height: 260, minHeight: 160, borderRadius: 12, overflow: "hidden" },
   map: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
-  coordinates: { color: "#334155", fontSize: 13 },
-  notice: { color: "#92400e", fontSize: 14, lineHeight: 20 },
-  hint: { color: "#526174", fontSize: 12, lineHeight: 17 }
+  coordinates: { fontSize: 14, lineHeight: 22 },
+  notice: { fontSize: 16, lineHeight: 24 },
+  hint: { fontSize: 14, lineHeight: 22 }
 });

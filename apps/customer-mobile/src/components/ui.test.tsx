@@ -7,7 +7,7 @@ import { Action, Badge, Body, Card, ConfirmDialog, FormField, Page, StateView, S
 type NativeProps = Record<string, unknown> & {
   children?: ReactNode; style?: unknown; contentContainerStyle?: unknown;
   onPress?: () => void; onFocus?: () => void; onBlur?: () => void; onRequestClose?: () => void; onShow?: () => void;
-  accessibilityState?: { disabled?: boolean; selected?: boolean; busy?: boolean }; ref?: { current: unknown };
+  accessibilityState?: { disabled?: boolean; selected?: boolean; busy?: boolean; checked?: boolean }; ref?: { current: unknown };
 };
 const harness = vi.hoisted(() => ({
   nodes: [] as { kind: string; props: NativeProps }[], focused: false,
@@ -121,6 +121,15 @@ describe("tenant-safe native foundations", () => {
     props("Pressable").onBlur?.();
     render(<Action title="Continue" onPress={vi.fn()} />);
     expect(buttonStyle().borderColor).toBe(before.borderColor);
+  });
+
+  it("announces mutually exclusive choices as radios with their actual checked state", () => {
+    for (const selected of [true, false]) {
+      render(<Action title="Township" accessibilityRole="radio" selected={selected} secondary={!selected} onPress={vi.fn()} />);
+      expect(props("Pressable").accessibilityRole).toBe("radio");
+      expect(props("Pressable").accessibilityState?.checked).toBe(selected);
+      expect(buttonStyle().minHeight).toBeGreaterThanOrEqual(48);
+    }
   });
 
   it("associates labels and error guidance while retaining input callbacks and large-text layout", () => {

@@ -1,4 +1,5 @@
 import { localize, type CustomerLanguage } from "../../i18n";
+import { formatMoney } from "../storefront/presentation";
 
 const statuses: Record<string, [string, string]> = {
   PENDING: ["Pending", "စောင့်ဆိုင်းနေသည်"],
@@ -13,7 +14,7 @@ const statuses: Record<string, [string, string]> = {
   PICKED_UP: ["Picked up", "ပစ္စည်း လာယူပြီး"],
   DELIVERED: ["Delivered", "ပို့ဆောင်ပြီး"],
   FAILED: ["Failed", "မအောင်မြင်ပါ"],
-  PAID: ["Cash collected", "ငွေ လက်ခံပြီး"],
+  PAID: ["Paid", "ငွေချေပြီး"],
   UNPAID: ["Cash due", "ငွေချေရန် ကျန်သေးသည်"],
   REFUNDED: ["Refunded", "ငွေ ပြန်အမ်းပြီး"]
 };
@@ -28,7 +29,24 @@ export function orderDate(value: string, language: CustomerLanguage) {
 }
 
 export function orderAmount(value: number, currency: string | null, language: CustomerLanguage) {
-  return `${value.toLocaleString(language)}${currency ? ` ${currency}` : ""}`;
+  return formatMoney(value, currency, language);
+}
+
+export function orderStatusTone(status: string): "neutral" | "accent" | "success" | "warning" | "danger" {
+  if (["CANCELLED", "FAILED"].includes(status)) return "danger";
+  if (["COMPLETED", "DELIVERED", "PAID"].includes(status)) return "success";
+  if (["PENDING", "WAITING_ASSIGNMENT"].includes(status)) return "warning";
+  return "accent";
+}
+
+/** Payment labels come from the payment record, never order or delivery progress. */
+export function paymentStatusLabel(method: string, status: string, language: CustomerLanguage) {
+  const cash = method === "CASH_ON_DELIVERY" || method === "CASH_AT_COUNTER";
+  if (cash && status === "PAID") return localize(language, "Cash payment recorded", "ငွေသား ပေးချေမှု မှတ်တမ်းတင်ပြီး");
+  if (cash && status === "PENDING") return localize(language, "Cash due · Payment not yet collected", "ငွေချေရန် ကျန်သေးသည် · ငွေ မကောက်ခံရသေးပါ");
+  if (status === "PENDING") return localize(language, "Payment pending", "ငွေပေးချေမှု စောင့်ဆိုင်းနေသည်");
+  if (status === "CANCELLED") return localize(language, "Payment cancelled", "ငွေပေးချေမှု ပယ်ဖျက်ပြီး");
+  return statusLabel(status, language);
 }
 
 const burmeseNotifications: Record<string, string> = {

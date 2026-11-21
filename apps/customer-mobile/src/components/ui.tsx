@@ -40,8 +40,9 @@ export function Body({ children, tone = "neutral", style, ...props }: PropsWithC
   const foreground = tone === "neutral" ? color.foreground : tone === "muted" ? color.foregroundMuted : color[`${tone}Foreground`];
   return <Text {...props} allowFontScaling style={[styles.body, { color: foreground }, style]}>{children}</Text>;
 }
-export function Action({ title, onPress, disabled = false, secondary = false, selected, loading = false, danger = false, accessibilityHint, ref }: {
+export function Action({ title, onPress, disabled = false, secondary = false, selected, loading = false, danger = false, accessibilityHint, accessibilityRole = "button", ref }: {
   title: string; onPress(): void; disabled?: boolean; secondary?: boolean; selected?: boolean; loading?: boolean; danger?: boolean; accessibilityHint?: string;
+  accessibilityRole?: "button" | "radio";
   ref?: Ref<ComponentRef<typeof View>>;
 }) {
   const { color } = useUiTheme();
@@ -49,8 +50,8 @@ export function Action({ title, onPress, disabled = false, secondary = false, se
   const blocked = disabled || loading;
   const backgroundColor = blocked ? color.disabledSurface : danger ? color.danger : secondary ? color.secondary : color.primary;
   const foregroundColor = blocked ? color.disabledForeground : danger ? color.onDanger : secondary ? color.onSecondary : color.onPrimary;
-  return <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={title} accessibilityHint={accessibilityHint}
-    accessibilityState={{ disabled: blocked, selected, busy: loading }} disabled={blocked}
+  return <Pressable ref={ref} accessibilityRole={accessibilityRole} accessibilityLabel={title} accessibilityHint={accessibilityHint}
+    accessibilityState={{ disabled: blocked, selected, busy: loading, ...(accessibilityRole === "radio" ? { checked: !!selected } : {}) }} disabled={blocked}
     onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
     onPress={() => { if (!blocked) onPress(); }}
     style={({ pressed }) => [styles.action, { backgroundColor, borderColor: focused ? foregroundColor : color.borderStrong,

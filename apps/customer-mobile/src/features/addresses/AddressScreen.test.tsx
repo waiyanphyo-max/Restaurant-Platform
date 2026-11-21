@@ -7,7 +7,7 @@ const harness = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], cleanups: [] as (() => void)[],
   stateIndex: 0, refIndex: 0, effectIndex: 0,
   tenant: { mapsConfigured: true },
-  createAddress: vi.fn(), updateAddress: vi.fn(), locate: vi.fn()
+  createAddress: vi.fn(), updateAddress: vi.fn(), listAddresses: vi.fn(), locate: vi.fn()
 }));
 
 vi.mock("react", async importOriginal => ({
@@ -30,10 +30,10 @@ vi.mock("react", async importOriginal => ({
   }
 }));
 vi.mock("react-native", () => ({ Switch: "Switch", Text: "Text", View: "View" }));
-vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page" }));
+vi.mock("../../components/ui", () => ({ Action: "Action", Body: "Body", Card: "Card", FormField: "FormField", Page: "Page", Status: "Status", StateView: "StateView" }));
 vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => harness.tenant }));
 vi.mock("../../i18n", () => ({ useCustomerLanguage: () => "en", useCustomerText: () => (english: string) => english }));
-vi.mock("../../api", () => ({ getCustomerApi: () => ({ createAddress: harness.createAddress, updateAddress: harness.updateAddress }) }));
+vi.mock("../../api", () => ({ getCustomerApi: () => ({ createAddress: harness.createAddress, updateAddress: harness.updateAddress, listAddresses: harness.listAddresses }) }));
 vi.mock("../../components/LocationSelector", () => ({ LocationSelector: "LocationSelector" }));
 vi.mock("./AddressMap", () => ({ AddressMap: "AddressMap" }));
 vi.mock("./native-location", () => ({ suggestCurrentLocation: harness.locate }));
@@ -83,12 +83,17 @@ describe("address screen integration", () => {
     harness.tenant.mapsConfigured = true;
     harness.createAddress.mockReset().mockResolvedValue(saved);
     harness.updateAddress.mockReset().mockResolvedValue(saved);
+    harness.listAddresses.mockReset().mockResolvedValue([]);
     harness.locate.mockReset().mockResolvedValue({ coordinates: { latitude: 17, longitude: 97 }, accuracyWarning: null });
   });
 
   function screen(address?: CustomerAddressResponse) {
     const onSaved = vi.fn(), onCancel = vi.fn();
     const render = () => {
+      harness.stateIndex = 0; harness.refIndex = 0; harness.effectIndex = 0;
+      const tree = AddressScreen({ address, onSaved, onCancel });
+      const selector = elements(tree).find(item => item.type === "LocationSelector");
+      (selector?.props.onValidityChange as ((status: string) => void) | undefined)?.("valid");
       harness.stateIndex = 0; harness.refIndex = 0; harness.effectIndex = 0;
       return AddressScreen({ address, onSaved, onCancel });
     };
@@ -232,6 +237,46 @@ describe("address screen integration", () => {
     expect(harness.updateAddress).toHaveBeenCalledTimes(1);
     fail(new ApiNetworkError()); await tick(); tree = view.render();
     expect(textContent(tree)).toContain("Reconnect, check your saved addresses");
+    expect(harness.listAddresses).toHaveBeenCalledOnce();
+    expect(action(tree, "Save as Home Address").disabled).toBe(true);
+    save.onPress();
+    expect(harness.updateAddress).toHaveBeenCalledTimes(1);
     expect(view.onSaved).not.toHaveBeenCalled();
+  });
+
+  it("preserves every legacy detail and requires explicit hierarchy acknowledgement", async () => {
+    const legacy = { ...saved, regionId: null, districtId: null, townshipId: null, houseNo: "Original building", ward: "Original ward", deliveryNote: "Original note" };
+    const view = screen(legacy); let tree = view.render();
+    expect(textContent(tree)).toContain("Original building, Main Street, Original ward, Dagon, East Yangon, Yangon");
+    chooseLocation(tree, "New township"); tree = view.render();
+    action(tree, "Review Address").onPress(); tree = view.render();
+    expect(textContent(tree)).toContain("Confirm that you have reviewed");
+    const acknowledgement = elements(tree).find(item => item.type === "Switch" && String(item.props.accessibilityLabel).startsWith("I reviewed"))!;
+    (acknowledgement.props.onValueChange as (value: boolean) => void)(true);
+    tree = view.render(); action(tree, "Review Address").onPress(); tree = view.render();
+    action(tree, "Save as Home Address").onPress(); await tick();
+    expect(harness.updateAddress).toHaveBeenCalledWith(saved.id, expect.objectContaining({ houseNo: "Original building", street: "Main Street", ward: "Original ward", deliveryNote: "Original note", township: "New township" }), expect.anything());
+  });
+
+  it("checks ambiguous create results and prevents a duplicate when the refreshed list contains the address", async () => {
+    harness.createAddress.mockRejectedValue(new ApiNetworkError());
+    harness.listAddresses.mockResolvedValue([{ ...saved, latitude: null, longitude: null, recipientPhone: null, recipientName: null, street: null }]);
+    const view = screen(); let tree = view.render(); chooseLocation(tree); tree = view.render();
+    action(tree, "Review Address").onPress(); tree = view.render();
+    action(tree, "Save as Home Address").onPress(); await tick(); tree = view.render();
+    expect(textContent(tree)).toContain("A matching address is present");
+    expect(action(tree, "Save as Home Address").disabled).toBe(true);
+    expect(elements(tree).some(item => item.props.title === "I checked the list — review another save")).toBe(false);
+    expect(view.onSaved).not.toHaveBeenCalled();
+  });
+
+  it("keeps retry blocked when the address list refresh also fails", async () => {
+    harness.updateAddress.mockRejectedValue(new ApiNetworkError());
+    harness.listAddresses.mockRejectedValue(new ApiNetworkError());
+    const view = screen(saved); let tree = view.render(); action(tree, "Review Address").onPress(); tree = view.render();
+    action(tree, "Save as Home Address").onPress(); await tick(); tree = view.render();
+    expect(elements(tree).some(item => item.type === "StateView" && item.props.kind === "offline")).toBe(true);
+    expect(action(tree, "Save as Home Address").disabled).toBe(true);
+    expect(harness.updateAddress).toHaveBeenCalledOnce();
   });
 });

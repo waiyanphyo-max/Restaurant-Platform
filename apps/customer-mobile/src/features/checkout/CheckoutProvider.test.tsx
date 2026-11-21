@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   data: [] as unknown[], refs: [] as { current: unknown }[], state: 0, ref: 0, mounted: false, cleanup: undefined as undefined | (() => void),
   get: vi.fn(), put: vi.fn(), remove: vi.fn(), submit: vi.fn(), receipt: vi.fn(), abandon: vi.fn(), clear: vi.fn(),
   items: [{ productId: "product", quantity: 1 }]
+  , restaurantId: "restaurant", environment: "development"
 }));
 vi.mock("react", async load => ({
   ...await load<typeof import("react")>(),
@@ -24,7 +25,7 @@ vi.mock("react", async load => ({
   }
 }));
 vi.mock("expo-secure-store", () => ({ getItemAsync: mocks.get, setItemAsync: mocks.put, deleteItemAsync: mocks.remove }));
-vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => ({ restaurantId: "restaurant", environment: "development" }) }));
+vi.mock("../../tenant", () => ({ readEmbeddedTenant: () => ({ restaurantId: mocks.restaurantId, environment: mocks.environment }) }));
 vi.mock("../../api", () => ({ getCustomerApi: () => ({ checkoutDelivery: mocks.submit, getCheckoutReceipt: mocks.receipt,
   abandonCheckout: mocks.abandon }) }));
 vi.mock("../cart/CartProvider", () => ({ useCustomerCart: () => ({ items: mocks.items, clear: mocks.clear }) }));
@@ -48,15 +49,16 @@ const order: CreateOrderResponse = {
 };
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
-function render() {
+function render(accountOwner = owner) {
   mocks.state = 0; mocks.ref = 0;
-  return CustomerCheckoutProvider({ owner }).props.value;
+  return CustomerCheckoutProvider({ owner: accountOwner }).props.value;
 }
 
 describe("COD checkout and receipt recovery", () => {
   beforeEach(() => {
     mocks.cleanup?.(); mocks.data = []; mocks.refs = []; mocks.mounted = false;
     vi.resetAllMocks();
+    mocks.restaurantId = "restaurant"; mocks.environment = "development"; mocks.items = attempt.body.items;
     mocks.get.mockResolvedValue(null);
     mocks.put.mockResolvedValue(undefined);
     mocks.remove.mockResolvedValue(undefined);
@@ -179,5 +181,50 @@ describe("COD checkout and receipt recovery", () => {
     expect(render().state).toEqual({ status: "created", order });
     expect(mocks.remove).not.toHaveBeenCalled();
     expect(mocks.clear).not.toHaveBeenCalled();
+  });
+
+  it("preserves the original unresolved attempt across cart edits, route-local resets and a late response", async () => {
+    mocks.submit.mockRejectedValueOnce(new ApiNetworkError());
+    render(); await tick();
+    await render().submit(textAttempt);
+    mocks.items = [{ productId: "another-current-product", quantity: 3 }];
+    render().reset(); // Address/Cart/Orders navigation may reset only local quote review.
+    expect(render().state).toEqual({ status: "uncertain", attempt: textAttempt });
+    expect(mocks.remove).not.toHaveBeenCalled();
+    await render().submit(textAttempt);
+    expect(mocks.submit.mock.calls[1][0]).toBe(textAttempt.body);
+    expect(mocks.submit.mock.calls[1][1]).toBe(textAttempt.quote.idempotencyKey);
+    expect(mocks.put).toHaveBeenCalledOnce();
+    expect(mocks.clear).not.toHaveBeenCalled();
+  });
+
+  it("keeps a submitted key after sign-out abort and recovers its receipt on the next mount", async () => {
+    let resolve!: (value: CreateOrderResponse) => void;
+    mocks.submit.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    render(); await tick();
+    const pending = render().submit(attempt); await tick();
+    const signal = mocks.submit.mock.calls[0][2].signal as AbortSignal;
+    mocks.cleanup?.();
+    expect(signal.aborted).toBe(true);
+    resolve(order); await pending;
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.clear).not.toHaveBeenCalled();
+    mocks.data = []; mocks.refs = []; mocks.mounted = false;
+    mocks.get.mockResolvedValue(attempt.quote.idempotencyKey); mocks.receipt.mockResolvedValue(order);
+    render(); await tick();
+    expect(render().state).toEqual({ status: "created", order });
+    expect(mocks.receipt).toHaveBeenCalledExactlyOnceWith(attempt.quote.idempotencyKey, { signal: expect.any(AbortSignal) });
+    expect(mocks.submit).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["00000000-0000-4000-8000-000000000101", "customer-a", "staging"],
+    ["00000000-0000-4000-8000-000000000102", "customer-b", "development"]
+  ])("scopes durable recovery to restaurant %s, account %s and environment %s", async (restaurantId, accountOwner, environment) => {
+    mocks.restaurantId = restaurantId; mocks.environment = environment;
+    render(accountOwner); await tick();
+    await render(accountOwner).submit(attempt);
+    expect(mocks.get).toHaveBeenCalledExactlyOnceWith(`rp.customer.checkout.${environment}.${restaurantId}.${accountOwner}`);
+    expect(mocks.put).toHaveBeenCalledExactlyOnceWith(`rp.customer.checkout.${environment}.${restaurantId}.${accountOwner}`, attempt.quote.idempotencyKey);
   });
 });
