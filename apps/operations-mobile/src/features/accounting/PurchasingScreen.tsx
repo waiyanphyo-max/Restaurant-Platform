@@ -9,6 +9,7 @@ import { QueryResult } from "../../components/QueryResult";
 import { Action, Body, Card, ConfirmDialog, FormField, Page } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 import { Choices } from "../management/controls";
 import { isIsoDate } from "../operations/format";
 import { AccountingAuditScreen } from "./AccountingAuditScreen";
@@ -111,6 +112,7 @@ function PurchaseRecorder({ timezone, requests, replacement, onClear, onSubmit, 
   const [copy, setCopy] = useState<ShoppingSheet | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mutation = { busy: disabled, error: null, message: null };
+  useUnsavedChanges(lines.length > 0 || !!supplier || !!invoice || !!due || !!reason);
   function update(index: number, values: Partial<DraftLine>) { setLines(previous => previous.map((line, row) => row === index ? { ...line, ...values } : line)); }
   function review() {
     setError(null);
@@ -130,6 +132,7 @@ function PurchaseRecorder({ timezone, requests, replacement, onClear, onSubmit, 
   }
   return <>
     <Card title={original ? "Replacement purchase" : "Record actual purchase"}>
+      <Body tone="muted">Confirming goods creates an obligation. Record actual payment separately after confirmation. · ကုန်ဝယ်စာရင်းနှင့် အမှန်တကယ်ပေးချေမှုကို သီးခြားမှတ်တမ်းတင်ပါ။</Body>
       {original ? <Body>Replacing cancelled purchase {original.id}.</Body> : <>
         <Action title="Choose a saved shopping sheet…" secondary disabled={mutation.busy} onPress={() => setShowSheets(!showSheets)} />
         {showSheets ? <PurchaseSourceSheets date={sourceDate} onDate={date => { setSourceDate(date); setSourcePage(0); }} page={sourcePage} onPage={setSourcePage} onCopy={setCopy} /> : null}
@@ -142,6 +145,7 @@ function PurchaseRecorder({ timezone, requests, replacement, onClear, onSubmit, 
         <FormField label={`Actual quantity for ${line.name}`} value={line.quantity} keyboardType="decimal-pad" editable={!mutation.busy} onChangeText={quantity => update(index, { quantity })} />
         <FormField label={`Purchase unit for ${line.name}`} value={line.unit} maxLength={30} editable={!mutation.busy} onChangeText={unit => update(index, { unit, unitCost: "" })} />
         <FormField label={`Actual cost per unit for ${line.name}`} value={line.unitCost} keyboardType="number-pad" editable={!mutation.busy} onChangeText={unitCost => update(index, { unitCost })} />
+        <PurchaseDraftLineTotal quantity={line.quantity} unitCost={line.unitCost} />
         <Action title={`Remove purchased ${line.name}`} secondary disabled={mutation.busy} onPress={() => setLines(lines.filter((_, row) => row !== index))} />
       </Card>)}
       <FormField label="Actual purchase timestamp (with timezone)" value={purchasedAt} onChangeText={setPurchasedAt} autoCapitalize="none" editable={!mutation.busy} />
@@ -160,11 +164,21 @@ function PurchaseRecorder({ timezone, requests, replacement, onClear, onSubmit, 
         setCopy(null); setShowSheets(false);
       }} />
     <ConfirmDialog visible={pending !== null} title="Confirm actual purchase" message={pending ? `Record ${pending.lines.length} purchased items on ${pending.purchaseDate}. Total ${procurementMoney(pending.lines.reduce((sum, line) => sum + BigInt(purchaseLineTotal(line.quantity, line.unitCost)), 0n).toString())}. This creates a purchase obligation.` : ""}
+      busy={disabled} confirmDisabled={disabled}
       confirmLabel="Confirm purchased goods" onCancel={() => setPending(null)} onConfirm={() => {
         const body = pending; setPending(null);
         if (body) onSubmit(body);
       }} />
   </>;
+}
+
+function PurchaseDraftLineTotal({ quantity, unitCost }: { quantity: string; unitCost: string }) {
+  if (!quantity.trim() || !unitCost.trim()) return <Body tone="muted">Line total unavailable until quantity and actual cost are entered. · အရေအတွက်နှင့် အမှန်တကယ်ကုန်ကျစရိတ်ကို ဖြည့်ပါ။</Body>;
+  try {
+    return <Body>Derived line total · တွက်ချက်ထားသော စုစုပေါင်း: {procurementMoney(purchaseLineTotal(quantity.trim(), unitCost.trim()))}</Body>;
+  } catch (failure) {
+    return <Body tone="warning">{failure instanceof Error ? failure.message : "Check quantity and actual cost."} · အရေအတွက်နှင့် ကုန်ကျစရိတ်ကို စစ်ဆေးပါ။</Body>;
+  }
 }
 
 function PurchaseSourceSheets({ date, onDate, page, onPage, onCopy }: { date: string; onDate(date: string): void; page: number; onPage(page: number): void; onCopy(sheet: ShoppingSheet): void }) {

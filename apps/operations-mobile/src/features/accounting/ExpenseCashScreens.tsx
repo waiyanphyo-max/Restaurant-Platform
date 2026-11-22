@@ -1,14 +1,15 @@
 import { useState } from "react";
-import type { ExpenseCategory, ExpenseCreate, ExpensePayment, ExpensePaymentMethod, ExpenseQuery, ExpenseRecord } from "@restaurant-platform/api-client";
+import type { ExpenseCategory, ExpenseCreate, ExpensePay, ExpensePayment, ExpensePaymentMethod, ExpenseQuery, ExpenseRecord } from "@restaurant-platform/api-client";
 import type { AccountingChronology } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { QueryResult } from "../../components/QueryResult";
-import { Action, Body, Card, ConfirmDialog, DataTable, FormField, Page } from "../../components/ui";
+import { Action, Body, Card, ConfirmDialog, DataTable, FormField, Page, StateView } from "../../components/ui";
 import { MutationFeedback } from "../../components/forms";
 import { Choices, FormStatus } from "../management/controls";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { FinancialPagination } from "./FinancialPagination";
 import { FinancialPeriodFields } from "./FinancialPeriodFields";
+import { FinancialActionRecovery } from "./FinancialActionRecovery";
 import { emptyFinancialPeriod, resolveFinancialPeriod, type FinancialPeriodInput } from "./financial-period";
 import type { FinancialRequestKeys } from "./financial-requests";
 import {
@@ -96,7 +97,9 @@ function ExpenseRegister({ filters, page, onApply, onPageChange, onOpen, onAdd, 
       {data.items.map(expense => <Card key={expense.id} title={expense.description}>
         <Body>{expense.expenseDate} · {label(expense.category)} · {label(expense.paymentStatus)}</Body>
         {expense.payee ? <Body>Payee {expense.payee}</Body> : null}
-        <Body>Amount {financialAmount(expense.amount)} · Paid {financialAmount(expense.paidAmount)} · Outstanding {financialAmount(expense.outstandingAmount)}</Body>
+        <Body>Amount {financialAmount(expense.amount)}</Body>
+        <Body>Effective paid amount {financialAmount(expense.paidAmount)}</Body>
+        <Body>Outstanding {financialAmount(expense.outstandingAmount)}</Body>
         <Action title="View expense detail" secondary onPress={() => onOpen(expense.id)} />
       </Card>)}
       <Body>{data.total} expenses</Body>
@@ -144,13 +147,15 @@ function validExpense(draft: ExpenseDraft) {
 function ExpenseEditor({ original, requestKeys, onSaved }: { original?: ExpenseRecord; requestKeys: FinancialRequestKeys; onSaved(id: string): void }) {
   const [draft, setDraft] = useState(() => expenseDraft(original));
   const [reason, setReason] = useState("");
-  const [review, setReview] = useState(false);
-  const mutation = useFinancialAction(requestKeys);
+  const [review, setReview] = useState<{ body: ExpenseCreate; reason: string } | null>(null);
+  const operation = original ? `expense.correct:${original.id}` : "expense.create";
+  const mutation = useFinancialAction(requestKeys, [operation]);
   function submit() {
-    setReview(false);
-    const body = expenseBody(draft);
+    if (!review) return;
+    setReview(null);
+    const body = review.body;
     if (original) {
-      const correction = { replacement: body, reason: reason.trim() };
+      const correction = { replacement: body, reason: review.reason };
       void mutation.post(`expense.correct:${original.id}`, correction,
         key => getOperationsApi().correctExpense(original.id, correction, key), value => onSaved(value.id));
       return;
@@ -160,16 +165,30 @@ function ExpenseEditor({ original, requestKeys, onSaved }: { original?: ExpenseR
       onSaved(value.id);
     });
   }
-  const disabled = mutation.busy || !validExpense(draft) || Boolean(original && !reason.trim());
+  const disabled = mutation.busy || mutation.uncertain || !validExpense(draft) || Boolean(original && !reason.trim());
+  if (mutation.denied) return <StateView kind="denied" title="Financial permission denied · ငွေစာရင်းအသုံးပြုခွင့် မရှိပါ"
+    message="Your current membership does not permit this financial action. လက်ရှိအဖွဲ့ဝင်ခွင့်ပြုချက်ကို ပြန်စစ်ပါ။" />;
   return <Card title={original ? "Replacement expense" : "Record an expense obligation"}>
     <Body>{original ? "Saving cancels the original and posts a replacement with a linked audit reason." : "Posting records an unpaid operating obligation. Record payment separately. Use Purchase History for inventory purchases."}</Body>
     <ExpenseFields draft={draft} onChange={setDraft} />
     {original ? <FormField label="Correction reason" value={reason} onChangeText={setReason} maxLength={2000} multiline /> : null}
     <Body>Provide a valid date, positive whole-currency amount and description.</Body>
     <MutationFeedback {...mutation} />
-    <Action title={original ? "Review correction" : "Post expense"} disabled={disabled} onPress={original ? () => setReview(true) : submit} />
-    <ConfirmDialog visible={review} title="Correct this expense" message="The original will remain in history as cancelled. A replacement and linked audit records will be posted together."
-      confirmLabel="Post replacement expense" onCancel={() => setReview(false)} onConfirm={submit} />
+    <FinancialActionRecovery action={mutation} read={() => {
+      if (original) return getOperationsApi().getExpense(original.id);
+      const attempted = requestKeys.uncertainPayload<ExpenseCreate>("expense.create");
+      return getOperationsApi().listExpenses({ from: attempted?.expenseDate, to: attempted?.expenseDate });
+    }} />
+    <Action title={original ? "Review correction · ပြင်ဆင်ချက်စစ်ရန်" : "Review expense · အသုံးစရိတ်စစ်ရန်"} disabled={disabled}
+      onPress={() => setReview({ body: expenseBody(draft), reason: reason.trim() })} />
+    <ConfirmDialog visible={review !== null} title={original ? "Correct this expense" : "Record this expense obligation?"}
+      message={original ? "The original remains cancelled in history with a linked replacement. မူရင်းမှတ်တမ်းကို ဆက်လက်ထိန်းသိမ်းမည်။" : "This records an unpaid operating obligation. Payment is recorded separately. ပေးရန်တာဝန်ကိုသာ မှတ်တမ်းတင်မည်။ ငွေပေးချေမှု သီးခြားဖြစ်သည်။"}
+      confirmLabel={original ? "Post replacement expense · အတည်ပြုရန်" : "Post expense · အတည်ပြုရန်"} busy={mutation.busy} confirmDisabled={mutation.uncertain}
+      onCancel={() => setReview(null)} onConfirm={submit}>
+      {review ? <><Body>{review.body.expenseDate} · {label(review.body.category)}</Body><Body>{review.body.description}</Body>
+        <Body>Amount {financialAmount(review.body.amount)} · Payee {review.body.payee || "Not recorded · မဖော်ပြထားပါ"}</Body>
+        {review.reason ? <Body>Reason {review.reason}</Body> : null}</> : null}
+    </ConfirmDialog>
   </Card>;
 }
 
@@ -197,10 +216,13 @@ function ExpenseDetails({ expense, payments, canCorrect, requestKeys, onEdit, on
   const [paidAt, setPaidAt] = useState(() => new Date().toISOString());
   const [reason, setReason] = useState("");
   const [correction, setCorrection] = useState<{ paymentId: string } | "cancel" | null>(null);
-  const mutation = useFinancialAction(requestKeys);
+  const [paymentReview, setPaymentReview] = useState<ExpensePay | null>(null);
+  const mutation = useFinancialAction(requestKeys, [`expense.pay:${expense.id}`, `expense.cancel:${expense.id}`, ...payments.map(payment => `expense.payment.reverse:${payment.id}`)]);
   const canPay = !expense.cancelledAt && expense.outstandingAmount !== "0";
   function pay() {
-    const body = { amount, method, paidAt };
+    if (!paymentReview) return;
+    const body = paymentReview;
+    setPaymentReview(null);
     void mutation.post(`expense.pay:${expense.id}`, body, key => getOperationsApi().payExpense(expense.id, body, key), onSaved);
   }
   function correct() {
@@ -214,11 +236,15 @@ function ExpenseDetails({ expense, payments, canCorrect, requestKeys, onEdit, on
         key => getOperationsApi().reverseExpensePayment(expense.id, selected.paymentId, body.reason, key), onSaved);
     }
   }
+  if (mutation.denied) return <StateView kind="denied" title="Financial permission denied · ငွေစာရင်းအသုံးပြုခွင့် မရှိပါ"
+    message="Your current membership does not permit this financial action. လက်ရှိအဖွဲ့ဝင်ခွင့်ပြုချက်ကို ပြန်စစ်ပါ။" />;
   return <>
     <Card title={expense.description}>
       <Body>{expense.expenseDate} · {label(expense.category)} · {label(expense.paymentStatus)}</Body>
       {expense.payee ? <Body>Payee {expense.payee}</Body> : null}
-      <Body>Original amount {financialAmount(expense.amount)} · Paid {financialAmount(expense.paidAmount)} · Outstanding {financialAmount(expense.outstandingAmount)}</Body>
+      <Body>Original obligation {financialAmount(expense.amount)}</Body>
+      <Body>Effective paid amount {financialAmount(expense.paidAmount)}</Body>
+      <Body>Outstanding {financialAmount(expense.outstandingAmount)}</Body>
       <Body>Recorded {expense.createdAt} by {expense.recordedBy}</Body>
       <Body>Expense record {expense.id}</Body>
       {expense.receiptId ? <Body>Private receipt {expense.receiptId}</Body> : null}
@@ -226,11 +252,15 @@ function ExpenseDetails({ expense, payments, canCorrect, requestKeys, onEdit, on
       {canCorrect ? <Action title="Edit expense by posting a correction" secondary onPress={onEdit} disabled={mutation.busy} /> : null}
     </Card>
     <MutationFeedback {...mutation} />
+    <FinancialActionRecovery action={mutation} read={() => getOperationsApi().getExpense(expense.id)} onRead={onSaved} />
     {canPay ? <Card title="Record payment">
-      <FormField label="Whole-currency payment amount" value={amount} onChangeText={setAmount} keyboardType="number-pad" maxLength={19} />
+      <Body>Record only an actual completed payment. ငွေပေးချေပြီးမှသာ မှတ်တမ်းတင်ပါ။</Body>
+      <FormField label="Whole-currency payment amount" value={amount} onChangeText={setAmount} keyboardType="number-pad" maxLength={19}
+        error={validFinancialAmount(amount) && BigInt(amount) > BigInt(expense.outstandingAmount) ? "Payment exceeds the current outstanding amount. ပေးရန်လက်ကျန်ထက် မကျော်ရပါ။" : undefined} />
       <Choices label="Payment method" value={method} values={methods} onChange={setMethod} />
       <FormField label="Actual payment timestamp (ISO 8601 with offset)" value={paidAt} onChangeText={setPaidAt} autoCapitalize="none" />
-      <Action title="Record actual payment" disabled={mutation.busy || !validFinancialAmount(amount) || !validFinancialTimestamp(paidAt)} onPress={pay} />
+      <Action title="Review actual payment · ငွေပေးချေမှုစစ်ရန်" disabled={mutation.busy || mutation.uncertain || !validFinancialAmount(amount) || BigInt(amount || "0") > BigInt(expense.outstandingAmount) || !validFinancialTimestamp(paidAt)}
+        onPress={() => setPaymentReview({ amount, method, paidAt })} />
     </Card> : null}
     <Card title="Payment history">
       {!payments.length ? <Body>No payments recorded for this expense.</Body> : null}
@@ -244,9 +274,16 @@ function ExpenseDetails({ expense, payments, canCorrect, requestKeys, onEdit, on
     {correction ? <Card title={correction === "cancel" ? "Confirm expense cancellation" : "Confirm returned funds"}>
       <Body>{correction === "cancel" ? "The expense will remain in the register with its cancellation reason." : "Record a reversal only after funds have been returned. The reversal restores the unpaid balance."}</Body>
       <FormField label="Reason for this correction" value={reason} onChangeText={setReason} maxLength={2000} multiline />
-      <Action title={correction === "cancel" ? "Confirm cancellation" : "Record payment reversal"} disabled={mutation.busy || !reason.trim()} onPress={correct} />
+      <Action title={correction === "cancel" ? "Confirm cancellation" : "Record payment reversal"} disabled={mutation.busy || mutation.uncertain || !reason.trim()} onPress={correct} />
       <Action title="Back to expense detail" secondary onPress={() => setCorrection(null)} />
     </Card> : null}
+    <ConfirmDialog visible={paymentReview !== null} title="Record completed expense payment?"
+      message="Confirm the money was already paid. This records the payment; it does not transfer funds. ငွေပေးချေပြီးကြောင်း အတည်ပြုပါ။"
+      confirmLabel="Record actual payment · အတည်ပြုရန်" busy={mutation.busy} confirmDisabled={mutation.uncertain}
+      onCancel={() => setPaymentReview(null)} onConfirm={pay}>
+      {paymentReview ? <><Body>Amount {financialAmount(paymentReview.amount)} · {label(paymentReview.method)}</Body><Body>{paymentReview.paidAt}</Body>
+        <Body>Expense {expense.id} · Outstanding {financialAmount(expense.outstandingAmount)}</Body></> : null}
+    </ConfirmDialog>
   </>;
 }
 
@@ -256,7 +293,16 @@ function ExpenseTemplates({ requestKeys, onBack }: { requestKeys: FinancialReque
   const [occurrence, setOccurrence] = useState("");
   const [reason, setReason] = useState("");
   const query = useApiQuery(signal => getOperationsApi().listExpenseTemplates({ signal }), "expense-templates");
-  const mutation = useFinancialAction(requestKeys);
+  const [review, setReview] = useState<{ id: string; expenseDate: string; amount: string; description: string } | null>(null);
+  const templateIds = query.state.status === "ready" ? query.state.data.map(template => template.id) : [];
+  const mutation = useFinancialAction(requestKeys, ["expense.template", ...templateIds.flatMap(id => [`template.confirm:${id}`, `template.stop:${id}`])]);
+  function confirmOccurrence() {
+    if (!review) return;
+    const selected = review;
+    setReview(null);
+    void mutation.post(`template.confirm:${selected.id}`, selected.expenseDate,
+      key => getOperationsApi().confirmExpenseTemplate(selected.id, selected.expenseDate, key), query.reload);
+  }
   function create() {
     const body = { category: draft.category, amount: draft.amount, description: draft.description.trim(),
       payee: draft.payee.trim() || null, frequency, startsOn: draft.expenseDate };
@@ -266,14 +312,23 @@ function ExpenseTemplates({ requestKeys, onBack }: { requestKeys: FinancialReque
       query.reload();
     });
   }
+  if (mutation.denied) return <StateView kind="denied" title="Financial permission denied · ငွေစာရင်းအသုံးပြုခွင့် မရှိပါ"
+    message="Your current membership does not permit this financial action. လက်ရှိအဖွဲ့ဝင်ခွင့်ပြုချက်ကို ပြန်စစ်ပါ။" />;
   return <Page title="Recurring expense templates" onRefresh={query.reload}>
     <Action title="Back to expense register" secondary onPress={onBack} />
     <MutationFeedback {...mutation} />
+    <FinancialActionRecovery action={mutation} read={async () => {
+      const templates = await getOperationsApi().listExpenseTemplates();
+      const dates = requestKeys.uncertainOperations().filter(operation => operation.startsWith("template.confirm:"))
+        .map(operation => requestKeys.uncertainPayload<string>(operation)).filter((date): date is string => Boolean(date));
+      const records = await Promise.all(dates.map(date => getOperationsApi().listExpenses({ from: date, to: date })));
+      return [templates, ...records];
+    }} onRead={query.reload} />
     <Card title="Add a recurring template">
       <ExpenseFields draft={draft} onChange={setDraft} template />
       <Choices label="Recurrence" value={frequency} values={["MONTHLY", "YEARLY"]} onChange={setFrequency} />
-      <Body>Confirm each occurrence separately to post an expense.</Body>
-      <Action title="Save recurring template" disabled={mutation.busy || !validExpense(draft)} onPress={create} />
+      <Body>Templates create no automatic postings. Confirm each actual occurrence separately. ပုံစံသိမ်းခြင်းဖြင့် အသုံးစရိတ် အလိုအလျောက်မတင်ပါ။</Body>
+      <Action title="Save recurring template" disabled={mutation.busy || mutation.uncertain || !validExpense(draft)} onPress={create} />
     </Card>
     <Card title="Existing templates">
       <FormField label="Occurrence date to confirm (YYYY-MM-DD)" value={occurrence} onChangeText={setOccurrence} />
@@ -283,15 +338,19 @@ function ExpenseTemplates({ requestKeys, onBack }: { requestKeys: FinancialReque
         {items.map(template => <Card key={template.id} title={template.description}>
           <Body>{label(template.category)} · {financialAmount(template.amount)} · {label(template.frequency)} from {template.startsOn} · {template.active ? "Active" : "Stopped"}</Body>
           {template.active ? <>
-            <Action title="Confirm and post selected occurrence" disabled={mutation.busy || !validFinancialDate(occurrence)}
-              onPress={() => { void mutation.post(`template.confirm:${template.id}`, occurrence,
-                key => getOperationsApi().confirmExpenseTemplate(template.id, occurrence, key), query.reload); }} />
-            <Action title="Stop recurring template" secondary disabled={mutation.busy || !reason.trim()}
+            <Action title="Review selected occurrence · အသုံးစရိတ်စစ်ရန်" disabled={mutation.busy || mutation.uncertain || !validFinancialDate(occurrence)}
+              onPress={() => setReview({ id: template.id, expenseDate: occurrence, amount: template.amount, description: template.description })} />
+            <Action title="Stop recurring template" secondary disabled={mutation.busy || mutation.uncertain || !reason.trim()}
               onPress={() => { void mutation.post(`template.stop:${template.id}`, reason,
                 key => getOperationsApi().stopExpenseTemplate(template.id, reason.trim(), key), query.reload); }} />
           </> : null}
         </Card>)}
       </>}</QueryResult>
     </Card>
+    <ConfirmDialog visible={review !== null} title="Post this actual expense occurrence?"
+      message="This creates one unpaid operating obligation for the selected business date. Payment remains separate. ဤရက်အတွက် အသုံးစရိတ်တစ်ကြိမ်သာ တင်မည်။"
+      confirmLabel="Confirm and post selected occurrence" busy={mutation.busy} confirmDisabled={mutation.uncertain} onConfirm={confirmOccurrence} onCancel={() => setReview(null)}>
+      {review ? <><Body>{review.description}</Body><Body>{review.expenseDate} · {financialAmount(review.amount)}</Body></> : null}
+    </ConfirmDialog>
   </Page>;
 }

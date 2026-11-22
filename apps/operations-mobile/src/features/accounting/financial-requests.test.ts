@@ -28,4 +28,40 @@ describe("financial form request identities", () => {
     requests.complete("expense.create", expense);
     expect(requests.key("expense.create", expense)).not.toBe(initial);
   });
+  it("retains an exact uncertain body and key until authoritative history review", () => {
+    let sequence = 0;
+    const requests = new FinancialRequestKeys(() => `request-${++sequence}`);
+    const body = { amount: "9007199254740993", paidAt: "2024-02-29T10:00:00+06:30" };
+    const key = requests.key("payment:a", body);
+    requests.markUncertain("payment:a", body);
+    requests.markUncertain("payment:a", { ...body, amount: "1" });
+    expect(requests.uncertainPayload("payment:a")).toEqual(body);
+    expect(requests.uncertainOperations()).toEqual(["payment:a"]);
+    requests.complete("payment:a", { ...body, amount: "1" });
+    expect(requests.isUncertain("payment:a")).toBe(true);
+    requests.reconcile("payment:a");
+    expect(requests.isUncertain("payment:a")).toBe(false);
+    expect(requests.key("payment:a", body)).toBe(key);
+    requests.markUncertain("payment:a", body); requests.complete("payment:a", body);
+    expect(requests.isUncertain("payment:a")).toBe(false);
+    expect(requests.key("payment:a", body)).not.toBe(key);
+  });
+  it("scopes uncertainty to the current workspace instance and operation", () => {
+    const first = new FinancialRequestKeys(); const second = new FinancialRequestKeys();
+    first.markUncertain("refund:a", { amount: "1" });
+    expect(first.isUncertain("refund:b")).toBe(false);
+    expect(second.isUncertain("refund:a")).toBe(false);
+  });
+  it("cannot acknowledge an in-flight write or start another write before settlement and history review", () => {
+    const requests = new FinancialRequestKeys();
+    expect(requests.begin("refund:a", {amount:"1"})).toBe(true);
+    expect(requests.isPending("refund:a")).toBe(true);
+    requests.reconcile("refund:a");
+    expect(requests.begin("refund:a", {amount:"2"})).toBe(false);
+    requests.settle("refund:a");
+    expect(requests.isPending("refund:a")).toBe(false);
+    expect(requests.begin("refund:a", {amount:"2"})).toBe(false);
+    requests.reconcile("refund:a");
+    expect(requests.begin("refund:a", {amount:"2"})).toBe(true);
+  });
 });

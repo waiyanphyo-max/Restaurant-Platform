@@ -1,11 +1,11 @@
 "use strict";
 
 /**
- * Read-only presentation fixture for UXI-10/11. Runs the real Operations TSX through
+ * Read-only presentation fixture for UXI-10/11/12. Runs the real Operations TSX through
  * React DOM SSR and a deliberately small React Native adapter. This is a DOM
  * approximation, not evidence of Android, font, keyboard or TalkBack acceptance.
  * No live auth, API, native configuration or persisted user data is loaded.
- * Run: node scripts/operations-preview.cjs [--catalog] [--serve]
+ * Run: node scripts/operations-preview.cjs [--catalog|--finance] [--serve]
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -16,7 +16,8 @@ const { resolveThemeTokens } = require("@restaurant-platform/ui-tokens");
 const appRoot = path.resolve(__dirname, "../apps/operations-mobile");
 const root = path.resolve(__dirname, "..");
 const catalogMode = process.argv.includes("--catalog");
-const output = path.join(root, catalogMode ? "target/uxi-11-preview" : "target/uxi-10-preview");
+const financeMode = process.argv.includes("--finance");
+const output = path.join(root, financeMode ? "target/uxi-12-preview" : catalogMode ? "target/uxi-11-preview" : "target/uxi-10-preview");
 const ts = Module.createRequire(path.join(appRoot, "package.json"))("typescript");
 const h = React.createElement;
 const noop = () => {};
@@ -128,6 +129,7 @@ const mocks = {
     signOut: noopAsync, retryMembership: noopAsync, verifyWorkspaceAccess: noopAsync, assertWorkspaceAccess: noop }),
     OperationsWorkspaceContext: props => props.children },
   "auth/WorkspaceBoundary.tsx": { WorkspaceBoundary: props => props.children },
+  "auth/native.ts": { getOperationsAuth: () => { throw new Error("Preview blocks native authentication"); } },
   "branding/RuntimeBrandingProvider.tsx": { RuntimeBrandingProvider: props => props.children,
     useRuntimeBranding: () => ({ displayName: fixture.tenant.branding.displayName, logoUrl: null, refresh: noopAsync,
       scopeKey: fixture.tenant.restaurantId, branding: { restaurantId: fixture.tenant.restaurantId, displayName: fixture.tenant.branding.displayName,
@@ -137,9 +139,33 @@ const mocks = {
   "api.ts": { getOperationsApi: () => { throw new Error("Preview blocks all API access"); } },
   "components/useImageUpload.ts": { useImageUpload: () => noopAsync },
   "components/imageUpload.ts": { pickImage: noopAsync },
+  "features/accounting/purchase-attempt-native.ts": { createNativePurchaseAttemptStore: () => ({ load: async () => null,
+    begin: () => { throw new Error("Preview blocks purchase attempts"); }, complete: noopAsync, reject: noopAsync }) },
 };
 function page(content) { return { content, number: 0, totalPages: content.length ? 1 : 0, totalElements: content.length, first: true, last: true }; }
 function queryData(key) {
+  if (financeMode) {
+    if (!fixture.management) throw new Error("A denied role attempted a private finance query");
+    if (key === "financial-overview" || key.startsWith("financial-report:")) return fixture.finance.report;
+    if (key.startsWith("sales-dashboard:")) return fixture.finance.dashboard;
+    if (key.startsWith("sales-ledger:") || key.startsWith("sales-export:")) return procurementPage([fixture.finance.sale]);
+    if (key.startsWith("sales-products:")) return procurementPage(fixture.finance.dashboard.topProducts);
+    if (key.includes("shopping-settings") || key.includes("purchasing-settings")) return fixture.settings;
+    if (key.includes("shopping-sheets") || key.includes("purchase-source-sheets")) return procurementPage([fixture.finance.sheet]);
+    if (key.includes("shopping-items")) return procurementPage([fixture.finance.item]);
+    if (key.startsWith("purchase-detail:")) return fixture.finance.purchase;
+    if (key.includes("purchase-report")) return fixture.finance.purchaseReport;
+    if (key.includes("purchases")) return procurementPage([fixture.finance.purchase.purchase]);
+    if (key.includes("payables")) return procurementPage([fixture.finance.payable]);
+    if (key.includes("suppliers")) return procurementPage([fixture.finance.supplier]);
+    if (key.includes("expense-report")) return fixture.finance.expenseReport;
+    if (key.includes("expenses")) return expensePage([fixture.finance.expense]);
+    if (key.includes("cash-transactions")) return expensePage(fixture.finance.cash);
+    if (key.startsWith("cash-day:")) return fixture.finance.day;
+    if (key.includes("cash-closings")) return expensePage([fixture.finance.closing]);
+    if (key.includes("accounting-audit")) return procurementPage(fixture.finance.audit);
+    throw new Error(`Missing synthetic finance query fixture: ${key}`);
+  }
   if (key.startsWith("delivery-config:")) return key.endsWith(":true")
     ? { zones: fixture.zones, drivers: fixture.members.filter(member => member.role === "DELIVERY_DRIVER"), defaultDriver: { restaurantId: fixture.tenant.restaurantId, defaultDriverUserId: fixture.members[2].userId } }
     : null;
@@ -160,6 +186,8 @@ function queryData(key) {
   if (key.startsWith("notifications:")) return [];
   return [];
 }
+function procurementPage(content) { return { content, page: 0, size: 20, totalElements: content.length }; }
+function expensePage(items) { return { items, page: 0, size: 20, total: items.length }; }
 const originalLoad = Module._load;
 const oldTs = require.extensions[".ts"];
 const oldTsx = require.extensions[".tsx"];
@@ -228,6 +256,7 @@ function makeFixture(letter, role) {
     { id: uuid(61), userId: uuid(3), fullName: "Synthetic current Manager", email: "manager@example.test", role: "MANAGER", createdAt: order.createdAt },
     { id: uuid(62), userId: uuid(4), fullName: "Synthetic Delivery Driver", email: "driver@example.test", role: "DELIVERY_DRIVER", createdAt: order.createdAt }];
   return { management, order, queue, detail, settings, categories, products, groups, members,
+    finance: makeFinanceFixture(uuid, letter, settings),
     palette: { primaryColor: branding.primaryColor, secondaryColor: branding.secondaryColor, backgroundColor: branding.backgroundColor },
     restaurant: { id: uuid(1), name: branding.displayName, slug: `synthetic-${letter}`, description: "Synthetic restaurant fixture", address: "Fixture address", phone: null,
       township: "Synthetic Township", city: "Synthetic City", active: true, logoUrl: null },
@@ -245,8 +274,76 @@ function makeFixture(letter, role) {
   };
 }
 
+function makeFinanceFixture(uuid, letter, settings) {
+  const date = "2026-11-21";
+  const timestamp = `${date}T10:00:00+06:30`;
+  const large = "9007199254740993";
+  const sales = { from: date, to: date, grossSales: large, discounts: "0", netSales: large, collectedPayments: "8000",
+    outstandingPayments: "9007199254732993", refundedAmounts: "500", orders: 2, cancelledOrders: 0, productsSold: 3, legacyRefundsWithoutEventTime: "100" };
+  const product = { productId: uuid(51), historicalName: letter === "a" ? "Historical rice · original modifier price" : "ယခင်ထမင်းနှင့် ရွေးချယ်မှုဈေးနှုန်း", quantity: 3, lineSalesBeforeOrderDiscounts: large };
+  const dashboard = { timezone: settings.timezone, currency: settings.currency, today: sales, selectedDay: sales,
+    selectedMonth: { ...sales, from: "2026-11-01", to: "2026-11-30" }, selectedYear: { ...sales, from: "2026-01-01", to: "2026-12-31" },
+    dailyTrend: [{ period: date, grossSales: large, discounts: "0", netSales: large, orders: 2, productsSold: 3 }],
+    monthlyTrend: [{ period: "2026-10", grossSales: "7000", discounts: "0", netSales: "7000", orders: 1, productsSold: 2 },
+      { period: "2026-11", grossSales: large, discounts: "0", netSales: large, orders: 2, productsSold: 3 }],
+    topProducts: [product], definitions: { sales: "Synthetic order-cohort sales include unpaid orders; collections follow actual payment timestamps." },
+    missingInputs: ["Synthetic legacy refund timestamp unavailable"] };
+  const supplier = { id: uuid(100), name: `Synthetic ${letter.toUpperCase()} supplier · ပေးသွင်းသူ`, contact: "Synthetic contact only", active: true,
+    createdBy: uuid(2), createdAt: timestamp, updatedBy: uuid(2), updatedAt: timestamp };
+  const item = { id: uuid(101), name: "Rice · ဆန်", defaultUnit: "kg", defaultQuantity: null, supplierId: null, suggestionEnabled: true,
+    latestUnitCost: "200", latestCostUnit: "kg", lastConfirmedPurchaseDate: date, suggested: true, createdBy: uuid(2), createdAt: timestamp, updatedBy: uuid(2), updatedAt: timestamp };
+  const sheet = { id: uuid(102), shoppingDate: date, status: "PLANNED", paymentStatus: "UNPAID", purchaseId: null,
+    lines: [{ id: uuid(103), itemId: item.id, itemName: item.name, quantity: "1.5", unit: "kg" }],
+    createdBy: uuid(2), createdAt: timestamp, updatedBy: uuid(2), updatedAt: timestamp };
+  const purchase = { purchase: { id: uuid(104), purchaseDate: date, purchasedAt: timestamp, supplierId: supplier.id, supplierName: supplier.name,
+    totalAmount: large, amountPaid: "100", outstandingAmount: "9007199254740893", paymentStatus: "PARTIALLY_PAID", status: "CONFIRMED",
+    dueDate: "2026-11-30", invoiceReference: "SYNTHETIC-INVOICE", receiptId: null, correctionOfId: null, createdBy: uuid(2), createdAt: timestamp },
+    lines: [{ id: uuid(105), itemId: item.id, itemName: "Historical rice · ဆန်", quantity: "1.5", unit: "kg", unitCost: "6004799503160662", lineTotal: large, supplierId: supplier.id }],
+    payments: [{ id: uuid(106), amount: "100", method: "CASH", paidAt: timestamp, createdBy: uuid(2), createdAt: timestamp, reversalId: null, reversalReason: null, reversedBy: null, reversedAt: null }], cancellations: [], corrections: [] };
+  const expense = { id: uuid(107), category: "RENT", expenseDate: date, amount: large, description: "Synthetic operating obligation · ငှားရမ်းခ",
+    payee: "Synthetic landlord", status: "POSTED", paymentStatus: "PARTIALLY_PAID", paidAmount: "100", outstandingAmount: "9007199254740893", receiptId: null,
+    createdBy: uuid(2), createdAt: timestamp };
+  const cash = [{ id: uuid(108), source: "SALES_PAYMENT", sourceId: uuid(109), signedAmount: "8000", occurredAt: timestamp, description: "Synthetic actual cash receipt", recordedBy: uuid(2) },
+    { id: uuid(110), source: "PURCHASE_PAYMENT", sourceId: uuid(106), signedAmount: "-100", occurredAt: timestamp, description: "Synthetic actual purchase cash payment", recordedBy: uuid(2) }];
+  const closing = { id: uuid(111), date: "2026-11-20", revision: 1, expectedCash: large, actualCash: "9007199254740994", variance: "1", closedAt: timestamp,
+    responsibleMember: uuid(2), reconciliationNote: "Synthetic counted cash includes driver-held cash", reversedAt: null, reversedBy: null, reversalReason: null };
+  return { report: { restaurantId: uuid(1), from: date, to: date, timezone: settings.timezone, currency: settings.currency, reportType: "CASH_FLOW_AND_EXPENSE_SUMMARY",
+    sales, confirmedPurchases: large, registeredOperatingExpenses: large, purchasePayments: "100", expensePayments: "100", tradingPaymentNet: "7300",
+    expensesByCategory: [{ category: "RENT", amount: large }], costOfGoodsSold: null, grossProfit: null, netOperatingProfit: null,
+    missingInputs: ["Inventory consumption and complete historical costs are unavailable"] }, dashboard, item, sheet, supplier, purchase, expense, cash, closing,
+    payable: { supplierId: supplier.id, supplierName: supplier.name, confirmedObligations: large, amountPaid: "100", outstandingAmount: "9007199254740893", earliestUnpaidDueDate: "2026-11-30" },
+    purchaseReport: { from: date, to: date, confirmedTotal: large, cancelledTotal: "0", purchaseCount: 1, monthlyTotals: [{ month: "2026-11", confirmedTotal: large, purchaseCount: 1 }] },
+    expenseReport: { from: date, to: date, totals: [{ periodStart: date, category: "RENT", postedAmount: large, cancelledAmount: "0", expenseAmount: large }] },
+    day: { date, timezone: settings.timezone, openingBalance: null, expectedClosingCash: null, cashSalesReceived: "8000", cashRefundsPaid: "500",
+      cashPurchasePayments: "100", cashExpensePayments: "100", otherReceipts: "0", otherPayments: "0",
+      missingInputs: ["Initial counted opening is missing; synthetic historical input is unknown"], closing: null },
+    audit: [{ id: uuid(112), actorId: uuid(2), entityType: "PURCHASE", entityId: uuid(104), action: "CONFIRM", reason: "Synthetic confirmed goods", detailJson: "{}", createdAt: timestamp }],
+    sale: { id: uuid(113), orderNumber: `SYNTHETIC-SALE-${letter.toUpperCase()}`, createdAt: timestamp, createdByUserId: null, orderChannel: "STAFF", orderType: "TAKEAWAY", status: "COMPLETED",
+      tableId: null, tableNumber: null, queueTicketId: null, queueDisplayCode: null, subtotal: large, deliveryFee: "0", discountAmount: "0", totalAmount: large, paymentStatus: "UNPAID",
+      lines: [{ id: uuid(114), productId: product.productId, productName: product.historicalName, variantId: null, variantName: null, quantity: 1, unitPrice: large, lineDiscount: "0", lineTotal: large, modifiers: [] }],
+      payments: [], refunds: [], refundReversals: [], timeline: [] } };
+}
+
 try {
-  const screens = catalogMode ? {
+  const finance = require(path.join(appRoot, "src/features/accounting/financial-requests.ts"));
+  const keys = () => new finance.FinancialRequestKeys();
+  const wrapPage = (title, Component, props) => () => h(require(path.join(appRoot, "src/components/ui.tsx")).Page, { title }, h(Component, typeof props === "function" ? props() : props));
+  const screens = financeMode ? {
+    finance: require(path.join(appRoot, "src/features/accounting/AccountingScreen.tsx")).AccountingScreen,
+    summary: wrapPage("Financial summary", require(path.join(appRoot, "src/features/operations/ReportsScreen.tsx")).FinancialSummaryScreen),
+    shopping: require(path.join(appRoot, "src/features/accounting/ShoppingScreen.tsx")).ShoppingScreen,
+    purchasing: require(path.join(appRoot, "src/features/accounting/PurchasingScreen.tsx")).PurchasingScreen,
+    purchases: wrapPage("Purchase history", require(path.join(appRoot, "src/features/accounting/PurchaseScreens.tsx")).PurchaseHistory, () => ({ today: "2026-11-21", requests: keys(), onReplace: noop })),
+    purchase_detail: wrapPage("Purchase detail", require(path.join(appRoot, "src/features/accounting/PurchaseScreens.tsx")).PurchaseDetailScreen, () => ({ id: fixture.finance.purchase.purchase.id, requests: keys(), onBack: noop, onChanged: noop, onSelectPurchase: noop, onReplace: noop })),
+    payables: wrapPage("Supplier payables", require(path.join(appRoot, "src/features/accounting/SupplierScreens.tsx")).Payables),
+    sales: wrapPage("Sales reports", require(path.join(appRoot, "src/features/accounting/SalesDashboardPanel.tsx")).SalesDashboardPanel),
+    sales_history: require(path.join(appRoot, "src/features/accounting/SalesLedgerScreen.tsx")).SalesLedgerScreen,
+    expenses: () => h(require(path.join(appRoot, "src/features/accounting/ExpenseCashScreens.tsx")).ExpenseScreen, { requestKeys: keys() }),
+    cashbook: () => h(require(path.join(appRoot, "src/features/accounting/CashbookScreens.tsx")).CashbookScreen, { requestKeys: keys() }),
+    closing: () => h(require(path.join(appRoot, "src/features/accounting/CashbookScreens.tsx")).DailyCashClosingScreen, { requestKeys: keys() }),
+    audit: require(path.join(appRoot, "src/features/accounting/AccountingAuditScreen.tsx")).AccountingAuditScreen,
+    exports: wrapPage("Private exports", require(path.join(appRoot, "src/features/accounting/ExportReportsScreen.tsx")).ExportReportsScreen),
+  } : catalogMode ? {
     menu: require(path.join(appRoot, "src/features/menu/MenuScreen.tsx")).MenuScreen,
     settings: require(path.join(appRoot, "src/features/management/SettingsScreen.tsx")).SettingsScreen,
     team: require(path.join(appRoot, "src/features/management/TeamScreen.tsx")).TeamScreen,
@@ -268,14 +365,16 @@ try {
   };
   const Layout = require(path.join(appRoot, "app/(workspace)/_layout.tsx")).default;
   const { ThemeProvider } = require(path.join(appRoot, "src/components/ui.tsx"));
+  const { ScreenGuard } = require(path.join(appRoot, "src/navigation/ScreenGuard.tsx"));
   fs.mkdirSync(output, { recursive: true });
   const links = [];
   for (const tenant of ["a", "b"]) for (const role of ["OWNER", "MANAGER", "STAFF", "DELIVERY_DRIVER"]) for (const width of [320, 720]) for (const scale of [1, 2]) {
     for (const [name, component] of Object.entries(screens)) {
       if (role === "DELIVERY_DRIVER" && ["orders", "queue", "order"].includes(name)) continue;
-      fixture = makeFixture(tenant, role); Screen = component; previewWidth = width; fontScale = scale;
+      fixture = makeFixture(tenant, role); Screen = financeMode ? () => h(ScreenGuard, { screenId: "accounting" }, h(component)) : component; previewWidth = width; fontScale = scale;
       route = name === "order" ? `/order/${fixture.order.id}` : name === "delivery" ? `/delivery/${fixture.detail.task.id}` : `/${name}`;
       const markup = renderToStaticMarkup(h(ThemeProvider, { restaurantId: fixture.tenant.restaurantId, branding: fixture.tenant.branding }, h(Layout)));
+      if (financeMode && !fixture.management && (markup.includes("9,007,199,254") || !markup.includes("Screen unavailable"))) throw new Error("Finance preview denial leaked or failed");
       const filename = `${tenant}-${role.toLowerCase()}-${name}-${width}-${scale * 100}.html`;
       const title = `Restaurant ${tenant.toUpperCase()} · ${role} · ${name} · ${width}px · ${scale * 100}% text`;
       const theme = resolveThemeTokens(fixture.tenant.branding);
@@ -283,7 +382,7 @@ try {
       links.push(`<li><a href="${filename}">${title}</a></li>`);
     }
   }
-  fs.writeFileSync(path.join(output, "index.html"), `<!doctype html><html><meta charset="utf-8"><title>UXI-${catalogMode ? "11" : "10"} Operations DOM previews</title><h1>Operations DOM approximations</h1><p>${links.length} actual-TSX static previews, synthetic restaurants A/B, red/teal, four roles, 320/720px, 100/200% text. No live API, device, keyboard, TalkBack or Figma acceptance claim. Dialog and editor interaction states are covered by component tests, not this SSR.</p><ul>${links.join("")}</ul></html>`);
+  fs.writeFileSync(path.join(output, "index.html"), `<!doctype html><html><meta charset="utf-8"><title>UXI-${financeMode ? "12" : catalogMode ? "11" : "10"} Operations DOM previews</title><h1>Operations DOM approximations</h1><p>${links.length} actual-TSX static previews, synthetic restaurants A/B, red/teal, four roles, 320/720px, 100/200% text. No live API, device, keyboard, TalkBack or Figma acceptance claim. Dialog and editor interaction states are covered by component tests, not this SSR. ${financeMode ? "Purchasing initial recovery is intentionally still checking because SSR does not run effects. Actual purchase history/detail are separate specimens. No real financial action or CSV download can run." : ""}</p><ul>${links.join("")}</ul></html>`);
   console.log(`Generated ${links.length} Operations DOM approximation previews in ${output}`);
 } finally {
   Module._load = originalLoad;
@@ -293,10 +392,10 @@ try {
 }
 
 if (process.argv.includes("--serve")) {
-  const port = catalogMode ? 4181 : 4179;
+  const port = financeMode ? 4183 : catalogMode ? 4181 : 4179;
   require("node:http").createServer((request, response) => {
     const basename = path.basename(new URL(request.url, "http://127.0.0.1").pathname) || "index.html";
-    if (!/^(?:index|[ab]-(?:owner|manager|staff|delivery_driver)-(?:dashboard|orders|queue|deliveries|order|delivery|menu|settings|team|tables|zones)-(?:320|720)-(?:100|200))\.html$/.test(basename)) {
+    if (!/^(?:index|[ab]-(?:owner|manager|staff|delivery_driver)-(?:dashboard|orders|queue|deliveries|order|delivery|menu|settings|team|tables|zones|finance|summary|shopping|purchasing|purchases|purchase_detail|payables|sales|sales_history|expenses|cashbook|closing|audit|exports)-(?:320|720)-(?:100|200))\.html$/.test(basename)) {
       response.writeHead(404); response.end("Not found"); return;
     }
     const stream = fs.createReadStream(path.join(output, basename));
