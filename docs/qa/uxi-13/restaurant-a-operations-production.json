@@ -1,0 +1,37 @@
+{
+  "restaurantId": "00000000-0000-4000-8000-000000000101",
+  "restaurantSlug": "restaurant-a",
+  "fixture": true,
+  "appKind": "operations",
+  "environment": "production",
+  "applicationId": "dev.restaurantplatform.fixturea.operations",
+  "displayName": "Demo A Counter",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "scheme": "rp-restaurant-a-operations",
+  "appLinks": [
+    {
+      "host": "restaurant-a.test",
+      "pathPrefix": "/app/operations/"
+    }
+  ],
+  "apiBaseUrl": "https://api.restaurant-a.test",
+  "guestBaseUrl": "https://restaurant-a.test",
+  "easProjectId": null,
+  "sourceRevision": "c8659e40c27606ae137ae8cb5befa7aadd0079c5",
+  "fingerprint": "sha256:f5f87b29d13f9a3284f2723abad362b6090eb1cc4a77b8fbd3aa4a3e7ff4ee65",
+  "artifactType": "aab",
+  "branding": {
+    "displayName": "Restaurant A (Test)",
+    "primaryColor": "#8A3C25",
+    "secondaryColor": "#EDAE49",
+    "backgroundColor": "#FFF6E7",
+    "embeddedLogo": true
+  },
+  "icon": "../../configs/restaurants/assets/restaurant-a/operations-icon.png",
+  "splash": {
+    "backgroundColor": "#8A3C25",
+    "image": "../../configs/restaurants/assets/restaurant-a/operations-splash.png",
+    "imageWidth": 160
+  }
+}

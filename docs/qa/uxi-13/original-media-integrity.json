@@ -1,0 +1,58 @@
+[
+  {
+    "Path": "food\\Ah-Sein-Kyaw.jpg",
+    "Width": 736,
+    "Height": 920,
+    "PixelFormat": "Format24bppRgb",
+    "SampleAlpha": 255,
+    "Sha256": "7a98eb6878f199d253197fb4106e343123309c494027dfab76d6ad59f030b01b"
+  },
+  {
+    "Path": "food\\Fried-Noodle.jpg",
+    "Width": 736,
+    "Height": 736,
+    "PixelFormat": "Format24bppRgb",
+    "SampleAlpha": 255,
+    "Sha256": "6f250770ed028360e7adf608702b45f8200e1154b5f13aed9cd12b9375846f11"
+  },
+  {
+    "Path": "food\\Fried-Rice.jpg",
+    "Width": 736,
+    "Height": 1104,
+    "PixelFormat": "Format24bppRgb",
+    "SampleAlpha": 255,
+    "Sha256": "999133ea6750e318a02ccb551fceac8a8acc980f4304e2a3ae424cd2378472b7"
+  },
+  {
+    "Path": "food\\Kan-Sone-Plain.jpg",
+    "Width": 676,
+    "Height": 1200,
+    "PixelFormat": "Format24bppRgb",
+    "SampleAlpha": 255,
+    "Sha256": "87d9ecf522ccb64e05f1f764f1b804ade188eea684533ea9e608d9040db26203"
+  },
+  {
+    "Path": "food\\Kyay-Oh-Se-Chat.jpg",
+    "Width": 736,
+    "Height": 861,
+    "PixelFormat": "Format24bppRgb",
+    "SampleAlpha": 255,
+    "Sha256": "e068f030300e97846aaf2e28bfe7d89dd65c481585e798a43a486e022d70b293"
+  },
+  {
+    "Path": "food\\Malar-Xiang-Guo.jpg",
+    "Width": 736,
+    "Height": 981,
+    "PixelFormat": "Format24bppRgb",
+    "SampleAlpha": 255,
+    "Sha256": "0e10f91ce19af367a2999decfae332bacefc2ee6f4652bd11de4afc2cf3deadd"
+  },
+  {
+    "Path": "logo\\Burmese Red and Gold Food Emblem.png",
+    "Width": 1254,
+    "Height": 1254,
+    "PixelFormat": "Format24bppRgb",
+    "SampleAlpha": 255,
+    "Sha256": "780758f968cde0a6d83ca8dc100f804efd1eb9b94f46f4a3eb27d2b413b90fd1"
+  }
+]

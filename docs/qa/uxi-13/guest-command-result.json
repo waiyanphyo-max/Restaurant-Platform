@@ -1,0 +1,8 @@
+{
+  "startedUtc": "2026-11-22T10:22:50.474Z",
+  "finishedUtc": "2026-11-22T10:23:11.727Z",
+  "httpSmokeExit": 0,
+  "browserExit": 0,
+  "smokeSummary": "Production HTTP smoke passed: 133 checks against the built Next app and synthetic Spring branding/menu/QR/checkout/queue contracts (4 synthetic orders, 10 correctly denied streamed not-found responses).",
+  "cleanupCompleted": true
+}

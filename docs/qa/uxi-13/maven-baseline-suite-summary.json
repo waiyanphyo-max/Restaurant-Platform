@@ -1,0 +1,548 @@
+[
+  {
+    "suite": "com.restaurant.platform.accounting.AccountingHttpIntegrationTest",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.AccountingLocalPostgresTest",
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 7
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.AccountingReceiptLocalPostgresTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.AccountingRecordControllerTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.AccountingRecordServiceTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.AccountingSupportTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.ExpenseCashServiceTest",
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.ProcurementLocalPostgresTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 4
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.ProcurementServiceTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.accounting.ShoppingPlanContractTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.common.error.GlobalExceptionHandlerTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.config.OwnerOperationsHttpIntegrationTest",
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.config.PlatformAdminEndpointsHttpIntegrationTest",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.config.PlatformRestaurantLifecycleHttpIntegrationTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.config.PublicQrGuestHttpIntegrationTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.config.SecurityConfigHttpIntegrationTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.config.SecurityConfigJwtValidatorTest",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.AssignedDeliveryControllerHttpTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.CustomerAddressControllerHttpTest",
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.CustomerDeliveryCheckoutControllerHttpTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.CustomerDeliveryHistoryHttpTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.CustomerProfileControllerHttpTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.FeaturedProductHttpTest",
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.GeographicLocationControllerHttpTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.ManagerOrderControllerTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.PlatformRestaurantBootstrapHttpTest",
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.RestaurantBrandingHttpTest",
+    "tests": 21,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.controller.RestaurantProfileLogoHttpTest",
+    "tests": 16,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.integration.CustomerAddressLocalPostgresTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  {
+    "suite": "com.restaurant.platform.integration.CustomerDeliveryLocalPostgresTest",
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 7
+  },
+  {
+    "suite": "com.restaurant.platform.integration.CustomerProfileLocalPostgresTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 4
+  },
+  {
+    "suite": "com.restaurant.platform.integration.DeliveryCancellationLocalPostgresTest",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 9
+  },
+  {
+    "suite": "com.restaurant.platform.integration.FeaturedProductLocalPostgresTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2
+  },
+  {
+    "suite": "com.restaurant.platform.integration.GeographicLocationLocalPostgresTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 5
+  },
+  {
+    "suite": "com.restaurant.platform.integration.OwnerOnboardingLocalPostgresTest",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 8
+  },
+  {
+    "suite": "com.restaurant.platform.integration.PlatformBootstrapLocalPostgresTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 4
+  },
+  {
+    "suite": "com.restaurant.platform.integration.PostgresMigrationSchemaTest",
+    "tests": 21,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 21
+  },
+  {
+    "suite": "com.restaurant.platform.integration.RuntimeBrandingLocalPostgresTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2
+  },
+  {
+    "suite": "com.restaurant.platform.security.PlatformAdminAuthorizationTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.security.RestaurantAuthorizationTest",
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.security.RestaurantRoleTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.AssignedDeliveryServiceTest",
+    "tests": 17,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.CatalogImageServiceTest",
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.CatalogManagementServiceTest",
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.CustomerAddressServiceTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.CustomerDeliveryCheckoutTest",
+    "tests": 39,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.CustomerOrderServiceTest",
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.CustomerProfileServiceTest",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.DeliveryRecipientPhoneTest",
+    "tests": 19,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.DeliveryServiceTest",
+    "tests": 25,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.DeliveryZoneManagementServiceTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.DiningTableManagementServiceTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.FeaturedProductServiceTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.FirebasePushDispatcherTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.ImageUploadValidatorTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.ManagerOrderServiceTest",
+    "tests": 40,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.NotificationServiceTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.OrderCancellationServiceTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.OwnerOnboardingServiceTest",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.OwnerOperationsScopeTest",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.PaymentServiceTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.PlatformAdminDashboardServiceTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.PlatformRestaurantBootstrapServiceTest",
+    "tests": 22,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.PlatformRestaurantLifecycleServiceTest",
+    "tests": 15,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.PlatformRestaurantProvisioningServiceTest",
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.PublicMenuVariantDescriptionTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.QrGuestCheckoutTest",
+    "tests": 15,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.QrOrderIdempotencyServiceTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.QueueManagementServiceTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.QueueTrackingServiceTest",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.RestaurantLogoServiceTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.RestaurantManagementServiceTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.RestaurantMemberServiceTest",
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.RestaurantReportServiceTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.RestaurantSettingsServiceTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.StaffOrderOptionsTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.SupabaseAuthAdminClientTest",
+    "tests": 10,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "suite": "com.restaurant.platform.service.UserDeviceServiceTest",
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+]

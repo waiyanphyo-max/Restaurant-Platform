@@ -1,0 +1,32 @@
+{
+  "restaurantId": "00000000-0000-4000-8000-000000000102",
+  "restaurantSlug": "restaurant-b",
+  "fixture": true,
+  "appKind": "operations",
+  "environment": "development",
+  "applicationId": "dev.restaurantplatform.fixtureb.operations.dev",
+  "displayName": "Demo B Crew (development)",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "scheme": "rp-restaurant-b-operations-development",
+  "appLinks": [],
+  "apiBaseUrl": "http://10.0.2.2:8080",
+  "guestBaseUrl": "http://restaurant-b.localhost:3000",
+  "easProjectId": null,
+  "sourceRevision": "c8659e40c27606ae137ae8cb5befa7aadd0079c5",
+  "fingerprint": "sha256:18ef47880221b997922c23a0ad99cfcc5a20776d87cf58b69b329e6eee44552f",
+  "artifactType": "apk",
+  "branding": {
+    "displayName": "Restaurant B (Test)",
+    "primaryColor": "#195954",
+    "secondaryColor": "#60C8B7",
+    "backgroundColor": "#EDF8F7",
+    "embeddedLogo": true
+  },
+  "icon": "../../configs/restaurants/assets/restaurant-b/operations-icon.png",
+  "splash": {
+    "backgroundColor": "#195954",
+    "image": "../../configs/restaurants/assets/restaurant-b/operations-splash.png",
+    "imageWidth": 160
+  }
+}

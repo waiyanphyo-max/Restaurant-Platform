@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-22 Asia/Bangkok",
+  "head": "c8659e40c27606ae137ae8cb5befa7aadd0079c5",
+  "branch": "uxi/13-integrated-qa",
+  "baselineHeadUnchanged": true,
+  "baselineBranchUnchanged": true,
+  "trackedDiffPaths": [],
+  "stagedDiffPaths": [],
+  "status": [
+    "?? .postman/",
+    "?? docs/qa/",
+    "?? docs/ux-multi-tenant-acceptance.md",
+    "?? postman/"
+  ],
+  "postman": [
+    {
+      "path": ".postman\\resources.yaml",
+      "unchanged": true
+    },
+    {
+      "path": "postman\\collections\\RestaurantPlatform\\Create Restaurant By Admin.request.yaml",
+      "unchanged": true
+    },
+    {
+      "path": "postman\\collections\\RestaurantPlatform\\Login.request.yaml",
+      "unchanged": true
+    },
+    {
+      "path": "postman\\collections\\RestaurantPlatform\\Request OTP from Email.request.yaml",
+      "unchanged": true
+    },
+    {
+      "path": "postman\\collections\\RestaurantPlatform\\.resources\\definition.yaml",
+      "unchanged": true
+    },
+    {
+      "path": "postman\\environments\\Restaurant Local - Private.environment.yaml",
+      "unchanged": true
+    },
+    {
+      "path": "postman\\globals\\workspace.globals.yaml",
+      "unchanged": true
+    }
+  ],
+  "allSevenPostmanFilesUnchanged": true,
+  "markdownFilesChecked": 6,
+  "checkedLinks": 120,
+  "missingLinks": [],
+  "trailingWhitespace": [],
+  "traceabilityRows": 258,
+  "invalidStatuses": [],
+  "noSourceFixRequired": true
+}

@@ -1,0 +1,1812 @@
+[
+  {
+    "name": "guest-a-menu-320-100",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-a-menu-320-100.png",
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Find your next favourite.",
+      "Smoke A drinks",
+      "Smoke A tea 4e4546163e14",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Search dishes…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "All dishes",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke A drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nFeatured\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "Skip to content\nS\nSan Thaw Tar synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\nMenu\nFind your next favourite.\n\nBrowse freely. No account needed for QR ordering.\n\nSearch the menu\nAll dishes\nSmoke A drinks\n\n1 dishes shown\n\nSmoke A drinks\n1 dishes\n♨\nFeatured\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic A address 4e4546163e14\n\nCall the restaurant\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 173,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-a-product-320-100",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/menu/1e11ce06-0e3c-4c9c-a1b8-ba487b0fefaf",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-a-product-320-100.png",
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Smoke A tea 4e4546163e14",
+      "Choose your options",
+      "",
+      "",
+      "",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "← Back to menu",
+        "disabled": false
+      },
+      {
+        "tag": "SELECT",
+        "text": "Choose a variant\nLarge 4e4546163e14 · MMK 3,000",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Option quantity: Oat milk 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "",
+        "disabled": false
+      },
+      {
+        "tag": "TEXTAREA",
+        "text": "",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Add to order",
+        "disabled": true
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 2,
+    "bodyText": "Skip to content\nS\nSan Thaw Tar synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\n← Back to menu\n♨\nSmoke A drinks\nFeatured\nSmoke A tea 4e4546163e14\nAvailable\n\nTea description 4e4546163e14\n\nMMK 3,000\nChoose your options\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nSmoke A tea 4e4546163e14\nSize or variant Required\nChoose a variant\nLarge 4e4546163e14 · MMK 3,000\nMilk choice 4e4546163e14 Required\n\nChoose: 1–1\n\nOat milk 4e4546163e14\n+MMK 500\nQuantity\nNotes for the kitchen\nUp to 500 characters.\n\nItem estimate\nChoose your options\n\nCheck the variant, options, quantity and available stock before adding this dish.\n\nAdd to order\nSizes & variants / Make it yours\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic A address 4e4546163e14\n\nCall the restaurant\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 221,
+    "axNamedButtons": 4
+  },
+  {
+    "name": "guest-a-menu-1440-100",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/menu",
+    "width": 1440,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-a-menu-1440-100.png",
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 1440,
+    "documentWidth": 1425,
+    "bodyWidth": 1425,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Find your next favourite.",
+      "Smoke A drinks",
+      "Smoke A tea 4e4546163e14",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Search dishes…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "All dishes",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke A drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nFeatured\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "Skip to content\nS\nSan Thaw Tar synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\nMenu\nFind your next favourite.\n\nBrowse freely. No account needed for QR ordering.\n\nSearch the menu\nAll dishes\nSmoke A drinks\n\n1 dishes shown\n\nSmoke A drinks\n1 dishes\n♨\nFeatured\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic A address 4e4546163e14\n\nCall the restaurant\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 163,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-a-product-1440-100",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/menu/1e11ce06-0e3c-4c9c-a1b8-ba487b0fefaf",
+    "width": 1440,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-a-product-1440-100.png",
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 1440,
+    "documentWidth": 1425,
+    "bodyWidth": 1425,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Smoke A tea 4e4546163e14",
+      "Choose your options",
+      "",
+      "",
+      "",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "← Back to menu",
+        "disabled": false
+      },
+      {
+        "tag": "SELECT",
+        "text": "Choose a variant\nLarge 4e4546163e14 · MMK 3,000",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Option quantity: Oat milk 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "",
+        "disabled": false
+      },
+      {
+        "tag": "TEXTAREA",
+        "text": "",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Add to order",
+        "disabled": true
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 2,
+    "bodyText": "Skip to content\nS\nSan Thaw Tar synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\n← Back to menu\n♨\nSmoke A drinks\nFeatured\nSmoke A tea 4e4546163e14\nAvailable\n\nTea description 4e4546163e14\n\nMMK 3,000\nChoose your options\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nSmoke A tea 4e4546163e14\nSize or variant Required\nChoose a variant\nLarge 4e4546163e14 · MMK 3,000\nMilk choice 4e4546163e14 Required\n\nChoose: 1–1\n\nOat milk 4e4546163e14\n+MMK 500\nQuantity\nNotes for the kitchen\nUp to 500 characters.\n\nItem estimate\nChoose your options\n\nCheck the variant, options, quantity and available stock before adding this dish.\n\nAdd to order\nSizes & variants / Make it yours\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic A address 4e4546163e14\n\nCall the restaurant\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 208,
+    "axNamedButtons": 4
+  },
+  {
+    "name": "guest-a-menu-320-200",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 2,
+    "screenshot": "screenshots/guest-a-menu-320-200.png",
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Find your next favourite.",
+      "Smoke A drinks",
+      "Smoke A tea 4e4546163e14",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Search dishes…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "All dishes",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke A drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nFeatured\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "Skip to content\nS\nSan Thaw Tar synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\nMenu\nFind your next favourite.\n\nBrowse freely. No account needed for QR ordering.\n\nSearch the menu\nAll dishes\nSmoke A drinks\n\n1 dishes shown\n\nSmoke A drinks\n1 dishes\n♨\nFeatured\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic A address 4e4546163e14\n\nCall the restaurant\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 285,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-a-home-1440-100",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/",
+    "width": 1440,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-a-home-1440-100.png",
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 1440,
+    "documentWidth": 1425,
+    "bodyWidth": 1425,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "San Thaw Tar synthetic 4e4546163e14",
+      "Smoke A tea 4e4546163e14",
+      "Find your next favourite.",
+      "Smoke A drinks",
+      "Smoke A tea 4e4546163e14",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Explore the menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "View details",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Search dishes…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "All dishes",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke A drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nFeatured\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "Skip to content\nS\nSan Thaw Tar synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\nWelcome to our table\nSan Thaw Tar synthetic 4e4546163e14\n\nSynthetic restaurant A description 4e4546163e14\n\nBrowse the menu, then scan the restaurant’s current table or takeaway QR to order.\n\nExplore the menu\nBrowse freely. No account needed for QR ordering.\n♨\nFeatured\nSmoke A tea 4e4546163e14\nMMK 3,000\nView details\nSan Thaw Tar synthetic 4e4546163e14\nFind your next favourite.\n\nBrowse freely. No account needed for QR ordering.\n\nSearch the menu\nAll dishes\nSmoke A drinks\n\n1 dishes shown\n\nSmoke A drinks\n1 dishes\n♨\nFeatured\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic A address 4e4546163e14\n\nCall the restaurant\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 200,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-a-burmese-320-100",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-a-burmese-320-100.png",
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "my",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "နှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။",
+      "Smoke A drinks",
+      "Smoke A tea 4e4546163e14",
+      "သင့်အော်ဒါ",
+      "ကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။"
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "အကြောင်းအရာသို့ သွားရန်",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ပင်မစာမျက်နှာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "မီနူး",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ဆက်သွယ်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "ဟင်းလျာ ရှာရန်…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "ဟင်းလျာအားလုံး",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke A drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nဆိုင်၏ရွေးချယ်မှု\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "အော်ဒါတင်ရန်",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "အကြောင်းအရာသို့ သွားရန်\nS\nSan Thaw Tar synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nဟင်းလျာအားလုံး\nSmoke A drinks\n\n၁ ဟင်းလျာ ပြသထားသည်\n\nSmoke A drinks\n၁ ဟင်းလျာ\n♨\nဆိုင်၏ရွေးချယ်မှု\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic A address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။",
+    "bodyContainsSynthetic": true,
+    "axNodes": 175,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-a-burmese-320-200",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 2,
+    "screenshot": "screenshots/guest-a-burmese-320-200.png",
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "my",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "နှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။",
+      "Smoke A drinks",
+      "Smoke A tea 4e4546163e14",
+      "သင့်အော်ဒါ",
+      "ကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။"
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "အကြောင်းအရာသို့ သွားရန်",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ပင်မစာမျက်နှာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "မီနူး",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ဆက်သွယ်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "ဟင်းလျာ ရှာရန်…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "ဟင်းလျာအားလုံး",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke A drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nဆိုင်၏ရွေးချယ်မှု\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "အော်ဒါတင်ရန်",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "အကြောင်းအရာသို့ သွားရန်\nS\nSan Thaw Tar synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nဟင်းလျာအားလုံး\nSmoke A drinks\n\n၁ ဟင်းလျာ ပြသထားသည်\n\nSmoke A drinks\n၁ ဟင်းလျာ\n♨\nဆိုင်၏ရွေးချယ်မှု\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic A address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။",
+    "bodyContainsSynthetic": true,
+    "axNodes": 295,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-a-burmese-320-search",
+    "url": "http://qa-m5-4e4546163e14-a-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": null,
+    "title": "San Thaw Tar synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "my",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "နှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။",
+      "Smoke A drinks",
+      "Smoke A tea 4e4546163e14",
+      "သင့်အော်ဒါ",
+      "ကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။"
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "အကြောင်းအရာသို့ သွားရန်",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "S\nSan Thaw Tar synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ပင်မစာမျက်နှာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "မီနူး",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ဆက်သွယ်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "ဟင်းလျာ ရှာရန်…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "ဟင်းလျာအားလုံး",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke A drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nဆိုင်၏ရွေးချယ်မှု\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "အော်ဒါတင်ရန်",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959111111111",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "အကြောင်းအရာသို့ သွားရန်\nS\nSan Thaw Tar synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nဟင်းလျာအားလုံး\nSmoke A drinks\n\n၁ ဟင်းလျာ ပြသထားသည်\n\nSmoke A drinks\n၁ ဟင်းလျာ\n♨\nဆိုင်၏ရွေးချယ်မှု\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic A address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။",
+    "bodyContainsSynthetic": true,
+    "axNodes": 175,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-a-keyboard-search",
+    "searchCheck": {
+      "value": "no-such-synthetic-product",
+      "body": "အကြောင်းအရာသို့ သွားရန်\nS\nSan Thaw Tar synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nရှာဖွေမှု ရှင်းရန်\nဟင်းလျာအားလုံး\nSmoke A drinks\n\n၀ ဟင်းလျာ ပြသထားသည်\n\nဟင်းလျာ မတွေ့ပါ\n\nအခြားစကားလုံးဖြင့် ရှာပါ သို့မဟုတ် အမျိုးအစား ပြောင်းရွေးပါ။\n\nဟင်းလျာအားလုံး\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic A address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။"
+    },
+    "clearResult": {
+      "found": true,
+      "focusReturned": true
+    },
+    "focus": {
+      "tag": "BUTTON",
+      "name": "ဟင်းလျာအားလုံး",
+      "outline": "solid"
+    },
+    "text": "အကြောင်းအရာသို့ သွားရန်\nS\nSan Thaw Tar synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nဟင်းလျာအားလုံး\nSmoke A drinks\n\n၁ ဟင်းလျာ ပြသထားသည်\n\nSmoke A drinks\n၁ ဟင်းလျာ\n♨\nဆိုင်၏ရွေးချယ်မှု\nSmoke A tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic A address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959111111111\n\nSan Thaw Tar synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။"
+  },
+  {
+    "name": "guest-b-menu-320-100",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-b-menu-320-100.png",
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Find your next favourite.",
+      "Smoke B drinks",
+      "Smoke B tea 4e4546163e14",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Search dishes…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "All dishes",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke B drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "Skip to content\nB\nBlue Kitchen synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\nMenu\nFind your next favourite.\n\nBrowse freely. No account needed for QR ordering.\n\nSearch the menu\nAll dishes\nSmoke B drinks\n\n1 dishes shown\n\nSmoke B drinks\n1 dishes\n♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic B address 4e4546163e14\n\nCall the restaurant\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 170,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-b-product-320-100",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/menu/72dc6f57-b8d2-4dfa-83b2-bd8c94249899",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-b-product-320-100.png",
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Smoke B tea 4e4546163e14",
+      "Choose your options",
+      "",
+      "",
+      "",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "← Back to menu",
+        "disabled": false
+      },
+      {
+        "tag": "SELECT",
+        "text": "Choose a variant\nLarge 4e4546163e14 · MMK 3,000",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Option quantity: Oat milk 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "",
+        "disabled": false
+      },
+      {
+        "tag": "TEXTAREA",
+        "text": "",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Add to order",
+        "disabled": true
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 2,
+    "bodyText": "Skip to content\nB\nBlue Kitchen synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\n← Back to menu\n♨\nSmoke B drinks\nSmoke B tea 4e4546163e14\nAvailable\n\nTea description 4e4546163e14\n\nMMK 3,000\nChoose your options\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nSmoke B tea 4e4546163e14\nSize or variant Required\nChoose a variant\nLarge 4e4546163e14 · MMK 3,000\nMilk choice 4e4546163e14 Required\n\nChoose: 1–1\n\nOat milk 4e4546163e14\n+MMK 500\nQuantity\nNotes for the kitchen\nUp to 500 characters.\n\nItem estimate\nChoose your options\n\nCheck the variant, options, quantity and available stock before adding this dish.\n\nAdd to order\nSizes & variants / Make it yours\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic B address 4e4546163e14\n\nCall the restaurant\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 218,
+    "axNamedButtons": 4
+  },
+  {
+    "name": "guest-b-menu-1440-100",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/menu",
+    "width": 1440,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-b-menu-1440-100.png",
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 1440,
+    "documentWidth": 1425,
+    "bodyWidth": 1425,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Find your next favourite.",
+      "Smoke B drinks",
+      "Smoke B tea 4e4546163e14",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Search dishes…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "All dishes",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke B drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "Skip to content\nB\nBlue Kitchen synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\nMenu\nFind your next favourite.\n\nBrowse freely. No account needed for QR ordering.\n\nSearch the menu\nAll dishes\nSmoke B drinks\n\n1 dishes shown\n\nSmoke B drinks\n1 dishes\n♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic B address 4e4546163e14\n\nCall the restaurant\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 160,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-b-product-1440-100",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/menu/72dc6f57-b8d2-4dfa-83b2-bd8c94249899",
+    "width": 1440,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-b-product-1440-100.png",
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 1440,
+    "documentWidth": 1425,
+    "bodyWidth": 1425,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Smoke B tea 4e4546163e14",
+      "Choose your options",
+      "",
+      "",
+      "",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "← Back to menu",
+        "disabled": false
+      },
+      {
+        "tag": "SELECT",
+        "text": "Choose a variant\nLarge 4e4546163e14 · MMK 3,000",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Option quantity: Oat milk 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "",
+        "disabled": false
+      },
+      {
+        "tag": "TEXTAREA",
+        "text": "",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Add to order",
+        "disabled": true
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 2,
+    "bodyText": "Skip to content\nB\nBlue Kitchen synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\n← Back to menu\n♨\nSmoke B drinks\nSmoke B tea 4e4546163e14\nAvailable\n\nTea description 4e4546163e14\n\nMMK 3,000\nChoose your options\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nSmoke B tea 4e4546163e14\nSize or variant Required\nChoose a variant\nLarge 4e4546163e14 · MMK 3,000\nMilk choice 4e4546163e14 Required\n\nChoose: 1–1\n\nOat milk 4e4546163e14\n+MMK 500\nQuantity\nNotes for the kitchen\nUp to 500 characters.\n\nItem estimate\nChoose your options\n\nCheck the variant, options, quantity and available stock before adding this dish.\n\nAdd to order\nSizes & variants / Make it yours\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic B address 4e4546163e14\n\nCall the restaurant\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 205,
+    "axNamedButtons": 4
+  },
+  {
+    "name": "guest-b-menu-320-200",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 2,
+    "screenshot": "screenshots/guest-b-menu-320-200.png",
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Find your next favourite.",
+      "Smoke B drinks",
+      "Smoke B tea 4e4546163e14",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Search dishes…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "All dishes",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke B drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "Skip to content\nB\nBlue Kitchen synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\nMenu\nFind your next favourite.\n\nBrowse freely. No account needed for QR ordering.\n\nSearch the menu\nAll dishes\nSmoke B drinks\n\n1 dishes shown\n\nSmoke B drinks\n1 dishes\n♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic B address 4e4546163e14\n\nCall the restaurant\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 275,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-b-home-1440-100",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/",
+    "width": 1440,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-b-home-1440-100.png",
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 1440,
+    "documentWidth": 1425,
+    "bodyWidth": 1425,
+    "horizontalOverflow": false,
+    "language": "en",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "Blue Kitchen synthetic 4e4546163e14",
+      "Find your next favourite.",
+      "Smoke B drinks",
+      "Smoke B tea 4e4546163e14",
+      "Your order",
+      "Come by. Say hello."
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "Skip to content",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Home",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Menu",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Contact",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "Explore the menu",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "Search dishes…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "All dishes",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke B drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Place order",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "Skip to content\nB\nBlue Kitchen synthetic 4e4546163e14\nHome\nMenu\nContact\nEN\nမြန်မာ\nWelcome to our table\nBlue Kitchen synthetic 4e4546163e14\n\nSynthetic restaurant B description 4e4546163e14\n\nBrowse the menu, then scan the restaurant’s current table or takeaway QR to order.\n\nExplore the menu\nBrowse freely. No account needed for QR ordering.\nBlue Kitchen synthetic 4e4546163e14\nFind your next favourite.\n\nBrowse freely. No account needed for QR ordering.\n\nSearch the menu\nAll dishes\nSmoke B drinks\n\n1 dishes shown\n\nSmoke B drinks\n1 dishes\n♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nPrice by selected variant\nMMK 3,000\nAvailable\nView details\n\nAvailability and prices are checked again when an order is placed.\n\nYour order\n\nScan this restaurant’s Table QR or Common QR to order. No account is needed.\n\nYour cart is empty. Choose a dish from the menu.\n\nThe restaurant checks stock, options and final prices when you place the order.\n\nPlace order\nMMK\nContact\nCome by. Say hello.\n\nContact the restaurant to confirm opening hours.\n\nFind us\n\nSynthetic B address 4e4546163e14\n\nCall the restaurant\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nMade for good food & good company.",
+    "bodyContainsSynthetic": true,
+    "axNodes": 181,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-b-burmese-320-100",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": "screenshots/guest-b-burmese-320-100.png",
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "my",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "နှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။",
+      "Smoke B drinks",
+      "Smoke B tea 4e4546163e14",
+      "သင့်အော်ဒါ",
+      "ကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။"
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "အကြောင်းအရာသို့ သွားရန်",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ပင်မစာမျက်နှာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "မီနူး",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ဆက်သွယ်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "ဟင်းလျာ ရှာရန်…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "ဟင်းလျာအားလုံး",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke B drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "အော်ဒါတင်ရန်",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "အကြောင်းအရာသို့ သွားရန်\nB\nBlue Kitchen synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nဟင်းလျာအားလုံး\nSmoke B drinks\n\n၁ ဟင်းလျာ ပြသထားသည်\n\nSmoke B drinks\n၁ ဟင်းလျာ\n♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic B address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။",
+    "bodyContainsSynthetic": true,
+    "axNodes": 172,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-b-burmese-320-200",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 2,
+    "screenshot": "screenshots/guest-b-burmese-320-200.png",
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "my",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "နှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။",
+      "Smoke B drinks",
+      "Smoke B tea 4e4546163e14",
+      "သင့်အော်ဒါ",
+      "ကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။"
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "အကြောင်းအရာသို့ သွားရန်",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ပင်မစာမျက်နှာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "မီနူး",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ဆက်သွယ်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "ဟင်းလျာ ရှာရန်…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "ဟင်းလျာအားလုံး",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke B drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "အော်ဒါတင်ရန်",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "အကြောင်းအရာသို့ သွားရန်\nB\nBlue Kitchen synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nဟင်းလျာအားလုံး\nSmoke B drinks\n\n၁ ဟင်းလျာ ပြသထားသည်\n\nSmoke B drinks\n၁ ဟင်းလျာ\n♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic B address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။",
+    "bodyContainsSynthetic": true,
+    "axNodes": 287,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-b-burmese-320-search",
+    "url": "http://qa-m5-4e4546163e14-b-preview.localhost:62726/menu",
+    "width": 320,
+    "height": 900,
+    "rootTextScale": 1,
+    "screenshot": null,
+    "title": "Blue Kitchen synthetic 4e4546163e14 · Menu",
+    "viewport": 320,
+    "documentWidth": 305,
+    "bodyWidth": 305,
+    "horizontalOverflow": false,
+    "language": "my",
+    "reducedMotion": true,
+    "brokenImages": 0,
+    "headings": [
+      "နှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။",
+      "Smoke B drinks",
+      "Smoke B tea 4e4546163e14",
+      "သင့်အော်ဒါ",
+      "ကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။"
+    ],
+    "controls": [
+      {
+        "tag": "A",
+        "text": "အကြောင်းအရာသို့ သွားရန်",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "B\nBlue Kitchen synthetic 4e4546163e14",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ပင်မစာမျက်နှာ",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "မီနူး",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "ဆက်သွယ်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "EN",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "မြန်မာ",
+        "disabled": false
+      },
+      {
+        "tag": "INPUT",
+        "text": "ဟင်းလျာ ရှာရန်…",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "ဟင်းလျာအားလုံး",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Smoke B drinks",
+        "disabled": false
+      },
+      {
+        "tag": "A",
+        "text": "♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်",
+        "disabled": false
+      },
+      {
+        "tag": "BUTTON",
+        "text": "အော်ဒါတင်ရန်",
+        "disabled": true
+      },
+      {
+        "tag": "A",
+        "text": "+959222222222",
+        "disabled": false
+      }
+    ],
+    "unnamedControls": 0,
+    "bodyText": "အကြောင်းအရာသို့ သွားရန်\nB\nBlue Kitchen synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nဟင်းလျာအားလုံး\nSmoke B drinks\n\n၁ ဟင်းလျာ ပြသထားသည်\n\nSmoke B drinks\n၁ ဟင်းလျာ\n♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic B address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။",
+    "bodyContainsSynthetic": true,
+    "axNodes": 172,
+    "axNamedButtons": 5
+  },
+  {
+    "name": "guest-b-keyboard-search",
+    "searchCheck": {
+      "value": "no-such-synthetic-product",
+      "body": "အကြောင်းအရာသို့ သွားရန်\nB\nBlue Kitchen synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nရှာဖွေမှု ရှင်းရန်\nဟင်းလျာအားလုံး\nSmoke B drinks\n\n၀ ဟင်းလျာ ပြသထားသည်\n\nဟင်းလျာ မတွေ့ပါ\n\nအခြားစကားလုံးဖြင့် ရှာပါ သို့မဟုတ် အမျိုးအစား ပြောင်းရွေးပါ။\n\nဟင်းလျာအားလုံး\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic B address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။"
+    },
+    "clearResult": {
+      "found": true,
+      "focusReturned": true
+    },
+    "focus": {
+      "tag": "BUTTON",
+      "name": "ဟင်းလျာအားလုံး",
+      "outline": "solid"
+    },
+    "text": "အကြောင်းအရာသို့ သွားရန်\nB\nBlue Kitchen synthetic 4e4546163e14\nပင်မစာမျက်နှာ\nမီနူး\nဆက်သွယ်ရန်\nEN\nမြန်မာ\nမီနူး\nနှစ်သက်ရာ ဟင်းလျာကို ရွေးချယ်ပါ။\n\nမီနူးကို လွတ်လပ်စွာ ကြည့်ရှုပါ။ QR မှ မှာယူရန် အကောင့်မလိုပါ။\n\nမီနူးတွင် ရှာရန်\nဟင်းလျာအားလုံး\nSmoke B drinks\n\n၁ ဟင်းလျာ ပြသထားသည်\n\nSmoke B drinks\n၁ ဟင်းလျာ\n♨\nSmoke B tea 4e4546163e14\n\nTea description 4e4546163e14\n\nရွေးချယ်သည့် အရွယ်အစားအလိုက် ဈေးနှုန်း\nMMK ၃,၀၀၀\nရရှိနိုင်ပါသည်\nအသေးစိတ်ကြည့်ရန်\n\nအော်ဒါတင်ချိန်တွင် ရရှိနိုင်မှုနှင့် ဈေးနှုန်းကို ထပ်မံစစ်ဆေးပါမည်။\n\nသင့်အော်ဒါ\n\nအော်ဒါတင်ရန် ဤဆိုင်၏ စားပွဲ QR သို့မဟုတ် Common QR ကို စကင်ဖတ်ပါ။ အကောင့်မလိုပါ။\n\nခြင်းတောင်းထဲတွင် ဘာမှမရှိသေးပါ။ မီနူးမှ ဟင်းလျာရွေးပါ။\n\nအော်ဒါတင်ချိန်တွင် ဆိုင်မှ လက်ကျန်ပစ္စည်း၊ ရွေးချယ်မှုများနှင့် နောက်ဆုံးဈေးနှုန်းကို စစ်ဆေးပါမည်။\n\nအော်ဒါတင်ရန်\nMMK\nဆက်သွယ်ရန်\nကျွန်ုပ်တို့ဆိုင်သို့ လာရောက်ပါ။\n\nဆိုင်ဖွင့်ချိန်ကို အတည်ပြုရန် ဆိုင်ကို ဆက်သွယ်ပါ။\n\nဆိုင်လိပ်စာ\n\nSynthetic B address 4e4546163e14\n\nဆိုင်သို့ ဖုန်းဆက်ရန်\n\n+959222222222\n\nBlue Kitchen synthetic 4e4546163e14\n\nအစားအသောက်ကောင်းနှင့် အမှတ်တရအချိန်များအတွက်။"
+  }
+]

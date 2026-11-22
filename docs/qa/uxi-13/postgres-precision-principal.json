@@ -1,0 +1,11 @@
+{
+  "source": "PostgreSQL psql SELECT on synthetic local database",
+  "database": "PostgreSQL 16.4",
+  "bigint": "9007199254740993",
+  "sum": "9007199254741010",
+  "product": "18014398509481986",
+  "principal": "postgres",
+  "superuser": true,
+  "rlsBypass": true,
+  "passed": true
+}

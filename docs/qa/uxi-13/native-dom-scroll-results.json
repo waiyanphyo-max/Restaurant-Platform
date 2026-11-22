@@ -1,0 +1,1400 @@
+[
+  {
+    "kind": "customer",
+    "screen": "home",
+    "tenant": "a",
+    "scale": 100,
+    "width": 360,
+    "before": {
+      "title": "Restaurant A · home · 360px · 100% text",
+      "lang": "en",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "Home",
+        "Menu",
+        "Cart · 2",
+        "Orders",
+        "Account"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 360,
+      "navOverflow": "auto",
+      "firstTabWidth": 64.390625
+    },
+    "keyboard": {
+      "focusedLabel": "Account",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 284.59375,
+        "right": 349,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 284.59375,
+        "right": 349,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 8,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 697,
+      "mainScrollHeight": 1924,
+      "mainScrollTop": 1227,
+      "visibleText": "What sounds good?\nWelcome to Restaurant A · A longer restaurant name\nDeliver to\nHome · Fixture Street · Fixture Township · Fixture City\nChange address\nFresh from the kitchen\nChoose your meal. Review delivery availability at checkout.\nExplore the menu\nFeatured for you\nGarden rice bowl with seasonal vegetables\nFeatured\n6,500–8,500 MMK\nAvailable\nFreshly prepared with your choice of portion and configured extras.\nView item\nOur food\nGarden rice bowl with seasonal vegetables\n6,500–8,500 MMK\nAvailable\nFreshly prepared with your choice of portion and configured extras.\nView item\nSoup of the day\n3,000 MMK\nAvailable\nFreshly prepared with your choice of portion and configured extras.\nView item\nSeasonal noodles · sold out\n3,000 MMK\nUnavailable\nFreshly prepared with your choice of portion and configured extras.\nView item\nView cart · 2"
+    }
+  },
+  {
+    "kind": "customer",
+    "screen": "home",
+    "tenant": "a",
+    "scale": 200,
+    "width": 360,
+    "before": {
+      "title": "Restaurant A · home · 360px · 200% text",
+      "lang": "en",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "Home",
+        "Menu",
+        "Cart · 2",
+        "Orders",
+        "Account"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 678,
+      "navOverflow": "auto",
+      "firstTabWidth": 128
+    },
+    "keyboard": {
+      "focusedLabel": "Account",
+      "lastTabFocused": true,
+      "navScrollLeft": 291,
+      "lastTabFullyVisible": false,
+      "lastTabBounds": {
+        "left": 248,
+        "right": 376,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 318,
+      "maxScroll": 318,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 221,
+        "right": 349,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 8,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 590,
+      "mainScrollHeight": 4398,
+      "mainScrollTop": 3808,
+      "visibleText": "What sounds good?\nWelcome to Restaurant A · A longer restaurant name\nDeliver to\nHome · Fixture Street · Fixture Township · Fixture City\nChange address\nFresh from the kitchen\nChoose your meal. Review delivery availability at checkout.\nExplore the menu\nFeatured for you\nGarden rice bowl with seasonal vegetables\nFeatured\n6,500–8,500 MMK\nAvailable\nFreshly prepared with your choice of portion and configured extras.\nView item\nOur food\nGarden rice bowl with seasonal vegetables\n6,500–8,500 MMK\nAvailable\nFreshly prepared with your choice of portion and configured extras.\nView item\nSoup of the day\n3,000 MMK\nAvailable\nFreshly prepared with your choice of portion and configured extras.\nView item\nSeasonal noodles · sold out\n3,000 MMK\nUnavailable\nFreshly prepared with your choice of portion and configured extras.\nView item\nView cart · 2"
+    }
+  },
+  {
+    "kind": "customer",
+    "screen": "home",
+    "tenant": "b",
+    "scale": 100,
+    "width": 360,
+    "before": {
+      "title": "Restaurant B · home · 360px · 100% text",
+      "lang": "my",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "ပင်မ",
+        "မီနူး",
+        "ခြင်းတောင်း · 2",
+        "မှာယူမှုများ",
+        "အကောင့်"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 376,
+      "navOverflow": "auto",
+      "firstTabWidth": 67.59375
+    },
+    "keyboard": {
+      "focusedLabel": "အကောင့်",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": false,
+      "lastTabBounds": {
+        "left": 297.390625,
+        "right": 364.984375,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 16,
+      "maxScroll": 16,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 281.390625,
+        "right": 348.984375,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 8,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 670,
+      "mainScrollHeight": 2050,
+      "mainScrollTop": 1380,
+      "visibleText": "ဘာစားချင်ပါသလဲ။\nRestaurant B · မြန်မာအစားအစာဆိုင် မှ ကြိုဆိုပါတယ်\nပို့ဆောင်မည့် လိပ်စာ\nHome · စမ်းသပ်လမ်း · စမ်းသပ်မြို့နယ် · Fixture City\nလိပ်စာ ပြင်ရန်\nမီးဖိုချောင်မှ လတ်လတ်ဆတ်ဆတ်\nအစားအစာ ရွေးပါ။ ပို့ဆောင်နိုင်မှုကို ငွေရှင်းချိန်တွင် စစ်ဆေးပါ။\nမီနူးကြည့်ရန်\nအထူးရွေးချယ်ထားသည်\nဟင်းသီးဟင်းရွက်အစုံနှင့် ထမင်းပန်းကန်\nအထူးရွေးချယ်ထားသည်\n၆,၅၀၀–၈,၅၀၀ MMK\nရနိုင်သည်\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nအစားအစာ အသေးစိတ်\nကျွန်ုပ်တို့၏ အစားအစာများ\nဟင်းသီးဟင်းရွက်အစုံနှင့် ထမင်းပန်းကန်\n၆,၅၀၀–၈,၅၀၀ MMK\nရနိုင်သည်\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nအစားအစာ အသေးစိတ်\nယနေ့အတွက် ဟင်းချို\n၃,၀၀၀ MMK\nရနိုင်သည်\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nအစားအစာ အသေးစိတ်\nရာသီပေါ် ခေါက်ဆွဲ · ကုန်နေပါသည်\n၃,၀၀၀ MMK\nလောလောဆယ် မရနိုင်ပါ\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nအစားအစာ အသေးစိတ်\nခြင်းတောင်း ကြည့်ရန် · 2"
+    }
+  },
+  {
+    "kind": "customer",
+    "screen": "home",
+    "tenant": "b",
+    "scale": 200,
+    "width": 360,
+    "before": {
+      "title": "Restaurant B · home · 360px · 200% text",
+      "lang": "my",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "ပင်မ",
+        "မီနူး",
+        "ခြင်းတောင်း · 2",
+        "မှာယူမှုများ",
+        "အကောင့်"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 706,
+      "navOverflow": "auto",
+      "firstTabWidth": 133.578125
+    },
+    "keyboard": {
+      "focusedLabel": "အကောင့်",
+      "lastTabFocused": true,
+      "navScrollLeft": 311,
+      "lastTabFullyVisible": false,
+      "lastTabBounds": {
+        "left": 250.359375,
+        "right": 383.953125,
+        "top": 866,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 857,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 346,
+      "maxScroll": 346,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 215.359375,
+        "right": 348.953125,
+        "top": 866,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 8,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 518,
+      "mainScrollHeight": 4910,
+      "mainScrollTop": 4392,
+      "visibleText": "ဘာစားချင်ပါသလဲ။\nRestaurant B · မြန်မာအစားအစာဆိုင် မှ ကြိုဆိုပါတယ်\nပို့ဆောင်မည့် လိပ်စာ\nHome · စမ်းသပ်လမ်း · စမ်းသပ်မြို့နယ် · Fixture City\nလိပ်စာ ပြင်ရန်\nမီးဖိုချောင်မှ လတ်လတ်ဆတ်ဆတ်\nအစားအစာ ရွေးပါ။ ပို့ဆောင်နိုင်မှုကို ငွေရှင်းချိန်တွင် စစ်ဆေးပါ။\nမီနူးကြည့်ရန်\nအထူးရွေးချယ်ထားသည်\nဟင်းသီးဟင်းရွက်အစုံနှင့် ထမင်းပန်းကန်\nအထူးရွေးချယ်ထားသည်\n၆,၅၀၀–၈,၅၀၀ MMK\nရနိုင်သည်\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nအစားအစာ အသေးစိတ်\nကျွန်ုပ်တို့၏ အစားအစာများ\nဟင်းသီးဟင်းရွက်အစုံနှင့် ထမင်းပန်းကန်\n၆,၅၀၀–၈,၅၀၀ MMK\nရနိုင်သည်\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nအစားအစာ အသေးစိတ်\nယနေ့အတွက် ဟင်းချို\n၃,၀၀၀ MMK\nရနိုင်သည်\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nအစားအစာ အသေးစိတ်\nရာသီပေါ် ခေါက်ဆွဲ · ကုန်နေပါသည်\n၃,၀၀၀ MMK\nလောလောဆယ် မရနိုင်ပါ\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nအစားအစာ အသေးစိတ်\nခြင်းတောင်း ကြည့်ရန် · 2"
+    }
+  },
+  {
+    "kind": "customer-lifecycle",
+    "screen": "checkout",
+    "tenant": "a",
+    "scale": 100,
+    "width": 360,
+    "before": {
+      "title": "Restaurant A · checkout · 360px · 100% text",
+      "lang": "en",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "Home",
+        "Menu",
+        "Cart · 2",
+        "Orders",
+        "Account"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 360,
+      "navOverflow": "auto",
+      "firstTabWidth": 64.390625
+    },
+    "keyboard": {
+      "focusedLabel": "Account",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 284.59375,
+        "right": 349,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 284.59375,
+        "right": 349,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 7,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 745,
+      "mainScrollHeight": 1558,
+      "mainScrollTop": 813,
+      "visibleText": "Checkout\nRestaurant A · A longer restaurant name\nDelivery location\nUse a saved address or choose a location for this order.\nHome\nSynthetic Customer A\n12, Fixture Street, Ward 3, Fixture Township, Fixture District, Fixture Region\n09123456789\nCall on arrival\nUse saved address · Home (default)\nEnter a text delivery address\nEnter a text address or use a saved address. No map pin or location permission is needed.\n12, Fixture Street, Ward 3, Fixture Township, Fixture District, Fixture Region\nText address · no navigation coordinates. Township coverage is preliminary; the restaurant reviews the detailed address before accepting.\nConfigured delivery areas\nNo canonical township delivery areas are configured. Delivery cannot be confirmed until an eligible area is configured.\nDelivery details\nRecipient name\nContact phone\nLandmark or delivery instructions\nCash on delivery\nReview destination\nBack to cart"
+    }
+  },
+  {
+    "kind": "customer-lifecycle",
+    "screen": "checkout",
+    "tenant": "a",
+    "scale": 200,
+    "width": 360,
+    "before": {
+      "title": "Restaurant A · checkout · 360px · 200% text",
+      "lang": "en",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "Home",
+        "Menu",
+        "Cart · 2",
+        "Orders",
+        "Account"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 678,
+      "navOverflow": "auto",
+      "firstTabWidth": 128
+    },
+    "keyboard": {
+      "focusedLabel": "Account",
+      "lastTabFocused": true,
+      "navScrollLeft": 291,
+      "lastTabFullyVisible": false,
+      "lastTabBounds": {
+        "left": 248,
+        "right": 376,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 318,
+      "maxScroll": 318,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 221,
+        "right": 349,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 7,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 652,
+      "mainScrollHeight": 4064,
+      "mainScrollTop": 3412,
+      "visibleText": "Checkout\nRestaurant A · A longer restaurant name\nDelivery location\nUse a saved address or choose a location for this order.\nHome\nSynthetic Customer A\n12, Fixture Street, Ward 3, Fixture Township, Fixture District, Fixture Region\n09123456789\nCall on arrival\nUse saved address · Home (default)\nEnter a text delivery address\nEnter a text address or use a saved address. No map pin or location permission is needed.\n12, Fixture Street, Ward 3, Fixture Township, Fixture District, Fixture Region\nText address · no navigation coordinates. Township coverage is preliminary; the restaurant reviews the detailed address before accepting.\nConfigured delivery areas\nNo canonical township delivery areas are configured. Delivery cannot be confirmed until an eligible area is configured.\nDelivery details\nRecipient name\nContact phone\nLandmark or delivery instructions\nCash on delivery\nReview destination\nBack to cart"
+    }
+  },
+  {
+    "kind": "customer-lifecycle",
+    "screen": "checkout",
+    "tenant": "b",
+    "scale": 100,
+    "width": 360,
+    "before": {
+      "title": "Restaurant B · checkout · 360px · 100% text",
+      "lang": "my",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "ပင်မ",
+        "မီနူး",
+        "ခြင်းတောင်း · 2",
+        "မှာယူမှုများ",
+        "အကောင့်"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 376,
+      "navOverflow": "auto",
+      "firstTabWidth": 67.59375
+    },
+    "keyboard": {
+      "focusedLabel": "အကောင့်",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": false,
+      "lastTabBounds": {
+        "left": 297.390625,
+        "right": 364.984375,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 16,
+      "maxScroll": 16,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 281.390625,
+        "right": 348.984375,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 7,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 718,
+      "mainScrollHeight": 1508,
+      "mainScrollTop": 790,
+      "visibleText": "ငွေရှင်းရန်\nRestaurant B · မြန်မာအစားအစာဆိုင်\nပို့ဆောင်မည့်နေရာ\nသိမ်းထားသည့်လိပ်စာကို သုံးပါ သို့မဟုတ် ယခုမှာယူမှုအတွက် နေရာအသစ်ရွေးပါ။\nHome\nစမ်းသပ်အသုံးပြုသူ B\n12, စမ်းသပ်လမ်း, Ward 3, စမ်းသပ်မြို့နယ်, Fixture District, Fixture Region\n09123456789\nရောက်လျှင် ဖုန်းဆက်ပါ\nသိမ်းထားသည့်လိပ်စာသုံးရန် · Home (မူလ)\nပို့ဆောင်ရန်လိပ်စာ ကိုယ်တိုင်ဖြည့်ရန်\nလိပ်စာကို ကိုယ်တိုင်ဖြည့်ပါ သို့မဟုတ် သိမ်းထားသည့်လိပ်စာကို သုံးပါ။ မြေပုံနေရာ သို့မဟုတ် တည်နေရာအသုံးပြုခွင့် မလိုပါ။\n12, စမ်းသပ်လမ်း, Ward 3, စမ်းသပ်မြို့နယ်, Fixture District, Fixture Region\nစာသားလိပ်စာ · လမ်းညွှန်တည်နေရာ မရှိပါ။ မြို့နှင့် မြို့နယ်အလိုက် ပို့ဆောင်နိုင်မှုကို စစ်ဆေးပါမည်။\nသတ်မှတ်ထားသော ပို့ဆောင်မှု ဧရိယာများ\nမြို့နှင့် မြို့နယ်ပါသော ပို့ဆောင်မှုဧရိယာ မရှိသေးပါ။ ဧရိယာသတ်မှတ်ပြီးမှ ပို့ဆောင်နိုင်မှု အတည်ပြုနိုင်ပါမည်။\nပို့ဆောင်မှု အချက်အလက်\nလက်ခံသူအမည်\nဆက်သွယ်ရန် ဖုန်းနံပါတ်\nအနီးရှိ အမှတ်အသား သို့မဟုတ် ပို့ဆောင်ရန် မှာကြားချက်\nပစ္စည်းရောက်မှ ငွေချေမည်\nပို့ဆောင်မည့်နေရာ ပြန်စစ်ရန်\nခြင်းတောင်းသို့ ပြန်သွားရန်"
+    }
+  },
+  {
+    "kind": "customer-lifecycle",
+    "screen": "checkout",
+    "tenant": "b",
+    "scale": 200,
+    "width": 360,
+    "before": {
+      "title": "Restaurant B · checkout · 360px · 200% text",
+      "lang": "my",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "ပင်မ",
+        "မီနူး",
+        "ခြင်းတောင်း · 2",
+        "မှာယူမှုများ",
+        "အကောင့်"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 706,
+      "navOverflow": "auto",
+      "firstTabWidth": 133.578125
+    },
+    "keyboard": {
+      "focusedLabel": "အကောင့်",
+      "lastTabFocused": true,
+      "navScrollLeft": 311,
+      "lastTabFullyVisible": false,
+      "lastTabBounds": {
+        "left": 250.359375,
+        "right": 383.953125,
+        "top": 866,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 857,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 346,
+      "maxScroll": 346,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 215.359375,
+        "right": 348.953125,
+        "top": 866,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 7,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 616,
+      "mainScrollHeight": 3772,
+      "mainScrollTop": 3156,
+      "visibleText": "ငွေရှင်းရန်\nRestaurant B · မြန်မာအစားအစာဆိုင်\nပို့ဆောင်မည့်နေရာ\nသိမ်းထားသည့်လိပ်စာကို သုံးပါ သို့မဟုတ် ယခုမှာယူမှုအတွက် နေရာအသစ်ရွေးပါ။\nHome\nစမ်းသပ်အသုံးပြုသူ B\n12, စမ်းသပ်လမ်း, Ward 3, စမ်းသပ်မြို့နယ်, Fixture District, Fixture Region\n09123456789\nရောက်လျှင် ဖုန်းဆက်ပါ\nသိမ်းထားသည့်လိပ်စာသုံးရန် · Home (မူလ)\nပို့ဆောင်ရန်လိပ်စာ ကိုယ်တိုင်ဖြည့်ရန်\nလိပ်စာကို ကိုယ်တိုင်ဖြည့်ပါ သို့မဟုတ် သိမ်းထားသည့်လိပ်စာကို သုံးပါ။ မြေပုံနေရာ သို့မဟုတ် တည်နေရာအသုံးပြုခွင့် မလိုပါ။\n12, စမ်းသပ်လမ်း, Ward 3, စမ်းသပ်မြို့နယ်, Fixture District, Fixture Region\nစာသားလိပ်စာ · လမ်းညွှန်တည်နေရာ မရှိပါ။ မြို့နှင့် မြို့နယ်အလိုက် ပို့ဆောင်နိုင်မှုကို စစ်ဆေးပါမည်။\nသတ်မှတ်ထားသော ပို့ဆောင်မှု ဧရိယာများ\nမြို့နှင့် မြို့နယ်ပါသော ပို့ဆောင်မှုဧရိယာ မရှိသေးပါ။ ဧရိယာသတ်မှတ်ပြီးမှ ပို့ဆောင်နိုင်မှု အတည်ပြုနိုင်ပါမည်။\nပို့ဆောင်မှု အချက်အလက်\nလက်ခံသူအမည်\nဆက်သွယ်ရန် ဖုန်းနံပါတ်\nအနီးရှိ အမှတ်အသား သို့မဟုတ် ပို့ဆောင်ရန် မှာကြားချက်\nပစ္စည်းရောက်မှ ငွေချေမည်\nပို့ဆောင်မည့်နေရာ ပြန်စစ်ရန်\nခြင်းတောင်းသို့ ပြန်သွားရန်"
+    }
+  },
+  {
+    "kind": "operations",
+    "screen": "dashboard",
+    "tenant": "a",
+    "scale": 100,
+    "width": 320,
+    "before": {
+      "title": "Restaurant A · OWNER · dashboard · 320px · 100% text",
+      "lang": "en",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 320,
+      "navOverflow": "auto",
+      "firstTabWidth": 71.5
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 2,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 758,
+      "mainScrollHeight": 2150,
+      "mainScrollTop": 1392,
+      "visibleText": "Today at a glance\nRestaurant A · A longer restaurant name\nOrders needing attention\nNew orders\n1\nAccepted\n2\nPreparing\n1\nReady for handoff\n3\nOut for delivery\n1\nReview orders\nCreate counter order\nQueue and pickup\n2 active tickets in the restaurant's current queue day\n1 ready · 1 called\nCalling a ticket and confirming physical pickup are separate actions.\nOpen pickup queue\nDelivery activity\n1 waiting for assignment\n1 delivery records for this restaurant\nSYNTHETIC-DELIVERY-A\nPICKED UP\nOpen deliveries\nToday's restaurant operations\n2026-11-21 · Asia/Yangon\n9 created · 2 completed · 1 cancelled\nValue of orders created today, excluding cancellations: 13,000\nOrder value is separate from physical cash collection. Use authorized financial reports for accounting measures.\nOpen shared financial reports\nUpdates\n0 unread updates\nView updates\nRefresh overview"
+    }
+  },
+  {
+    "kind": "operations",
+    "screen": "dashboard",
+    "tenant": "a",
+    "scale": 200,
+    "width": 320,
+    "before": {
+      "title": "Restaurant A · OWNER · dashboard · 320px · 200% text",
+      "lang": "en",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 546,
+      "navOverflow": "auto",
+      "firstTabWidth": 128
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 226,
+      "maxScroll": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 2,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 589,
+      "mainScrollHeight": 4972,
+      "mainScrollTop": 4383,
+      "visibleText": "Today at a glance\nRestaurant A · A longer restaurant name\nOrders needing attention\nNew orders\n1\nAccepted\n2\nPreparing\n1\nReady for handoff\n3\nOut for delivery\n1\nReview orders\nCreate counter order\nQueue and pickup\n2 active tickets in the restaurant's current queue day\n1 ready · 1 called\nCalling a ticket and confirming physical pickup are separate actions.\nOpen pickup queue\nDelivery activity\n1 waiting for assignment\n1 delivery records for this restaurant\nSYNTHETIC-DELIVERY-A\nPICKED UP\nOpen deliveries\nToday's restaurant operations\n2026-11-21 · Asia/Yangon\n9 created · 2 completed · 1 cancelled\nValue of orders created today, excluding cancellations: 13,000\nOrder value is separate from physical cash collection. Use authorized financial reports for accounting measures.\nOpen shared financial reports\nUpdates\n0 unread updates\nView updates\nRefresh overview"
+    }
+  },
+  {
+    "kind": "operations",
+    "screen": "dashboard",
+    "tenant": "b",
+    "scale": 100,
+    "width": 320,
+    "before": {
+      "title": "Restaurant B · OWNER · dashboard · 320px · 100% text",
+      "lang": "my",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 320,
+      "navOverflow": "auto",
+      "firstTabWidth": 71.5
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 2,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 776,
+      "mainScrollHeight": 2126,
+      "mainScrollTop": 1350,
+      "visibleText": "Today at a glance\nRestaurant B · မြန်မာအစားအစာဆိုင်\nOrders needing attention\nNew orders\n1\nAccepted\n2\nPreparing\n1\nReady for handoff\n3\nOut for delivery\n1\nReview orders\nCreate counter order\nQueue and pickup\n2 active tickets in the restaurant's current queue day\n1 ready · 1 called\nCalling a ticket and confirming physical pickup are separate actions.\nOpen pickup queue\nDelivery activity\n1 waiting for assignment\n1 delivery records for this restaurant\nSYNTHETIC-DELIVERY-B\nPICKED UP\nOpen deliveries\nToday's restaurant operations\n2026-11-21 · Asia/Yangon\n9 created · 2 completed · 1 cancelled\nValue of orders created today, excluding cancellations: 13,000\nOrder value is separate from physical cash collection. Use authorized financial reports for accounting measures.\nOpen shared financial reports\nUpdates\n0 unread updates\nView updates\nRefresh overview"
+    }
+  },
+  {
+    "kind": "operations",
+    "screen": "dashboard",
+    "tenant": "b",
+    "scale": 200,
+    "width": 320,
+    "before": {
+      "title": "Restaurant B · OWNER · dashboard · 320px · 200% text",
+      "lang": "my",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 546,
+      "navOverflow": "auto",
+      "firstTabWidth": 128
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 226,
+      "maxScroll": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 2,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 589,
+      "mainScrollHeight": 4972,
+      "mainScrollTop": 4383,
+      "visibleText": "Today at a glance\nRestaurant B · မြန်မာအစားအစာဆိုင်\nOrders needing attention\nNew orders\n1\nAccepted\n2\nPreparing\n1\nReady for handoff\n3\nOut for delivery\n1\nReview orders\nCreate counter order\nQueue and pickup\n2 active tickets in the restaurant's current queue day\n1 ready · 1 called\nCalling a ticket and confirming physical pickup are separate actions.\nOpen pickup queue\nDelivery activity\n1 waiting for assignment\n1 delivery records for this restaurant\nSYNTHETIC-DELIVERY-B\nPICKED UP\nOpen deliveries\nToday's restaurant operations\n2026-11-21 · Asia/Yangon\n9 created · 2 completed · 1 cancelled\nValue of orders created today, excluding cancellations: 13,000\nOrder value is separate from physical cash collection. Use authorized financial reports for accounting measures.\nOpen shared financial reports\nUpdates\n0 unread updates\nView updates\nRefresh overview"
+    }
+  },
+  {
+    "kind": "operations-finance",
+    "screen": "summary",
+    "tenant": "a",
+    "scale": 100,
+    "width": 320,
+    "before": {
+      "title": "Restaurant A · OWNER · summary · 320px · 100% text",
+      "lang": "en",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 320,
+      "navOverflow": "auto",
+      "firstTabWidth": 71.5
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 8,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 758,
+      "mainScrollHeight": 2812,
+      "mainScrollTop": 2054,
+      "visibleText": "1-21 → 2026-11-21 · Asia/Yangon · MMK\nSales and collections · 2026-11-21 to 2026-11-21\nGross sales · စုစုပေါင်းအရောင်း\n9,007,199,254,740,993 MMK\nDiscounts · လျှော့ဈေး\n0 MMK\nNet sales before refunds · ပြန်အမ်းငွေ မနုတ်မီအရောင်း\n9,007,199,254,740,993 MMK\nCollected payments · လက်ခံရရှိငွေ\n8,000 MMK\nOutstanding on these orders · ရရန်ကျန်ငွေ\n9,007,199,254,732,993 MMK\nRefunds less dated reversals · အသားတင်ပြန်အမ်းငွေ\n500 MMK\n2 orders · 3 products sold · 0 cancelled orders\nOrder-cohort net sales include unpaid orders. Collections use actual payment times; refunds and reversals use their own event times. အရောင်းနှင့် လက်ခံငွေကို သီးခြားတွက်ချက်ထားပါသည်။\nLegacy refunds with unknown event date: 100\nTrading payments and expenses\nConfirmed purchases\n9,007,199,254,740,993 MMK\nRegistered operating expenses\n9,007,199,254,740,993 MMK\nPurchase payments less reversals\n100 MMK\nExpense payments less reversals\n100 MMK\nTrading payment net\n7,300 MMK\nThis partial trading payment view includes cash and non-cash settlements for sales, purchases and expenses. Other cash movements and capital activity are outside its scope.\nOperating expenses by category\nRENT\n9,007,199,254,740,993 MMK\nProfit figures unavailable\nCOGS, gross profit and net operating profit are unavailable. Purchases are not inventory cost consumed.\nInventory consumption and complete historical costs are unavailable\nRefresh financial summary"
+    }
+  },
+  {
+    "kind": "operations-finance",
+    "screen": "summary",
+    "tenant": "a",
+    "scale": 200,
+    "width": 320,
+    "before": {
+      "title": "Restaurant A · OWNER · summary · 320px · 200% text",
+      "lang": "en",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 546,
+      "navOverflow": "auto",
+      "firstTabWidth": 128
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 226,
+      "maxScroll": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 8,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 589,
+      "mainScrollHeight": 8136,
+      "mainScrollTop": 7547,
+      "visibleText": "1-21 → 2026-11-21 · Asia/Yangon · MMK\nSales and collections · 2026-11-21 to 2026-11-21\nGross sales · စုစုပေါင်းအရောင်း\n9,007,199,254,740,993 MMK\nDiscounts · လျှော့ဈေး\n0 MMK\nNet sales before refunds · ပြန်အမ်းငွေ မနုတ်မီအရောင်း\n9,007,199,254,740,993 MMK\nCollected payments · လက်ခံရရှိငွေ\n8,000 MMK\nOutstanding on these orders · ရရန်ကျန်ငွေ\n9,007,199,254,732,993 MMK\nRefunds less dated reversals · အသားတင်ပြန်အမ်းငွေ\n500 MMK\n2 orders · 3 products sold · 0 cancelled orders\nOrder-cohort net sales include unpaid orders. Collections use actual payment times; refunds and reversals use their own event times. အရောင်းနှင့် လက်ခံငွေကို သီးခြားတွက်ချက်ထားပါသည်။\nLegacy refunds with unknown event date: 100\nTrading payments and expenses\nConfirmed purchases\n9,007,199,254,740,993 MMK\nRegistered operating expenses\n9,007,199,254,740,993 MMK\nPurchase payments less reversals\n100 MMK\nExpense payments less reversals\n100 MMK\nTrading payment net\n7,300 MMK\nThis partial trading payment view includes cash and non-cash settlements for sales, purchases and expenses. Other cash movements and capital activity are outside its scope.\nOperating expenses by category\nRENT\n9,007,199,254,740,993 MMK\nProfit figures unavailable\nCOGS, gross profit and net operating profit are unavailable. Purchases are not inventory cost consumed.\nInventory consumption and complete historical costs are unavailable\nRefresh financial summary"
+    }
+  },
+  {
+    "kind": "operations-finance",
+    "screen": "summary",
+    "tenant": "b",
+    "scale": 100,
+    "width": 320,
+    "before": {
+      "title": "Restaurant B · OWNER · summary · 320px · 100% text",
+      "lang": "my",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 320,
+      "navOverflow": "auto",
+      "firstTabWidth": 71.5
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 8,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 776,
+      "mainScrollHeight": 2812,
+      "mainScrollTop": 2036,
+      "visibleText": "1-21 → 2026-11-21 · Asia/Yangon · MMK\nSales and collections · 2026-11-21 to 2026-11-21\nGross sales · စုစုပေါင်းအရောင်း\n9,007,199,254,740,993 MMK\nDiscounts · လျှော့ဈေး\n0 MMK\nNet sales before refunds · ပြန်အမ်းငွေ မနုတ်မီအရောင်း\n9,007,199,254,740,993 MMK\nCollected payments · လက်ခံရရှိငွေ\n8,000 MMK\nOutstanding on these orders · ရရန်ကျန်ငွေ\n9,007,199,254,732,993 MMK\nRefunds less dated reversals · အသားတင်ပြန်အမ်းငွေ\n500 MMK\n2 orders · 3 products sold · 0 cancelled orders\nOrder-cohort net sales include unpaid orders. Collections use actual payment times; refunds and reversals use their own event times. အရောင်းနှင့် လက်ခံငွေကို သီးခြားတွက်ချက်ထားပါသည်။\nLegacy refunds with unknown event date: 100\nTrading payments and expenses\nConfirmed purchases\n9,007,199,254,740,993 MMK\nRegistered operating expenses\n9,007,199,254,740,993 MMK\nPurchase payments less reversals\n100 MMK\nExpense payments less reversals\n100 MMK\nTrading payment net\n7,300 MMK\nThis partial trading payment view includes cash and non-cash settlements for sales, purchases and expenses. Other cash movements and capital activity are outside its scope.\nOperating expenses by category\nRENT\n9,007,199,254,740,993 MMK\nProfit figures unavailable\nCOGS, gross profit and net operating profit are unavailable. Purchases are not inventory cost consumed.\nInventory consumption and complete historical costs are unavailable\nRefresh financial summary"
+    }
+  },
+  {
+    "kind": "operations-finance",
+    "screen": "summary",
+    "tenant": "b",
+    "scale": 200,
+    "width": 320,
+    "before": {
+      "title": "Restaurant B · OWNER · summary · 320px · 200% text",
+      "lang": "my",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 546,
+      "navOverflow": "auto",
+      "firstTabWidth": 128
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 226,
+      "maxScroll": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 8,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 589,
+      "mainScrollHeight": 8136,
+      "mainScrollTop": 7547,
+      "visibleText": "1-21 → 2026-11-21 · Asia/Yangon · MMK\nSales and collections · 2026-11-21 to 2026-11-21\nGross sales · စုစုပေါင်းအရောင်း\n9,007,199,254,740,993 MMK\nDiscounts · လျှော့ဈေး\n0 MMK\nNet sales before refunds · ပြန်အမ်းငွေ မနုတ်မီအရောင်း\n9,007,199,254,740,993 MMK\nCollected payments · လက်ခံရရှိငွေ\n8,000 MMK\nOutstanding on these orders · ရရန်ကျန်ငွေ\n9,007,199,254,732,993 MMK\nRefunds less dated reversals · အသားတင်ပြန်အမ်းငွေ\n500 MMK\n2 orders · 3 products sold · 0 cancelled orders\nOrder-cohort net sales include unpaid orders. Collections use actual payment times; refunds and reversals use their own event times. အရောင်းနှင့် လက်ခံငွေကို သီးခြားတွက်ချက်ထားပါသည်။\nLegacy refunds with unknown event date: 100\nTrading payments and expenses\nConfirmed purchases\n9,007,199,254,740,993 MMK\nRegistered operating expenses\n9,007,199,254,740,993 MMK\nPurchase payments less reversals\n100 MMK\nExpense payments less reversals\n100 MMK\nTrading payment net\n7,300 MMK\nThis partial trading payment view includes cash and non-cash settlements for sales, purchases and expenses. Other cash movements and capital activity are outside its scope.\nOperating expenses by category\nRENT\n9,007,199,254,740,993 MMK\nProfit figures unavailable\nCOGS, gross profit and net operating profit are unavailable. Purchases are not inventory cost consumed.\nInventory consumption and complete historical costs are unavailable\nRefresh financial summary"
+    }
+  },
+  {
+    "kind": "customer",
+    "screen": "product",
+    "tenant": "a",
+    "scale": 100,
+    "width": 360,
+    "before": {
+      "title": "Restaurant A · product · 360px · 100% text",
+      "lang": "en",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "Home",
+        "Menu",
+        "Cart · 2",
+        "Orders",
+        "Account"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 360,
+      "navOverflow": "auto",
+      "firstTabWidth": 64.390625
+    },
+    "keyboard": {
+      "focusedLabel": "Account",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 284.59375,
+        "right": 349,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 284.59375,
+        "right": 349,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 9,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 697,
+      "mainScrollHeight": 2139,
+      "mainScrollTop": 1442,
+      "visibleText": "Garden rice bowl with seasonal vegetables\nFreshly prepared with your choice of portion and configured extras.\nPhoto unavailable\nChoose a variant\nRequired · choose one\nRegular · 6,500 MMK\nLarge · 8,500 MMK\nPreparation\nRequired\nChoose 1\nSelected · 0\nMild\n+ 0 MMK\nSelect option\nSpicy\n+ 500 MMK\nSelect option\nExtras\nOptional\nChoose 0–2\nSelected · 0\nExtra vegetables\n+ 800 MMK\nSelect option\nEgg (unavailable)\nUnavailable\nSelect option\nQuantity and preparation\nQuantity · 1\nDecrease quantity\nIncrease quantity\nPreparation instructions (optional)\nEstimated item total\nReview the required options and quantity.\nAdd to cart\nBack to menu"
+    }
+  },
+  {
+    "kind": "customer",
+    "screen": "product",
+    "tenant": "b",
+    "scale": 200,
+    "width": 360,
+    "before": {
+      "title": "Restaurant B · product · 360px · 200% text",
+      "lang": "my",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "ပင်မ",
+        "မီနူး",
+        "ခြင်းတောင်း · 2",
+        "မှာယူမှုများ",
+        "အကောင့်"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 706,
+      "navOverflow": "auto",
+      "firstTabWidth": 133.578125
+    },
+    "keyboard": {
+      "focusedLabel": "အကောင့်",
+      "lastTabFocused": true,
+      "navScrollLeft": 311,
+      "lastTabFullyVisible": false,
+      "lastTabBounds": {
+        "left": 250.359375,
+        "right": 383.953125,
+        "top": 866,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 857,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 346,
+      "maxScroll": 346,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 215.359375,
+        "right": 348.953125,
+        "top": 866,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 9,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 518,
+      "mainScrollHeight": 4223,
+      "mainScrollTop": 3705,
+      "visibleText": "ဟင်းသီးဟင်းရွက်အစုံနှင့် ထမင်းပန်းကန်\nလတ်ဆတ်သော ဟင်းသီးဟင်းရွက်များဖြင့် ပြင်ဆင်ထားပါသည်။ အမျိုးကွဲနှင့် အပိုပစ္စည်းများကို ရွေးချယ်ပါ။\nဓာတ်ပုံ မရရှိပါ\nအမျိုးကွဲ ရွေးရန်\nမဖြစ်မနေ · တစ်မျိုးရွေးပါ\nပုံမှန် · ၆,၅၀၀ MMK\nအကြီး · ၈,၅၀၀ MMK\nပြင်ဆင်ပုံ\nမဖြစ်မနေ ရွေးရန်\n1 မျိုး ရွေးပါ\nရွေးချယ်ပြီး · 0\nမစပ်\n+ ၀ MMK\nထပ်ထည့်ရန်\nအစပ်\n+ ၅၀၀ MMK\nထပ်ထည့်ရန်\nအပိုပစ္စည်းများ\nရွေးချယ်နိုင်သည်\n0–2 မျိုး ရွေးပါ\nရွေးချယ်ပြီး · 0\nဟင်းသီးဟင်းရွက် ထပ်ထည့်ရန်\n+ ၈၀၀ MMK\nထပ်ထည့်ရန်\nကြက်ဥ (မရနိုင်ပါ)\nမရနိုင်ပါ\nထပ်ထည့်ရန်\nအရေအတွက်နှင့် ပြင်ဆင်ရန်\nအရေအတွက် · 1\nအရေအတွက် လျှော့ရန်\nအရေအတွက် တိုးရန်\nပြင်ဆင်ရန် မှတ်ချက် (မဖြစ်မနေ မဟုတ်ပါ)\nခန့်မှန်းတန်ဖိုး\nလိုအပ်သော ရွေးချယ်မှုနှင့် အရေအတွက်ကို စစ်ဆေးပါ။\nခြင်းတောင်းထဲ ထည့်ရန်\nမီနူးသို့ ပြန်ရန်"
+    }
+  },
+  {
+    "kind": "customer-lifecycle",
+    "screen": "quote",
+    "tenant": "a",
+    "scale": 100,
+    "width": 360,
+    "before": {
+      "title": "Restaurant A · quote · 360px · 100% text",
+      "lang": "en",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "Home",
+        "Menu",
+        "Cart · 2",
+        "Orders",
+        "Account"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 360,
+      "navOverflow": "auto",
+      "firstTabWidth": 64.390625
+    },
+    "keyboard": {
+      "focusedLabel": "Account",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 284.59375,
+        "right": 349,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 284.59375,
+        "right": 349,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 2,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 745,
+      "mainScrollHeight": 1568,
+      "mainScrollTop": 823,
+      "visibleText": "Review & confirm\nDeliver to\nRestaurant A · A longer restaurant name\nHome\n12, Fixture Street, Ward 3, Fixture Township\nFixture Township, Fixture District, Fixture Region\nSynthetic Customer A · 09123456789\nCall on arrival\nText address · no navigation coordinates. Geographic proximity has not been verified.\nTownship coverage confirmed. The restaurant will review your ward, street and building before accepting.\nChange delivery details\nOrder summary\n2 × Garden rice bowl with seasonal vegetables\nRegular\nUnit price · 6,500 MMK\nMild × 1 · 0 MMK\n13,000 MMK\nDelivery quote\nCart subtotal · 13,000 MMK\nDelivery fee · 1,500 MMK\nDiscount · 0 MMK\nTotal · 14,500 MMK\nCurrent restaurant and delivery minimums were checked by the server. Prices and availability are checked again when you confirm.\nPayment\nCash on delivery\nThis quote is not an order. Confirm to place the order; cash collection is recorded separately.\nConfirm and place order"
+    }
+  },
+  {
+    "kind": "customer-lifecycle",
+    "screen": "quote",
+    "tenant": "b",
+    "scale": 200,
+    "width": 360,
+    "before": {
+      "title": "Restaurant B · quote · 360px · 200% text",
+      "lang": "my",
+      "documentWidth": 360,
+      "viewport": 360,
+      "tabLabels": [
+        "ပင်မ",
+        "မီနူး",
+        "ခြင်းတောင်း · 2",
+        "မှာယူမှုများ",
+        "အကောင့်"
+      ],
+      "tabCount": 5,
+      "navClientWidth": 360,
+      "navScrollWidth": 706,
+      "navOverflow": "auto",
+      "firstTabWidth": 133.578125
+    },
+    "keyboard": {
+      "focusedLabel": "အကောင့်",
+      "lastTabFocused": true,
+      "navScrollLeft": 311,
+      "lastTabFullyVisible": false,
+      "lastTabBounds": {
+        "left": 250.359375,
+        "right": 383.953125,
+        "top": 866,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 360,
+        "top": 857,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 346,
+      "maxScroll": 346,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 215.359375,
+        "right": 348.953125,
+        "top": 866,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 2,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 616,
+      "mainScrollHeight": 4126,
+      "mainScrollTop": 3510,
+      "visibleText": "စစ်ဆေးပြီး အတည်ပြုရန်\nပို့ဆောင်မည့်နေရာ\nRestaurant B · မြန်မာအစားအစာဆိုင်\nHome\n12, စမ်းသပ်လမ်း, Ward 3, စမ်းသပ်မြို့နယ်\nစမ်းသပ်မြို့နယ်, Fixture District, Fixture Region\nစမ်းသပ်အသုံးပြုသူ B · 09123456789\nရောက်လျှင် ဖုန်းဆက်ပါ\nစာသားလိပ်စာ · လမ်းညွှန်တည်နေရာ မရှိပါ။ ပထဝီအကွာအဝေးကို မစစ်ဆေးထားပါ။\nစားသောက်ဆိုင်မှ လိပ်စာအသေးစိတ်ကို စစ်ဆေးပြီး လက်ခံပါမည်။\nပို့ဆောင်မှု အချက်အလက် ပြင်ရန်\nမှာယူမှု အကျဉ်းချုပ်\n2 × ဟင်းသီးဟင်းရွက်အစုံနှင့် ထမင်းပန်းကန်\nပုံမှန်\nတစ်ခုဈေးနှုန်း · ၆,၅၀၀ MMK\nမစပ် × 1 · ၀ MMK\n၁၃,၀၀၀ MMK\nပို့ဆောင်မှု ငွေတွက်ချက်မှု\nပစ္စည်း စုစုပေါင်း · ၁၃,၀၀၀ MMK\nပို့ဆောင်ခ · ၁,၅၀၀ MMK\nလျှော့ဈေး · ၀ MMK\nစုစုပေါင်း · ၁၄,၅၀၀ MMK\nဆာဗာမှ စားသောက်ဆိုင်နှင့် ပို့ဆောင်မှု အနည်းဆုံးမှာယူငွေကို စစ်ဆေးပြီးပါပြီ။ အတည်ပြုချိန်တွင် ဈေးနှုန်းနှင့် ရရှိနိုင်မှုကို ထပ်စစ်ပါမည်။\nငွေပေးချေမှု\nပစ္စည်းရောက်မှ ငွေချေမည်\nဤငွေတွက်ချက်မှုသည် မှာယူမှု မဟုတ်ပါ။ အတည်ပြုပြီးမှ မှာယူမှု ပြုလုပ်ပါမည်။ ငွေကောက်ခံမှုကို သီးခြား မှတ်တမ်းတင်ပါသည်။\nအတည်ပြုပြီး မှာယူရန်"
+    }
+  },
+  {
+    "kind": "operations-finance",
+    "screen": "closing",
+    "tenant": "a",
+    "scale": 100,
+    "width": 320,
+    "before": {
+      "title": "Restaurant A · OWNER · closing · 320px · 100% text",
+      "lang": "en",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 320,
+      "navOverflow": "auto",
+      "firstTabWidth": 71.5
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 920,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 0,
+      "maxScroll": 0,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 237.5,
+        "right": 309,
+        "top": 929,
+        "bottom": 989
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 9,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 758,
+      "mainScrollHeight": 2528,
+      "mainScrollTop": 1770,
+      "visibleText": "Daily cash closing\nReconcile the restaurant’s physical cash in its local business day.\nSelect closing day and history\nClosing day / history from (YYYY-MM-DD)\nHistory through (YYYY-MM-DD, optional)\nSort closing history by date\nNewest first\nOldest first\nLoad cash closing\n2026-11-21 · Asia/Yangon\nOpening cash Count required\nCash sales received 8,000\nCash refunds paid 500\nCash purchase payments 100\nCash expense payments 100\nOther cash receipts 0 · Other cash payments 0\nExpected closing cash Opening count required\nHistorical cash inputs to reconcile\nInitial counted opening is missing; synthetic historical input is unknown\nCash opening required\nExpected closing cash is unavailable until an opening is known. Record an initial opening when starting this book; otherwise finalize earlier missing days in sequence. အဖွင့်ငွေမသိလျှင် အပိတ်မျှော်မှန်းငွေကို မတွက်နိုင်ပါ။\nInitial counted opening amount\nReason for initial opening\nReview initial opening · အဖွင့်ငွေစစ်ရန်\nClosing history\n2026-11-20 · Revision 1\nExpected 9,007,199,254,740,993\nCounted 9,007,199,254,740,994\nVariance +1\nClosed 2026-11-21T10:00:00+06:30 by 00000000-0000-4000-8000-000000000002\nClosing record 00000000-0000-4000-8000-000000000111\nReconciliation note Synthetic counted cash includes driver-held cash\nReview closing reversal\n1 closing records"
+    }
+  },
+  {
+    "kind": "operations-finance",
+    "screen": "closing",
+    "tenant": "b",
+    "scale": 200,
+    "width": 320,
+    "before": {
+      "title": "Restaurant B · OWNER · closing · 320px · 200% text",
+      "lang": "my",
+      "documentWidth": 320,
+      "viewport": 320,
+      "tabLabels": [
+        "Today",
+        "Orders",
+        "Delivery",
+        "More"
+      ],
+      "tabCount": 4,
+      "navClientWidth": 320,
+      "navScrollWidth": 546,
+      "navOverflow": "auto",
+      "firstTabWidth": 128
+    },
+    "keyboard": {
+      "focusedLabel": "More",
+      "lastTabFocused": true,
+      "navScrollLeft": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      },
+      "navBounds": {
+        "left": 0,
+        "right": 320,
+        "top": 893,
+        "bottom": 1000
+      }
+    },
+    "explicitHorizontalScroll": {
+      "navScrollLeft": 226,
+      "maxScroll": 226,
+      "lastTabFullyVisible": true,
+      "lastTabBounds": {
+        "left": 181,
+        "right": 309,
+        "top": 902,
+        "bottom": 974
+      }
+    },
+    "controlCheck": {
+      "enabledControlsExamined": 9,
+      "notFullyRevealedAfterScroll": []
+    },
+    "bottom": {
+      "mainScrollClientHeight": 589,
+      "mainScrollHeight": 7126,
+      "mainScrollTop": 6537,
+      "visibleText": "Daily cash closing\nReconcile the restaurant’s physical cash in its local business day.\nSelect closing day and history\nClosing day / history from (YYYY-MM-DD)\nHistory through (YYYY-MM-DD, optional)\nSort closing history by date\nNewest first\nOldest first\nLoad cash closing\n2026-11-21 · Asia/Yangon\nOpening cash Count required\nCash sales received 8,000\nCash refunds paid 500\nCash purchase payments 100\nCash expense payments 100\nOther cash receipts 0 · Other cash payments 0\nExpected closing cash Opening count required\nHistorical cash inputs to reconcile\nInitial counted opening is missing; synthetic historical input is unknown\nCash opening required\nExpected closing cash is unavailable until an opening is known. Record an initial opening when starting this book; otherwise finalize earlier missing days in sequence. အဖွင့်ငွေမသိလျှင် အပိတ်မျှော်မှန်းငွေကို မတွက်နိုင်ပါ။\nInitial counted opening amount\nReason for initial opening\nReview initial opening · အဖွင့်ငွေစစ်ရန်\nClosing history\n2026-11-20 · Revision 1\nExpected 9,007,199,254,740,993\nCounted 9,007,199,254,740,994\nVariance +1\nClosed 2026-11-21T10:00:00+06:30 by 10000000-0000-4000-8000-000000000002\nClosing record 10000000-0000-4000-8000-000000000111\nReconciliation note Synthetic counted cash includes driver-held cash\nReview closing reversal\n1 closing records"
+    }
+  }
+]
