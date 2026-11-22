@@ -53,6 +53,7 @@ vi.mock("../../hooks/useApiQuery", () => ({ useApiQuery: (_load: unknown, key: s
 vi.mock("../../hooks/useApiMutation", () => ({ useApiMutation: () => ({
   busy: false, error: null, message: null, run: scenario.run, reset: scenario.reset
 }) }));
+vi.mock("../../hooks/useUnsavedChanges", () => ({ useUnsavedChanges: vi.fn() }));
 vi.mock("../../components/ui", () => ({
   Page: "Page", Card: "Card", Body: "Body", Action: "Action", FormField: "FormField", ConfirmDialog: "ConfirmDialog"
 }));
@@ -147,15 +148,15 @@ describe("separate shopping planning and purchasing screens", () => {
     render(PurchasingScreen); await tick();
   });
 
-  it("starts a daily sheet empty, displays three planning columns and never imports catalog quantities or costs", () => {
+  it("starts a daily sheet empty, displays labelled planning controls and never imports catalog quantities or costs", () => {
     const empty = planner();
     expect(text(empty)).toContain("No items selected.");
     expect(find(empty, "Action", "Save Shopping Sheet").props.disabled).toBe(true);
-    expect(elements(empty).filter(element => element.type === "Text").map(element => element.props.children)).toEqual(["Item", "Qty", "Unit"]);
+    expect(text(empty)).toContain("Quantity plan only");
     selectPlannerItem();
     const row = planner();
-    expect(find(row, "TextInput", `Quantity for ${item.name}`).props).toMatchObject({ value: "", keyboardType: "decimal-pad", selectTextOnFocus: true });
-    expect(find(row, "TextInput", `Unit for ${item.name}`).props.value).toBe("kg");
+    expect(find(row, "FormField", `Quantity for ${item.name}`).props).toMatchObject({ value: "", keyboardType: "decimal-pad", selectTextOnFocus: true });
+    expect(find(row, "FormField", `Unit for ${item.name}`).props.value).toBe("kg");
     expect(text(row)).not.toMatch(/unit cost|unit price|line total|grand total|supplier|invoice|payment|confirm purchase/i);
     expect(scenario.createSheet).not.toHaveBeenCalled(); expect(scenario.confirmPurchase).not.toHaveBeenCalled();
   });
@@ -165,9 +166,9 @@ describe("separate shopping planning and purchasing screens", () => {
     let node = planner();
     const picker = elements(node).find(element => element.type === ShoppingCatalog)!;
     (picker.props.onSelect as (value: ShoppingItem) => void)(item);
-    expect(elements(planner()).filter(element => element.type === "TextInput" && element.props.keyboardType === "decimal-pad")).toHaveLength(1);
-    enter(planner(), "TextInput", `Quantity for ${item.name}`, "1.5");
-    enter(planner(), "TextInput", `Unit for ${item.name}`, " kg ");
+    expect(elements(planner()).filter(element => element.type === "FormField" && element.props.keyboardType === "decimal-pad")).toHaveLength(1);
+    enter(planner(), "FormField", `Quantity for ${item.name}`, "1.5");
+    enter(planner(), "FormField", `Unit for ${item.name}`, " kg ");
     enter(planner(), "FormField", "Shopping date (YYYY-MM-DD)", "2026-11-15");
     node = planner(); press(node, "Save Shopping Sheet"); await tick();
     expect(scenario.createSheet).toHaveBeenCalledExactlyOnceWith({ shoppingDate: "2026-11-15", reason: undefined,
@@ -176,18 +177,18 @@ describe("separate shopping planning and purchasing screens", () => {
   });
 
   it("requires positive daily quantities and supports removing rows before saving", () => {
-    selectPlannerItem(); enter(planner(), "TextInput", `Quantity for ${item.name}`, "0");
+    selectPlannerItem(); enter(planner(), "FormField", `Quantity for ${item.name}`, "0");
     press(planner(), "Save Shopping Sheet");
     expect(elements(planner()).find(element => element.type === "MutationFeedback")?.props.error).toContain("positive");
     expect(scenario.createSheet).not.toHaveBeenCalled();
-    (find(planner(), "Pressable", `Remove ${item.name}`).props.onPress as () => void)();
+    press(planner(), `Remove ${item.name}`);
     expect(find(planner(), "Action", "Save Shopping Sheet").props.disabled).toBe(true);
   });
 
   it("copies a saved sheet into an independent draft with a different daily quantity and no update of the original", async () => {
     press(planner(), "Copy Previous Sheet");
-    expect(find(planner(), "TextInput", `Quantity for ${item.name}`).props.value).toBe("5");
-    enter(planner(), "TextInput", `Quantity for ${item.name}`, "2");
+    expect(find(planner(), "FormField", `Quantity for ${item.name}`).props.value).toBe("5");
+    enter(planner(), "FormField", `Quantity for ${item.name}`, "2");
     enter(planner(), "FormField", "Shopping date (YYYY-MM-DD)", "2026-11-15");
     press(planner(), "Save Shopping Sheet"); await tick();
     expect(scenario.createSheet.mock.calls[0][0].lines[0].quantity).toBe("2");
@@ -198,7 +199,7 @@ describe("separate shopping planning and purchasing screens", () => {
   it("reopens a plan, requires an audit reason and updates that plan independently", async () => {
     press(planner(), "Open Previous Sheet");
     expect(find(planner(), "FormField", "Shopping date (YYYY-MM-DD)").props.value).toBe("2026-11-09");
-    enter(planner(), "TextInput", `Quantity for ${item.name}`, "4");
+    enter(planner(), "FormField", `Quantity for ${item.name}`, "4");
     press(planner(), "Save Shopping Sheet");
     expect(scenario.updateSheet).not.toHaveBeenCalled();
     enter(planner(), "FormField", "Plan correction reason", "Dinner forecast changed");
@@ -271,6 +272,24 @@ describe("separate shopping planning and purchasing screens", () => {
     (purchaseDialog.props.onConfirm as () => void)(); await tick();
     expect(scenario.confirmPurchase.mock.calls[0][0]).toMatchObject({ sheetId: "monday", lines: [{ itemId: "rice", quantity: "3", unit: "kg", unitCost: "1500" }] });
     expect(previous.lines[0].quantity).toBe("5"); expect(scenario.updateSheet).not.toHaveBeenCalled(); expect(scenario.payment).not.toHaveBeenCalled();
+  });
+
+  it("shows exact derived draft totals and exposes non-whole totals without silently rounding", () => {
+    selectPurchasedItem();
+    const lineTotal = () => {
+      const node = elements(recorder()).find(element => typeof element.type === "function" && element.type.name === "PurchaseDraftLineTotal")!;
+      return render(node.type as Component, node.props, "PurchaseDraftLineTotal");
+    };
+    expect(text(lineTotal())).toContain("unavailable");
+    enter(recorder(), "FormField", `Actual quantity for ${item.name}`, "1");
+    enter(recorder(), "FormField", `Actual cost per unit for ${item.name}`, "9007199254740993");
+    expect(elements(lineTotal()).flatMap(element => element.props.children as unknown[])).toContain("9,007,199,254,740,993");
+    enter(recorder(), "FormField", `Actual quantity for ${item.name}`, "0.3");
+    enter(recorder(), "FormField", `Actual cost per unit for ${item.name}`, "1");
+    expect(elements(lineTotal()).flatMap(element => element.props.children as unknown[]).join(" ")).toContain("must be whole currency");
+    press(recorder(), "Review actual purchase…");
+    expect(elements(recorder()).find(element => element.type === "MutationFeedback")?.props.error).toContain("must be whole currency");
+    expect(scenario.confirmPurchase).not.toHaveBeenCalled();
   });
 
   it("recovers an ambiguous purchase after remount and retries the exact durable body and key", async () => {

@@ -9,6 +9,7 @@ import { AccountingCsvAction } from "./AccountingCsvAction";
 import { FinancialPeriodForm } from "./FinancialPeriodFields";
 import { emptySalesHistoryFilters, SalesHistoryFilters } from "./SalesHistoryFilters";
 import { getSalesApi, salesAmount } from "./salesApi";
+import { salesExportScope } from "./export-scope";
 
 function SalesExport() {
   const [draft, setDraft] = useState(emptySalesHistoryFilters);
@@ -16,9 +17,10 @@ function SalesExport() {
   const query = useApiQuery(signal => getSalesApi().getLedger({ ...filters, size: 1 }, { signal }), `sales-export:${JSON.stringify(filters)}`);
   return <>
     <SalesHistoryFilters value={draft} onChange={setDraft} onApply={value => { setFilters(value); query.reload(); }} title="Apply export filters" />
-    <Card title="Sales history CSV">
+    <Card title="Sales history CSV · အရောင်းမှတ်တမ်း">
       <QueryResult {...query}>{data => <Body>{data.totalElements ? `${data.totalElements} matching orders across all pages.` : "No orders match the applied filters."}</Body>}</QueryResult>
       <AccountingCsvAction report="sales-ledger" disabled={query.state.status !== "ready"}
+        scopeDescription={salesExportScope(filters)}
         fetchCsv={signal => getSalesApi().exportCsv(filters, { signal })} />
     </Card>
   </>;
@@ -44,7 +46,7 @@ function PeriodExport({ report }: { report: "purchase-history" | "financial-summ
         const api = getOperationsApi();
         const dateRange = query.state.status === "ready" ? { from: query.state.data.from, to: query.state.data.to } : period;
         return report === "purchase-history" ? api.getPurchaseCsv(dateRange, { signal }) : api.getFinancialReportCsv(dateRange.from, dateRange.to, { signal });
-      }} />
+      }} scopeDescription={query.state.status === "ready" ? `${query.state.data.from} through ${query.state.data.to}. Complete ${report} dataset · သတ်မှတ်ကာလအတွင်း မှတ်တမ်းအားလုံး။` : undefined} />
     </Card>
   </>;
 }
@@ -54,8 +56,8 @@ const reportLabels = { SALES: "Sales history", PURCHASES: "Purchase history", SU
 export function ExportReportsScreen() {
   const [view, setView] = useState<keyof typeof reportLabels>("SALES");
   return <>
-    <Card title="Export and share reports">
-      <Body>Choose a report and apply its filters before sharing the complete CSV with a recipient.</Body>
+    <Card title="Export and share reports · သီးသန့်အစီရင်ခံစာ ထုတ်ယူရန်">
+      <Body>Choose a report and apply its filters before reviewing the complete matching CSV scope. Contains private business data; choose recipients carefully. အစီရင်ခံစာနှင့် ကာလကို ရွေး၍ သီးသန့်အချက်အလက် မျှဝေမှုကို စစ်ဆေးပါ။</Body>
       <Choices<keyof typeof reportLabels> label="Report type" value={view} values={["SALES", "PURCHASES", "SUMMARY"]} onChange={setView} labels={reportLabels} />
     </Card>
     {view === "SALES" ? <SalesExport /> : <PeriodExport key={view} report={view === "PURCHASES" ? "purchase-history" : "financial-summary"} />}

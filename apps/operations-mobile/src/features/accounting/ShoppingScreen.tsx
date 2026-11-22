@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import type { ShoppingItem, ShoppingItemSort, ShoppingSheet } from "@restaurant-platform/shared-types";
 import { getOperationsApi } from "../../api";
 import { FormToggle, MutationFeedback } from "../../components/forms";
@@ -7,6 +7,7 @@ import { QueryResult } from "../../components/QueryResult";
 import { Action, Body, Card, ConfirmDialog, FormField, Page } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 import { Choices } from "../management/controls";
 import { isIsoDate } from "../operations/format";
 import { FinancialPagination } from "./FinancialPagination";
@@ -48,6 +49,7 @@ export function DailyShoppingPlanner({ timezone, requests }: { timezone: string;
   const sheets = useApiQuery(signal => getOperationsApi().listShoppingSheets({ from: selectedDate, to: selectedDate, page, size: pageSize }, { signal }),
     JSON.stringify(["shopping-sheets", selectedDate, page]));
   const locked = saved !== null && saved.status !== "PLANNED";
+  useUnsavedChanges(dirty);
 
   function changeLines(next: PlanningDraftLine[]) { setLines(next); setDirty(true); }
   function replaceDraft(label: string, run: () => void) {
@@ -79,18 +81,17 @@ export function DailyShoppingPlanner({ timezone, requests }: { timezone: string;
         onChangeText={value => { setDate(value); setDirty(true); }} />
       <Body>{lines.length} items{dirty ? " · Unsaved changes" : ""}</Body>
       {locked ? <Body>This historical sheet is locked. Copy it to make an independent new plan.</Body> : null}
-      <View style={styles.row}><Text style={[styles.item, styles.heading]}>Item</Text><Text style={[styles.quantity, styles.heading]}>Qty</Text><Text style={[styles.unit, styles.heading]}>Unit</Text><View style={styles.remove} /></View>
+      <Body tone="muted">Quantity plan only · အရေအတွက် စီမံချက်သာ</Body>
       {lines.length ? null : <Body>No items selected. Add only what you need for this date.</Body>}
-      {lines.map((line, index) => <View key={`${line.itemId}:${index}`} style={styles.row}>
-        <Text style={styles.item}>{line.name}</Text>
-        <TextInput accessibilityLabel={`Quantity for ${line.name}`} style={styles.quantity} value={line.quantity}
+      {lines.map((line, index) => <Card key={`${line.itemId}:${index}`} title={line.name}>
+        <FormField label={`Quantity for ${line.name}`} value={line.quantity}
           keyboardType="decimal-pad" editable={!mutation.busy && !locked} selectTextOnFocus
           onChangeText={quantity => changeLines(lines.map((value, row) => row === index ? { ...value, quantity } : value))} />
-        <TextInput accessibilityLabel={`Unit for ${line.name}`} style={styles.unit} value={line.unit} maxLength={30}
+        <FormField label={`Unit for ${line.name}`} value={line.unit} maxLength={30}
           editable={!mutation.busy && !locked} onChangeText={unit => changeLines(lines.map((value, row) => row === index ? { ...value, unit } : value))} />
-        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${line.name}`} style={styles.remove}
-          disabled={mutation.busy || locked} onPress={() => changeLines(lines.filter((_, row) => row !== index))}><Text>×</Text></Pressable>
-      </View>)}
+        <Action title={`Remove ${line.name}`} secondary disabled={mutation.busy || locked}
+          onPress={() => changeLines(lines.filter((_, row) => row !== index))} />
+      </Card>)}
       {locked ? null : <>
         <Action title="Add Item" secondary disabled={mutation.busy} onPress={() => setShowCatalog(!showCatalog)} />
         {showCatalog ? <ShoppingCatalog requests={requests} selected={lines.map(line => line.itemId)} onSelect={item => {
@@ -146,7 +147,7 @@ export function ShoppingCatalog({ requests, selected = [], onSelect }: {
     <QueryResult {...catalog}>{result => <>
       {result.content.length ? null : <Body>No matching items. Search all items or create an item.</Body>}
       {result.content.map(item => <View key={item.id} style={styles.catalogRow}>
-        <Text style={styles.item}>{item.name}{item.defaultUnit ? ` · ${item.defaultUnit}` : ""}</Text>
+        <Body>{item.name}{item.defaultUnit ? ` · ${item.defaultUnit}` : ""}</Body>
         {onSelect ? <Action title={selected.includes(item.id) ? `${item.name} added` : `Add ${item.name}`} disabled={selected.includes(item.id)} onPress={() => onSelect(item)} /> : null}
         <Action title={`Edit ${item.name}`} secondary onPress={() => setForm({ item })} />
       </View>)}
@@ -184,9 +185,5 @@ function CatalogItemForm({ item, requests, onBack, onSaved }: { item: ShoppingIt
 }
 
 const styles = StyleSheet.create({
-  hidden: { display: "none" }, row: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderColor: "#cbd5e1", gap: 6, paddingVertical: 4 },
-  item: { flex: 1, minWidth: 60, color: "#18222e", fontSize: 15 }, heading: { fontWeight: "700" },
-  quantity: { width: 70, minHeight: 48, padding: 6, color: "#18222e", backgroundColor: "#f8fafc" },
-  unit: { width: 74, minHeight: 48, padding: 6, color: "#18222e", backgroundColor: "#f8fafc" },
-  remove: { width: 44, minHeight: 48, justifyContent: "center", alignItems: "center" }, catalogRow: { gap: 6, borderBottomWidth: 1, borderColor: "#e2e8f0", paddingVertical: 8 }
+  hidden: { display: "none" }, catalogRow: { gap: 8, paddingVertical: 8 }
 });

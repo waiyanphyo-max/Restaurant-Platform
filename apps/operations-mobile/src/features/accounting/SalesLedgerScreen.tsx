@@ -9,6 +9,7 @@ import { FinancialPagination } from "./FinancialPagination";
 import { SalesDetailScreen } from "./SalesDetailScreen";
 import { emptySalesHistoryFilters, SalesHistoryFilters } from "./SalesHistoryFilters";
 import { FinancialRequestKeys } from "./financial-requests";
+import { salesExportScope } from "./export-scope";
 import { getSalesApi, salesAmount } from "./salesApi";
 
 export function SalesLedgerScreen() {
@@ -41,15 +42,19 @@ export function SalesLedgerScreen() {
   return <Page title="Detailed sales history" subtitle="Historical orders, item prices, collections and corrections."
     onRefresh={reload} refreshing={query.state.status === "loading" || products.state.status === "loading"}>
     <SalesHistoryFilters value={draft} onChange={setDraft} onApply={apply} />
+    <Card title="History stays unchanged · မူလမှတ်တမ်း မပြောင်းလဲပါ">
+      <Body>Original variants, modifiers, prices and discounts come from the recorded order. Unpaid orders are sales records with no collected cash. မူလအော်ဒါမှ ဈေးနှုန်းနှင့် ရွေးချယ်မှုများကို ပြသထားပါသည်။</Body>
+    </Card>
     <Card title="Sales history export">
       <Body>The CSV includes all orders matching the applied filters across pages.</Body>
-      <AccountingCsvAction report="sales-ledger" disabled={query.state.status !== "ready"} fetchCsv={signal => getSalesApi().exportCsv(filters, { signal })} />
+      <AccountingCsvAction report="sales-ledger" disabled={query.state.status !== "ready"} scopeDescription={salesExportScope(filters)} fetchCsv={signal => getSalesApi().exportCsv(filters, { signal })} />
     </Card>
     <QueryResult {...query}>{data => <>
       {data.content.map(sale => <Card key={sale.id} title={sale.orderNumber}>
         <Body>{sale.createdAt}</Body>
-        <Body>{sale.orderType.replaceAll("_", " ")} · {sale.orderChannel.replaceAll("_", " ")} · {sale.status} · {sale.paymentStatus.replaceAll("_", " ")}</Body>
-        <Body>Historical total {salesAmount(sale.totalAmount)} · Discount {salesAmount(sale.discountAmount)}</Body>
+        <Body>{sale.orderType.replaceAll("_", " ")} · {sale.orderChannel.replaceAll("_", " ")}</Body>
+        <Body>Order: {sale.status.replaceAll("_", " ")} · Payment: {sale.paymentStatus.replaceAll("_", " ")}</Body>
+        <Body>Historical total {salesAmount(sale.totalAmount)}</Body><Body tone="muted">Discount {salesAmount(sale.discountAmount)}</Body>
         {sale.lines.length ? <Body>{sale.lines.map(line => `${line.productName} × ${line.quantity}`).join(" · ")}</Body> : null}
         <Action title={`View sale ${sale.orderNumber}`} secondary onPress={() => setSelected(sale.id)} />
       </Card>)}
@@ -59,7 +64,7 @@ export function SalesLedgerScreen() {
       </>}
     </>}</QueryResult>
     <Card title="Product breakdown for the selected period">
-      <Body>Historical item quantities and line sales cover all channels and payment statuses, before order discounts and delivery fees.</Body>
+      <Body>Historical item quantities and line sales cover all channels and payment statuses, before order discounts and delivery fees. Product ranking does not set Featured. ကုန်ပစ္စည်း အရောင်းအဆင့်သည် စားသောက်ဆိုင်၏ အထူးရွေးချယ်မှု မဟုတ်ပါ။</Body>
       <Choices label="Product sorting" value={productSort} values={["MOST_SOLD", "HIGHEST_SALES", "NAME"]}
         labels={{ MOST_SOLD: "Most units sold", HIGHEST_SALES: "Highest line sales", NAME: "Product name" }}
         onChange={value => { setProductSort(value); setProductPage(0); }} />

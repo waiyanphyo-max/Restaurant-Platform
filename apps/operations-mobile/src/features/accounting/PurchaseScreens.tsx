@@ -3,13 +3,15 @@ import type { ProcurementPaymentMethod, PurchaseDetail, PurchaseFilters, Purchas
 import { getOperationsApi } from "../../api";
 import { MutationFeedback } from "../../components/forms";
 import { QueryResult } from "../../components/QueryResult";
-import { Action, Body, Card, ConfirmDialog, FormField } from "../../components/ui";
-import { useApiMutation } from "../../hooks/useApiMutation";
+import { Action, Body, Card, ConfirmDialog, FormField, StateView } from "../../components/ui";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 import { Choices } from "../management/controls";
 import { AccountingCsvAction } from "./AccountingCsvAction";
 import { FinancialPagination } from "./FinancialPagination";
 import { FinancialPeriodFields } from "./FinancialPeriodFields";
+import { FinancialActionRecovery } from "./FinancialActionRecovery";
+import { useFinancialAction } from "./expense-cash-form";
 import { emptyFinancialPeriod, resolveFinancialPeriod } from "./financial-period";
 import type { FinancialRequestKeys } from "./financial-requests";
 import { procurementMoney as money, purchaseTimestamp, purchaseWholeAmount } from "./procurement-format";
@@ -71,6 +73,7 @@ export function PurchaseHistory({ today, requests, onReplace }: {
         {result.monthlyTotals.map(month => <Body key={month.month}>{month.month.slice(0, 7)} · {money(month.confirmedTotal)} across {month.purchaseCount} purchases</Body>)}
         <Body>Purchase totals reflect recorded obligations.</Body>
         <AccountingCsvAction report="purchase-history" title="Export applied purchase filters as CSV"
+          scopeDescription={`${result.from} through ${result.to} · Supplier: ${filter.supplierId ?? "All · အားလုံး"} · Historical item: ${filter.item ?? "All · အားလုံး"} · Payment status: ${filter.paymentStatus ?? "All · အားလုံး"}. Complete matching purchase history across pages · ကိုက်ညီသော ဝယ်ယူမှုမှတ်တမ်းအားလုံး။`}
           fetchCsv={signal => getOperationsApi().getPurchaseCsv({ ...filter, from: result.from, to: result.to }, { signal })} />
       </>}</QueryResult>
     </Card>
@@ -107,13 +110,15 @@ export function PurchaseDetailScreen({ id, requests, onBack, onChanged, onSelect
   </Card>;
 }
 
-function PurchaseDetailContent({ detail, requests, onChanged, onSelectPurchase, onReplace }: {
+function PurchaseDetailContent({ detail: loadedDetail, requests, onChanged, onSelectPurchase, onReplace }: {
   detail: PurchaseDetail;
   requests: FinancialRequestKeys;
   onChanged(): void;
   onSelectPurchase(id: string): void;
   onReplace(): void;
 }) {
+  const [verifiedDetail, setVerifiedDetail] = useState<PurchaseDetail | null>(null);
+  const detail = verifiedDetail ?? loadedDetail;
   const { purchase } = detail;
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<ProcurementPaymentMethod>("CASH");
@@ -123,15 +128,19 @@ function PurchaseDetailContent({ detail, requests, onChanged, onSelectPurchase, 
   const [correction, setCorrection] = useState<{ kind: "CANCEL" } | { kind: "REVERSE"; paymentId: string } | null>(null);
   const [pending, setPending] = useState<{ title: string; message: string; operation: string; body: unknown;
     action(key: string): Promise<PurchaseDetail> } | null>(null);
-  const mutation = useApiMutation();
+  const mutation = useFinancialAction(requests, [`purchase-pay:${purchase.id}`, `purchase-cancel:${purchase.id}`,
+    ...detail.payments.map(payment => `purchase-reverse:${payment.id}`)]);
+  const blocked = mutation.busy || mutation.uncertain || mutation.denied;
+  useUnsavedChanges(!mutation.denied && (!!amount || !!reason || pending !== null));
 
   function preparePayment() {
+    if (blocked) return;
     setError(null);
     try {
       const body = { amount: purchaseWholeAmount(amount.trim(), true), method, paidAt: purchaseTimestamp(paidAt) };
       if (BigInt(body.amount) > BigInt(purchase.outstandingAmount)) throw new Error("The payment exceeds the outstanding purchase balance.");
       if (Date.parse(body.paidAt) > Date.now()) throw new Error("The payment timestamp must be at or before the current time.");
-      setPending({ title: "Record purchase payment", message: `Record ${money(body.amount)} by ${method} at ${body.paidAt}.`,
+      setPending({ title: "Record purchase payment", message: `Purchase ${purchase.id}\nSupplier ${purchase.supplierName ?? "Unspecified · မသတ်မှတ်"}\nOutstanding ${money(purchase.outstandingAmount)}\nRecord ${money(body.amount)} by ${method} at ${body.paidAt}.\nConfirm this money has already been paid. · ဤငွေကို အမှန်တကယ် ပေးချေပြီးကြောင်း အတည်ပြုပါ။`,
         operation: `purchase-pay:${purchase.id}`, body, action: key => getOperationsApi().recordPurchasePayment(purchase.id, body, key) });
     } catch (error) {
       setError(error instanceof Error ? error.message : "Check the payment fields.");
@@ -139,6 +148,7 @@ function PurchaseDetailContent({ detail, requests, onChanged, onSelectPurchase, 
   }
 
   function prepareCorrection() {
+    if (blocked) return;
     if (!correction || !reason.trim()) { setError("Enter a reason for this correction."); return; }
     setError(null);
     const explanation = reason.trim();
@@ -149,7 +159,10 @@ function PurchaseDetailContent({ detail, requests, onChanged, onSelectPurchase, 
         : getOperationsApi().reversePurchasePayment(purchase.id, correction.paymentId, explanation, key) });
   }
 
+  if (mutation.denied) return <StateView kind="denied" title="Financial permission denied · ငွေစာရင်းခွင့် မရှိပါ"
+    message="Financial access is unavailable. Recheck your restaurant membership before opening financial records. · ဆိုင်၏ ဝင်ရောက်ခွင့်ကို ပြန်စစ်ဆေးပါ။" />;
   return <>
+    <FinancialActionRecovery action={mutation} read={() => getOperationsApi().getPurchase(purchase.id)} onChecked={setVerifiedDetail} />
     <Body>Purchase reference {purchase.id}</Body>
     <Body>Purchase date {purchase.purchaseDate}</Body>
     <Body>Purchased at {purchase.purchasedAt}</Body>
@@ -173,43 +186,45 @@ function PurchaseDetailContent({ detail, requests, onChanged, onSelectPurchase, 
         <Body>Paid at {payment.paidAt}</Body>
         <Body>Recorded at {payment.createdAt} by {payment.createdBy}</Body>
         {payment.reversalId ? <Body>Reversed at {payment.reversedAt} by {payment.reversedBy}. {payment.reversalReason}</Body>
-          : <Action title={`Reverse ${money(payment.amount)} payment…`} secondary disabled={mutation.busy}
+          : <Action title={`Reverse ${money(payment.amount)} payment…`} secondary disabled={blocked}
             onPress={() => { setError(null); setReason(""); setCorrection({ kind: "REVERSE", paymentId: payment.id }); }} />}
       </Card>)}
     </Card>
     {purchase.status === "CONFIRMED" && purchase.outstandingAmount !== "0" ? <Card title="Record a payment">
-      <FormField label="Payment amount (whole currency)" value={amount} onChangeText={setAmount} keyboardType="number-pad" editable={!mutation.busy} />
+      <Body tone="muted">Record money already paid to the supplier. This does not transfer money or create another purchase. · ပေးသွင်းသူထံ အမှန်တကယ် ပေးချေပြီးသော ငွေကို မှတ်တမ်းတင်ပါ။</Body>
+      <FormField label="Payment amount (whole currency)" value={amount} onChangeText={setAmount} keyboardType="number-pad" editable={!blocked} />
       <Choices label="Payment method" value={method} values={["CASH", "BANK_TRANSFER", "CARD", "OTHER"]}
-        labels={{ CASH: "Cash", BANK_TRANSFER: "Bank transfer", CARD: "Card", OTHER: "Other" }} disabled={mutation.busy} onChange={setMethod} />
-      <FormField label="Actual payment timestamp (with timezone)" value={paidAt} onChangeText={setPaidAt} autoCapitalize="none" editable={!mutation.busy} />
-      <Action title="Use current payment time" secondary disabled={mutation.busy} onPress={() => setPaidAt(new Date().toISOString())} />
-      <Action title="Review payment…" disabled={mutation.busy} onPress={preparePayment} />
+        labels={{ CASH: "Cash", BANK_TRANSFER: "Bank transfer", CARD: "Card", OTHER: "Other" }} disabled={blocked} onChange={setMethod} />
+      <FormField label="Actual payment timestamp (with timezone)" value={paidAt} onChangeText={setPaidAt} autoCapitalize="none" editable={!blocked} />
+      <Action title="Use current payment time" secondary disabled={blocked} onPress={() => setPaidAt(new Date().toISOString())} />
+      <Action title="Review payment…" disabled={blocked} onPress={preparePayment} />
     </Card> : null}
     <Card title="Corrections and cancellations">
-      {purchase.correctionOfId ? <Action title="View original purchase" secondary disabled={mutation.busy}
+      {purchase.correctionOfId ? <Action title="View original purchase" secondary disabled={blocked}
         onPress={() => { if (purchase.correctionOfId) onSelectPurchase(purchase.correctionOfId); }} /> : null}
       {detail.cancellations.map(adjustment => <Body key={adjustment.id}>Cancelled at {adjustment.createdAt} by {adjustment.createdBy}. {adjustment.reason}</Body>)}
-      {detail.corrections.map(id => <Action key={id} title={`View replacement purchase ${id}`} secondary disabled={mutation.busy}
+      {detail.corrections.map(id => <Action key={id} title={`View replacement purchase ${id}`} secondary disabled={blocked}
         onPress={() => onSelectPurchase(id)} />)}
       {purchase.status === "CONFIRMED" ? <>
         <Body>Reverse effective payments before cancelling a purchase.</Body>
-        <Action title="Cancel purchase…" secondary disabled={mutation.busy || purchase.amountPaid !== "0"}
+        <Action title="Cancel purchase…" secondary disabled={blocked || purchase.amountPaid !== "0"}
           onPress={() => { setError(null); setReason(""); setCorrection({ kind: "CANCEL" }); }} />
-      </> : detail.corrections.length ? null : <Action title="Start linked replacement purchase" secondary disabled={mutation.busy} onPress={onReplace} />}
+      </> : detail.corrections.length ? null : <Action title="Start linked replacement purchase" secondary disabled={blocked} onPress={onReplace} />}
       {correction ? <>
         <FormField label={correction.kind === "CANCEL" ? "Cancellation reason" : "Payment reversal reason"}
-          value={reason} onChangeText={setReason} maxLength={1000} editable={!mutation.busy} />
-        <Action title="Review correction…" disabled={mutation.busy} onPress={prepareCorrection} />
-        <Action title="Dismiss correction" secondary disabled={mutation.busy} onPress={() => { setError(null); setCorrection(null); }} />
+          value={reason} onChangeText={setReason} maxLength={1000} editable={!blocked} />
+        <Action title="Review correction…" disabled={blocked} onPress={prepareCorrection} />
+        <Action title="Dismiss correction" secondary disabled={blocked} onPress={() => { setError(null); setCorrection(null); }} />
       </> : null}
     </Card>
     <MutationFeedback {...mutation} error={error ?? mutation.error} />
     <ConfirmDialog visible={pending !== null} title={pending?.title ?? "Confirm purchase change"} message={pending?.message ?? ""}
-      confirmLabel="Confirm change" onCancel={() => setPending(null)} onConfirm={() => {
+      busy={mutation.busy} confirmDisabled={blocked} confirmLabel="Confirm change" onCancel={() => setPending(null)} onConfirm={() => {
         const request = pending;
         setPending(null);
-        if (request) void mutation.run(() => request.action(requests.key(request.operation, request.body)), () => {
+        if (request && !blocked) void mutation.post(request.operation, request.body, request.action, () => {
           requests.complete(request.operation, request.body);
+          setAmount(""); setReason(""); setCorrection(null);
           onChanged();
         });
       }} />

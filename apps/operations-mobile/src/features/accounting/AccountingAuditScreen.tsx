@@ -37,7 +37,7 @@ export function AccountingAuditScreen() {
     setFilters({ search: entityId ? undefined : input.trim() || undefined, entityId, sort });
     query.reload();
   }
-  return <Page title="Accounting audit history" subtitle="Financial events, responsible members and recorded correction reasons." onRefresh={query.reload}>
+  return <Page title="Accounting audit history" subtitle="Read-only financial events, responsible members and correction reasons · ပြင်ဆင်၍မရသော ငွေကြေးဖြစ်စဉ် မှတ်တမ်း" onRefresh={query.reload}>
     <Card title="Search audit events">
       <FormField label="Search record ID, actor, action, type or reason" value={input} onChangeText={setInput} autoCapitalize="none"
         maxLength={200} returnKeyType="search" onSubmitEditing={() => apply()} />
@@ -48,8 +48,9 @@ export function AccountingAuditScreen() {
       {data.content.map(entry => {
         const related = relatedExpense(entry);
         return <Card key={entry.id} title={`${entry.entityType.replaceAll("_", " ")} · ${entry.action.replaceAll("_", " ")}`}>
-          <Body>{entry.createdAt} · Responsible member {entry.actorId}</Body>
+          <Body>{entry.createdAt}</Body><Body>Responsible member {entry.actorId ?? "Not recorded · မှတ်တမ်း မရှိပါ"}</Body>
           <Body>Financial record {entry.entityId}</Body>
+          <Body tone="muted">Audit event ID · ဖြစ်စဉ် ID: {entry.id}</Body>
           {entry.reason ? <Body>Reason {entry.reason}</Body> : null}
           {related ? <>
             <Body>{related.title} {related.id}</Body>

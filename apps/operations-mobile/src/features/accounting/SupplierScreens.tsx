@@ -3,9 +3,10 @@ import type { AccountingSupplier, PayableSort, SupplierSort } from "@restaurant-
 import { getOperationsApi } from "../../api";
 import { FormToggle, MutationFeedback } from "../../components/forms";
 import { QueryResult } from "../../components/QueryResult";
-import { Action, Body, Card, FormField } from "../../components/ui";
+import { Action, Body, Card, ConfirmDialog, FormField } from "../../components/ui";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import { useDraftNavigation, useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 import { Choices } from "../management/controls";
 import { FinancialPagination } from "./FinancialPagination";
 import type { FinancialRequestKeys } from "./financial-requests";
@@ -94,7 +95,10 @@ function SupplierForm({ supplier, requests, onBack, onSaved }: {
   const [active, setActive] = useState(supplier?.active ?? true);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ name: string; contact: string | null; active: boolean; reason?: string } | null>(null);
   const mutation = useApiMutation();
+  const navigation = useDraftNavigation();
+  useUnsavedChanges(name !== (supplier?.name ?? "") || contact !== (supplier?.contact ?? "") || active !== (supplier?.active ?? true) || !!reason);
 
   function save() {
     if (!name.trim() || supplier && !reason.trim()) {
@@ -102,21 +106,30 @@ function SupplierForm({ supplier, requests, onBack, onSaved }: {
       return;
     }
     setError(null);
-    const body = { name: name.trim(), contact: contact.trim() || null, active, reason: supplier ? reason.trim() : undefined };
-    const operation = `supplier:${supplier?.id ?? "new"}`;
-    const key = requests.key(operation, body);
-    void mutation.run(() => supplier ? getOperationsApi().updateAccountingSupplier(supplier.id, body, key)
-      : getOperationsApi().createAccountingSupplier(body, key), () => { requests.complete(operation, body); onSaved(); });
+    setPending({ name: name.trim(), contact: contact.trim() || null, active, reason: supplier ? reason.trim() : undefined });
   }
 
   return <Card title={supplier ? `Edit supplier · ${supplier.name}` : "Add supplier"}>
+    <Body tone="muted">Supplier profile changes preserve historical purchase snapshots and payables. · ပေးသွင်းသူအချက်အလက် ပြင်ဆင်ခြင်းသည် ယခင်ဝယ်ယူမှုနှင့် ပေးရန်စာရင်းကို မပြောင်းလဲပါ။</Body>
     <FormField label="Supplier name" value={name} onChangeText={setName} maxLength={150} editable={!mutation.busy} />
     <FormField label="Supplier contact details" value={contact} onChangeText={setContact} maxLength={500} multiline editable={!mutation.busy} />
     <FormToggle label="Active supplier" value={active} onChange={setActive} disabled={mutation.busy} />
-    {supplier ? <FormField label="Correction reason" value={reason} onChangeText={setReason} maxLength={1000} editable={!mutation.busy} /> : null}
+    {supplier ? <FormField label="Correction reason" value={reason} onChangeText={setReason} maxLength={1000} multiline editable={!mutation.busy} /> : null}
     <MutationFeedback {...mutation} error={error ?? mutation.error} />
-    <Action title="Save supplier" disabled={mutation.busy} onPress={save} />
-    <Action title="Back to supplier register" secondary disabled={mutation.busy} onPress={onBack} />
+    <Action title="Review supplier details · ပေးသွင်းသူကို စစ်ဆေးရန်" disabled={mutation.busy} onPress={save} />
+    <Action title="Back to supplier register" secondary disabled={mutation.busy} onPress={() => navigation.requestNavigation(onBack)} />
+    <ConfirmDialog visible={pending !== null} title="Save supplier? · ပေးသွင်းသူကို သိမ်းမလား" busy={mutation.busy}
+      message={pending ? `${pending.name}\n${pending.contact ?? "No contact details · ဆက်သွယ်ရန် မရှိ"}\n${pending.active ? "Active · အသုံးပြုဆဲ" : "Inactive · အသုံးမပြု"}\n${pending.reason ?? ""}\nHistorical purchases remain unchanged. · ယခင်ဝယ်ယူမှုများကို မပြောင်းလဲပါ။` : ""}
+      confirmLabel="Save supplier · ပေးသွင်းသူကို သိမ်းရန်" onCancel={() => setPending(null)} onConfirm={() => {
+        const body = pending; setPending(null);
+        if (!body) return;
+        if (JSON.stringify(body) !== JSON.stringify({ name: name.trim(), contact: contact.trim() || null, active, reason: supplier ? reason.trim() : undefined })) {
+          setError("Supplier details changed. Review again. · အချက်အလက် ပြောင်းလဲသွားပါသည်။ ပြန်စစ်ဆေးပါ။"); return;
+        }
+        const operation = `supplier:${supplier?.id ?? "new"}`;
+        void mutation.run(() => supplier ? getOperationsApi().updateAccountingSupplier(supplier.id, body, requests.key(operation, body))
+          : getOperationsApi().createAccountingSupplier(body, requests.key(operation, body)), () => { requests.complete(operation, body); onSaved(); });
+      }} />
   </Card>;
 }
 
@@ -156,13 +169,20 @@ function SupplierHistory({ supplier, onBack }: { supplier: SupplierSelection; on
   const query = useApiQuery(signal => getOperationsApi().listSupplierPayments(supplier.id, { page, size: pageSize }, { signal }),
     JSON.stringify(["supplier-payments", supplier.id, page]));
   return <Card title={`Supplier payment history · ${supplier.name}`}>
+    <Body tone="muted">Actual payments and their reversals; current balances are shown in Payables. · အမှန်တကယ်ပေးချေမှုနှင့် ပြန်လှန်မှတ်တမ်းများဖြစ်သည်။ လက်ရှိလက်ကျန်ကို ပေးရန်စာရင်းတွင် ကြည့်ပါ။</Body>
     <Action title="Back to suppliers" secondary onPress={onBack} />
     <QueryResult {...query}>{result => <>
       {result.content.length ? null : <Body>No recorded supplier payments.</Body>}
       {result.content.map(row => <Card key={row.payment.id} title={`Invoice ${row.invoiceReference ?? row.purchaseId}`}>
+        <Body>Purchase reference · ဝယ်ယူမှုအမှတ်: {row.purchaseId}</Body>
+        <Body>Payment reference · ပေးချေမှုအမှတ်: {row.payment.id}</Body>
         <Body>{money(row.payment.amount)} · {row.payment.method}</Body>
         <Body>Paid {row.payment.paidAt}</Body>
-        {row.payment.reversalId ? <Body>Reversed {row.payment.reversedAt}. {row.payment.reversalReason}</Body> : null}
+        <Body>Recorded · မှတ်တမ်းတင်ချိန်: {row.payment.createdAt} · {row.payment.createdBy ?? "Unknown · မသိရှိ"}</Body>
+        {row.payment.reversalId ? <>
+          <Body>Reversal reference · ပြန်လှန်မှုအမှတ်: {row.payment.reversalId}</Body>
+          <Body>Reversed {row.payment.reversedAt ?? "Unknown · မသိရှိ"} · {row.payment.reversedBy ?? "Unknown · မသိရှိ"}. {row.payment.reversalReason}</Body>
+        </> : null}
       </Card>)}
       <FinancialPagination page={result.page} totalPages={Math.ceil(result.totalElements / result.size)} onPageChange={setPage} />
     </>}</QueryResult>

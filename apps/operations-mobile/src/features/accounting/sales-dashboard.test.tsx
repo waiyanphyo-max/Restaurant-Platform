@@ -25,6 +25,7 @@ vi.mock("./AccountingCsvAction", () => ({
   }
 }));
 vi.mock("../../components/ui", () => ({
+  useUiTheme: () => ({ color: { border: "#ddd" } }),
   Card: ({ title, children }: { title?: string; children: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
   Body: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
   Action: ({ title, disabled }: { title: string; disabled?: boolean }) => <button disabled={disabled}>{title}</button>,
@@ -60,8 +61,10 @@ describe("shared sales dashboard", () => {
 
   it("graphs sales and order counts while preserving exact server amounts and exporting the displayed dates", async () => {
     const html = renderToStaticMarkup(<SalesDashboardPanel />);
-    expect(html).toContain("Net sales before refunds: 9,007,199,254,740,993");
-    expect(html).toContain("Collected payments: 100");
+    expect(html).toContain("Net sales before refunds");
+    expect(html).toContain("9,007,199,254,740,993 THB");
+    expect(html).toContain("Collected payments");
+    expect(html).toContain("100 THB");
     expect(html).toContain("Refresh sales reports");
     expect(scenario.chart).toHaveBeenCalledWith("Monthly net sales before refunds (THB)", [
       { label: "2024-01", value: 0, displayValue: "1" },
