@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "postgresStopped": true,
+  "pgCtlStatusExit": 3,
+  "taskOwnedClusterRemoved": true,
+  "httpAndJwksCleanup": "PASS; completed journey evidence written only after cleanup",
+  "postgres18Init": "BLOCKED; initdb exit1 Windows 0xC0000005; no initialized data directory remains"
+}

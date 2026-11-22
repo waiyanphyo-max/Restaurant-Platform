@@ -1,0 +1,893 @@
+{
+  "status": "BLOCKED",
+  "sourceCommit": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "mavenOutcome": "success",
+  "docker": {
+    "available": false
+  },
+  "reasons": [
+    "Mandatory PostgreSQL testcases were SKIPPED",
+    "Database version/migration execution evidence is missing"
+  ],
+  "suites": [
+    {
+      "name": "com.restaurant.platform.accounting.AccountingHttpIntegrationTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 8
+    },
+    {
+      "name": "com.restaurant.platform.accounting.AccountingLocalPostgresTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.accounting.AccountingReceiptLocalPostgresTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.accounting.AccountingRecordControllerTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 1
+    },
+    {
+      "name": "com.restaurant.platform.accounting.AccountingRecordServiceTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 6
+    },
+    {
+      "name": "com.restaurant.platform.accounting.AccountingSupportTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.accounting.ExpenseCashServiceTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 12
+    },
+    {
+      "name": "com.restaurant.platform.accounting.ProcurementLocalPostgresTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 4,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.accounting.ProcurementServiceTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 6
+    },
+    {
+      "name": "com.restaurant.platform.accounting.ShoppingPlanContractTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 2
+    },
+    {
+      "name": "com.restaurant.platform.common.error.GlobalExceptionHandlerTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 5
+    },
+    {
+      "name": "com.restaurant.platform.config.OwnerOperationsHttpIntegrationTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 7
+    },
+    {
+      "name": "com.restaurant.platform.config.PlatformAdminEndpointsHttpIntegrationTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 9
+    },
+    {
+      "name": "com.restaurant.platform.config.PlatformRestaurantLifecycleHttpIntegrationTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 6
+    },
+    {
+      "name": "com.restaurant.platform.config.PublicQrGuestHttpIntegrationTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 6
+    },
+    {
+      "name": "com.restaurant.platform.config.SecurityConfigHttpIntegrationTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 6
+    },
+    {
+      "name": "com.restaurant.platform.config.SecurityConfigJwtValidatorTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 9
+    },
+    {
+      "name": "com.restaurant.platform.controller.AssignedDeliveryControllerHttpTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.controller.CustomerAddressControllerHttpTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 14
+    },
+    {
+      "name": "com.restaurant.platform.controller.CustomerDeliveryCheckoutControllerHttpTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 6
+    },
+    {
+      "name": "com.restaurant.platform.controller.CustomerDeliveryHistoryHttpTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 3
+    },
+    {
+      "name": "com.restaurant.platform.controller.CustomerProfileControllerHttpTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 3
+    },
+    {
+      "name": "com.restaurant.platform.controller.FeaturedProductHttpTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 14
+    },
+    {
+      "name": "com.restaurant.platform.controller.GeographicLocationControllerHttpTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 3
+    },
+    {
+      "name": "com.restaurant.platform.controller.ManagerOrderControllerTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 3
+    },
+    {
+      "name": "com.restaurant.platform.controller.PlatformRestaurantBootstrapHttpTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 14
+    },
+    {
+      "name": "com.restaurant.platform.controller.RestaurantBrandingHttpTest",
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 21
+    },
+    {
+      "name": "com.restaurant.platform.controller.RestaurantProfileLogoHttpTest",
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 16
+    },
+    {
+      "name": "com.restaurant.platform.integration.CustomerAddressLocalPostgresTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.CustomerDeliveryLocalPostgresTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.CustomerProfileLocalPostgresTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 4,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.DeliveryCancellationLocalPostgresTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.FeaturedProductLocalPostgresTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.GeographicLocationLocalPostgresTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 5,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.OwnerOnboardingLocalPostgresTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 8,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.PlatformBootstrapLocalPostgresTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 5,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.PostgresMigrationSchemaTest",
+      "tests": 23,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 23,
+      "executed": 0,
+      "cases": [
+        {
+          "name": "bootstrapConcurrentRetriesAndTransactionRollbackAreSafe",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "platformBootstrapKeepsTwoSyntheticCatalogsBrandsAndOwnersSeparate",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "bootstrapReceiptsCannotBeAccessedDirectlyAndRejectInvalidRows",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "shoppingSeparationCopiesLegacyPlansAndRetainsValuationAndConfirmedFinancialHistory",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "accountingDomainsPreserveFinancialIntegrity",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "customerDeliveryInboxAndPushRespectTenantAndOwnership",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "restaurantInboxQueriesExcludeOtherTenantsAndUsers",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "concurrentInitializationAndUpdatesCannotOverwriteNewerRuntimePalettes",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "featuredConcurrentSelectionsAndRollbackUseActualDatabase",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "continuousAuthenticatedTwoTenantJourneyUsesPersistedState",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "notificationTriggerQueuesOneOutboxItemForEachActiveDevice",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "runtimeBrandingIsValidatedTenantScopedAndUnavailableToDirectClients",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "bootstrapConcurrentManifestReviewAndHistoricalReplayPreserveCurrentTenantMappings",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "featuredSelectionConstraintsAndDirectPrivilegesHold",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "restrictedServerPrincipalAndDirectClientBoundariesHold",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "postgresIdempotencyStoreReplaysEncryptedResponseAndRejectsChangedPayload",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "orderDeliveryCoordinatesAreImmutableAndAssignedReadsAreScoped",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "allMigrationsCreateTheExpectedSecurityAndCheckoutSchema",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "optionalVariantDescriptionsPreserveExistingFieldsAndRoundTripUnicode",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "deliveryEligibilityUsesEnabledAccountsWithinTheRestaurant",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "platformConfigurationMigrationIsTenantScopedAndUnavailableToClientRoles",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "missingCustomerProfileCanOnlyBeRestoredFromAnActiveAuthIdentity",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "migrationDirectoryContainsTimestampOrderedSqlFiles",
+          "status": "SKIPPED"
+        }
+      ]
+    },
+    {
+      "name": "com.restaurant.platform.integration.RestrictedPrincipalLocalPostgresTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.integration.RuntimeBrandingLocalPostgresTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2,
+      "executed": 0
+    },
+    {
+      "name": "com.restaurant.platform.security.PlatformAdminAuthorizationTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.security.RestaurantAuthorizationTest",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 11
+    },
+    {
+      "name": "com.restaurant.platform.security.RestaurantRoleTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 5
+    },
+    {
+      "name": "com.restaurant.platform.service.AssignedDeliveryServiceTest",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 17
+    },
+    {
+      "name": "com.restaurant.platform.service.CatalogImageServiceTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 14
+    },
+    {
+      "name": "com.restaurant.platform.service.CatalogManagementServiceTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 7
+    },
+    {
+      "name": "com.restaurant.platform.service.CustomerAddressServiceTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 5
+    },
+    {
+      "name": "com.restaurant.platform.service.CustomerDeliveryCheckoutTest",
+      "tests": 39,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 39
+    },
+    {
+      "name": "com.restaurant.platform.service.CustomerOrderServiceTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 12
+    },
+    {
+      "name": "com.restaurant.platform.service.CustomerProfileServiceTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 8
+    },
+    {
+      "name": "com.restaurant.platform.service.DeliveryRecipientPhoneTest",
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 19
+    },
+    {
+      "name": "com.restaurant.platform.service.DeliveryServiceTest",
+      "tests": 25,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 25
+    },
+    {
+      "name": "com.restaurant.platform.service.DeliveryZoneManagementServiceTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 6
+    },
+    {
+      "name": "com.restaurant.platform.service.DiningTableManagementServiceTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.service.FeaturedProductServiceTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 2
+    },
+    {
+      "name": "com.restaurant.platform.service.FirebasePushDispatcherTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 5
+    },
+    {
+      "name": "com.restaurant.platform.service.ImageUploadValidatorTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 5
+    },
+    {
+      "name": "com.restaurant.platform.service.ManagerOrderServiceTest",
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 40
+    },
+    {
+      "name": "com.restaurant.platform.service.NotificationServiceTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 5
+    },
+    {
+      "name": "com.restaurant.platform.service.OrderCancellationServiceTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.service.OwnerOnboardingServiceTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 9
+    },
+    {
+      "name": "com.restaurant.platform.service.OwnerOperationsScopeTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 8
+    },
+    {
+      "name": "com.restaurant.platform.service.PaymentServiceTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 6
+    },
+    {
+      "name": "com.restaurant.platform.service.PlatformAdminDashboardServiceTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.service.PlatformRestaurantBootstrapServiceTest",
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 22
+    },
+    {
+      "name": "com.restaurant.platform.service.PlatformRestaurantLifecycleServiceTest",
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 15
+    },
+    {
+      "name": "com.restaurant.platform.service.PlatformRestaurantProvisioningServiceTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 14
+    },
+    {
+      "name": "com.restaurant.platform.service.PublicMenuVariantDescriptionTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 1
+    },
+    {
+      "name": "com.restaurant.platform.service.QrGuestCheckoutTest",
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 15
+    },
+    {
+      "name": "com.restaurant.platform.service.QrOrderIdempotencyServiceTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.service.QueueManagementServiceTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 5
+    },
+    {
+      "name": "com.restaurant.platform.service.QueueTrackingServiceTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 8
+    },
+    {
+      "name": "com.restaurant.platform.service.RestaurantLogoServiceTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.service.RestaurantManagementServiceTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 3
+    },
+    {
+      "name": "com.restaurant.platform.service.RestaurantMemberServiceTest",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 11
+    },
+    {
+      "name": "com.restaurant.platform.service.RestaurantReportServiceTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 2
+    },
+    {
+      "name": "com.restaurant.platform.service.RestaurantSettingsServiceTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 3
+    },
+    {
+      "name": "com.restaurant.platform.service.StaffOrderOptionsTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 4
+    },
+    {
+      "name": "com.restaurant.platform.service.SupabaseAuthAdminClientTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 10
+    },
+    {
+      "name": "com.restaurant.platform.service.UserDeviceServiceTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executed": 7
+    }
+  ],
+  "limitations": [
+    "Synthetic Supabase Auth schema and signed identities; no hosted/provider acceptance",
+    "Local restricted principal fixtures do not certify deployed database roles"
+  ],
+  "migrationInventory": [
+    {
+      "name": "20261010204938_create_initial_schema.sql",
+      "sha256": "c8374c272867a777001f6013f747fc4473cec204d138565cfb749389b9362ff2"
+    },
+    {
+      "name": "20261016051330_remote_schema.sql",
+      "sha256": "942ade6599a6447cc293df4f002e484fa23ae585ecf85a579e400af9ab88d2ce"
+    },
+    {
+      "name": "20261016052430_revoke_unneeded_table_privileges.sql",
+      "sha256": "758a0abd64f6439fd56778ffb75e2df1678ec5fd29dd76d145fa4ff9b1b25feb"
+    },
+    {
+      "name": "20261021110000_add_default_delivery_driver.sql",
+      "sha256": "d799924d84f5bd05b7ff2070030a4ccc22cf67df64477e9dc951fade31c02586"
+    },
+    {
+      "name": "20261022001000_sync_auth_user_profiles.sql",
+      "sha256": "64aacc560f47263a8ae65455eee98f18fbdbcc4c781dab185e0962e369ff51c6"
+    },
+    {
+      "name": "20261022002000_allow_cancelled_payment_status.sql",
+      "sha256": "ca6ff0cba2919e99676568b31a537e1c3340493f25b8f06146b21c2d13584e7e"
+    },
+    {
+      "name": "20261024083000_add_qr_order_idempotency.sql",
+      "sha256": "a8b50bc408457c6a76f06cba33383844edd5dd2246071a5256bde511c2c49bfe"
+    },
+    {
+      "name": "20261024091000_add_delivery_zone_coverage.sql",
+      "sha256": "e823cd326c5ee6f060328b2533491ce0b000e0f03a340edb4e9e3e08705240bc"
+    },
+    {
+      "name": "20261024100000_add_push_notification_outbox.sql",
+      "sha256": "a0f59116a2401bc1391d4dde032c3adb56d8bdd0660e9ab3c8dd70381e5ab641"
+    },
+    {
+      "name": "20261025120000_add_profile_email_for_member_management.sql",
+      "sha256": "c9e122b0d00e12ae8342cf7179a1c0a88cacd39b09f830a14cfc0191a877f8a8"
+    },
+    {
+      "name": "20261025130000_add_storage_media_fields.sql",
+      "sha256": "a5ee61c25896e945e4b42cfda39706a719f07ecc96a1050782c240015414fc93"
+    },
+    {
+      "name": "20261031090000_add_platform_restaurant_configuration.sql",
+      "sha256": "185a6a124b169bd5c722a590f7a6ec1e7ebaeba97fcd30114b3a4bea100e9f84"
+    },
+    {
+      "name": "20261102090000_accounting_foundation.sql",
+      "sha256": "c8159ab6b974481e0aef71b4a1ee3f696622fc1ff2d72219cb669611bac5c173"
+    },
+    {
+      "name": "20261102091000_accounting_sales.sql",
+      "sha256": "35189f33e9b9dbb4842daa094fc8d339bb3a6c4a3fd0d33a8b2245f350a52ad1"
+    },
+    {
+      "name": "20261102092000_accounting_procurement.sql",
+      "sha256": "e3b8428beb31fe4ad5df56c32ffc2bb7a5e36f7f0844a07ae08f4b9f3743820c"
+    },
+    {
+      "name": "20261102093000_accounting_expenses_cash.sql",
+      "sha256": "7fef9ffbfb5345fcd5a0f5ae2dd8c65c6059941afa7216ace299add2ecf94022"
+    },
+    {
+      "name": "20261102095000_accounting_payment_guard.sql",
+      "sha256": "7bddfc056084cc293631b81becf479585ba60f3007f389d446d09337a79ea4a8"
+    },
+    {
+      "name": "20261102100000_preserve_accounting_policy.sql",
+      "sha256": "ebe9ed6f47404ac3e3e92f71f216b0e0e4b3afc0e836be60cc3e54e55316ca32"
+    },
+    {
+      "name": "20261102101000_accounting_refund_reversals.sql",
+      "sha256": "e142b6099833fc959edac888e1484f46cf4cf93ec77bcdfcd6cc5f117d6a8d7e"
+    },
+    {
+      "name": "20261104100000_add_order_delivery_coordinates.sql",
+      "sha256": "8a00f463b532c2d0fb83bcae87206799347e6c0953127169fefc321034e3cf40"
+    },
+    {
+      "name": "20261107100000_add_customer_delivery_checkout_snapshot.sql",
+      "sha256": "bb056e7a25c92ebcf7ed38b773779ffcbb18987456cca2f3b8a8387b2c008fd3"
+    },
+    {
+      "name": "20261107110000_scope_customer_delivery_push_devices.sql",
+      "sha256": "9e192861d39be962b57ad242eb43e738ffb1576672f6be0ce497c5eae8f80170"
+    },
+    {
+      "name": "20261107120000_record_delivery_stock_reservations.sql",
+      "sha256": "52b985c2a8e29aaab2c0e24013e696958c6f73f63ed0076d2694e757daad7b1e"
+    },
+    {
+      "name": "20261107130000_add_customer_delivery_checkout_keys.sql",
+      "sha256": "ef8b33a4fb515833a4b6c0f28a153faf8411a4d3f97e861d1880e8e4e5d4a60a"
+    },
+    {
+      "name": "20261107140000_enforce_one_customer_address_default.sql",
+      "sha256": "7db6f6fa8b0a32d3823b453643b5f664c12381c41b2dec706a22dfad2ccca663"
+    },
+    {
+      "name": "20261112090000_owner_account_onboarding.sql",
+      "sha256": "d1164925801e528b4952d8506deb53b004a3f6e9728af67ed4ac51aa44dbb238"
+    },
+    {
+      "name": "20261115090000_product_variant_descriptions.sql",
+      "sha256": "724fe540fae4c6eba7375598d3cb199141bc8200a14172c2f2dcc1b3c44a97c4"
+    },
+    {
+      "name": "20261115091000_shopping_planning_separation.sql",
+      "sha256": "fc5d27b0b07a6e5093654223e61ca4a78f90a6c149ae415ce5ff797aa3a463a8"
+    },
+    {
+      "name": "20261116090000_allow_text_only_customer_delivery_checkout.sql",
+      "sha256": "ff544eb3a69452b51c56dd884ccd57eb655f3b5aa476be62ff97d9dd37b39111"
+    },
+    {
+      "name": "20261116100000_add_geographic_master_data.sql",
+      "sha256": "fdc974cc50538fa6459f1837962867c9603023421345d4be135fe38502c5c662"
+    },
+    {
+      "name": "20261116101000_seed_myanmar_geography_v1.sql",
+      "sha256": "3efd0591a129681c3317cbd5f2c8f308a86871852ad275bbe8a510889dcdf5d1"
+    },
+    {
+      "name": "20261116102000_report_legacy_geographic_locations.sql",
+      "sha256": "663415298799215ab5274782366db199acdf7127a89bd29e631df0e8ebe6e407"
+    },
+    {
+      "name": "20261119090000_add_restaurant_runtime_branding.sql",
+      "sha256": "853f7dc25e0fce4550f0ed1b3eb7813d56185ac57aeb37f529d5616b3b94a896"
+    },
+    {
+      "name": "20261119100000_add_restaurant_bootstrap_steps.sql",
+      "sha256": "340ecc84206b6b269cf1da7163745dcd306f9f06b0e55d91e3fdc6f9c775c8f8"
+    },
+    {
+      "name": "20261120100000_add_restaurant_featured_product.sql",
+      "sha256": "c6cdc647991e54315eff91e5ac30d12d2a5a351a6526c8dff4f296b8acada8d4"
+    }
+  ],
+  "totals": {
+    "tests": 659,
+    "executed": 580,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 79
+  }
+}

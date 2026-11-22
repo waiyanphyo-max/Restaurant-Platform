@@ -13,6 +13,11 @@ import java.util.Properties;
         matches = "jdbc:postgresql://127\\.0\\.0\\.1:[0-9]+/accounting_verify")
 class PlatformBootstrapLocalPostgresTest {
     @Test
+    void continuousAuthenticatedTwoTenantHttpJourneyUsesPersistedState() throws Exception {
+        SyntheticTwoTenantHttpJourneyChecks.verify(source());
+    }
+
+    @Test
     void bootstrapReceiptsArePrivateConstrainedAndTenantScoped() {
         PlatformBootstrapDatabaseChecks.verifySchema(source());
     }

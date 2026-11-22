@@ -1,0 +1,105 @@
+{
+  "revision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "results": [
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a operations development --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a operations staging --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a operations production --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a customer development --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a customer staging --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a customer production --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b operations development --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b operations staging --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b operations production --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b customer development --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b customer staging --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b customer production --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node expo/bin/cli export --platform android --output-dir target/uxi-13a-mobile/restaurant-a-operations",
+      "tenant": "restaurant-a",
+      "kind": "operations",
+      "environment": "development",
+      "dotenv": false,
+      "notifications": false,
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node expo/bin/cli export --platform android --output-dir target/uxi-13a-mobile/restaurant-a-customer",
+      "tenant": "restaurant-a",
+      "kind": "customer",
+      "environment": "development",
+      "dotenv": false,
+      "notifications": false,
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node expo/bin/cli export --platform android --output-dir target/uxi-13a-mobile/restaurant-b-operations",
+      "tenant": "restaurant-b",
+      "kind": "operations",
+      "environment": "development",
+      "dotenv": false,
+      "notifications": false,
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node expo/bin/cli export --platform android --output-dir target/uxi-13a-mobile/restaurant-b-customer",
+      "tenant": "restaurant-b",
+      "kind": "customer",
+      "environment": "development",
+      "dotenv": false,
+      "notifications": false,
+      "exitCode": 0,
+      "error": null
+    }
+  ]
+}

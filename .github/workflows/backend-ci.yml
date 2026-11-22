@@ -9,6 +9,9 @@ on:
     paths:
       - "app/api/**"
       - ".github/workflows/backend-ci.yml"
+      - "supabase/migrations/**"
+      - "scripts/verify-postgres-acceptance.py"
+      - "scripts/test_verify_postgres_acceptance.py"
 
 permissions:
   contents: read
@@ -28,5 +31,27 @@ jobs:
           java-version: "21"
           cache: maven
 
+      - name: Test PostgreSQL acceptance guard
+        run: python3 -B -m unittest discover -s scripts -p test_verify_postgres_acceptance.py
+
       - name: Verify Maven backend
+        id: maven
         run: mvn --batch-mode --no-transfer-progress -f app/api/pom.xml clean verify
+
+      - name: Require PostgreSQL 17 migration and integration execution
+        if: always()
+        run: >-
+          python3 scripts/verify-postgres-acceptance.py
+          --commit "${{ github.sha }}"
+          --maven-outcome "${{ steps.maven.outcome }}"
+
+      # Raw Surefire XML includes JVM/environment properties and stdout. Upload
+      # only the allowlisted metadata, case statuses, counts and source hashes.
+      - name: Retain sanitized PostgreSQL acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-17-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/api/target/postgres-acceptance/acceptance.json
+          if-no-files-found: error
+          retention-days: 14

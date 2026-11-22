@@ -1,0 +1,78 @@
+{
+  "exit": 1,
+  "finishedUtc": "2026-11-22T15:09:02.6356399Z",
+  "startedUtc": "2026-11-22T15:01:33.9675833Z",
+  "command": "npm run verify:frontend",
+  "log": ".tmp/uxi-13a/verify-frontend.log",
+  "status": "FAIL",
+  "revision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "node": "v22.20.0",
+  "npm": "10.9.2",
+  "stages": [
+    {
+      "command": "npm run typecheck",
+      "invokedVia": "npm run verify:frontend",
+      "status": "PASS",
+      "exit": 0
+    },
+    {
+      "command": "npm run lint",
+      "invokedVia": "npm run verify:frontend",
+      "status": "PASS",
+      "exit": 0
+    },
+    {
+      "command": "npm run test",
+      "invokedVia": "npm run verify:frontend",
+      "status": "PASS",
+      "exit": 0
+    },
+    {
+      "command": "npm run build:web",
+      "invokedVia": "npm run verify:frontend",
+      "status": "PASS",
+      "exit": 0
+    },
+    {
+      "command": "npm run build:mobile:starter",
+      "invokedVia": "npm run verify:frontend",
+      "status": "FAIL",
+      "exit": 1
+    }
+  ],
+  "counts": {
+    "vitestFiles": 172,
+    "vitestPassed": 2039,
+    "nodePassed": 52,
+    "nodeDiscovered": 52,
+    "nodeFailures": 0,
+    "nodeSkipped": 0,
+    "totalPassed": 2091
+  },
+  "webBuilds": {
+    "admin": "PASS",
+    "guest": "PASS"
+  },
+  "firebase": {
+    "status": "BLOCKED",
+    "appKind": "operations",
+    "environment": "development",
+    "applicationId": "dev.restaurantplatform.starter.operations.staging.dev",
+    "fileConfigured": true,
+    "expectedProjectConfigured": true,
+    "androidClientJson": true,
+    "matchingAndroidClients": 0,
+    "expectedProjectMatches": true,
+    "clientMetadataValid": false,
+    "providerAcceptance": "BLOCKED",
+    "ordinaryCustomerStarter": "NOT RUN",
+    "operatorAction": "In the approved Firebase project's Project settings > General > Your apps, select/register the exact unchanged application ID; download its Android google-services.json, point OPERATIONS_GOOGLE_SERVICES_FILE to the ignored file relative to Operations, and keep MOBILE_FIREBASE_PROJECT_ID on the same approved project. Rerun the original command. Preserve native identity and notifications."
+  },
+  "isolatedAndroidJavaScript": {
+    "status": "PASS",
+    "configurationPlans": 12,
+    "exports": 4,
+    "evidence": "mobile-check-results.json",
+    "boundary": "Fictional A/B development fixtures only; dotenv disabled and child-only notifications=false. Not Firebase, signed-artifact, installed-device or hosted acceptance."
+  }
+}

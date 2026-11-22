@@ -34,6 +34,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.Properties;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.HexFormat;
+import java.util.Map;
+import java.security.MessageDigest;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,10 +48,21 @@ import static org.junit.jupiter.api.Assertions.*;
  * instance and checks Hibernate's mappings against the resulting schema.
  *
  * This test needs Docker. It is skipped automatically on developer machines
- * where Docker is unavailable, but runs in GitHub Actions' Ubuntu environment.
+ * where Docker is unavailable. CI separately requires every case to execute;
+ * a successful Maven invocation with this suite skipped is not acceptance.
  */
 @Testcontainers(disabledWithoutDocker = true)
 class PostgresMigrationSchemaTest {
+
+    @Test
+    void continuousAuthenticatedTwoTenantJourneyUsesPersistedState() throws Exception {
+        SyntheticTwoTenantHttpJourneyChecks.verify(dataSource);
+    }
+
+    @Test
+    void restrictedServerPrincipalAndDirectClientBoundariesHold() throws Exception {
+        RestrictedPrincipalDatabaseChecks.verify(dataSource);
+    }
 
     @Test
     void featuredSelectionConstraintsAndDirectPrivilegesHold() {
@@ -68,6 +84,8 @@ class PostgresMigrationSchemaTest {
     private static DataSource dataSource;
     private static LocalContainerEntityManagerFactoryBean entityManagerFactoryBean;
     private static Path migrationDirectory;
+    private static final Map<String, Object> acceptanceEvidence = new LinkedHashMap<>();
+    private static final List<Map<String, Object>> migrationEvidence = new ArrayList<>();
     private static final UUID LEGACY_SHOPPING_RESTAURANT = UUID.randomUUID();
     private static final UUID LEGACY_SHOPPING_ACTOR = UUID.randomUUID();
     private static final UUID LEGACY_SHOPPING_SUPPLIER = UUID.randomUUID();
@@ -217,10 +235,32 @@ class PostgresMigrationSchemaTest {
         migrationDirectory = findMigrationDirectory();
         dataSource = new DriverManagerDataSource(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-
-        createSupabaseAuthPrerequisites();
-        applyAllRepositoryMigrations();
-        validateHibernateSchema();
+        acceptanceEvidence.put("sourceCommit", sourceCommit());
+        Process gitStatus = new ProcessBuilder("git", "status", "--porcelain").redirectErrorStream(true).start();
+        acceptanceEvidence.put("sourceTreeDirty", gitStatus.getInputStream().readAllBytes().length > 0);
+        if (gitStatus.waitFor() != 0) throw new IllegalStateException("Cannot record source tree state");
+        acceptanceEvidence.put("containerImage", POSTGRES.getDockerImageName());
+        acceptanceEvidence.put("migrations", migrationEvidence);
+        acceptanceEvidence.put("schemaValidated", false);
+        acceptanceEvidence.put("legacyShoppingSeeded", false);
+        acceptanceEvidence.put("setupStatus", "FAIL");
+        try {
+            JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+            int serverVersion = jdbc.queryForObject("SHOW server_version_num", Integer.class);
+            acceptanceEvidence.put("serverVersionNum", serverVersion);
+            acceptanceEvidence.put("serverVersion", jdbc.queryForObject("SHOW server_version", String.class));
+            assertTrue(serverVersion >= 170000, "Exact migration acceptance requires PostgreSQL 17+");
+            createSupabaseAuthPrerequisites();
+            applyAllRepositoryMigrations();
+            validateHibernateSchema();
+            acceptanceEvidence.put("schemaValidated", true);
+            acceptanceEvidence.put("setupStatus", "PASS");
+        } finally {
+            Path evidence = Path.of("target/postgres-acceptance/database.json");
+            Files.createDirectories(evidence.getParent());
+            Files.writeString(evidence, tools.jackson.databind.json.JsonMapper.builder().build()
+                    .writeValueAsString(acceptanceEvidence), StandardCharsets.UTF_8);
+        }
     }
 
     @AfterAll
@@ -524,9 +564,11 @@ class PostgresMigrationSchemaTest {
                     .sorted()
                     .toList();
 
-            assertFalse(names.isEmpty());
+            assertEquals(35, names.size(), "UXI-13A must execute all 35 source migrations");
             assertTrue(names.stream().allMatch(name -> name.matches("\\d{14}_.+\\.sql")),
                     "Migration filenames must start with a 14-digit timestamp.");
+            assertEquals(names.size(), names.stream().map(name -> name.substring(0, 14)).distinct().count(),
+                    "Migration timestamps must be unique");
             assertTrue(names.contains("20261024083000_add_qr_order_idempotency.sql"));
             assertTrue(names.contains("20261024091000_add_delivery_zone_coverage.sql"));
         }
@@ -560,10 +602,17 @@ class PostgresMigrationSchemaTest {
                     .filter(path -> path.getFileName().toString().endsWith(".sql"))
                     .sorted(Comparator.comparing(path -> path.getFileName().toString()))
                     .toList();
-
+            assertEquals(35, migrations.size(), "UXI-13A requires the complete 35-migration chain");
             for (Path migration : migrations) {
+                Map<String, Object> record = new LinkedHashMap<>();
+                record.put("name", migration.getFileName().toString());
+                record.put("sha256", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                        .digest(Files.readAllBytes(migration))));
+                record.put("applied", false);
+                migrationEvidence.add(record);
                 if (migration.getFileName().toString().equals("20261115091000_shopping_planning_separation.sql")) {
                     seedLegacyShoppingBeforeSeparation();
+                    acceptanceEvidence.put("legacyShoppingSeeded", true);
                 }
                 String containerPath = "/tmp/" + migration.getFileName();
                 POSTGRES.copyFileToContainer(
@@ -576,8 +625,20 @@ class PostgresMigrationSchemaTest {
                             "Failed to apply repository migration " + migration.getFileName()
                                     + "\\n" + result.getStdout() + "\\n" + result.getStderr());
                 }
+                record.put("applied", true);
             }
         }
+    }
+
+    private static String sourceCommit() throws Exception {
+        String ciCommit = System.getenv("GITHUB_SHA");
+        if (ciCommit != null && ciCommit.matches("[0-9a-f]{40}")) return ciCommit;
+        Process git = new ProcessBuilder("git", "rev-parse", "HEAD").redirectErrorStream(true).start();
+        String revision = new String(git.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        if (git.waitFor() != 0 || !revision.matches("[0-9a-f]{40}")) {
+            throw new IllegalStateException("Cannot record tested source commit");
+        }
+        return revision;
     }
 
     private static void seedLegacyShoppingBeforeSeparation() {

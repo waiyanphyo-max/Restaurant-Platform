@@ -56,6 +56,8 @@ mvn --batch-mode -f app/api/pom.xml clean verify
 
 GitHub Actions also runs the same Maven verification command for pushes to `main` and `ai/**` branches and for relevant pull requests.
 
+Backend CI additionally requires all 23 `PostgresMigrationSchemaTest` cases to execute without skips on the existing `postgres:17-alpine` fixture. It checks the actual server version, all 35 ordered source migration hashes, the historical shopping upgrade, the authenticated A/B journey and restricted-principal evidence. After Maven completes, run `python -B scripts/verify-postgres-acceptance.py --maven-outcome success` to inspect the same fail-closed acceptance gate locally. Ordinary Maven remains usable without Docker; skipped database tests yield **BLOCKED** acceptance, even when Maven succeeds. The workflow retains only sanitized JSON for 14 days. See [UXI-13A reproduction and acceptance boundaries](docs/uxi-13a-integration-remediation.md).
+
 To start the API after the environment variables are configured:
 
 ```bash

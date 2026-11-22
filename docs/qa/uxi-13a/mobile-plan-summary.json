@@ -1,0 +1,491 @@
+{
+  "revision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "plans": [
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000101",
+      "restaurantSlug": "restaurant-a",
+      "fixture": true,
+      "appKind": "operations",
+      "environment": "development",
+      "applicationId": "dev.restaurantplatform.fixturea.operations.dev",
+      "displayName": "Demo A Counter (development)",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-a-operations-development",
+      "appLinks": [],
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-a.localhost:3000",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:233354b0590c0d3705e6f3209061423c9784096dbab1b79b0373f54611ecff98",
+      "artifactType": "apk",
+      "branding": {
+        "displayName": "Restaurant A (Test)",
+        "primaryColor": "#8A3C25",
+        "secondaryColor": "#EDAE49",
+        "backgroundColor": "#FFF6E7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-a/operations-icon.png",
+      "splash": {
+        "backgroundColor": "#8A3C25",
+        "image": "../../configs/restaurants/assets/restaurant-a/operations-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000101",
+      "restaurantSlug": "restaurant-a",
+      "fixture": true,
+      "appKind": "operations",
+      "environment": "staging",
+      "applicationId": "dev.restaurantplatform.fixturea.operations.staging",
+      "displayName": "Demo A Counter (staging)",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-a-operations-staging",
+      "appLinks": [
+        {
+          "host": "restaurant-a.staging.test",
+          "pathPrefix": "/app/operations/"
+        }
+      ],
+      "apiBaseUrl": "https://api.restaurant-a.staging.test",
+      "guestBaseUrl": "https://restaurant-a.staging.test",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:b89671d3bdb3e4e3f13fe6f895064b6d1d342c9e51d908a005c089a9a7fe0b90",
+      "artifactType": "apk",
+      "branding": {
+        "displayName": "Restaurant A (Test)",
+        "primaryColor": "#8A3C25",
+        "secondaryColor": "#EDAE49",
+        "backgroundColor": "#FFF6E7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-a/operations-icon.png",
+      "splash": {
+        "backgroundColor": "#8A3C25",
+        "image": "../../configs/restaurants/assets/restaurant-a/operations-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000101",
+      "restaurantSlug": "restaurant-a",
+      "fixture": true,
+      "appKind": "operations",
+      "environment": "production",
+      "applicationId": "dev.restaurantplatform.fixturea.operations",
+      "displayName": "Demo A Counter",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-a-operations",
+      "appLinks": [
+        {
+          "host": "restaurant-a.test",
+          "pathPrefix": "/app/operations/"
+        }
+      ],
+      "apiBaseUrl": "https://api.restaurant-a.test",
+      "guestBaseUrl": "https://restaurant-a.test",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:eb31e3e8acff4cf22321343eb30ed9c1741c8153f03932f1c8eb3e49bbcd96a3",
+      "artifactType": "aab",
+      "branding": {
+        "displayName": "Restaurant A (Test)",
+        "primaryColor": "#8A3C25",
+        "secondaryColor": "#EDAE49",
+        "backgroundColor": "#FFF6E7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-a/operations-icon.png",
+      "splash": {
+        "backgroundColor": "#8A3C25",
+        "image": "../../configs/restaurants/assets/restaurant-a/operations-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000101",
+      "restaurantSlug": "restaurant-a",
+      "fixture": true,
+      "appKind": "customer",
+      "environment": "development",
+      "applicationId": "dev.restaurantplatform.fixturea.customer.dev",
+      "displayName": "Demo A Kitchen (development)",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-a-customer-development",
+      "appLinks": [],
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-a.localhost:3000",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:d096dfa0a866ac2a5aefb32a5fbcf712749869dd4e91893b89fa5490391fd6c5",
+      "artifactType": "apk",
+      "branding": {
+        "displayName": "Restaurant A (Test)",
+        "primaryColor": "#8A3C25",
+        "secondaryColor": "#EDAE49",
+        "backgroundColor": "#FFF6E7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-a/customer-icon.png",
+      "splash": {
+        "backgroundColor": "#FFF6E7",
+        "image": "../../configs/restaurants/assets/restaurant-a/customer-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000101",
+      "restaurantSlug": "restaurant-a",
+      "fixture": true,
+      "appKind": "customer",
+      "environment": "staging",
+      "applicationId": "dev.restaurantplatform.fixturea.customer.staging",
+      "displayName": "Demo A Kitchen (staging)",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-a-customer-staging",
+      "appLinks": [
+        {
+          "host": "restaurant-a.staging.test",
+          "pathPrefix": "/app/customer/"
+        }
+      ],
+      "apiBaseUrl": "https://api.restaurant-a.staging.test",
+      "guestBaseUrl": "https://restaurant-a.staging.test",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:aa8767271488f86cc742ad26703dbbcd0e78cbf5ffdf4f71ece505d2bb88e194",
+      "artifactType": "apk",
+      "branding": {
+        "displayName": "Restaurant A (Test)",
+        "primaryColor": "#8A3C25",
+        "secondaryColor": "#EDAE49",
+        "backgroundColor": "#FFF6E7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-a/customer-icon.png",
+      "splash": {
+        "backgroundColor": "#FFF6E7",
+        "image": "../../configs/restaurants/assets/restaurant-a/customer-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000101",
+      "restaurantSlug": "restaurant-a",
+      "fixture": true,
+      "appKind": "customer",
+      "environment": "production",
+      "applicationId": "dev.restaurantplatform.fixturea.customer",
+      "displayName": "Demo A Kitchen",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-a-customer",
+      "appLinks": [
+        {
+          "host": "restaurant-a.test",
+          "pathPrefix": "/app/customer/"
+        }
+      ],
+      "apiBaseUrl": "https://api.restaurant-a.test",
+      "guestBaseUrl": "https://restaurant-a.test",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:e660d674a089c818a914c2d8a0cf2eaf13caa92682a0d84e7037dc2f4ef4da93",
+      "artifactType": "aab",
+      "branding": {
+        "displayName": "Restaurant A (Test)",
+        "primaryColor": "#8A3C25",
+        "secondaryColor": "#EDAE49",
+        "backgroundColor": "#FFF6E7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-a/customer-icon.png",
+      "splash": {
+        "backgroundColor": "#FFF6E7",
+        "image": "../../configs/restaurants/assets/restaurant-a/customer-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000102",
+      "restaurantSlug": "restaurant-b",
+      "fixture": true,
+      "appKind": "operations",
+      "environment": "development",
+      "applicationId": "dev.restaurantplatform.fixtureb.operations.dev",
+      "displayName": "Demo B Crew (development)",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-b-operations-development",
+      "appLinks": [],
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-b.localhost:3000",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:f28d382a7051090c6ae9c344a9b5d73e857b146d0728ecb7b37d77aeb2c91f07",
+      "artifactType": "apk",
+      "branding": {
+        "displayName": "Restaurant B (Test)",
+        "primaryColor": "#195954",
+        "secondaryColor": "#60C8B7",
+        "backgroundColor": "#EDF8F7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-b/operations-icon.png",
+      "splash": {
+        "backgroundColor": "#195954",
+        "image": "../../configs/restaurants/assets/restaurant-b/operations-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000102",
+      "restaurantSlug": "restaurant-b",
+      "fixture": true,
+      "appKind": "operations",
+      "environment": "staging",
+      "applicationId": "dev.restaurantplatform.fixtureb.operations.staging",
+      "displayName": "Demo B Crew (staging)",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-b-operations-staging",
+      "appLinks": [
+        {
+          "host": "restaurant-b.staging.test",
+          "pathPrefix": "/app/operations/"
+        }
+      ],
+      "apiBaseUrl": "https://api.restaurant-b.staging.test",
+      "guestBaseUrl": "https://restaurant-b.staging.test",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:84ba1825ba562d2478118c320f254592bac21ac83b90eaeda871960bb976fbf7",
+      "artifactType": "apk",
+      "branding": {
+        "displayName": "Restaurant B (Test)",
+        "primaryColor": "#195954",
+        "secondaryColor": "#60C8B7",
+        "backgroundColor": "#EDF8F7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-b/operations-icon.png",
+      "splash": {
+        "backgroundColor": "#195954",
+        "image": "../../configs/restaurants/assets/restaurant-b/operations-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000102",
+      "restaurantSlug": "restaurant-b",
+      "fixture": true,
+      "appKind": "operations",
+      "environment": "production",
+      "applicationId": "dev.restaurantplatform.fixtureb.operations",
+      "displayName": "Demo B Crew",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-b-operations",
+      "appLinks": [
+        {
+          "host": "restaurant-b.test",
+          "pathPrefix": "/app/operations/"
+        }
+      ],
+      "apiBaseUrl": "https://api.restaurant-b.test",
+      "guestBaseUrl": "https://restaurant-b.test",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:2f898e971576bc998eb55dab356bca6d28998d174f6e7611df62ea9232b80173",
+      "artifactType": "aab",
+      "branding": {
+        "displayName": "Restaurant B (Test)",
+        "primaryColor": "#195954",
+        "secondaryColor": "#60C8B7",
+        "backgroundColor": "#EDF8F7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-b/operations-icon.png",
+      "splash": {
+        "backgroundColor": "#195954",
+        "image": "../../configs/restaurants/assets/restaurant-b/operations-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000102",
+      "restaurantSlug": "restaurant-b",
+      "fixture": true,
+      "appKind": "customer",
+      "environment": "development",
+      "applicationId": "dev.restaurantplatform.fixtureb.customer.dev",
+      "displayName": "Demo B Table (development)",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-b-customer-development",
+      "appLinks": [],
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-b.localhost:3000",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:f6ffa34c851e48327bd0230546fa9ac30c07cdfca62e836d70e5a986e9943332",
+      "artifactType": "apk",
+      "branding": {
+        "displayName": "Restaurant B (Test)",
+        "primaryColor": "#195954",
+        "secondaryColor": "#60C8B7",
+        "backgroundColor": "#EDF8F7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-b/customer-icon.png",
+      "splash": {
+        "backgroundColor": "#EDF8F7",
+        "image": "../../configs/restaurants/assets/restaurant-b/customer-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000102",
+      "restaurantSlug": "restaurant-b",
+      "fixture": true,
+      "appKind": "customer",
+      "environment": "staging",
+      "applicationId": "dev.restaurantplatform.fixtureb.customer.staging",
+      "displayName": "Demo B Table (staging)",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-b-customer-staging",
+      "appLinks": [
+        {
+          "host": "restaurant-b.staging.test",
+          "pathPrefix": "/app/customer/"
+        }
+      ],
+      "apiBaseUrl": "https://api.restaurant-b.staging.test",
+      "guestBaseUrl": "https://restaurant-b.staging.test",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:8d78f71132b9226619a4bf874f375ec725cbd58a755f2e712a570fc282ea77f4",
+      "artifactType": "apk",
+      "branding": {
+        "displayName": "Restaurant B (Test)",
+        "primaryColor": "#195954",
+        "secondaryColor": "#60C8B7",
+        "backgroundColor": "#EDF8F7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-b/customer-icon.png",
+      "splash": {
+        "backgroundColor": "#EDF8F7",
+        "image": "../../configs/restaurants/assets/restaurant-b/customer-splash.png",
+        "imageWidth": 160
+      }
+    },
+    {
+      "restaurantId": "00000000-0000-4000-8000-000000000102",
+      "restaurantSlug": "restaurant-b",
+      "fixture": true,
+      "appKind": "customer",
+      "environment": "production",
+      "applicationId": "dev.restaurantplatform.fixtureb.customer",
+      "displayName": "Demo B Table",
+      "versionName": "0.1.0",
+      "versionCode": 1,
+      "scheme": "rp-restaurant-b-customer",
+      "appLinks": [
+        {
+          "host": "restaurant-b.test",
+          "pathPrefix": "/app/customer/"
+        }
+      ],
+      "apiBaseUrl": "https://api.restaurant-b.test",
+      "guestBaseUrl": "https://restaurant-b.test",
+      "easProjectId": null,
+      "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+      "fingerprint": "sha256:d217399155588a8a30211ad3386c8517529f4337537e712edf8601751a94a312",
+      "artifactType": "aab",
+      "branding": {
+        "displayName": "Restaurant B (Test)",
+        "primaryColor": "#195954",
+        "secondaryColor": "#60C8B7",
+        "backgroundColor": "#EDF8F7",
+        "embeddedLogo": true
+      },
+      "icon": "../../configs/restaurants/assets/restaurant-b/customer-icon.png",
+      "splash": {
+        "backgroundColor": "#EDF8F7",
+        "image": "../../configs/restaurants/assets/restaurant-b/customer-splash.png",
+        "imageWidth": 160
+      }
+    }
+  ],
+  "results": [
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a operations development --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a operations staging --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a operations production --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a customer development --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a customer staging --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-a customer production --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b operations development --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b operations staging --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b operations production --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b customer development --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b customer staging --fixture",
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "command": "node scripts/mobile-build.cjs resolve restaurant-b customer production --fixture",
+      "exitCode": 0,
+      "error": null
+    }
+  ]
+}
