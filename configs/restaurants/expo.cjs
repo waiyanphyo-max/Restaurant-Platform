@@ -63,7 +63,7 @@ function createAndroidExpoConfig(kind, appDirectory, appOptions) {
       ? [{ host: new URL(routing.appLinkOrigin).hostname, pathPrefix: routing.appLinkPathPrefix }]
       : [];
     const { plugins = [], android = {}, extra = {} } = appOptions(selected, env);
-    const notifications = selectFirebaseAndroid(kind, appDirectory, selected.applicationId, env);
+    const notifications = selectFirebaseAndroid(kind, appDirectory, selected.applicationId, env, environment);
     const auth = publicAuthInputs(env);
     const allowPrivateLanHttp = environment === "development" && Boolean(env.MOBILE_DEVELOPMENT_API_BASE_URL) &&
       selected.apiBaseUrl.startsWith("http:");

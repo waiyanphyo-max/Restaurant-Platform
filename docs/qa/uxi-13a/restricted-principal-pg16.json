@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "serverVersionNum": 160004,
+  "trustedServer": {"superuser": false, "ownsTables": false, "bypassRls": true,
+    "grants": {"restaurant_runtime_branding": ["SELECT","INSERT","UPDATE"],
+      "restaurant_bootstrap_steps": ["SELECT","INSERT"],
+      "restaurant_featured_product": ["SELECT","INSERT","UPDATE"]}},
+  "nonBypassProbe": "same object grants; RLS hides reads and denies writes",
+  "clientRoles": {"anon": "DENIED", "authenticated": "DENIED", "service_role": "DENIED"},
+  "foreignFeaturedReference": "DENIED:23503",
+  "unrelatedPrivateTables": "DENIED:42501",
+  "fixtureRolesAndGrantsRolledBack": true,
+  "limitations": ["Synthetic capability fixture only; not the hosted Spring principal",
+    "BYPASSRLS does not enforce tenant isolation; actual HTTP service authorization is tested separately",
+    "This is the focused branding/bootstrap/Featured grant subset, not a complete deployment grant manifest"]
+}

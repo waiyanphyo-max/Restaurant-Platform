@@ -1,0 +1,32 @@
+{
+  "restaurantId": "00000000-0000-4000-8000-000000000101",
+  "restaurantSlug": "restaurant-a",
+  "fixture": true,
+  "appKind": "customer",
+  "environment": "development",
+  "applicationId": "dev.restaurantplatform.fixturea.customer.dev",
+  "displayName": "Demo A Kitchen (development)",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "scheme": "rp-restaurant-a-customer-development",
+  "appLinks": [],
+  "apiBaseUrl": "http://10.0.2.2:8080",
+  "guestBaseUrl": "http://restaurant-a.localhost:3000",
+  "easProjectId": null,
+  "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "fingerprint": "sha256:d096dfa0a866ac2a5aefb32a5fbcf712749869dd4e91893b89fa5490391fd6c5",
+  "artifactType": "apk",
+  "branding": {
+    "displayName": "Restaurant A (Test)",
+    "primaryColor": "#8A3C25",
+    "secondaryColor": "#EDAE49",
+    "backgroundColor": "#FFF6E7",
+    "embeddedLogo": true
+  },
+  "icon": "../../configs/restaurants/assets/restaurant-a/customer-icon.png",
+  "splash": {
+    "backgroundColor": "#FFF6E7",
+    "image": "../../configs/restaurants/assets/restaurant-a/customer-splash.png",
+    "imageWidth": 160
+  }
+}

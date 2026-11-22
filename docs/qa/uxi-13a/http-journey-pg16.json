@@ -1,0 +1,20 @@
+{
+  "schemaVersion" : 1,
+  "status" : "PASS",
+  "serverVersionNum" : 160004,
+  "httpRequests" : 59,
+  "phases" : [ "PLATFORM_PROVISIONING_A_B", "OWNER_AND_MANAGER_MEMBERSHIP", "RUNTIME_BRANDING", "CATALOG_VARIANT_REQUIRED_MODIFIER", "BOOTSTRAP_RECEIPT_RETRY_AND_CONFLICT", "OWNER_PASSWORD_AMR_PREREQUISITE", "OPERATIONS_HANDOFF_A_B", "OWNER_MANAGER_CATALOG_PALETTE_UPDATES", "PUBLIC_PERSISTED_MENU_AND_BRANDING", "OWNER_ONLY_FEATURED", "CROSS_TENANT_READ_WRITE_REFERENCE_DENIAL", "SIGNED_JWT_SIGNATURE_ISSUER_AUDIENCE_EXPIRY_VALIDATION" ],
+  "identityScope" : "One invocation's synthetic A/B users and returned restaurant/catalog UUIDs reused across all phases",
+  "syntheticExternalBoundaries" : [ "Supabase Auth Admin exact-UUID identity lookup", "Ephemeral loopback ES256 JWKS issuer and signed fresh-password AMR claim" ],
+  "databasePrincipal" : {
+    "superuser" : true,
+    "limitation" : "Journey fixture principal is separate from restricted-principal and hosted-role acceptance",
+    "bypassRls" : false
+  },
+  "invitationCount" : 0,
+  "recoveryEmailCount" : 0,
+  "cleanup" : "PASS",
+  "checkout" : "NOT RUN",
+  "nativeDevice" : "NOT RUN",
+  "hostedProviderLifecycle" : "NOT RUN"
+}

@@ -1,0 +1,46 @@
+{
+  "status": "PASS",
+  "scope": "Read-only inspection of the existing baseline Backend CI job log; not execution of UXI-13A working-tree changes",
+  "repository": "waiyanphyo-max/Restaurant-Platform",
+  "commit": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "runId": 45028343236,
+  "jobId": 137226183759,
+  "runUrl": "https://github.com/waiyanphyo-max/Restaurant-Platform/actions/runs/45028343236",
+  "event": "push",
+  "branch": "main",
+  "conclusion": "success",
+  "startedUtc": "2026-11-22T13:36:08Z",
+  "completedUtc": "2026-11-22T13:37:21Z",
+  "containerImage": "postgres:17-alpine",
+  "requiredSuite": {
+    "name": "com.restaurant.platform.integration.PostgresMigrationSchemaTest",
+    "tests": 21,
+    "executed": 21,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "elapsedSeconds": 19.69
+  },
+  "mavenTotals": {
+    "tests": 655,
+    "executed": 601,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 54
+  },
+  "sanitizedLogExcerpts": [
+    "2026-11-22T13:36:47.515Z Found Docker environment with local Unix socket (unix:///var/run/docker.sock)",
+    "2026-11-22T13:36:53.873Z Container postgres:17-alpine started in PT1.218082848S",
+    "2026-11-22T13:37:09.6691385Z [INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 19.69 s -- in com.restaurant.platform.integration.PostgresMigrationSchemaTest",
+    "2026-11-22T13:37:17.8163331Z [INFO] Tests run: 655, Failures: 0, Errors: 0, Skipped: 54",
+    "2026-11-22T13:37:18.4988433Z [INFO] BUILD SUCCESS"
+  ],
+  "availableArtifacts": [],
+  "limitations": [
+    "No Surefire XML artifact was retained by the baseline workflow; test execution counts are present in the downloadable job log",
+    "Image tag and running container are proven; baseline log did not record SHOW server_version_num or migration SHA-256 inventory",
+    "The new fail-closed acceptance guard, continuous HTTP journey and restricted-principal checks have not executed in this remote baseline run",
+    "54 explicitly opt-in LocalPostgres tests remained skipped; their descriptors are separate from the executed mandatory Testcontainers suite",
+    "No remote workflow was triggered, rerun, modified or dispatched by this implementation session"
+  ]
+}

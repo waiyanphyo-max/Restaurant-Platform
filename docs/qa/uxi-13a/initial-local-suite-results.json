@@ -1,0 +1,93 @@
+[
+  {
+    "name": "com.restaurant.platform.accounting.AccountingLocalPostgresTest",
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.accounting.AccountingReceiptLocalPostgresTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.accounting.ProcurementLocalPostgresTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.CustomerAddressLocalPostgresTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.CustomerDeliveryLocalPostgresTest",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.CustomerProfileLocalPostgresTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.DeliveryCancellationLocalPostgresTest",
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.FeaturedProductLocalPostgresTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.GeographicLocationLocalPostgresTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.OwnerOnboardingLocalPostgresTest",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 8
+  },
+  {
+    "name": "com.restaurant.platform.integration.PlatformBootstrapLocalPostgresTest",
+    "tests": 5,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.RestrictedPrincipalLocalPostgresTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "name": "com.restaurant.platform.integration.RuntimeBrandingLocalPostgresTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+]

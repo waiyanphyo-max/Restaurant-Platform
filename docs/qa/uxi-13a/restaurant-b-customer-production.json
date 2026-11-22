@@ -1,0 +1,37 @@
+{
+  "restaurantId": "00000000-0000-4000-8000-000000000102",
+  "restaurantSlug": "restaurant-b",
+  "fixture": true,
+  "appKind": "customer",
+  "environment": "production",
+  "applicationId": "dev.restaurantplatform.fixtureb.customer",
+  "displayName": "Demo B Table",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "scheme": "rp-restaurant-b-customer",
+  "appLinks": [
+    {
+      "host": "restaurant-b.test",
+      "pathPrefix": "/app/customer/"
+    }
+  ],
+  "apiBaseUrl": "https://api.restaurant-b.test",
+  "guestBaseUrl": "https://restaurant-b.test",
+  "easProjectId": null,
+  "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "fingerprint": "sha256:d217399155588a8a30211ad3386c8517529f4337537e712edf8601751a94a312",
+  "artifactType": "aab",
+  "branding": {
+    "displayName": "Restaurant B (Test)",
+    "primaryColor": "#195954",
+    "secondaryColor": "#60C8B7",
+    "backgroundColor": "#EDF8F7",
+    "embeddedLogo": true
+  },
+  "icon": "../../configs/restaurants/assets/restaurant-b/customer-icon.png",
+  "splash": {
+    "backgroundColor": "#EDF8F7",
+    "image": "../../configs/restaurants/assets/restaurant-b/customer-splash.png",
+    "imageWidth": 160
+  }
+}

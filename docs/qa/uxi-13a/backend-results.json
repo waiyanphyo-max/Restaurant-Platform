@@ -1,0 +1,74 @@
+{
+  "sourceCommit": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "workingTreeChanges": true,
+  "results": [
+    {
+      "scope": "full-backend",
+      "status": "PASS",
+      "exit": 0,
+      "tests": 659,
+      "executed": 580,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 79,
+      "log": "maven-clean-verify-retry.log"
+    },
+    {
+      "scope": "qualified-pg16-initial",
+      "status": "FAIL",
+      "exit": 1,
+      "tests": 60,
+      "executed": 52,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 8,
+      "log": "maven-pg16-local.log"
+    },
+    {
+      "scope": "owner-initial-wrong-variable",
+      "status": "SKIPPED",
+      "exit": 0,
+      "tests": 8,
+      "executed": 0,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 8,
+      "log": "maven-pg16-owner.log"
+    },
+    {
+      "scope": "corrected-journey",
+      "status": "PASS",
+      "exit": 0,
+      "tests": 1,
+      "executed": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "log": "maven-pg16-journey-retry.log"
+    },
+    {
+      "scope": "owner-enabled",
+      "status": "PASS",
+      "exit": 0,
+      "tests": 8,
+      "executed": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "log": "maven-pg16-owner-retry.log"
+    }
+  ],
+  "postgres17": "BLOCKED locally; modified remote CI NOT RUN",
+  "qualifiedDatabaseVersion": 160004,
+  "resolvedDatabaseCases": {
+    "distinctSuccessfulCasesAcrossRuns": 60,
+    "initialOtherCasesPassed": 51,
+    "correctedJourneyPassed": 1,
+    "separateOwnerCasesPassed": 8
+  },
+  "notes": [
+    "Initial journey failure was an overstrict new timestamp representation assertion, corrected without application change",
+    "Initial Owner-only command used wrong variable and skipped all eight; corrected explicit variable executed eight",
+    "Do not sum overlapping command totals or treat local PG16 as exact PostgreSQL17 acceptance"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "restaurantId": "00000000-0000-4000-8000-000000000102",
+  "restaurantSlug": "restaurant-b",
+  "fixture": true,
+  "appKind": "customer",
+  "environment": "staging",
+  "applicationId": "dev.restaurantplatform.fixtureb.customer.staging",
+  "displayName": "Demo B Table (staging)",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "scheme": "rp-restaurant-b-customer-staging",
+  "appLinks": [
+    {
+      "host": "restaurant-b.staging.test",
+      "pathPrefix": "/app/customer/"
+    }
+  ],
+  "apiBaseUrl": "https://api.restaurant-b.staging.test",
+  "guestBaseUrl": "https://restaurant-b.staging.test",
+  "easProjectId": null,
+  "sourceRevision": "fcf69064b6f1e2ce403702c28eef73cb4190fe00",
+  "fingerprint": "sha256:8d78f71132b9226619a4bf874f375ec725cbd58a755f2e712a570fc282ea77f4",
+  "artifactType": "apk",
+  "branding": {
+    "displayName": "Restaurant B (Test)",
+    "primaryColor": "#195954",
+    "secondaryColor": "#60C8B7",
+    "backgroundColor": "#EDF8F7",
+    "embeddedLogo": true
+  },
+  "icon": "../../configs/restaurants/assets/restaurant-b/customer-icon.png",
+  "splash": {
+    "backgroundColor": "#EDF8F7",
+    "image": "../../configs/restaurants/assets/restaurant-b/customer-splash.png",
+    "imageWidth": 160
+  }
+}
