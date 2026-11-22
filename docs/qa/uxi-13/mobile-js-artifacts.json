@@ -1,0 +1,22 @@
+[
+  {
+    "Path": "target\\uxi-13-mobile\\restaurant-a-customer\\_expo\\static\\js\\android\\index-825c0aedc694eb1eec117a6573cd6dd1.hbc",
+    "Bytes": 3861568,
+    "Sha256": "27e7ec57006f5404238f9af98446905f0c6175952bd3f645f5fbd86d007fb159"
+  },
+  {
+    "Path": "target\\uxi-13-mobile\\restaurant-a-operations\\_expo\\static\\js\\android\\index-0db5102939f33f15e1e83fd306a174b7.hbc",
+    "Bytes": 4980248,
+    "Sha256": "5200ea091ad0bf33e1986c5cc2ecbbe421d4586a4d22f398423f5761a7817876"
+  },
+  {
+    "Path": "target\\uxi-13-mobile\\restaurant-b-customer\\_expo\\static\\js\\android\\index-825c0aedc694eb1eec117a6573cd6dd1.hbc",
+    "Bytes": 3861568,
+    "Sha256": "3732ff1a3828e2df25abe74fb759be0c48ae7f3c1d1f7da8c44ea36ff64b5bd3"
+  },
+  {
+    "Path": "target\\uxi-13-mobile\\restaurant-b-operations\\_expo\\static\\js\\android\\index-0db5102939f33f15e1e83fd306a174b7.hbc",
+    "Bytes": 4980247,
+    "Sha256": "eb7f74f7dddf96941b9b451df1f7beb3f349a9bfec1459450d536e15b8f9a022"
+  }
+]

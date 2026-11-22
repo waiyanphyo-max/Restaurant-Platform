@@ -1,0 +1,38 @@
+{
+  "postman": [
+    {
+      "sha256": "3860FC58FC8851614AD406F3A057CBFF5F9C9EAC237DF43BCC28B8B25AB125F3",
+      "path": ".postman\\resources.yaml"
+    },
+    {
+      "sha256": "36FA71C9007CCF7945D99C36E1E9433AF0EE516EB90731DB4A7D260AEBC98B2C",
+      "path": "postman\\collections\\RestaurantPlatform\\Create Restaurant By Admin.request.yaml"
+    },
+    {
+      "sha256": "5AB0B259422A693926B3FB2E8E4BFACA0B6E44233B58E322A28246021D053E5B",
+      "path": "postman\\collections\\RestaurantPlatform\\Login.request.yaml"
+    },
+    {
+      "sha256": "E5947167F40F1B00A4A425FA946ED515B1AB755EC9BEDCD84BC751C7E48B7368",
+      "path": "postman\\collections\\RestaurantPlatform\\Request OTP from Email.request.yaml"
+    },
+    {
+      "sha256": "F7BD66518B108E9656B925F477B14F288EEF984C6761988BFA8A002C0AF48B5B",
+      "path": "postman\\collections\\RestaurantPlatform\\.resources\\definition.yaml"
+    },
+    {
+      "sha256": "BAA3EB481E3EBAFEBFC0C9639A72016E1A4DD3384EDC84B1323D2E37BF98576C",
+      "path": "postman\\environments\\Restaurant Local - Private.environment.yaml"
+    },
+    {
+      "sha256": "009D1BD7852C875D2DA1CA61711975A7D814B4D7286EDCA4ABC381D0449C9253",
+      "path": "postman\\globals\\workspace.globals.yaml"
+    }
+  ],
+  "branch": "uxi/13-integrated-qa",
+  "status": [
+    "?? .postman/",
+    "?? postman/"
+  ],
+  "head": "c8659e40c27606ae137ae8cb5befa7aadd0079c5"
+}

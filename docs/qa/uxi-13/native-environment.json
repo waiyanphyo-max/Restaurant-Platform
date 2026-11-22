@@ -1,0 +1,23 @@
+{
+  "observedDate": "2026-11-22",
+  "timezone": "Asia/Bangkok",
+  "sourceRevision": "c8659e40c27606ae137ae8cb5befa7aadd0079c5",
+  "jdk": "OpenJDK 21.0.2 (JAVA_HOME/bin/java.exe -version exit 0)",
+  "sdk": {
+    "path": "C:/Users/DELL/AppData/Local/Android/Sdk",
+    "platforms": ["android-36.1", "android-37.0"],
+    "buildTools": ["36.0.0", "36.1.0", "37.0.0"],
+    "ndk": ["27.1.12297006"],
+    "cmake": ["3.22.1", "3.31.6"],
+    "commandLineTools": ["latest"],
+    "adbOnPath": false,
+    "emulatorOnPath": false,
+    "androidHomeSet": false
+  },
+  "adbDevices": {"exitCode": 0, "connected": 0, "unauthorized": 0, "offline": 0},
+  "emulatorListAvds": {"exitCode": 0, "count": 0},
+  "existingNativeDirectories": {"operations": true, "customer": true, "modifiedByAudit": false},
+  "appLocalCredentialsJsonPresent": {"operations": false, "customer": false},
+  "gradleWrapperSource": "Both existing native gradle/wrapper/gradle-wrapper.properties select gradle-9.4.1-bin.zip",
+  "scope": "Read-only tool inventory. No native prebuild, APK assembly, installation, signing, provider requests or EAS operations."
+}

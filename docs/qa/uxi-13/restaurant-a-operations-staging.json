@@ -1,0 +1,37 @@
+{
+  "restaurantId": "00000000-0000-4000-8000-000000000101",
+  "restaurantSlug": "restaurant-a",
+  "fixture": true,
+  "appKind": "operations",
+  "environment": "staging",
+  "applicationId": "dev.restaurantplatform.fixturea.operations.staging",
+  "displayName": "Demo A Counter (staging)",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "scheme": "rp-restaurant-a-operations-staging",
+  "appLinks": [
+    {
+      "host": "restaurant-a.staging.test",
+      "pathPrefix": "/app/operations/"
+    }
+  ],
+  "apiBaseUrl": "https://api.restaurant-a.staging.test",
+  "guestBaseUrl": "https://restaurant-a.staging.test",
+  "easProjectId": null,
+  "sourceRevision": "c8659e40c27606ae137ae8cb5befa7aadd0079c5",
+  "fingerprint": "sha256:1af6e14f30aeff78a5f763c0f12824c3b55fa5a47aa04e1028d5e8d1d946ad22",
+  "artifactType": "apk",
+  "branding": {
+    "displayName": "Restaurant A (Test)",
+    "primaryColor": "#8A3C25",
+    "secondaryColor": "#EDAE49",
+    "backgroundColor": "#FFF6E7",
+    "embeddedLogo": true
+  },
+  "icon": "../../configs/restaurants/assets/restaurant-a/operations-icon.png",
+  "splash": {
+    "backgroundColor": "#8A3C25",
+    "image": "../../configs/restaurants/assets/restaurant-a/operations-splash.png",
+    "imageWidth": 160
+  }
+}

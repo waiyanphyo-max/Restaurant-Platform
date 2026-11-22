@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-22 Asia/Bangkok",
+  "branch": "uxi/13-integrated-qa",
+  "head": "c8659e40c27606ae137ae8cb5befa7aadd0079c5",
+  "method": "Node validation of generated traceability, filesystem existence checks, System.Drawing decode of saved screenshot bytes, git diff --check",
+  "rows": 258,
+  "uniqueIds": 258,
+  "requiredInventory": { "findings": 40, "families": 51, "applicationScreens": 122, "safeguards": 40 },
+  "supplemental": { "foundations": 4, "admin": 1 },
+  "requiredStatusCounts": { "IMPLEMENTED_NOT_VISUALLY_VERIFIED": 234, "PARTIALLY_IMPLEMENTED": 10, "BLOCKED_EXTERNAL_DEPENDENCY": 8, "NOT_APPLICABLE_WITH_REASON": 1 },
+  "requiredFieldsPresent": true,
+  "statusEnumsValid": true,
+  "numberedScreenAndSafeguardIdsComplete": true,
+  "sourceAndTestFileReferencesExist": 157,
+  "figmaScreenshotDecodes": { "count": 6, "dimensions": "390x844", "files": ["figma/g01.png", "figma/g02.png", "figma/c01.png", "figma/c04.png", "figma/o01.png", "figma/o66.png"] },
+  "gitDiffCheckExitCode": 0,
+  "figmaModified": false,
+  "applicationOrNativeAcceptance": "Not implied by this structural evidence validation"
+}

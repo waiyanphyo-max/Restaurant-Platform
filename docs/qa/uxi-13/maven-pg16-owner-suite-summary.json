@@ -1,0 +1,8 @@
+{
+  "suite": "com.restaurant.platform.integration.OwnerOnboardingLocalPostgresTest",
+  "tests": 8,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "database": "Fresh loopback owner_onboarding_verify on PostgreSQL 16.4"
+}

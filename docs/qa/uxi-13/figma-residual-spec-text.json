@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-22 Asia/Bangkok",
+  "sessionId": "be4fa6cb-81d3-455a-ae34-10324302c837",
+  "method": "Read-only Operations TEXT projection, matching Best seller/variants-only/recognized-sales/custom-column/crop/alt/unsupported words",
+  "bytes": 768,
+  "rows": [
+    {
+      "id": "I110:3118;99:112",
+      "characters": "အထူးဟင်းပွဲ · Best seller"
+    },
+    {
+      "id": "39:1539",
+      "characters": "Private CSV exports use supported headers; custom columns and physical row-count preview are deferred."
+    },
+    {
+      "id": "72:2953",
+      "characters": "• Approved source/crop reviewed; persistent alt-text editor deferred"
+    },
+    {
+      "id": "72:2957",
+      "characters": "• File too large / unsupported type / upload failed"
+    },
+    {
+      "id": "I73:1979;12:69",
+      "characters": "Alt text · deferred (not stored)"
+    },
+    {
+      "id": "72:3123",
+      "characters": "Separate sales/cash measures · fictional preview; unsupported series deferred"
+    },
+    {
+      "id": "72:3153",
+      "characters": "• Private sales/purchases/summary CSV · custom columns/physical row preview deferred"
+    },
+    {
+      "id": "I101:3143;99:113",
+      "characters": "Best seller · Variant price at checkout"
+    }
+  ]
+}

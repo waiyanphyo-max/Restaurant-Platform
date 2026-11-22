@@ -1,0 +1,120 @@
+{
+  "date": "2026-11-22 Asia/Bangkok",
+  "renderer": "Actual Spring Boot 4.1.1 executable JAR HTTP + PostgreSQL 16.4",
+  "databasePrincipal": "postgres, superuser; not hosted principal proof",
+  "checks": {
+    "menuBProduct": true,
+    "brandBPalette": true,
+    "menuAProduct": true,
+    "brandingNoStore": true,
+    "anonymousFinanceDenied": true,
+    "healthUp": true,
+    "menuBCurrency": true,
+    "menuACurrency": true,
+    "brandAIdentity": true,
+    "brandAPalette": true,
+    "brandBIdentity": true,
+    "unauthorizedNoStore": true,
+    "noPrivateBrandFields": true
+  },
+  "brandA": {
+    "restaurantId": "00000000-0000-4000-8000-00000000a013",
+    "displayName": "UXI-13 Synthetic Red A",
+    "logoUrl": null,
+    "palette": {
+      "primaryColor": "#A51D22",
+      "secondaryColor": "#FCEAE7",
+      "backgroundColor": "#FFF8F0"
+    },
+    "revision": 1
+  },
+  "brandB": {
+    "restaurantId": "00000000-0000-4000-8000-00000000b013",
+    "displayName": "UXI-13 Synthetic Blue B",
+    "logoUrl": null,
+    "palette": {
+      "primaryColor": "#123B70",
+      "secondaryColor": "#DDEEFF",
+      "backgroundColor": "#F4FAFF"
+    },
+    "revision": 1
+  },
+  "menuA": {
+    "restaurantId": "00000000-0000-4000-8000-00000000a013",
+    "restaurantName": "UXI-13 Synthetic Red A",
+    "slug": "uxi-13-synthetic-red-a",
+    "description": null,
+    "phone": null,
+    "address": null,
+    "logoUrl": null,
+    "currency": "MMK",
+    "categories": [
+      {
+        "id": "00000000-0000-4000-8000-00000000a113",
+        "name": "Synthetic A Meals",
+        "displayOrder": 0,
+        "products": [
+          {
+            "id": "00000000-0000-4000-8000-00000000a213",
+            "name": "Synthetic Red Rice",
+            "description": null,
+            "price": 4500,
+            "imageUrl": null,
+            "available": true,
+            "trackStock": false,
+            "stockQuantity": null,
+            "variants": [],
+            "modifierGroups": []
+          }
+        ]
+      }
+    ],
+    "featuredProduct": {
+      "productId": null,
+      "status": "NONE"
+    }
+  },
+  "menuB": {
+    "restaurantId": "00000000-0000-4000-8000-00000000b013",
+    "restaurantName": "UXI-13 Synthetic Blue B",
+    "slug": "uxi-13-synthetic-blue-b",
+    "description": null,
+    "phone": null,
+    "address": null,
+    "logoUrl": null,
+    "currency": "THB",
+    "categories": [
+      {
+        "id": "00000000-0000-4000-8000-00000000b113",
+        "name": "Synthetic B Bowls",
+        "displayOrder": 0,
+        "products": [
+          {
+            "id": "00000000-0000-4000-8000-00000000b213",
+            "name": "Synthetic Blue Bowl",
+            "description": null,
+            "price": 125,
+            "imageUrl": null,
+            "available": true,
+            "trackStock": false,
+            "stockQuantity": null,
+            "variants": [],
+            "modifierGroups": []
+          }
+        ]
+      }
+    ],
+    "featuredProduct": {
+      "productId": null,
+      "status": "NONE"
+    }
+  },
+  "observedCacheControlHeaders": {
+    "unauthorizedFinance": [
+      "no-store, must-revalidate, no-cache, max-age=0"
+    ],
+    "branding": [
+      "no-store"
+    ]
+  }
+}

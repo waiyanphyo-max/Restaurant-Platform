@@ -1,0 +1,10 @@
+{
+  "postgresStatusExit": 3,
+  "springSmokePid": 1624,
+  "springProcessAbsent": true,
+  "removedTaskOwnedDirectories": [
+    "C:\\RestaurantManagementSystem\\Restaurant-Platform\\.tmp\\uxi-13-pg16",
+    "C:\\RestaurantManagementSystem\\Restaurant-Platform\\.tmp\\uxi-13-pg18"
+  ],
+  "allTaskOwnedDirectoriesAbsent": true
+}
