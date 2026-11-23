@@ -1,0 +1,78 @@
+{
+  "normalVerifyFrontend": {
+    "status": "FAIL",
+    "exit": 1,
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "tests": "PASS",
+    "vitestPassed": 2039,
+    "nodePassed": 73,
+    "webBuilds": {
+      "admin": "PASS",
+      "guest": "PASS"
+    },
+    "operationsStarter": "FAIL",
+    "customerStarter": "NOT RUN",
+    "failure": "Firebase selected development application ID has zero matching Android clients; expected project matches"
+  },
+  "finalRootScriptTests": {
+    "status": "PASS",
+    "tests": 42,
+    "failures": 0,
+    "skipped": 0
+  },
+  "backend": {
+    "status": "PASS",
+    "tests": 662,
+    "executed": 606,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 56,
+    "mandatoryPostgres17": {
+      "status": "PASS",
+      "tests": 23,
+      "skipped": 0
+    }
+  },
+  "guardTests": {
+    "status": "PASS",
+    "tests": 20
+  },
+  "executionAttempts": [
+    {
+      "scope": "initial all-default CLI startup",
+      "status": "SKIPPED",
+      "reason": "Task-owned image startup stopped; retried with optional Studio/analytics/edge excluded; no reset"
+    },
+    {
+      "scope": "first real local API bridge",
+      "status": "FAIL",
+      "reason": "Owner onboarding503 from missing delegable Auth row-lock grant; corrected task-owned bootstrap administrator; production logic unchanged"
+    },
+    {
+      "scope": "corrected real Auth/Spring/Next/Chrome/Storage bridge",
+      "status": "PASS",
+      "springRequests": 50,
+      "nextChecks": 20,
+      "chromeChecks": 15,
+      "storageChecks": 15
+    },
+    {
+      "scope": "first added Admin UI orchestration",
+      "status": "FAIL",
+      "reason": "Argument-shape mismatch before form submission; corrected and rerun completely"
+    },
+    {
+      "scope": "final Admin UI to Spring to Guest real-Auth journey",
+      "status": "PASS",
+      "springApiRunnerRequests": 50,
+      "provisioningUiChecks": 10,
+      "nextHttpChecks": 20,
+      "chromeChecks": 15,
+      "storageChecks": 15,
+      "connectivityChecks": 6,
+      "lostResponseRecovery": "PASS",
+      "persistedOrders": 4
+    }
+  ]
+}

@@ -131,6 +131,51 @@ class SupabaseAuthAdminClientTest {
     }
 
     @Test
+    void explicitLocalOptInResolvesExactUuidAgainstLoopbackProviderOnly() {
+        RestClient.Builder builder = RestClient.builder();
+        var localServer = MockRestServiceServer.bindTo(builder).build();
+        var local = new SupabaseAuthAdminClient(builder.build(), "http://127.0.0.1:54321", "local-server-key",
+                "", true);
+        localServer.expect(requestTo("http://127.0.0.1:54321/auth/v1/admin/users/" + userId))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("apikey", "local-server-key"))
+                .andExpect(header("Authorization", "Bearer local-server-key"))
+                .andRespond(withSuccess("{\"id\":\"" + userId + "\",\"email\":\"owner@example.test\"}",
+                        MediaType.APPLICATION_JSON));
+
+        assertEquals(userId, local.getUserById(userId).id());
+        localServer.verify();
+    }
+
+    @Test
+    void loopbackRequiresExplicitOptInAndNeverAllowsEmailSideEffects() {
+        var disabled = new SupabaseAuthAdminClient(RestClient.create(), "http://127.0.0.1:54321", "local-key", "");
+        assertTrue(assertThrows(SupabaseAuthAdminException.class,
+                () -> disabled.getUserById(userId)).isConfigurationError());
+
+        // Even a production-shaped redirect must not enable email through the lookup-only local exception.
+        var lookupOnly = new SupabaseAuthAdminClient(RestClient.create(), "http://127.0.0.1:54321", "local-key",
+                "https://guest.example/auth/accept-invite", true);
+        assertTrue(assertThrows(SupabaseAuthAdminException.class,
+                () -> lookupOnly.inviteByEmail("owner@example.test", "Owner")).isConfigurationError());
+        assertTrue(assertThrows(SupabaseAuthAdminException.class,
+                () -> lookupOnly.requestRecoveryEmail("owner@example.test")).isConfigurationError());
+    }
+
+    @Test
+    void localOptInRejectsRemoteAliasesAndAmbiguousOriginsBeforeSendingCredentials() {
+        for (String origin : java.util.List.of("http://project.supabase.co:54321", "http://192.168.1.10:54321",
+                "http://localhost:54321", "http://127.0.0.2:54321", "http://127.1:54321",
+                "http://[::ffff:127.0.0.1]:54321", "http://127.0.0.1", "http://127.0.0.1:0",
+                "http://127.0.0.1:65536", "http://user@127.0.0.1:54321", "http://127.0.0.1:54321/other",
+                "http://127.0.0.1:54321?secret=value", "http://127.0.0.1:54321#fragment")) {
+            var invalid = new SupabaseAuthAdminClient(RestClient.create(), origin, "local-key", "", true);
+            assertTrue(assertThrows(SupabaseAuthAdminException.class,
+                    () -> invalid.getUserById(userId)).isConfigurationError(), origin);
+        }
+    }
+
+    @Test
     void recoveryProviderErrorAndRateLimitDoNotReportSuccess() {
         server.expect(anything()).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
                 .body("private email/token details"));

@@ -29,20 +29,32 @@ public class SupabaseAuthAdminClient {
     private final String projectUrl;
     private final String serviceRoleKey;
     private final String inviteRedirectUrl;
+    private final boolean allowLocalIdentityLookup;
 
     @Autowired
     public SupabaseAuthAdminClient(
             @Value("${app.supabase-admin.project-url:}") String projectUrl,
             @Value("${app.supabase-admin.service-role-key:}") String serviceRoleKey,
-            @Value("${app.supabase-admin.invite-redirect-url:}") String inviteRedirectUrl) {
-        this(createRestClient(), projectUrl, serviceRoleKey, inviteRedirectUrl);
+            @Value("${app.supabase-admin.invite-redirect-url:}") String inviteRedirectUrl,
+            @Value("${app.supabase-admin.allow-local-identity-lookup:false}") boolean allowLocalIdentityLookup) {
+        this(createRestClient(), projectUrl, serviceRoleKey, inviteRedirectUrl, allowLocalIdentityLookup);
+    }
+
+    public SupabaseAuthAdminClient(String projectUrl, String serviceRoleKey, String inviteRedirectUrl) {
+        this(createRestClient(), projectUrl, serviceRoleKey, inviteRedirectUrl, false);
     }
 
     SupabaseAuthAdminClient(RestClient restClient, String projectUrl, String serviceRoleKey, String inviteRedirectUrl) {
+        this(restClient, projectUrl, serviceRoleKey, inviteRedirectUrl, false);
+    }
+
+    SupabaseAuthAdminClient(RestClient restClient, String projectUrl, String serviceRoleKey,
+                           String inviteRedirectUrl, boolean allowLocalIdentityLookup) {
         this.restClient = restClient;
         this.projectUrl = projectUrl == null ? "" : projectUrl.trim().replaceAll("/+$", "");
         this.serviceRoleKey = serviceRoleKey == null ? "" : serviceRoleKey.trim();
         this.inviteRedirectUrl = inviteRedirectUrl == null ? "" : inviteRedirectUrl.trim();
+        this.allowLocalIdentityLookup = allowLocalIdentityLookup;
     }
 
     private static RestClient createRestClient() {
@@ -96,7 +108,7 @@ public class SupabaseAuthAdminClient {
 
     /** Resolve an exact Auth UUID. Profile contact fields are never an identity source. */
     public AuthUser getUserById(UUID userId) {
-        requireConfigured();
+        requireConfigured(true);
         if (userId == null) {
             throw new SupabaseAuthAdminException("An Auth user ID is required", false, false, null);
         }
@@ -142,7 +154,8 @@ public class SupabaseAuthAdminClient {
 
     /** Fail before requesting email when its HTTPS destination is absent or malformed. */
     public void requireEmailDeliveryConfigured() {
-        requireConfigured();
+        // Local lookup permission never authorizes invitations or recovery email.
+        requireConfigured(false);
         try {
             URI redirect = URI.create(inviteRedirectUrl);
             if (!safeHttps(redirect) || !"/auth/accept-invite".equals(redirect.getPath())) {
@@ -154,11 +167,13 @@ public class SupabaseAuthAdminClient {
         }
     }
 
-    private void requireConfigured() {
+    private void requireConfigured(boolean identityLookup) {
         boolean validOrigin;
         try {
             URI origin = URI.create(projectUrl);
-            validOrigin = safeHttps(origin) && (origin.getPath() == null || origin.getPath().isEmpty());
+            validOrigin = (safeHttps(origin)
+                    || (identityLookup && allowLocalIdentityLookup && safeLocalIdentityOrigin(origin)))
+                    && (origin.getPath() == null || origin.getPath().isEmpty());
         } catch (IllegalArgumentException exception) {
             validOrigin = false;
         }
@@ -166,6 +181,13 @@ public class SupabaseAuthAdminClient {
             throw new SupabaseAuthAdminException(
                     "Supabase Auth Admin is not configured", true, false, null);
         }
+    }
+
+    /** Explicit development opt-in for the disposable Supabase CLI HTTP origin only. */
+    private static boolean safeLocalIdentityOrigin(URI uri) {
+        return "http".equalsIgnoreCase(uri.getScheme()) && "127.0.0.1".equals(uri.getHost())
+                && uri.getPort() > 0 && uri.getPort() <= 65535
+                && uri.getRawUserInfo() == null && uri.getRawQuery() == null && uri.getRawFragment() == null;
     }
 
     private static boolean safeHttps(URI uri) {

@@ -1,0 +1,186 @@
+{
+  "milestone": "UXI-13B",
+  "mode": "READ_ONLY",
+  "status": "BLOCKED",
+  "expected": {
+    "javaMajor": 21,
+    "compileSdk": "37",
+    "buildTools": "37.0.0",
+    "ndk": "27.1.12297006",
+    "gradle": "9.4.1"
+  },
+  "java": {
+    "status": "PASS",
+    "major": 21,
+    "version": "21.0.2",
+    "source": "JAVA_HOME"
+  },
+  "sdk": {
+    "status": "PASS",
+    "directoryPresent": true,
+    "compileSdkPresent": true,
+    "platforms": [
+      "android-36.1",
+      "android-37.0"
+    ],
+    "buildTools": [
+      "36.0.0",
+      "36.1.0",
+      "37.0.0"
+    ],
+    "ndks": [
+      "27.1.12297006"
+    ],
+    "systemImagePackagesPresent": false
+  },
+  "adb": {
+    "status": "PASS",
+    "version": "37.0.0",
+    "deviceEnumeration": "NOT RUN"
+  },
+  "emulator": {
+    "status": "BLOCKED",
+    "version": "36.5.11.0",
+    "avdCount": 0,
+    "acceleration": {
+      "status": "BLOCKED",
+      "code": "6",
+      "windowsHypervisorDetected": true
+    },
+    "smoke": "NOT RUN",
+    "reason": "This read-only command never starts an emulator or adb server."
+  },
+  "nativeProjects": [
+    {
+      "appKind": "operations",
+      "directoryPresent": true,
+      "wrapperVersion": "9.4.1",
+      "status": "PASS",
+      "gradleExecution": "NOT RUN"
+    },
+    {
+      "appKind": "customer",
+      "directoryPresent": true,
+      "wrapperVersion": "9.4.1",
+      "status": "PASS",
+      "gradleExecution": "NOT RUN"
+    }
+  ],
+  "fixtureBindings": [
+    {
+      "status": "PASS",
+      "restaurantSlug": "restaurant-a",
+      "restaurantId": "00000000-0000-4000-8000-000000000101",
+      "appKind": "operations",
+      "environment": "development",
+      "applicationId": "dev.restaurantplatform.fixturea.operations.dev",
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-a.localhost:3000",
+      "scheme": "rp-restaurant-a-operations-development",
+      "route": "ANDROID_EMULATOR_HOST",
+      "runtimeBranding": "CANONICAL_API_WITH_SAME_TENANT_FALLBACK",
+      "installedDeviceAcceptance": "NOT RUN"
+    },
+    {
+      "status": "PASS",
+      "restaurantSlug": "restaurant-a",
+      "restaurantId": "00000000-0000-4000-8000-000000000101",
+      "appKind": "customer",
+      "environment": "development",
+      "applicationId": "dev.restaurantplatform.fixturea.customer.dev",
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-a.localhost:3000",
+      "scheme": "rp-restaurant-a-customer-development",
+      "route": "ANDROID_EMULATOR_HOST",
+      "runtimeBranding": "CANONICAL_API_WITH_SAME_TENANT_FALLBACK",
+      "installedDeviceAcceptance": "NOT RUN"
+    },
+    {
+      "status": "PASS",
+      "restaurantSlug": "restaurant-b",
+      "restaurantId": "00000000-0000-4000-8000-000000000102",
+      "appKind": "operations",
+      "environment": "development",
+      "applicationId": "dev.restaurantplatform.fixtureb.operations.dev",
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-b.localhost:3000",
+      "scheme": "rp-restaurant-b-operations-development",
+      "route": "ANDROID_EMULATOR_HOST",
+      "runtimeBranding": "CANONICAL_API_WITH_SAME_TENANT_FALLBACK",
+      "installedDeviceAcceptance": "NOT RUN"
+    },
+    {
+      "status": "PASS",
+      "restaurantSlug": "restaurant-b",
+      "restaurantId": "00000000-0000-4000-8000-000000000102",
+      "appKind": "customer",
+      "environment": "development",
+      "applicationId": "dev.restaurantplatform.fixtureb.customer.dev",
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "guestBaseUrl": "http://restaurant-b.localhost:3000",
+      "scheme": "rp-restaurant-b-customer-development",
+      "route": "ANDROID_EMULATOR_HOST",
+      "runtimeBranding": "CANONICAL_API_WITH_SAME_TENANT_FALLBACK",
+      "installedDeviceAcceptance": "NOT RUN"
+    }
+  ],
+  "providers": [
+    {
+      "appKind": "operations",
+      "notificationsRequested": true,
+      "firebase": {
+        "status": "BLOCKED",
+        "appKind": "operations",
+        "environment": "development",
+        "applicationId": "dev.restaurantplatform.starter.operations.staging.dev",
+        "fileConfigured": true,
+        "expectedProjectConfigured": true,
+        "androidClientJson": true,
+        "matchingAndroidClients": 0,
+        "expectedProjectMatches": true,
+        "clientMetadataValid": false
+      },
+      "auth": {
+        "status": "PASS",
+        "urlType": "HTTPS",
+        "publishableKeyConfigured": true,
+        "localHttpAuth": "BLOCKED: existing Expo public Auth validation requires HTTPS and a publishable key.",
+        "scope": "Configuration syntax only; no Auth connection or installed-device acceptance."
+      },
+      "maps": {
+        "status": "SKIPPED",
+        "reason": "No native Customer Maps plugin in Operations."
+      }
+    },
+    {
+      "appKind": "customer",
+      "notificationsRequested": true,
+      "firebase": {
+        "status": "BLOCKED",
+        "appKind": "customer",
+        "environment": "development",
+        "applicationId": "dev.restaurantplatform.starter.customer.staging.dev",
+        "fileConfigured": true,
+        "expectedProjectConfigured": true,
+        "androidClientJson": true,
+        "matchingAndroidClients": 0,
+        "expectedProjectMatches": true,
+        "clientMetadataValid": false
+      },
+      "auth": {
+        "status": "PASS",
+        "urlType": "HTTPS",
+        "publishableKeyConfigured": true,
+        "localHttpAuth": "BLOCKED: existing Expo public Auth validation requires HTTPS and a publishable key.",
+        "scope": "Configuration syntax only; no Auth connection or installed-device acceptance."
+      },
+      "maps": {
+        "status": "SKIPPED",
+        "scope": "Key syntax controls native plugin inclusion; package/signature restrictions and device operation remain NOT RUN.",
+        "fallback": "MANUAL_ADDRESS"
+      }
+    }
+  ],
+  "installedDeviceAcceptance": "NOT RUN",
+  "productionReadiness": "NOT RUN"
+}

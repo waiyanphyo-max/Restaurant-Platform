@@ -20,6 +20,12 @@
     "apps/customer-mobile"
   ],
   "scripts": {
+    "local:preflight": "node scripts/local-stack.cjs preflight",
+    "local:infra": "node scripts/local-stack.cjs infra",
+    "local:up": "node scripts/local-stack.cjs up",
+    "local:test": "node scripts/local-stack.cjs up --once",
+    "local:stop": "node scripts/local-stack.cjs stop",
+    "local:android:preflight": "node scripts/android-readiness.cjs",
     "dev:admin": "npm run dev -w @restaurant-platform/admin-web",
     "dev:guest": "npm run dev -w @restaurant-platform/guest-web",
     "start:operations": "npm run start -w @restaurant-platform/operations-mobile",

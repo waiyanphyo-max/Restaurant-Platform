@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "taskApplicationOrBrowserProcesses": 0,
+  "taskContainers": 0,
+  "taskBrowserProfiles": 0,
+  "taskVolumesRetained": 2,
+  "preExistingVolumesPreserved": true,
+  "ports": [
+    {
+      "port": 3000,
+      "free": true
+    },
+    {
+      "port": 3001,
+      "free": true
+    },
+    {
+      "port": 8080,
+      "free": true
+    },
+    {
+      "port": 54321,
+      "free": true
+    },
+    {
+      "port": 54322,
+      "free": true
+    },
+    {
+      "port": 54324,
+      "free": true
+    }
+  ],
+  "resetPerformed": false,
+  "developerDataDeleted": false
+}

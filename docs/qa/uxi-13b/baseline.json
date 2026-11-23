@@ -1,0 +1,176 @@
+{
+  "branch": "uxi/13b-local-integration",
+  "head": "3cce5f1d7ebbeebf1a471a58f783c4d66e0bb697",
+  "postman": [
+    {
+      "path": ".postman/resources.yaml",
+      "sha256": "3860fc58fc8851614ad406f3a057cbff5f9c9eac237df43bcc28b8b25ab125f3"
+    },
+    {
+      "path": "postman/collections/RestaurantPlatform/.resources/definition.yaml",
+      "sha256": "f7bd66518b108e9656b925f477b14f288eef984c6761988bfa8a002c0af48b5b"
+    },
+    {
+      "path": "postman/collections/RestaurantPlatform/Create Restaurant By Admin.request.yaml",
+      "sha256": "36fa71c9007ccf7945d99c36e1e9433af0ee516eb90731db4a7d260aebc98b2c"
+    },
+    {
+      "path": "postman/collections/RestaurantPlatform/Login.request.yaml",
+      "sha256": "5ab0b259422a693926b3fb2e8e4bfaca0b6e44233b58e322a28246021d053e5b"
+    },
+    {
+      "path": "postman/collections/RestaurantPlatform/Request OTP from Email.request.yaml",
+      "sha256": "e5947167f40f1b00a4a425fa946ed515b1ab755ec9bedcd84bc751c7e48b7368"
+    },
+    {
+      "path": "postman/environments/Restaurant Local - Private.environment.yaml",
+      "sha256": "baa3eb481e3ebafebfc0c9639a72016e1a4dd3384edc84b1323d2e37bf98576c"
+    },
+    {
+      "path": "postman/globals/workspace.globals.yaml",
+      "sha256": "009d1bd7852c875d2da1ca61711975a7d814b4d7286edca4abc381d0449c9253"
+    }
+  ],
+  "migrations": [
+    {
+      "name": "20261010204938_create_initial_schema.sql",
+      "sha256": "c8374c272867a777001f6013f747fc4473cec204d138565cfb749389b9362ff2"
+    },
+    {
+      "name": "20261016051330_remote_schema.sql",
+      "sha256": "942ade6599a6447cc293df4f002e484fa23ae585ecf85a579e400af9ab88d2ce"
+    },
+    {
+      "name": "20261016052430_revoke_unneeded_table_privileges.sql",
+      "sha256": "758a0abd64f6439fd56778ffb75e2df1678ec5fd29dd76d145fa4ff9b1b25feb"
+    },
+    {
+      "name": "20261021110000_add_default_delivery_driver.sql",
+      "sha256": "d799924d84f5bd05b7ff2070030a4ccc22cf67df64477e9dc951fade31c02586"
+    },
+    {
+      "name": "20261022001000_sync_auth_user_profiles.sql",
+      "sha256": "64aacc560f47263a8ae65455eee98f18fbdbcc4c781dab185e0962e369ff51c6"
+    },
+    {
+      "name": "20261022002000_allow_cancelled_payment_status.sql",
+      "sha256": "ca6ff0cba2919e99676568b31a537e1c3340493f25b8f06146b21c2d13584e7e"
+    },
+    {
+      "name": "20261024083000_add_qr_order_idempotency.sql",
+      "sha256": "a8b50bc408457c6a76f06cba33383844edd5dd2246071a5256bde511c2c49bfe"
+    },
+    {
+      "name": "20261024091000_add_delivery_zone_coverage.sql",
+      "sha256": "e823cd326c5ee6f060328b2533491ce0b000e0f03a340edb4e9e3e08705240bc"
+    },
+    {
+      "name": "20261024100000_add_push_notification_outbox.sql",
+      "sha256": "a0f59116a2401bc1391d4dde032c3adb56d8bdd0660e9ab3c8dd70381e5ab641"
+    },
+    {
+      "name": "20261025120000_add_profile_email_for_member_management.sql",
+      "sha256": "c9e122b0d00e12ae8342cf7179a1c0a88cacd39b09f830a14cfc0191a877f8a8"
+    },
+    {
+      "name": "20261025130000_add_storage_media_fields.sql",
+      "sha256": "a5ee61c25896e945e4b42cfda39706a719f07ecc96a1050782c240015414fc93"
+    },
+    {
+      "name": "20261031090000_add_platform_restaurant_configuration.sql",
+      "sha256": "185a6a124b169bd5c722a590f7a6ec1e7ebaeba97fcd30114b3a4bea100e9f84"
+    },
+    {
+      "name": "20261102090000_accounting_foundation.sql",
+      "sha256": "c8159ab6b974481e0aef71b4a1ee3f696622fc1ff2d72219cb669611bac5c173"
+    },
+    {
+      "name": "20261102091000_accounting_sales.sql",
+      "sha256": "35189f33e9b9dbb4842daa094fc8d339bb3a6c4a3fd0d33a8b2245f350a52ad1"
+    },
+    {
+      "name": "20261102092000_accounting_procurement.sql",
+      "sha256": "e3b8428beb31fe4ad5df56c32ffc2bb7a5e36f7f0844a07ae08f4b9f3743820c"
+    },
+    {
+      "name": "20261102093000_accounting_expenses_cash.sql",
+      "sha256": "7fef9ffbfb5345fcd5a0f5ae2dd8c65c6059941afa7216ace299add2ecf94022"
+    },
+    {
+      "name": "20261102095000_accounting_payment_guard.sql",
+      "sha256": "7bddfc056084cc293631b81becf479585ba60f3007f389d446d09337a79ea4a8"
+    },
+    {
+      "name": "20261102100000_preserve_accounting_policy.sql",
+      "sha256": "ebe9ed6f47404ac3e3e92f71f216b0e0e4b3afc0e836be60cc3e54e55316ca32"
+    },
+    {
+      "name": "20261102101000_accounting_refund_reversals.sql",
+      "sha256": "e142b6099833fc959edac888e1484f46cf4cf93ec77bcdfcd6cc5f117d6a8d7e"
+    },
+    {
+      "name": "20261104100000_add_order_delivery_coordinates.sql",
+      "sha256": "8a00f463b532c2d0fb83bcae87206799347e6c0953127169fefc321034e3cf40"
+    },
+    {
+      "name": "20261107100000_add_customer_delivery_checkout_snapshot.sql",
+      "sha256": "bb056e7a25c92ebcf7ed38b773779ffcbb18987456cca2f3b8a8387b2c008fd3"
+    },
+    {
+      "name": "20261107110000_scope_customer_delivery_push_devices.sql",
+      "sha256": "9e192861d39be962b57ad242eb43e738ffb1576672f6be0ce497c5eae8f80170"
+    },
+    {
+      "name": "20261107120000_record_delivery_stock_reservations.sql",
+      "sha256": "52b985c2a8e29aaab2c0e24013e696958c6f73f63ed0076d2694e757daad7b1e"
+    },
+    {
+      "name": "20261107130000_add_customer_delivery_checkout_keys.sql",
+      "sha256": "ef8b33a4fb515833a4b6c0f28a153faf8411a4d3f97e861d1880e8e4e5d4a60a"
+    },
+    {
+      "name": "20261107140000_enforce_one_customer_address_default.sql",
+      "sha256": "7db6f6fa8b0a32d3823b453643b5f664c12381c41b2dec706a22dfad2ccca663"
+    },
+    {
+      "name": "20261112090000_owner_account_onboarding.sql",
+      "sha256": "d1164925801e528b4952d8506deb53b004a3f6e9728af67ed4ac51aa44dbb238"
+    },
+    {
+      "name": "20261115090000_product_variant_descriptions.sql",
+      "sha256": "724fe540fae4c6eba7375598d3cb199141bc8200a14172c2f2dcc1b3c44a97c4"
+    },
+    {
+      "name": "20261115091000_shopping_planning_separation.sql",
+      "sha256": "fc5d27b0b07a6e5093654223e61ca4a78f90a6c149ae415ce5ff797aa3a463a8"
+    },
+    {
+      "name": "20261116090000_allow_text_only_customer_delivery_checkout.sql",
+      "sha256": "ff544eb3a69452b51c56dd884ccd57eb655f3b5aa476be62ff97d9dd37b39111"
+    },
+    {
+      "name": "20261116100000_add_geographic_master_data.sql",
+      "sha256": "fdc974cc50538fa6459f1837962867c9603023421345d4be135fe38502c5c662"
+    },
+    {
+      "name": "20261116101000_seed_myanmar_geography_v1.sql",
+      "sha256": "3efd0591a129681c3317cbd5f2c8f308a86871852ad275bbe8a510889dcdf5d1"
+    },
+    {
+      "name": "20261116102000_report_legacy_geographic_locations.sql",
+      "sha256": "663415298799215ab5274782366db199acdf7127a89bd29e631df0e8ebe6e407"
+    },
+    {
+      "name": "20261119090000_add_restaurant_runtime_branding.sql",
+      "sha256": "853f7dc25e0fce4550f0ed1b3eb7813d56185ac57aeb37f529d5616b3b94a896"
+    },
+    {
+      "name": "20261119100000_add_restaurant_bootstrap_steps.sql",
+      "sha256": "340ecc84206b6b269cf1da7163745dcd306f9f06b0e55d91e3fdc6f9c775c8f8"
+    },
+    {
+      "name": "20261120100000_add_restaurant_featured_product.sql",
+      "sha256": "c6cdc647991e54315eff91e5ac30d12d2a5a351a6526c8dff4f296b8acada8d4"
+    }
+  ]
+}

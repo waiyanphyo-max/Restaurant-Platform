@@ -277,7 +277,7 @@ function validateRestaurantRegistry(configs) {
   checkUniqueConfigs(configs.map((config) => validateRestaurantConfig(config, config?.slug, { allowFixture: config?.fixture === true })));
 }
 
-function listRestaurantConfigs() {
+function listRealRestaurantConfigs() {
   const files = fs.readdirSync(CONFIG_DIR, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
     .map((entry) => entry.name)
@@ -288,6 +288,40 @@ function listRestaurantConfigs() {
     requireSlug(slug, "restaurant config filename");
     const raw = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, name), "utf8"));
     return validateRestaurantConfig(raw, slug);
+  });
+  checkUniqueConfigs(configs);
+  return configs;
+}
+
+function listRestaurantConfigs() {
+  const filename = process.env.GUEST_LOCAL_INTEGRATION_REGISTRY;
+  if (!filename) return listRealRestaurantConfigs();
+  // An explicit, disposable Guest-only override. Ordinary registry selection and
+  // Android build identities continue to use the reviewed top-level records.
+  if (process.env.NODE_ENV !== "development" || process.env.GUEST_LOCAL_ROUTING !== "true"
+      || process.env.GUEST_CONFIG_ENV !== "staging") {
+    throw new Error("local integration registry requires development local Guest routing");
+  }
+  const directory = path.resolve(CONFIG_DIR, "../../.local-integration");
+  const absolute = path.resolve(filename);
+  if (!path.isAbsolute(filename) || !absolute.startsWith(directory + path.sep)
+      || fs.realpathSync(absolute) !== absolute || fs.statSync(absolute).size > 128 * 1024) {
+    throw new Error("local integration registry must be a regular file within .local-integration");
+  }
+  const input = requireObject(JSON.parse(fs.readFileSync(absolute, "utf8")), "local integration registry");
+  requireOnlyKeys(input, ["schemaVersion", "purpose", "tenants"], "local integration registry");
+  if (input.schemaVersion !== 1 || input.purpose !== "UXI-13B disposable local integration"
+      || !Array.isArray(input.tenants) || input.tenants.length !== 2) {
+    throw new Error("local integration registry requires its disposable marker and two synthetic tenants");
+  }
+  const configs = input.tenants.map(raw => {
+    if (raw?.fixture !== true || raw.schemaVersion !== 1) throw new Error("local integration tenants must be schema v1 fixtures");
+    const config = validateRestaurantConfig(raw, raw.slug, { allowFixture: true });
+    if (config.guestDomains.staging.length !== 1 || config.guestDomains.staging[0] !== `${config.slug}.localhost`
+        || config.guestDomains.production.length !== 1 || config.guestDomains.production[0] !== `${config.slug}.invalid`) {
+      throw new Error("local integration tenant hosts must be exact localhost and invalid domains");
+    }
+    return config;
   });
   checkUniqueConfigs(configs);
   return configs;
@@ -331,7 +365,7 @@ function listDevelopmentFixtures() {
 }
 
 function listMobileBuildConfigs() {
-  const configs = [...listRestaurantConfigs(), ...listDevelopmentFixtures()];
+  const configs = [...listRealRestaurantConfigs(), ...listDevelopmentFixtures()];
   checkUniqueConfigs(configs);
   return configs;
 }
