@@ -1,0 +1,357 @@
+{
+  "status": "PASS",
+  "completedAt": "2026-11-22T16:28:31.048Z",
+  "database": {
+    "version": "170011",
+    "role": "uxi13b_server",
+    "superuser": false,
+    "bypassRls": true,
+    "migrations": 35
+  },
+  "api": {
+    "status": "PASS",
+    "httpRequests": 50,
+    "provider": "REAL_LOCAL_SUPABASE_AUTH",
+    "provisioning": "REAL_ADMIN_UI",
+    "invitationRequests": 0,
+    "receiptRecovery": "PASS",
+    "ownerHandoff": "PASS",
+    "isolation": "PASS",
+    "checkout": "NOT RUN",
+    "browser": "NOT RUN",
+    "native": "NOT RUN"
+  },
+  "connectivity": {
+    "status": "PASS",
+    "checks": [
+      {
+        "name": "spring-health-and-database-startup",
+        "status": "PASS"
+      },
+      {
+        "name": "spring-reviewed-cors-origin-1",
+        "status": "PASS"
+      },
+      {
+        "name": "spring-reviewed-cors-origin-2",
+        "status": "PASS"
+      },
+      {
+        "name": "spring-reviewed-cors-origin-3",
+        "status": "PASS"
+      },
+      {
+        "name": "spring-reviewed-cors-origin-4",
+        "status": "PASS"
+      },
+      {
+        "name": "spring-unreviewed-cors-origin-denied",
+        "status": "PASS"
+      }
+    ]
+  },
+  "uiProvisioning": [
+    {
+      "acceptanceClass": "real-admin-provisioning-ui",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "admin-provisioning-real-password-sign-in",
+          "status": "PASS"
+        },
+        {
+          "name": "admin-provisioning-exact-owner-review",
+          "status": "PASS"
+        },
+        {
+          "name": "admin-provisioning-react-server-action-confirm",
+          "status": "PASS"
+        },
+        {
+          "name": "admin-provisioning-local-network-only",
+          "status": "PASS"
+        },
+        {
+          "name": "task-owned-provisioning-browser-cleanup",
+          "status": "PASS"
+        }
+      ],
+      "boundary": "Existing Owner UUID was submitted through the real review/confirm form; the API bridge must independently verify persisted Owner identity and onboarding state."
+    },
+    {
+      "acceptanceClass": "real-admin-provisioning-ui",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "admin-provisioning-real-password-sign-in",
+          "status": "PASS"
+        },
+        {
+          "name": "admin-provisioning-exact-owner-review",
+          "status": "PASS"
+        },
+        {
+          "name": "admin-provisioning-react-server-action-confirm",
+          "status": "PASS"
+        },
+        {
+          "name": "admin-provisioning-local-network-only",
+          "status": "PASS"
+        },
+        {
+          "name": "task-owned-provisioning-browser-cleanup",
+          "status": "PASS"
+        }
+      ],
+      "boundary": "Existing Owner UUID was submitted through the real review/confirm form; the API bridge must independently verify persisted Owner identity and onboarding state."
+    }
+  ],
+  "web": {
+    "acceptanceClass": "real-next-http",
+    "status": "PASS",
+    "checks": [
+      {
+        "name": "admin-signed-out-route-protection",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-login-entrypoint",
+        "status": "PASS"
+      },
+      {
+        "name": "local-auth-sdk-session-validation",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-session-restoration-1",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-session-restoration-2",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-tenant-1-detail",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-tenant-2-detail",
+        "status": "PASS"
+      },
+      {
+        "name": "spring-tenant-1-public-catalog",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-tenant-1-real-menu",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-tenant-1-foreign-query-denial",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-tenant-1-foreign-product-denial",
+        "status": "PASS"
+      },
+      {
+        "name": "spring-tenant-2-public-catalog",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-tenant-2-real-menu",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-tenant-2-foreign-query-denial",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-tenant-2-foreign-product-denial",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-unknown-host-denial",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-bff-shared-qr-journey-1",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-bff-shared-qr-journey-2",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-bff-shared-qr-journey-3",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-bff-shared-qr-journey-4",
+        "status": "PASS"
+      }
+    ],
+    "lostResponseRecovery": "PASS",
+    "browser": "NOT RUN",
+    "missingBoundary": "HTTP checks do not establish browser sign-in UI, React server-action provisioning/bootstrap, QR fragment capture, or installed-device acceptance."
+  },
+  "browser": {
+    "acceptanceClass": "real-chrome-ui",
+    "status": "PASS",
+    "checks": [
+      {
+        "name": "admin-ui-signed-out-protection",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-ui-real-password-sign-in",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-ui-session-restoration",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-ui-shared-tenant-1-detail",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-ui-shared-tenant-2-detail",
+        "status": "PASS"
+      },
+      {
+        "name": "admin-ui-session-clear-protection",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-ui-tenant-1-shared-menu",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-ui-tenant-2-shared-menu",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-ui-private-qr-1-capture-and-scrub",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-ui-private-qr-2-capture-and-scrub",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-ui-private-qr-3-capture-and-scrub",
+        "status": "PASS"
+      },
+      {
+        "name": "guest-ui-private-qr-4-capture-and-scrub",
+        "status": "PASS"
+      },
+      {
+        "name": "browser-network-local-only",
+        "status": "PASS"
+      },
+      {
+        "name": "browser-qr-network-url-privacy",
+        "status": "PASS"
+      },
+      {
+        "name": "task-owned-browser-profile-cleanup",
+        "status": "PASS"
+      }
+    ],
+    "missingBoundary": "Browser smoke verifies existing sign-in, shared tenant reads and QR capture; provisioning/bootstrap writes, checkout/payment and native installation retain their separate evidence classes."
+  },
+  "storage": {
+    "status": "PASS",
+    "acceptanceClass": "disposable-local-storage",
+    "checks": [
+      {
+        "name": "storage-restaurant-logos-bucket-configuration",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-restaurant-logos-server-upload",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-restaurant-logos-anonymous-read-policy",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-restaurant-logos-anonymous-write-denial",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-restaurant-logos-owned-object-cleanup",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-menu-images-bucket-configuration",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-menu-images-server-upload",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-menu-images-anonymous-read-policy",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-menu-images-anonymous-write-denial",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-menu-images-owned-object-cleanup",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-customer-avatars-bucket-configuration",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-customer-avatars-server-upload",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-customer-avatars-anonymous-read-policy",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-customer-avatars-anonymous-write-denial",
+        "status": "PASS"
+      },
+      {
+        "name": "storage-customer-avatars-owned-object-cleanup",
+        "status": "PASS"
+      }
+    ],
+    "scope": "Local CLI bucket configuration and synthetic PNG permission probes; task object cleanup only. No hosted or Spring upload-route acceptance."
+  },
+  "entrypoints": {
+    "admin": "http://localhost:3001",
+    "api": "http://127.0.0.1:8080",
+    "guests": [
+      {
+        "id": "161c5a25-7d81-46b7-b726-ee871fc1b667",
+        "origin": "http://uxi13b-a-d2ea1f65-4089-409d-bc0a-dddcd7702f29.localhost:3000",
+        "productId": "2e59b461-47aa-484d-acd1-53c96971955e"
+      },
+      {
+        "id": "3a96a166-36ab-4952-a649-3a7fd08f4c77",
+        "origin": "http://uxi13b-b-d2ea1f65-4089-409d-bc0a-dddcd7702f29.localhost:3000",
+        "productId": "582855c9-0fdf-4746-8ddd-f93cdd17d400"
+      }
+    ]
+  },
+  "boundary": "Real local Auth/Admin UI provisioning/Spring/Guest HTTP and bounded browser smoke; installed native acceptance separate",
+  "persistedCheckoutCounts": {
+    "status": "PASS",
+    "tenants": 2,
+    "commonQrOrders": 2,
+    "tableQrOrders": 2,
+    "total": 4,
+    "duplicateOrders": 0
+  }
+}

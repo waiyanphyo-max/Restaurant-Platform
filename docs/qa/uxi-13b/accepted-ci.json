@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "scope": "Read-only GitHub inspection of accepted UXI-13A PR CI, separate from UXI-13B working-tree execution",
+  "repository": "waiyanphyo-max/Restaurant-Platform",
+  "pullRequest": 54,
+  "merged": true,
+  "mergeCommit": "3cce5f1d7ebbeebf1a471a58f783c4d66e0bb697",
+  "testedPrHead": "67a00a44d7f7beed96a4f04a7e48709c1d1d165a",
+  "runId": 45039304982,
+  "jobId": 137259944347,
+  "runUrl": "https://github.com/waiyanphyo-max/Restaurant-Platform/actions/runs/45039304982",
+  "mandatorySuite": { "tests": 23, "failures": 0, "errors": 0, "skipped": 0 },
+  "mavenTotals": { "tests": 659, "executed": 603, "failures": 0, "errors": 0, "skipped": 56 },
+  "guard": "PASS",
+  "sourceMigrationsRequiredByGuard": 35,
+  "container": "postgres:17-alpine",
+  "artifact": {
+    "name": "postgres-17-acceptance-45039304982-1",
+    "id": 14760778426,
+    "expiredAtInspection": false,
+    "sha256": "65646d382243590dcca07a666d9f50c2aed58412525115b6dff3752d207143d0"
+  },
+  "sanitizedLogExcerpts": [
+    "Tests run: 23, Failures: 0, Errors: 0, Skipped: 0 -- PostgresMigrationSchemaTest",
+    "Tests run: 659, Failures: 0, Errors: 0, Skipped: 56",
+    "BUILD SUCCESS",
+    "PostgreSQL acceptance: PASS"
+  ]
+}

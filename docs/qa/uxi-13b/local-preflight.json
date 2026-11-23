@@ -1,0 +1,83 @@
+{
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "docker-linux-engine",
+      "status": "PASS",
+      "detail": "Linux engine reachable"
+    },
+    {
+      "name": "java-21",
+      "status": "PASS",
+      "detail": "Java 21"
+    },
+    {
+      "name": "supabase-cli",
+      "status": "PASS",
+      "detail": "2.120.0"
+    },
+    {
+      "name": "guest",
+      "port": 3000,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "admin",
+      "port": 3001,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "api",
+      "port": 8080,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "gateway",
+      "port": 54321,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "database",
+      "port": 54322,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "studio",
+      "port": 54323,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "mail",
+      "port": 54324,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "analytics",
+      "port": 54327,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "inspector",
+      "port": 8083,
+      "free": true,
+      "status": "PASS"
+    },
+    {
+      "name": "maven",
+      "status": "PASS",
+      "detail": "Use existing Maven on PATH or set MAVEN_CMD to its full mvn.cmd path"
+    },
+    {
+      "name": "npm-workspaces",
+      "status": "PASS"
+    }
+  ]
+}

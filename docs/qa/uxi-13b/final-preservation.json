@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "branch": "uxi/13b-local-integration",
+  "head": "3cce5f1d7ebbeebf1a471a58f783c4d66e0bb697",
+  "baselineUnchanged": true,
+  "indexEmpty": true,
+  "postmanFiles": 7,
+  "postmanHashesUnchanged": true,
+  "sourceMigrations": 35,
+  "migrationHashesUnchanged": true,
+  "historicalEvidenceUnchanged": true,
+  "nativeIdentityFilesUnchanged": true,
+  "reportLocalLinks": 6,
+  "reportLinksResolve": true,
+  "publishedEvidenceSecretScan": "PASS"
+}

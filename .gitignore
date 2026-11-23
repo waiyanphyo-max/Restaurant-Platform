@@ -31,6 +31,7 @@ google-services.json
 
 # Supabase local temporary files
 supabase/.temp/
+/.local-integration/
 
 # IntelliJ IDEA
 .idea/

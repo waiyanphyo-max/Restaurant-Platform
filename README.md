@@ -34,6 +34,13 @@ Shared restaurant accounting now includes Owner/Manager sales dashboards and led
 
 ## Configure environment
 
+For disposable local full-stack integration with Supabase Auth, Spring, Admin and Guest,
+use [the UXI-13B Windows workflow](docs/uxi-13b-local-integration.md).
+`npm run local:preflight` checks dependencies and ports; `npm run local:test` runs the
+synthetic journey and stops its application processes. `npm run local:up` keeps them
+running until Ctrl+C. `npm run local:stop` stops only its separately named Supabase
+stack and retains its disposable data. No hosted credentials are needed.
+
 Provide the variables shown in `.env.example` in your shell or IDE run configuration:
 
 - `SUPABASE_DB_URL`, `SUPABASE_DB_USERNAME`, `SUPABASE_DB_PASSWORD`
